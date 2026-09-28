@@ -27,19 +27,62 @@ A weekly SF Bay Area music discovery app. Ingests [Steve List's](mailto:skoepke@
 
 ## Local setup
 
-### Backend
+### Docker (recommended)
+
+```bash
+cp backend/.env.example backend/.env
+# edit backend/.env — set ANTHROPIC_API_KEY at minimum
+
+docker compose up --build
+```
+
+The API starts at `http://localhost:8000/graphql`. Tables are created automatically on first boot. The SQLite DB and FAISS indices are persisted in `./data/` on the host.
+
+**Pull the Ollama embedding model** (one-time, needed for the full pipeline):
+```bash
+docker compose exec ollama ollama pull nomic-embed-text
+```
+
+**Seed from the sample email** (no Gmail credentials needed — bypasses enrichment):
+```bash
+docker compose exec api python -c "
+import email as e, sys
+sys.path.insert(0, '.')
+from app.database import Base, SessionLocal, engine
+from app.ingestion.parser import parse_email_body
+from app.ingestion.upsert import upsert_shows
+
+msg = e.message_from_bytes(open('/samples/San Francisco Area Music List for Friday, September 25th, 2026.eml','rb').read())
+plain = next(p.get_payload(decode=True).decode('utf-8') for p in msg.walk() if p.get_content_type()=='text/plain')
+raw = parse_email_body(plain)
+enriched = [{**vars(r), 'genres':[], 'spotify_url':None, 'soundcloud_url':None, 'venue_website':None, 'address':None, 'latitude':None, 'longitude':None, 'google_place_id':None, 'ticket_url':None} for r in raw]
+Base.metadata.create_all(bind=engine)
+db = SessionLocal()
+shows = upsert_shows(db, enriched)
+db.commit()
+print(f'Upserted {len(shows)} shows')
+db.close()
+"
+```
+
+Then query at `http://localhost:8000/graphql`:
+```graphql
+{ shows(limit: 5) { date venue { name city } acts { band { name } } isRecommended } }
+```
+
+> If you have Ollama running locally already, remove the `ollama` service from `docker-compose.yml` and add `OLLAMA_BASE_URL=http://host.docker.internal:11434` to `.env`.
+
+---
+
+### Without Docker
 
 ```bash
 cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-dev.txt
-```
-
-Copy the env template and fill in your keys:
-
-```bash
 cp .env.example .env
+# edit .env
 ```
 
 Required env vars:
@@ -59,13 +102,7 @@ Run the tests:
 python -m pytest
 ```
 
-Apply database migrations:
-
-```bash
-alembic upgrade head
-```
-
-Start the API server:
+Start the API server (creates tables automatically on first boot):
 
 ```bash
 uvicorn app.main:app --reload
@@ -114,11 +151,11 @@ Gmail API
 
 ## Issues / specs
 
-- [#1 Backend MVP spec](https://github.com/jeffsturgis/the_list/issues/1)
-- [#2 T1: Email parser](https://github.com/jeffsturgis/the_list/issues/2) ✅
-- [#3 T3: GraphQL Show queries](https://github.com/jeffsturgis/the_list/issues/3)
-- [#4 T4: GraphQL Band + similarity](https://github.com/jeffsturgis/the_list/issues/4)
-- [#5 T2: Upsert layer](https://github.com/jeffsturgis/the_list/issues/5) ✅
-- [#6 T5: Enrichment chain](https://github.com/jeffsturgis/the_list/issues/6)
-- [#7 T6: Gmail fetch + full pipeline](https://github.com/jeffsturgis/the_list/issues/7)
-- [#8 Frontend spec](https://github.com/jeffsturgis/the_list/issues/8)
+- [#1 Backend MVP spec](https://github.com/jsturgis/the_list/issues/1)
+- [#2 T1: Email parser](https://github.com/jsturgis/the_list/issues/2) ✅
+- [#3 T3: GraphQL Show queries](https://github.com/jsturgis/the_list/issues/3) ✅
+- [#4 T4: GraphQL Band + similarity](https://github.com/jsturgis/the_list/issues/4) ✅
+- [#5 T2: Upsert layer](https://github.com/jsturgis/the_list/issues/5) ✅
+- [#6 T5: Enrichment chain](https://github.com/jsturgis/the_list/issues/6) ✅
+- [#7 T6: Gmail fetch + full pipeline](https://github.com/jsturgis/the_list/issues/7) ✅
+- [#8 Frontend spec](https://github.com/jsturgis/the_list/issues/8)
