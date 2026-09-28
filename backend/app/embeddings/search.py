@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Similarity search against Band and Show FAISS indices."""
 import numpy as np
 

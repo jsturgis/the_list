@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Gmail API client — fetches Steve List emails from the watched inbox."""
 import os
 

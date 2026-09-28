@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Ollama embedding client."""
 import httpx
 import numpy as np
