@@ -79,7 +79,7 @@ async def batch_embed_and_index(
             if band.id not in seen_band_ids:
                 seen_band_ids.add(band.id)
                 band_genres = ", ".join(band.genres) if band.genres else ""
-                band_text = f"{band.name}. Genres: {band_genres}. {band.description or ''}".strip(". ")
+                band_text = f"{band.name}. Genres: {band_genres}".strip(". ")
                 band_arr = await embed(band_text)
                 band.embedding = band_arr.tobytes()
                 await _run_sync(upsert_vector, band_index, band.id, band_arr)
