@@ -361,6 +361,80 @@ async def test_ticket_venue_website_passed_to_finder(mock_find_ticket, mock_mb, 
     assert call_args[0][0] == "https://thefillmore.com"
 
 
+# ── Bandcamp LLM fallback ────────────────────────────────────────────────────
+
+@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment.httpx.head")
+@patch("app.pipeline.enrichment.get_enrichment_llm")
+@patch("app.pipeline.enrichment._mb_lookup")
+@patch("app.pipeline.enrichment._mb_search")
+async def test_bandcamp_llm_fallback_when_no_spotify_or_soundcloud(mock_search, mock_lookup, mock_llm, mock_head, mock_venue, mock_ticket):
+    """No spotify + no soundcloud → LLM suggests Bandcamp subdomain → verified → bandcamp_url set."""
+    mock_search.return_value = _mb_artist()
+    mock_lookup.return_value = _mb_full(tags=[{"name": "indie", "count": "5"}], url_rels=[])
+    llm_instance = MagicMock()
+    # First call: SoundCloud slug → "unknown"; second call: Bandcamp subdomain → "headlinerband"
+    llm_instance.invoke.side_effect = [
+        MagicMock(content="unknown"),          # SoundCloud fallback
+        MagicMock(content="headlinerband"),    # Bandcamp fallback
+        MagicMock(content="A great indie band."),  # description
+    ]
+    mock_llm.return_value = llm_instance
+    mock_head.return_value = MagicMock(status_code=200)
+
+    result = await enrich_show(_raw())
+    assert result["bandcamp_url"] == "https://headlinerband.bandcamp.com"
+    assert result["soundcloud_url"] is None
+    assert result["spotify_url"] is None
+
+
+@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment.httpx.head")
+@patch("app.pipeline.enrichment.get_enrichment_llm")
+@patch("app.pipeline.enrichment._mb_lookup")
+@patch("app.pipeline.enrichment._mb_search")
+async def test_bandcamp_skipped_when_soundcloud_found(mock_search, mock_lookup, mock_llm, mock_head, mock_venue, mock_ticket):
+    """SoundCloud found → Bandcamp LLM fallback not attempted."""
+    mock_search.return_value = _mb_artist()
+    mock_lookup.return_value = _mb_full(
+        tags=[{"name": "indie", "count": "5"}],
+        url_rels=[{"type": "social network", "target": "https://soundcloud.com/headliner"}],
+    )
+    llm_instance = MagicMock()
+    llm_instance.invoke.return_value = MagicMock(content="A great indie band.")
+    mock_llm.return_value = llm_instance
+
+    result = await enrich_show(_raw())
+    assert result["bandcamp_url"] is None
+    assert result["soundcloud_url"] == "https://soundcloud.com/headliner"
+    # Only one LLM call (description), not a Bandcamp lookup
+    assert llm_instance.invoke.call_count == 1
+
+
+@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment.httpx.head")
+@patch("app.pipeline.enrichment.get_enrichment_llm")
+@patch("app.pipeline.enrichment._mb_lookup")
+@patch("app.pipeline.enrichment._mb_search")
+async def test_bandcamp_llm_slug_with_dot_rejected(mock_search, mock_lookup, mock_llm, mock_head, mock_venue, mock_ticket):
+    """Slug containing a dot is rejected without HEAD request."""
+    mock_search.return_value = _mb_artist()
+    mock_lookup.return_value = _mb_full(tags=[{"name": "indie", "count": "5"}], url_rels=[])
+    llm_instance = MagicMock()
+    llm_instance.invoke.side_effect = [
+        MagicMock(content="unknown"),               # SoundCloud fallback
+        MagicMock(content="headliner.bandcamp"),    # invalid slug with dot
+        MagicMock(content="A great indie band."),   # description
+    ]
+    mock_llm.return_value = llm_instance
+
+    result = await enrich_show(_raw())
+    assert result["bandcamp_url"] is None
+
+
 # ── no bands ──────────────────────────────────────────────────────────────────
 
 @patch("app.pipeline.enrichment._find_ticket_url", return_value=None)

@@ -98,6 +98,25 @@ def _find_soundcloud_url(name: str) -> Optional[str]:
         return None
 
 
+def _find_bandcamp_url(name: str) -> Optional[str]:
+    """Ask LLM for the likely Bandcamp subdomain, then verify it exists."""
+    llm = get_enrichment_llm()
+    try:
+        result = llm.invoke(
+            f"What is the Bandcamp subdomain for the musical artist '{name}'? "
+            "Reply with ONLY the subdomain (e.g. 'thenational'), nothing else. "
+            "If you are not confident, reply with 'unknown'."
+        )
+        slug = result.content.strip().lower().strip("/")
+        if not slug or slug == "unknown" or " " in slug or "." in slug:
+            return None
+        url = f"https://{slug}.bandcamp.com"
+        resp = httpx.head(url, timeout=5.0, follow_redirects=True)
+        return url if resp.status_code == 200 else None
+    except Exception:
+        return None
+
+
 def _generate_description(name: str, disambiguation: Optional[str], genres: list[str], tags: list[str]) -> Optional[str]:
     """Generate a one-sentence band description using known facts. No speculation."""
     if not genres and not disambiguation:
@@ -124,10 +143,10 @@ def _generate_description(name: str, disambiguation: Optional[str], genres: list
 
 
 def _enrich_band(name: str) -> dict:
-    """Return {genres, spotify_url, soundcloud_url, description} for a band name."""
+    """Return {genres, spotify_url, soundcloud_url, bandcamp_url, description} for a band name."""
     artist = _mb_search(name)
     if artist is None:
-        return {"genres": [], "spotify_url": None, "soundcloud_url": None, "description": None}
+        return {"genres": [], "spotify_url": None, "soundcloud_url": None, "bandcamp_url": None, "description": None}
 
     full = _mb_lookup(artist["id"])
     disambiguation = full.get("disambiguation")
@@ -142,6 +161,7 @@ def _enrich_band(name: str) -> dict:
 
     spotify_url: Optional[str] = None
     soundcloud_url: Optional[str] = None
+    bandcamp_url: Optional[str] = None
     for rel in full.get("url-relation-list", []):
         target = rel.get("target", "")
         rel_type = rel.get("type", "")
@@ -149,10 +169,16 @@ def _enrich_band(name: str) -> dict:
             spotify_url = target
         if not soundcloud_url and "soundcloud.com" in target:
             soundcloud_url = target
+        if not bandcamp_url and "bandcamp.com" in target:
+            bandcamp_url = target
 
     # LLM fallback: find SoundCloud URL when MB doesn't have one
     if not soundcloud_url:
         soundcloud_url = _find_soundcloud_url(name)
+
+    # LLM fallback: find Bandcamp URL when both Spotify and SoundCloud are missing
+    if not bandcamp_url and not spotify_url and not soundcloud_url:
+        bandcamp_url = _find_bandcamp_url(name)
 
     # LLM fallback: genres empty + SoundCloud page available to scrape
     if not genres and soundcloud_url:
@@ -166,6 +192,7 @@ def _enrich_band(name: str) -> dict:
         "genres": genres,
         "spotify_url": spotify_url,
         "soundcloud_url": soundcloud_url,
+        "bandcamp_url": bandcamp_url,
         "description": description,
     }
 
@@ -275,6 +302,7 @@ async def enrich_show(raw: RawShow) -> dict:
         "genres": [],
         "spotify_url": None,
         "soundcloud_url": None,
+        "bandcamp_url": None,
         "description": None,
         "venue_website": None,
         "address": None,
@@ -293,6 +321,7 @@ async def enrich_show(raw: RawShow) -> dict:
         result["genres"] = band_data["genres"]
         result["spotify_url"] = band_data["spotify_url"]
         result["soundcloud_url"] = band_data["soundcloud_url"]
+        result["bandcamp_url"] = band_data["bandcamp_url"]
         result["description"] = band_data["description"]
 
     if raw.venue_name:
