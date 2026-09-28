@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 from typing import Optional
 
 import httpx
@@ -113,6 +114,7 @@ def _enrich_band(name: str) -> dict:
 
 # ── Google Maps ───────────────────────────────────────────────────────────────
 
+@lru_cache(maxsize=512)
 def _enrich_venue(venue_name: str, city: str) -> dict:
     """Return {address, website_url, latitude, longitude, google_place_id} or {}."""
     api_key = settings.google_maps_api_key

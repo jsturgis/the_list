@@ -7,7 +7,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.ingestion.parser import RawShow
-from app.pipeline.enrichment import enrich_show
+from app.pipeline.enrichment import _enrich_venue, enrich_show
+
+
+@pytest.fixture(autouse=True)
+def clear_venue_cache():
+    _enrich_venue.cache_clear()
+    yield
+    _enrich_venue.cache_clear()
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
