@@ -1,0 +1,30 @@
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.database import Base, engine
+from app.api.routes import bands, search, shows
+from app.scheduler import scheduler
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    scheduler.start()
+    yield
+    scheduler.shutdown()
+
+
+app = FastAPI(title="The List API", version="0.1.0", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(shows.router, prefix="/shows", tags=["shows"])
+app.include_router(bands.router, prefix="/bands", tags=["bands"])
+app.include_router(search.router, prefix="/search", tags=["search"])
