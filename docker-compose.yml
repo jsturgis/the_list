@@ -6,12 +6,15 @@ services:
     volumes:
       - ./data:/app/data          # SQLite DB + FAISS indices (persisted on host)
       - ./samples:/samples:ro     # sample emails — available for seed script
+      - ./backend/credentials.json:/app/credentials.json:ro
+      - ./backend/token.json:/app/token.json
     env_file:
       - ./backend/.env
     environment:
       # Override path-sensitive defaults so data lands in the mounted volume
       DATABASE_URL: sqlite:////app/data/the_list.db
       FAISS_INDEX_PATH: /app/data/faiss
+      OLLAMA_BASE_URL: http://ollama:11434
 
   # Optional: local Ollama for embeddings.
   # Remove this service if you're pointing at an external Ollama instance.
