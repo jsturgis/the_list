@@ -180,8 +180,6 @@ def _upsert_acts(db: Session, show: Show, data: dict) -> None:
                 band.soundcloud_url = data["soundcloud_url"]
             if data.get("bandcamp_url") and not band.bandcamp_url:
                 band.bandcamp_url = data["bandcamp_url"]
-            if data.get("description") and not band.description:
-                band.description = data["description"]
 
         db.add(Act(show_id=show.id, band_id=band.id, position=position))
 

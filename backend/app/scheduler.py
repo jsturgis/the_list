@@ -66,7 +66,6 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                     "notes": raw.notes, "raw_text": raw.raw_text,
                     "genres": band.genres or [], "spotify_url": band.spotify_url,
                     "soundcloud_url": band.soundcloud_url, "bandcamp_url": band.bandcamp_url,
-                    "description": band.description,
                     "venue_website": venue.website_url if venue else None,
                     "address": venue.address if venue else None,
                     "latitude": venue.latitude if venue else None,

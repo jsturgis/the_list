@@ -26,7 +26,6 @@ class BandType:
     spotify_url: str | None
     soundcloud_url: str | None
     bandcamp_url: str | None
-    description: str | None
 
 
 @strawberry.type

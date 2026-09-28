@@ -117,39 +117,14 @@ def _find_bandcamp_url(name: str) -> Optional[str]:
         return None
 
 
-def _generate_description(name: str, disambiguation: Optional[str], genres: list[str], tags: list[str]) -> Optional[str]:
-    """Generate a one-sentence band description using known facts. No speculation."""
-    if not genres and not disambiguation:
-        return disambiguation
-    parts = []
-    if disambiguation:
-        parts.append(f"Known as: {disambiguation}")
-    if genres:
-        parts.append(f"Genres: {', '.join(genres)}")
-    if tags and len(tags) > len(genres):
-        extra = [t for t in tags if t not in genres][:5]
-        if extra:
-            parts.append(f"Also tagged: {', '.join(extra)}")
-    llm = get_enrichment_llm()
-    try:
-        result = llm.invoke(
-            f"Write one concise sentence describing the musical artist '{name}' "
-            f"using only these known facts:\n" + "\n".join(parts) +
-            "\nReturn only the sentence. Do not speculate or add unknown details."
-        )
-        return result.content.strip()
-    except Exception:
-        return disambiguation
-
 
 def _enrich_band(name: str) -> dict:
-    """Return {genres, spotify_url, soundcloud_url, bandcamp_url, description} for a band name."""
+    """Return {genres, spotify_url, soundcloud_url, bandcamp_url} for a band name."""
     artist = _mb_search(name)
     if artist is None:
-        return {"genres": [], "spotify_url": None, "soundcloud_url": None, "bandcamp_url": None, "description": None}
+        return {"genres": [], "spotify_url": None, "soundcloud_url": None, "bandcamp_url": None}
 
     full = _mb_lookup(artist["id"])
-    disambiguation = full.get("disambiguation")
 
     tags = sorted(
         full.get("tag-list", []),
@@ -157,7 +132,6 @@ def _enrich_band(name: str) -> dict:
         reverse=True,
     )
     genres = [t["name"] for t in tags[:5]]
-    all_tag_names = [t["name"] for t in tags]
 
     spotify_url: Optional[str] = None
     soundcloud_url: Optional[str] = None
@@ -186,14 +160,11 @@ def _enrich_band(name: str) -> dict:
         if scraped:
             genres = _extract_genres_via_llm(scraped)
 
-    description = _generate_description(name, disambiguation, genres, all_tag_names)
-
     return {
         "genres": genres,
         "spotify_url": spotify_url,
         "soundcloud_url": soundcloud_url,
         "bandcamp_url": bandcamp_url,
-        "description": description,
     }
 
 
@@ -303,7 +274,6 @@ async def enrich_show(raw: RawShow) -> dict:
         "spotify_url": None,
         "soundcloud_url": None,
         "bandcamp_url": None,
-        "description": None,
         "venue_website": None,
         "address": None,
         "latitude": None,
@@ -322,7 +292,6 @@ async def enrich_show(raw: RawShow) -> dict:
         result["spotify_url"] = band_data["spotify_url"]
         result["soundcloud_url"] = band_data["soundcloud_url"]
         result["bandcamp_url"] = band_data["bandcamp_url"]
-        result["description"] = band_data["description"]
 
     if raw.venue_name:
         venue_data = _enrich_venue(raw.venue_name, raw.city or "")

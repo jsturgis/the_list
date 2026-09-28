@@ -30,7 +30,6 @@ class Band(Base):
     spotify_url: Mapped[Optional[str]] = mapped_column(String(500))
     soundcloud_url: Mapped[Optional[str]] = mapped_column(String(500))
     bandcamp_url: Mapped[Optional[str]] = mapped_column(String(500))
-    description: Mapped[Optional[str]] = mapped_column(Text)
     embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())

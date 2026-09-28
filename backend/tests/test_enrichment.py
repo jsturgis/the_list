@@ -79,20 +79,19 @@ async def test_passthrough_fields(mock_search, mock_venue, mock_ticket):
 @patch("app.pipeline.enrichment._mb_lookup")
 @patch("app.pipeline.enrichment._mb_search")
 async def test_mb_hit_genres_set_no_genre_llm(mock_search, mock_lookup, mock_llm, mock_venue, mock_ticket):
-    """LLM is called for description but not for genre extraction when MB returns tags."""
+    """LLM is only called for SoundCloud/Bandcamp fallback, not genre extraction when MB returns tags."""
     mock_search.return_value = _mb_artist()
     mock_lookup.return_value = _mb_full(tags=[
         {"name": "indie rock", "count": "10"},
         {"name": "shoegaze", "count": "7"},
     ])
     llm_instance = MagicMock()
-    llm_instance.invoke.return_value = MagicMock(content="A shoegaze indie rock band.")
+    llm_instance.invoke.return_value = MagicMock(content="unknown")
     mock_llm.return_value = llm_instance
     result = await enrich_show(_raw())
     assert result["genres"] == ["indie rock", "shoegaze"]
-    # LLM called for description, not genre extraction (no with_structured_output)
+    # LLM not used for genre extraction
     llm_instance.with_structured_output.assert_not_called()
-    assert result["description"] == "A shoegaze indie rock band."
 
 
 @patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
@@ -132,11 +131,10 @@ async def test_mb_empty_tags_no_soundcloud_genres_empty(mock_search, mock_lookup
     mock_search.return_value = _mb_artist()
     mock_lookup.return_value = _mb_full(tags=[], url_rels=[])
     llm_instance = MagicMock()
-    llm_instance.invoke.return_value = MagicMock(content="A musical artist.")
+    llm_instance.invoke.return_value = MagicMock(content="unknown")
     mock_llm.return_value = llm_instance
     result = await enrich_show(_raw())
     assert result["genres"] == []
-    # LLM may be called for description but not for genre extraction
     llm_instance.with_structured_output.assert_not_called()
 
 
@@ -378,7 +376,6 @@ async def test_bandcamp_llm_fallback_when_no_spotify_or_soundcloud(mock_search, 
     llm_instance.invoke.side_effect = [
         MagicMock(content="unknown"),          # SoundCloud fallback
         MagicMock(content="headlinerband"),    # Bandcamp fallback
-        MagicMock(content="A great indie band."),  # description
     ]
     mock_llm.return_value = llm_instance
     mock_head.return_value = MagicMock(status_code=200)
@@ -402,15 +399,11 @@ async def test_bandcamp_skipped_when_soundcloud_found(mock_search, mock_lookup, 
         tags=[{"name": "indie", "count": "5"}],
         url_rels=[{"type": "social network", "target": "https://soundcloud.com/headliner"}],
     )
-    llm_instance = MagicMock()
-    llm_instance.invoke.return_value = MagicMock(content="A great indie band.")
-    mock_llm.return_value = llm_instance
+    mock_llm.return_value = MagicMock()
 
     result = await enrich_show(_raw())
     assert result["bandcamp_url"] is None
     assert result["soundcloud_url"] == "https://soundcloud.com/headliner"
-    # Only one LLM call (description), not a Bandcamp lookup
-    assert llm_instance.invoke.call_count == 1
 
 
 @patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
@@ -427,7 +420,6 @@ async def test_bandcamp_llm_slug_with_dot_rejected(mock_search, mock_lookup, moc
     llm_instance.invoke.side_effect = [
         MagicMock(content="unknown"),               # SoundCloud fallback
         MagicMock(content="headliner.bandcamp"),    # invalid slug with dot
-        MagicMock(content="A great indie band."),   # description
     ]
     mock_llm.return_value = llm_instance
 

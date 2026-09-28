@@ -42,7 +42,6 @@ def _band(b: Band) -> BandType:
         spotify_url=b.spotify_url,
         soundcloud_url=b.soundcloud_url,
         bandcamp_url=b.bandcamp_url,
-        description=b.description,
     )
 
 
