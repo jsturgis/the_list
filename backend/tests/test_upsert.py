@@ -244,6 +244,16 @@ def test_shared_band_across_shows(db):
     assert db.query(Show).count() == 2
 
 
+def test_duplicate_band_on_same_show_keeps_one_act(db):
+    """Steve sometimes repeats a headliner in the comma-separated lineup."""
+    upsert_shows(db, [_show(bands=["Grant-Lee Phillips", "Grant-Lee Phillips"])])
+    acts = db.query(Act).all()
+    assert len(acts) == 1
+    assert acts[0].band.name == "Grant-Lee Phillips"
+    assert acts[0].position == 0
+    assert db.query(Band).count() == 1
+
+
 # ── headliner enrichment ──────────────────────────────────────────────────────
 
 def test_headliner_genres_persisted(db):

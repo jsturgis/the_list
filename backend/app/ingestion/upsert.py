@@ -150,6 +150,8 @@ def _upsert_acts(db: Session, show: Show, data: dict) -> None:
         b for b in (data.get("bands") or [])
         if not _DJ_RE.match(b) and not _B2B_RE.search(b) and b.strip()
     ]
+    # Steve sometimes repeats a name in the comma-separated lineup
+    band_names = list(dict.fromkeys(band_names))
 
     # Delete-then-insert keeps position ordering correct on lineup changes
     db.query(Act).filter(Act.show_id == show.id).delete()

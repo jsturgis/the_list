@@ -134,6 +134,7 @@ def _parse_bands_str(s: str) -> tuple[str, list[str]]:
     s = s.replace(_NBSP, " ")
     raw = [b.strip() for b in s.split(",") if b.strip()]
     bands = [b for b in raw if not _DJ_RE.match(b) and not _B2B_RE.search(b)]
+    bands = list(dict.fromkeys(bands))
     return status, bands
 
 

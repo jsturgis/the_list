@@ -158,6 +158,17 @@ def test_b2b_filtered(shows):
     assert b2b_names == [], f"b2b acts not filtered: {b2b_names[:5]}"
 
 
+def test_repeated_headliner_deduped(shows):
+    """Grant-Lee Phillips is listed twice in the source; keep one Act per Band."""
+    hopmonk = [
+        s for s in shows
+        if s.bands and s.bands[0] == "Grant-Lee Phillips" and "Hopmonk" in (s.venue_name or "")
+    ]
+    assert hopmonk, "Grant-Lee Phillips / Hopmonk show not found"
+    s = hopmonk[0]
+    assert s.bands.count("Grant-Lee Phillips") == 1
+
+
 def test_rickshaw_dj_filtered(shows):
     """Cain Culto show at Rickshaw Stop: dj Aaron Axelsen absent, others present."""
     rickshaw = [
