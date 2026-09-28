@@ -1,0 +1,289 @@
+"""Tests for enrich_show — all external calls mocked."""
+from __future__ import annotations
+
+from datetime import date
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from app.ingestion.parser import RawShow
+from app.pipeline.enrichment import enrich_show
+
+
+# ── helpers ───────────────────────────────────────────────────────────────────
+
+def _raw(
+    *,
+    bands: list[str] | None = None,
+    venue_name: str = "The Fillmore",
+    city: str = "S.F.",
+    price_raw: str | None = "$25",
+    status: str = "upcoming",
+    **kwargs,
+) -> RawShow:
+    return RawShow(
+        raw_text="raw",
+        date=date(2026, 9, 25),
+        bands=bands if bands is not None else ["Headliner", "Support"],
+        venue_name=venue_name,
+        city=city,
+        price_raw=price_raw,
+        status=status,
+        **kwargs,
+    )
+
+
+def _mb_artist(score: int = 95, mbid: str = "abc-123") -> dict:
+    return {"id": mbid, "ext:score": str(score), "name": "Headliner"}
+
+
+def _mb_full(
+    tags: list[dict] | None = None,
+    url_rels: list[dict] | None = None,
+) -> dict:
+    return {
+        "tag-list": tags or [],
+        "url-relation-list": url_rels or [],
+    }
+
+
+# ── passthrough fields ────────────────────────────────────────────────────────
+
+@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment._mb_search", return_value=None)
+async def test_passthrough_fields(mock_search, mock_venue, mock_ticket):
+    raw = _raw(bands=["Band A"], price_raw="$15", age_restriction="21+")
+    result = await enrich_show(raw)
+    assert result["date"] == date(2026, 9, 25)
+    assert result["bands"] == ["Band A"]
+    assert result["venue_name"] == "The Fillmore"
+    assert result["city"] == "S.F."
+    assert result["price_raw"] == "$15"
+    assert result["age_restriction"] == "21+"
+    assert result["status"] == "upcoming"
+
+
+# ── MusicBrainz genres ────────────────────────────────────────────────────────
+
+@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment.get_enrichment_llm")
+@patch("app.pipeline.enrichment._mb_lookup")
+@patch("app.pipeline.enrichment._mb_search")
+async def test_mb_hit_genres_set_no_llm(mock_search, mock_lookup, mock_llm, mock_venue, mock_ticket):
+    mock_search.return_value = _mb_artist()
+    mock_lookup.return_value = _mb_full(tags=[
+        {"name": "indie rock", "count": "10"},
+        {"name": "shoegaze", "count": "7"},
+    ])
+    result = await enrich_show(_raw())
+    assert result["genres"] == ["indie rock", "shoegaze"]
+    mock_llm.assert_not_called()
+
+
+@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment._mb_lookup")
+@patch("app.pipeline.enrichment._mb_search")
+async def test_mb_top_5_tags_only(mock_search, mock_lookup, mock_venue, mock_ticket):
+    mock_search.return_value = _mb_artist()
+    mock_lookup.return_value = _mb_full(tags=[
+        {"name": "punk", "count": "20"},
+        {"name": "hardcore", "count": "15"},
+        {"name": "post-punk", "count": "12"},
+        {"name": "indie", "count": "10"},
+        {"name": "noise", "count": "8"},
+        {"name": "metal", "count": "5"},
+    ])
+    result = await enrich_show(_raw())
+    assert result["genres"] == ["punk", "hardcore", "post-punk", "indie", "noise"]
+    assert len(result["genres"]) == 5
+
+
+@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment._mb_search", return_value=None)
+async def test_mb_no_result_genres_empty(mock_search, mock_venue, mock_ticket):
+    result = await enrich_show(_raw())
+    assert result["genres"] == []
+
+
+@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment.get_enrichment_llm")
+@patch("app.pipeline.enrichment._mb_lookup")
+@patch("app.pipeline.enrichment._mb_search")
+async def test_mb_empty_tags_no_soundcloud_genres_empty(mock_search, mock_lookup, mock_llm, mock_venue, mock_ticket):
+    """Empty tags + no SoundCloud URL → no scraped text → genres = [] (no LLM hallucination)."""
+    mock_search.return_value = _mb_artist()
+    mock_lookup.return_value = _mb_full(tags=[], url_rels=[])
+    result = await enrich_show(_raw())
+    assert result["genres"] == []
+    mock_llm.assert_not_called()
+
+
+@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment._scrape_text", return_value="electronic shoegaze music from SF")
+@patch("app.pipeline.enrichment._mb_lookup")
+@patch("app.pipeline.enrichment._mb_search")
+@patch("app.pipeline.enrichment.get_enrichment_llm")
+async def test_mb_empty_tags_with_soundcloud_calls_llm(mock_llm, mock_search, mock_lookup, mock_scrape, mock_venue, mock_ticket):
+    """Empty tags + SoundCloud URL available → scrape it → LLM extracts genres."""
+    mock_search.return_value = _mb_artist()
+    mock_lookup.return_value = _mb_full(
+        tags=[],
+        url_rels=[{"type": "social network", "target": "https://soundcloud.com/headliner"}],
+    )
+    llm_instance = MagicMock()
+    llm_instance.with_structured_output.return_value.invoke.return_value = MagicMock(genres=["shoegaze", "electronic"])
+    mock_llm.return_value = llm_instance
+
+    result = await enrich_show(_raw())
+    assert result["genres"] == ["shoegaze", "electronic"]
+    llm_instance.with_structured_output.assert_called_once()
+
+
+# ── MusicBrainz streaming URLs ────────────────────────────────────────────────
+
+@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment._mb_lookup")
+@patch("app.pipeline.enrichment._mb_search")
+async def test_mb_spotify_url_set(mock_search, mock_lookup, mock_venue, mock_ticket):
+    mock_search.return_value = _mb_artist()
+    mock_lookup.return_value = _mb_full(
+        tags=[{"name": "indie", "count": "5"}],
+        url_rels=[{"type": "streaming music", "target": "https://open.spotify.com/artist/abc"}],
+    )
+    result = await enrich_show(_raw())
+    assert result["spotify_url"] == "https://open.spotify.com/artist/abc"
+    assert result["soundcloud_url"] is None
+
+
+@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment._mb_lookup")
+@patch("app.pipeline.enrichment._mb_search")
+async def test_mb_soundcloud_url_set(mock_search, mock_lookup, mock_venue, mock_ticket):
+    mock_search.return_value = _mb_artist()
+    mock_lookup.return_value = _mb_full(
+        tags=[{"name": "indie", "count": "5"}],
+        url_rels=[{"type": "social network", "target": "https://soundcloud.com/headliner"}],
+    )
+    result = await enrich_show(_raw())
+    assert result["soundcloud_url"] == "https://soundcloud.com/headliner"
+    assert result["spotify_url"] is None
+
+
+@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment._mb_lookup")
+@patch("app.pipeline.enrichment._mb_search")
+async def test_mb_below_threshold_no_match(mock_search, mock_lookup, mock_venue, mock_ticket):
+    """Score below threshold → treated as no result."""
+    mock_search.return_value = None  # _mb_search filters below threshold internally
+    result = await enrich_show(_raw())
+    assert result["genres"] == []
+    assert result["spotify_url"] is None
+    mock_lookup.assert_not_called()
+
+
+# ── Google Maps venue enrichment ──────────────────────────────────────────────
+
+@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
+@patch("app.pipeline.enrichment._mb_search", return_value=None)
+@patch("app.pipeline.enrichment.settings")
+@patch("app.pipeline.enrichment.httpx.get")
+async def test_venue_maps_result_sets_fields(mock_httpx, mock_settings, mock_mb, mock_ticket):
+    mock_settings.google_maps_api_key = "fake-key"
+    mock_settings.musicbrainz_app_name = "the-list"
+    mock_settings.musicbrainz_app_version = "0.1"
+    mock_settings.musicbrainz_contact = "test@example.com"
+    mock_httpx.return_value.json.return_value = {
+        "candidates": [{
+            "formatted_address": "1805 Geary Blvd, San Francisco, CA 94115",
+            "website": "https://thefillmore.com",
+            "geometry": {"location": {"lat": 37.7842, "lng": -122.4324}},
+            "place_id": "ChIJabc123",
+        }]
+    }
+    result = await enrich_show(_raw())
+    assert result["address"] == "1805 Geary Blvd, San Francisco, CA 94115"
+    assert result["venue_website"] == "https://thefillmore.com"
+    assert result["latitude"] == pytest.approx(37.7842)
+    assert result["longitude"] == pytest.approx(-122.4324)
+    assert result["google_place_id"] == "ChIJabc123"
+
+
+@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
+@patch("app.pipeline.enrichment._mb_search", return_value=None)
+@patch("app.pipeline.enrichment.settings")
+@patch("app.pipeline.enrichment.httpx.get")
+async def test_venue_maps_no_result_fields_none(mock_httpx, mock_settings, mock_mb, mock_ticket):
+    mock_settings.google_maps_api_key = "fake-key"
+    mock_settings.musicbrainz_app_name = "the-list"
+    mock_settings.musicbrainz_app_version = "0.1"
+    mock_settings.musicbrainz_contact = "test@example.com"
+    mock_httpx.return_value.json.return_value = {"candidates": []}
+    result = await enrich_show(_raw())
+    assert result["address"] is None
+    assert result["venue_website"] is None
+    assert result["latitude"] is None
+    assert result["longitude"] is None
+    assert result["google_place_id"] is None
+
+
+@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
+@patch("app.pipeline.enrichment._mb_search", return_value=None)
+@patch("app.pipeline.enrichment.settings")
+async def test_venue_maps_skipped_when_no_api_key(mock_settings, mock_mb, mock_ticket):
+    mock_settings.google_maps_api_key = ""
+    mock_settings.musicbrainz_app_name = "the-list"
+    mock_settings.musicbrainz_app_version = "0.1"
+    mock_settings.musicbrainz_contact = "test@example.com"
+    result = await enrich_show(_raw())
+    assert result["address"] is None
+    assert result["venue_website"] is None
+
+
+# ── ticket URL ────────────────────────────────────────────────────────────────
+
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment._mb_search", return_value=None)
+@patch("app.pipeline.enrichment._find_ticket_url")
+async def test_free_show_no_ticket_search(mock_find_ticket, mock_mb, mock_venue):
+    result = await enrich_show(_raw(price_raw="free"))
+    assert result["ticket_url"] is None
+    mock_find_ticket.assert_not_called()
+
+
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment._mb_search", return_value=None)
+@patch("app.pipeline.enrichment._find_ticket_url", return_value="https://eventbrite.com/e/headliner-123")
+async def test_nonfree_show_ticket_url_set(mock_find_ticket, mock_mb, mock_venue):
+    result = await enrich_show(_raw(price_raw="$25"))
+    assert result["ticket_url"] == "https://eventbrite.com/e/headliner-123"
+    mock_find_ticket.assert_called_once()
+
+
+@patch("app.pipeline.enrichment._enrich_venue", return_value={"website_url": "https://thefillmore.com"})
+@patch("app.pipeline.enrichment._mb_search", return_value=None)
+@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
+async def test_ticket_venue_website_passed_to_finder(mock_find_ticket, mock_mb, mock_venue):
+    await enrich_show(_raw())
+    call_args = mock_find_ticket.call_args
+    assert call_args[0][0] == "https://thefillmore.com"
+
+
+# ── no bands ──────────────────────────────────────────────────────────────────
+
+@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment._mb_search")
+async def test_no_bands_skips_mb(mock_search, mock_venue, mock_ticket):
+    result = await enrich_show(_raw(bands=[]))
+    assert result["genres"] == []
+    assert result["spotify_url"] is None
+    mock_search.assert_not_called()

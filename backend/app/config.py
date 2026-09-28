@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     musicbrainz_app_version: str = "0.1"
     musicbrainz_contact: str = "https://github.com/jsturgis/the_list"
 
+    google_maps_api_key: str = ""
+
     data_retention_days: int = 90
 
 
