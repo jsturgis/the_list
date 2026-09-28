@@ -40,8 +40,8 @@ def _raw(
     )
 
 
-def _mb_artist(score: int = 95, mbid: str = "abc-123") -> dict:
-    return {"id": mbid, "ext:score": str(score), "name": "Headliner"}
+def _mb_artist(mbid: str = "abc-123") -> dict:
+    return {"id": mbid, "name": "Headliner"}
 
 
 def _mb_full(

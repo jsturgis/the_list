@@ -21,7 +21,6 @@ musicbrainzngs.set_useragent(
 )
 musicbrainzngs.set_rate_limit(True)
 
-_MB_SCORE_THRESHOLD = 90
 _PLACES_FIELD_MASK = "places.formattedAddress,places.location,places.websiteUri,places.id,places.nationalPhoneNumber,places.rating,places.utcOffsetMinutes"
 _TICKET_RE = re.compile(
     r'https?://(?:www\.)?(?:eventbrite|ticketmaster|axs|dice|seated|bandsintown)\.[a-z]{2,3}/[^\s"\'<>]+',
@@ -36,13 +35,14 @@ class _GenreList(BaseModel):
 # ── MusicBrainz ───────────────────────────────────────────────────────────────
 
 def _mb_search(name: str) -> Optional[dict]:
-    """Return the best-match MB artist dict (score >= threshold), or None."""
+    """Return the MB artist whose name exactly matches (case-insensitive), or None."""
     try:
-        result = musicbrainzngs.search_artists(artist=name, limit=5)
+        result = musicbrainzngs.search_artists(artist=f'"{name}"', limit=5)
     except Exception:
         return None
+    name_lower = name.lower()
     for artist in result.get("artist-list", []):
-        if int(artist.get("ext:score", "0")) >= _MB_SCORE_THRESHOLD:
+        if artist.get("name", "").lower() == name_lower:
             return artist
     return None
 
