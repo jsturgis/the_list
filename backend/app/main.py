@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
-from app.api.routes import bands, search, shows
+from app.graphql.schema import graphql_router
 from app.scheduler import scheduler
 
 
@@ -25,6 +25,4 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(shows.router, prefix="/shows", tags=["shows"])
-app.include_router(bands.router, prefix="/bands", tags=["bands"])
-app.include_router(search.router, prefix="/search", tags=["search"])
+app.include_router(graphql_router, prefix="/graphql")

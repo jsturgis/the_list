@@ -17,3 +17,4 @@ google-auth-httplib2>=0.2.0
 apscheduler>=3.10.0
 spotipy>=2.24.0
 python-multipart>=0.0.9
+strawberry-graphql[fastapi]>=0.243.0
