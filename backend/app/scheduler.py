@@ -21,7 +21,7 @@ from app.models.act import Act
 from app.models.band import Band
 from app.models.show import Show, ShowStatus
 from app.models.venue import Venue
-from app.pipeline.embed import embed_and_index_band, embed_and_index_show
+from app.pipeline.embed import batch_embed_and_index
 from app.pipeline.enrichment import enrich_show
 
 
@@ -93,10 +93,7 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
             .all()
         )
         logger.info("ingestion: embedding and indexing")
-        for show in shows:
-            await embed_and_index_show(db, show)
-            if show.acts:
-                await embed_and_index_band(db, show.acts[0].band)
+        await batch_embed_and_index(db, shows)
         db.commit()
         logger.info("ingestion: done")
 
