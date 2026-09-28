@@ -65,12 +65,15 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                     "is_drink_tickets": raw.is_drink_tickets, "is_no_reentry": raw.is_no_reentry,
                     "notes": raw.notes, "raw_text": raw.raw_text,
                     "genres": band.genres or [], "spotify_url": band.spotify_url,
-                    "soundcloud_url": band.soundcloud_url,
+                    "soundcloud_url": band.soundcloud_url, "description": band.description,
                     "venue_website": venue.website_url if venue else None,
                     "address": venue.address if venue else None,
                     "latitude": venue.latitude if venue else None,
                     "longitude": venue.longitude if venue else None,
                     "google_place_id": venue.google_place_id if venue else None,
+                    "phone": venue.phone if venue else None,
+                    "google_rating": venue.google_rating if venue else None,
+                    "timezone": venue.timezone if venue else None,
                     "ticket_url": None,
                 })
             else:

@@ -101,10 +101,16 @@ def _upsert_venue(db: Session, data: dict) -> Venue:
         ("website_url", "venue_website"),
         ("address", "address"),
         ("google_place_id", "google_place_id"),
+        ("timezone", "timezone"),
+        ("phone", "phone"),
     ]:
         if data.get(key) and not getattr(venue, attr):
             setattr(venue, attr, data[key])
-    for attr, key in [("latitude", "latitude"), ("longitude", "longitude")]:
+    for attr, key in [
+        ("latitude", "latitude"),
+        ("longitude", "longitude"),
+        ("google_rating", "google_rating"),
+    ]:
         if data.get(key) is not None and getattr(venue, attr) is None:
             setattr(venue, attr, data[key])
 
@@ -172,6 +178,8 @@ def _upsert_acts(db: Session, show: Show, data: dict) -> None:
                 band.spotify_url = data["spotify_url"]
             if data.get("soundcloud_url") and not band.soundcloud_url:
                 band.soundcloud_url = data["soundcloud_url"]
+            if data.get("description") and not band.description:
+                band.description = data["description"]
 
         db.add(Act(show_id=show.id, band_id=band.id, position=position))
 

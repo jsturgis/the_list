@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import time as _time
 from functools import lru_cache
 from typing import Optional
 
@@ -21,7 +22,7 @@ musicbrainzngs.set_useragent(
 musicbrainzngs.set_rate_limit(True)
 
 _MB_SCORE_THRESHOLD = 90
-_MAPS_FIELDS = "formatted_address,geometry,website,place_id"
+_PLACES_FIELD_MASK = "places.formattedAddress,places.location,places.websiteUri,places.id,places.nationalPhoneNumber,places.rating,places.utcOffsetMinutes"
 _TICKET_RE = re.compile(
     r'https?://(?:www\.)?(?:eventbrite|ticketmaster|axs|dice|seated|bandsintown)\.[a-z]{2,3}/[^\s"\'<>]+',
     re.IGNORECASE,
@@ -78,13 +79,39 @@ def _scrape_text(url: str) -> Optional[str]:
         return None
 
 
+def _generate_description(name: str, disambiguation: Optional[str], genres: list[str], tags: list[str]) -> Optional[str]:
+    """Generate a one-sentence band description using known facts. No speculation."""
+    if not genres and not disambiguation:
+        return disambiguation
+    parts = []
+    if disambiguation:
+        parts.append(f"Known as: {disambiguation}")
+    if genres:
+        parts.append(f"Genres: {', '.join(genres)}")
+    if tags and len(tags) > len(genres):
+        extra = [t for t in tags if t not in genres][:5]
+        if extra:
+            parts.append(f"Also tagged: {', '.join(extra)}")
+    llm = get_enrichment_llm()
+    try:
+        result = llm.invoke(
+            f"Write one concise sentence describing the musical artist '{name}' "
+            f"using only these known facts:\n" + "\n".join(parts) +
+            "\nReturn only the sentence. Do not speculate or add unknown details."
+        )
+        return result.content.strip()
+    except Exception:
+        return disambiguation
+
+
 def _enrich_band(name: str) -> dict:
-    """Return {genres, spotify_url, soundcloud_url} for a band name."""
+    """Return {genres, spotify_url, soundcloud_url, description} for a band name."""
     artist = _mb_search(name)
     if artist is None:
-        return {"genres": [], "spotify_url": None, "soundcloud_url": None}
+        return {"genres": [], "spotify_url": None, "soundcloud_url": None, "description": None}
 
     full = _mb_lookup(artist["id"])
+    disambiguation = full.get("disambiguation")
 
     tags = sorted(
         full.get("tag-list", []),
@@ -92,6 +119,7 @@ def _enrich_band(name: str) -> dict:
         reverse=True,
     )
     genres = [t["name"] for t in tags[:5]]
+    all_tag_names = [t["name"] for t in tags]
 
     spotify_url: Optional[str] = None
     soundcloud_url: Optional[str] = None
@@ -109,44 +137,70 @@ def _enrich_band(name: str) -> dict:
         if scraped:
             genres = _extract_genres_via_llm(scraped)
 
-    return {"genres": genres, "spotify_url": spotify_url, "soundcloud_url": soundcloud_url}
+    description = _generate_description(name, disambiguation, genres, all_tag_names)
+
+    return {
+        "genres": genres,
+        "spotify_url": spotify_url,
+        "soundcloud_url": soundcloud_url,
+        "description": description,
+    }
 
 
 # ── Google Maps ───────────────────────────────────────────────────────────────
 
+def _get_timezone(lat: float, lng: float, api_key: str) -> Optional[str]:
+    """Return IANA timezone ID for a lat/lng pair using the Google Timezone API."""
+    try:
+        resp = httpx.get(
+            "https://maps.googleapis.com/maps/api/timezone/json",
+            params={"location": f"{lat},{lng}", "timestamp": int(_time.time()), "key": api_key},
+            timeout=10.0,
+        )
+        data = resp.json()
+        if data.get("status") == "OK":
+            return data.get("timeZoneId")
+    except Exception:
+        pass
+    return None
+
+
 @lru_cache(maxsize=512)
 def _enrich_venue(venue_name: str, city: str) -> dict:
-    """Return {address, website_url, latitude, longitude, google_place_id} or {}."""
+    """Return venue enrichment dict from Google Places + Timezone APIs, or {}."""
     api_key = settings.google_maps_api_key
     if not api_key:
         return {}
     try:
-        resp = httpx.get(
-            "https://maps.googleapis.com/maps/api/place/findplacefromtext/json",
-            params={
-                "input": f"{venue_name} {city}",
-                "inputtype": "textquery",
-                "fields": _MAPS_FIELDS,
-                "key": api_key,
-            },
+        resp = httpx.post(
+            "https://places.googleapis.com/v1/places:searchText",
+            headers={"X-Goog-Api-Key": api_key, "X-Goog-FieldMask": _PLACES_FIELD_MASK},
+            json={"textQuery": f"{venue_name} {city}"},
             timeout=10.0,
         )
         data = resp.json()
     except Exception:
         return {}
 
-    candidates = data.get("candidates", [])
-    if not candidates:
+    places = data.get("places", [])
+    if not places:
         return {}
 
-    place = candidates[0]
-    loc = place.get("geometry", {}).get("location", {})
+    place = places[0]
+    loc = place.get("location", {})
+    lat = loc.get("latitude")
+    lng = loc.get("longitude")
+    timezone = _get_timezone(lat, lng, api_key) if lat and lng else None
+
     return {
-        "address": place.get("formatted_address"),
-        "website_url": place.get("website"),
-        "latitude": loc.get("lat"),
-        "longitude": loc.get("lng"),
-        "google_place_id": place.get("place_id"),
+        "address": place.get("formattedAddress"),
+        "website_url": place.get("websiteUri"),
+        "latitude": lat,
+        "longitude": lng,
+        "google_place_id": place.get("id"),
+        "phone": place.get("nationalPhoneNumber"),
+        "google_rating": place.get("rating"),
+        "timezone": timezone,
     }
 
 
@@ -198,11 +252,15 @@ async def enrich_show(raw: RawShow) -> dict:
         "genres": [],
         "spotify_url": None,
         "soundcloud_url": None,
+        "description": None,
         "venue_website": None,
         "address": None,
         "latitude": None,
         "longitude": None,
         "google_place_id": None,
+        "phone": None,
+        "google_rating": None,
+        "timezone": None,
         "ticket_url": None,
     }
 
@@ -212,6 +270,7 @@ async def enrich_show(raw: RawShow) -> dict:
         result["genres"] = band_data["genres"]
         result["spotify_url"] = band_data["spotify_url"]
         result["soundcloud_url"] = band_data["soundcloud_url"]
+        result["description"] = band_data["description"]
 
     if raw.venue_name:
         venue_data = _enrich_venue(raw.venue_name, raw.city or "")
@@ -220,6 +279,9 @@ async def enrich_show(raw: RawShow) -> dict:
         result["latitude"] = venue_data.get("latitude")
         result["longitude"] = venue_data.get("longitude")
         result["google_place_id"] = venue_data.get("google_place_id")
+        result["phone"] = venue_data.get("phone")
+        result["google_rating"] = venue_data.get("google_rating")
+        result["timezone"] = venue_data.get("timezone")
 
     is_free = (raw.price_raw or "").strip().lower() == "free"
     if not is_free and headliner:

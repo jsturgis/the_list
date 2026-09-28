@@ -26,6 +26,11 @@ def _venue(v: Venue) -> VenueType:
         city=v.city,
         region=v.region.value,
         website_url=v.website_url,
+        latitude=v.latitude,
+        longitude=v.longitude,
+        timezone=v.timezone,
+        phone=v.phone,
+        google_rating=v.google_rating,
     )
 
 

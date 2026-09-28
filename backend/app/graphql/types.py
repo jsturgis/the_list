@@ -11,6 +11,11 @@ class VenueType:
     city: str
     region: str
     website_url: str | None
+    latitude: float | None
+    longitude: float | None
+    timezone: str | None
+    phone: str | None
+    google_rating: float | None
 
 
 @strawberry.type

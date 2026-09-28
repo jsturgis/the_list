@@ -78,15 +78,21 @@ async def test_passthrough_fields(mock_search, mock_venue, mock_ticket):
 @patch("app.pipeline.enrichment.get_enrichment_llm")
 @patch("app.pipeline.enrichment._mb_lookup")
 @patch("app.pipeline.enrichment._mb_search")
-async def test_mb_hit_genres_set_no_llm(mock_search, mock_lookup, mock_llm, mock_venue, mock_ticket):
+async def test_mb_hit_genres_set_no_genre_llm(mock_search, mock_lookup, mock_llm, mock_venue, mock_ticket):
+    """LLM is called for description but not for genre extraction when MB returns tags."""
     mock_search.return_value = _mb_artist()
     mock_lookup.return_value = _mb_full(tags=[
         {"name": "indie rock", "count": "10"},
         {"name": "shoegaze", "count": "7"},
     ])
+    llm_instance = MagicMock()
+    llm_instance.invoke.return_value = MagicMock(content="A shoegaze indie rock band.")
+    mock_llm.return_value = llm_instance
     result = await enrich_show(_raw())
     assert result["genres"] == ["indie rock", "shoegaze"]
-    mock_llm.assert_not_called()
+    # LLM called for description, not genre extraction (no with_structured_output)
+    llm_instance.with_structured_output.assert_not_called()
+    assert result["description"] == "A shoegaze indie rock band."
 
 
 @patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
@@ -122,12 +128,16 @@ async def test_mb_no_result_genres_empty(mock_search, mock_venue, mock_ticket):
 @patch("app.pipeline.enrichment._mb_lookup")
 @patch("app.pipeline.enrichment._mb_search")
 async def test_mb_empty_tags_no_soundcloud_genres_empty(mock_search, mock_lookup, mock_llm, mock_venue, mock_ticket):
-    """Empty tags + no SoundCloud URL → no scraped text → genres = [] (no LLM hallucination)."""
+    """Empty tags + no SoundCloud URL → genres = [] (LLM not used for genre extraction)."""
     mock_search.return_value = _mb_artist()
     mock_lookup.return_value = _mb_full(tags=[], url_rels=[])
+    llm_instance = MagicMock()
+    llm_instance.invoke.return_value = MagicMock(content="A musical artist.")
+    mock_llm.return_value = llm_instance
     result = await enrich_show(_raw())
     assert result["genres"] == []
-    mock_llm.assert_not_called()
+    # LLM may be called for description but not for genre extraction
+    llm_instance.with_structured_output.assert_not_called()
 
 
 @patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
@@ -202,38 +212,46 @@ async def test_mb_below_threshold_no_match(mock_search, mock_lookup, mock_venue,
 @patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
 @patch("app.pipeline.enrichment._mb_search", return_value=None)
 @patch("app.pipeline.enrichment.settings")
-@patch("app.pipeline.enrichment.httpx.get")
-async def test_venue_maps_result_sets_fields(mock_httpx, mock_settings, mock_mb, mock_ticket):
+@patch("app.pipeline.enrichment.httpx.get")   # Timezone API
+@patch("app.pipeline.enrichment.httpx.post")  # Places API
+async def test_venue_maps_result_sets_fields(mock_post, mock_get, mock_settings, mock_mb, mock_ticket):
     mock_settings.google_maps_api_key = "fake-key"
     mock_settings.musicbrainz_app_name = "the-list"
     mock_settings.musicbrainz_app_version = "0.1"
     mock_settings.musicbrainz_contact = "test@example.com"
-    mock_httpx.return_value.json.return_value = {
-        "candidates": [{
-            "formatted_address": "1805 Geary Blvd, San Francisco, CA 94115",
-            "website": "https://thefillmore.com",
-            "geometry": {"location": {"lat": 37.7842, "lng": -122.4324}},
-            "place_id": "ChIJabc123",
+    mock_post.return_value.json.return_value = {
+        "places": [{
+            "formattedAddress": "1805 Geary Blvd, San Francisco, CA 94115",
+            "websiteUri": "https://thefillmore.com",
+            "location": {"latitude": 37.7842, "longitude": -122.4324},
+            "id": "ChIJabc123",
+            "nationalPhoneNumber": "(415) 346-3000",
+            "rating": 4.7,
+            "utcOffsetMinutes": -420,
         }]
     }
+    mock_get.return_value.json.return_value = {"status": "OK", "timeZoneId": "America/Los_Angeles"}
     result = await enrich_show(_raw())
     assert result["address"] == "1805 Geary Blvd, San Francisco, CA 94115"
     assert result["venue_website"] == "https://thefillmore.com"
     assert result["latitude"] == pytest.approx(37.7842)
     assert result["longitude"] == pytest.approx(-122.4324)
     assert result["google_place_id"] == "ChIJabc123"
+    assert result["phone"] == "(415) 346-3000"
+    assert result["google_rating"] == pytest.approx(4.7)
+    assert result["timezone"] == "America/Los_Angeles"
 
 
 @patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
 @patch("app.pipeline.enrichment._mb_search", return_value=None)
 @patch("app.pipeline.enrichment.settings")
-@patch("app.pipeline.enrichment.httpx.get")
-async def test_venue_maps_no_result_fields_none(mock_httpx, mock_settings, mock_mb, mock_ticket):
+@patch("app.pipeline.enrichment.httpx.post")
+async def test_venue_maps_no_result_fields_none(mock_post, mock_settings, mock_mb, mock_ticket):
     mock_settings.google_maps_api_key = "fake-key"
     mock_settings.musicbrainz_app_name = "the-list"
     mock_settings.musicbrainz_app_version = "0.1"
     mock_settings.musicbrainz_contact = "test@example.com"
-    mock_httpx.return_value.json.return_value = {"candidates": []}
+    mock_post.return_value.json.return_value = {"places": []}
     result = await enrich_show(_raw())
     assert result["address"] is None
     assert result["venue_website"] is None
