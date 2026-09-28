@@ -16,8 +16,9 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./the_list.db"
     faiss_index_path: str = "./data/faiss"
 
-    spotify_client_id: str = ""
-    spotify_client_secret: str = ""
+    musicbrainz_app_name: str = "the-list"
+    musicbrainz_app_version: str = "0.1"
+    musicbrainz_contact: str = ""  # your email — required by MusicBrainz ToS
 
     data_retention_days: int = 90
 
