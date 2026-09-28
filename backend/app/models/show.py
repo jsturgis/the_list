@@ -52,7 +52,6 @@ class Show(Base):
     is_pit: Mapped[bool] = mapped_column(Boolean, default=False)
     is_drink_tickets: Mapped[bool] = mapped_column(Boolean, default=False)
     is_no_reentry: Mapped[bool] = mapped_column(Boolean, default=False)
-    ticket_url: Mapped[Optional[str]] = mapped_column(String(500))
     notes: Mapped[Optional[str]] = mapped_column(Text)
     raw_text: Mapped[Optional[str]] = mapped_column(Text)
     embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary)

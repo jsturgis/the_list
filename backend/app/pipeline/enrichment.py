@@ -22,10 +22,6 @@ musicbrainzngs.set_useragent(
 musicbrainzngs.set_rate_limit(True)
 
 _PLACES_FIELD_MASK = "places.formattedAddress,places.location,places.websiteUri,places.id,places.nationalPhoneNumber,places.rating,places.utcOffsetMinutes"
-_TICKET_RE = re.compile(
-    r'https?://(?:www\.)?(?:eventbrite|ticketmaster|axs|dice|seated|bandsintown)\.[a-z]{2,3}/[^\s"\'<>]+',
-    re.IGNORECASE,
-)
 
 
 class _GenreList(BaseModel):
@@ -225,30 +221,6 @@ def _enrich_venue(venue_name: str, city: str) -> dict:
     }
 
 
-# ── Ticket URL ────────────────────────────────────────────────────────────────
-
-def _find_ticket_url(venue_website: Optional[str], headliner: str) -> Optional[str]:
-    """Try venue site → Eventbrite → Ticketmaster. Return first ticket URL found."""
-    q = headliner.replace(" ", "+")
-    sources = [
-        f"https://www.eventbrite.com/d/ca--san-francisco/concerts/?q={q}",
-        f"https://www.ticketmaster.com/search?q={q}&type=event",
-    ]
-    if venue_website:
-        sources.insert(0, venue_website)
-
-    for url in sources:
-        try:
-            resp = httpx.get(url, timeout=5.0, follow_redirects=True)
-            if resp.status_code == 200:
-                m = _TICKET_RE.search(resp.text)
-                if m:
-                    return m.group(0)
-        except Exception:
-            pass
-    return None
-
-
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 async def enrich_show(raw: RawShow) -> dict:
@@ -282,7 +254,6 @@ async def enrich_show(raw: RawShow) -> dict:
         "phone": None,
         "google_rating": None,
         "timezone": None,
-        "ticket_url": None,
     }
 
     headliner = raw.bands[0] if raw.bands else None
@@ -303,9 +274,5 @@ async def enrich_show(raw: RawShow) -> dict:
         result["phone"] = venue_data.get("phone")
         result["google_rating"] = venue_data.get("google_rating")
         result["timezone"] = venue_data.get("timezone")
-
-    is_free = (raw.price_raw or "").strip().lower() == "free"
-    if not is_free and headliner:
-        result["ticket_url"] = _find_ticket_url(result["venue_website"], headliner)
 
     return result

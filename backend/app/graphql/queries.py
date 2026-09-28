@@ -67,7 +67,6 @@ def _show(s: Show) -> ShowType:
         is_pit=s.is_pit,
         is_drink_tickets=s.is_drink_tickets,
         is_no_reentry=s.is_no_reentry,
-        ticket_url=s.ticket_url,
         notes=s.notes,
     )
 

@@ -52,7 +52,6 @@ class ShowType:
     is_pit: bool
     is_drink_tickets: bool
     is_no_reentry: bool
-    ticket_url: str | None
     notes: str | None
 
 

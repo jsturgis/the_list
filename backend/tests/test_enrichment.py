@@ -56,10 +56,9 @@ def _mb_full(
 
 # ── passthrough fields ────────────────────────────────────────────────────────
 
-@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
 @patch("app.pipeline.enrichment._enrich_venue", return_value={})
 @patch("app.pipeline.enrichment._mb_search", return_value=None)
-async def test_passthrough_fields(mock_search, mock_venue, mock_ticket):
+async def test_passthrough_fields(mock_search, mock_venue):
     raw = _raw(bands=["Band A"], price_raw="$15", age_restriction="21+")
     result = await enrich_show(raw)
     assert result["date"] == date(2026, 9, 25)
@@ -73,12 +72,11 @@ async def test_passthrough_fields(mock_search, mock_venue, mock_ticket):
 
 # ── MusicBrainz genres ────────────────────────────────────────────────────────
 
-@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
 @patch("app.pipeline.enrichment._enrich_venue", return_value={})
 @patch("app.pipeline.enrichment.get_enrichment_llm")
 @patch("app.pipeline.enrichment._mb_lookup")
 @patch("app.pipeline.enrichment._mb_search")
-async def test_mb_hit_genres_set_no_genre_llm(mock_search, mock_lookup, mock_llm, mock_venue, mock_ticket):
+async def test_mb_hit_genres_set_no_genre_llm(mock_search, mock_lookup, mock_llm, mock_venue):
     """LLM is only called for SoundCloud/Bandcamp fallback, not genre extraction when MB returns tags."""
     mock_search.return_value = _mb_artist()
     mock_lookup.return_value = _mb_full(tags=[
@@ -94,11 +92,10 @@ async def test_mb_hit_genres_set_no_genre_llm(mock_search, mock_lookup, mock_llm
     llm_instance.with_structured_output.assert_not_called()
 
 
-@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
 @patch("app.pipeline.enrichment._enrich_venue", return_value={})
 @patch("app.pipeline.enrichment._mb_lookup")
 @patch("app.pipeline.enrichment._mb_search")
-async def test_mb_top_5_tags_only(mock_search, mock_lookup, mock_venue, mock_ticket):
+async def test_mb_top_5_tags_only(mock_search, mock_lookup, mock_venue):
     mock_search.return_value = _mb_artist()
     mock_lookup.return_value = _mb_full(tags=[
         {"name": "punk", "count": "20"},
@@ -113,20 +110,18 @@ async def test_mb_top_5_tags_only(mock_search, mock_lookup, mock_venue, mock_tic
     assert len(result["genres"]) == 5
 
 
-@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
 @patch("app.pipeline.enrichment._enrich_venue", return_value={})
 @patch("app.pipeline.enrichment._mb_search", return_value=None)
-async def test_mb_no_result_genres_empty(mock_search, mock_venue, mock_ticket):
+async def test_mb_no_result_genres_empty(mock_search, mock_venue):
     result = await enrich_show(_raw())
     assert result["genres"] == []
 
 
-@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
 @patch("app.pipeline.enrichment._enrich_venue", return_value={})
 @patch("app.pipeline.enrichment.get_enrichment_llm")
 @patch("app.pipeline.enrichment._mb_lookup")
 @patch("app.pipeline.enrichment._mb_search")
-async def test_mb_empty_tags_no_soundcloud_genres_empty(mock_search, mock_lookup, mock_llm, mock_venue, mock_ticket):
+async def test_mb_empty_tags_no_soundcloud_genres_empty(mock_search, mock_lookup, mock_llm, mock_venue):
     """Empty tags + no SoundCloud URL → genres = [] (LLM not used for genre extraction)."""
     mock_search.return_value = _mb_artist()
     mock_lookup.return_value = _mb_full(tags=[], url_rels=[])
@@ -138,13 +133,12 @@ async def test_mb_empty_tags_no_soundcloud_genres_empty(mock_search, mock_lookup
     llm_instance.with_structured_output.assert_not_called()
 
 
-@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
 @patch("app.pipeline.enrichment._enrich_venue", return_value={})
 @patch("app.pipeline.enrichment._scrape_text", return_value="electronic shoegaze music from SF")
 @patch("app.pipeline.enrichment._mb_lookup")
 @patch("app.pipeline.enrichment._mb_search")
 @patch("app.pipeline.enrichment.get_enrichment_llm")
-async def test_mb_empty_tags_with_soundcloud_calls_llm(mock_llm, mock_search, mock_lookup, mock_scrape, mock_venue, mock_ticket):
+async def test_mb_empty_tags_with_soundcloud_calls_llm(mock_llm, mock_search, mock_lookup, mock_scrape, mock_venue):
     """Empty tags + SoundCloud URL available → scrape it → LLM extracts genres."""
     mock_search.return_value = _mb_artist()
     mock_lookup.return_value = _mb_full(
@@ -162,13 +156,12 @@ async def test_mb_empty_tags_with_soundcloud_calls_llm(mock_llm, mock_search, mo
 
 # ── SoundCloud LLM fallback ───────────────────────────────────────────────────
 
-@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
 @patch("app.pipeline.enrichment._enrich_venue", return_value={})
 @patch("app.pipeline.enrichment.httpx.head")
 @patch("app.pipeline.enrichment.get_enrichment_llm")
 @patch("app.pipeline.enrichment._mb_lookup")
 @patch("app.pipeline.enrichment._mb_search")
-async def test_soundcloud_llm_fallback_verified(mock_search, mock_lookup, mock_llm, mock_head, mock_venue, mock_ticket):
+async def test_soundcloud_llm_fallback_verified(mock_search, mock_lookup, mock_llm, mock_head, mock_venue):
     """LLM suggests slug → HEAD verifies → soundcloud_url set."""
     mock_search.return_value = _mb_artist()
     mock_lookup.return_value = _mb_full(tags=[{"name": "indie", "count": "5"}], url_rels=[])
@@ -181,13 +174,12 @@ async def test_soundcloud_llm_fallback_verified(mock_search, mock_lookup, mock_l
     assert result["soundcloud_url"] == "https://soundcloud.com/headliner-band"
 
 
-@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
 @patch("app.pipeline.enrichment._enrich_venue", return_value={})
 @patch("app.pipeline.enrichment.httpx.head")
 @patch("app.pipeline.enrichment.get_enrichment_llm")
 @patch("app.pipeline.enrichment._mb_lookup")
 @patch("app.pipeline.enrichment._mb_search")
-async def test_soundcloud_llm_fallback_404(mock_search, mock_lookup, mock_llm, mock_head, mock_venue, mock_ticket):
+async def test_soundcloud_llm_fallback_404(mock_search, mock_lookup, mock_llm, mock_head, mock_venue):
     """LLM suggests slug → HEAD returns 404 → soundcloud_url stays None."""
     mock_search.return_value = _mb_artist()
     mock_lookup.return_value = _mb_full(tags=[{"name": "indie", "count": "5"}], url_rels=[])
@@ -200,13 +192,12 @@ async def test_soundcloud_llm_fallback_404(mock_search, mock_lookup, mock_llm, m
     assert result["soundcloud_url"] is None
 
 
-@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
 @patch("app.pipeline.enrichment._enrich_venue", return_value={})
 @patch("app.pipeline.enrichment.httpx.head")
 @patch("app.pipeline.enrichment.get_enrichment_llm")
 @patch("app.pipeline.enrichment._mb_lookup")
 @patch("app.pipeline.enrichment._mb_search")
-async def test_soundcloud_llm_fallback_unknown(mock_search, mock_lookup, mock_llm, mock_head, mock_venue, mock_ticket):
+async def test_soundcloud_llm_fallback_unknown(mock_search, mock_lookup, mock_llm, mock_head, mock_venue):
     """LLM replies 'unknown' → no HEAD request → soundcloud_url stays None."""
     mock_search.return_value = _mb_artist()
     mock_lookup.return_value = _mb_full(tags=[{"name": "indie", "count": "5"}], url_rels=[])
@@ -221,11 +212,10 @@ async def test_soundcloud_llm_fallback_unknown(mock_search, mock_lookup, mock_ll
 
 # ── MusicBrainz streaming URLs ────────────────────────────────────────────────
 
-@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
 @patch("app.pipeline.enrichment._enrich_venue", return_value={})
 @patch("app.pipeline.enrichment._mb_lookup")
 @patch("app.pipeline.enrichment._mb_search")
-async def test_mb_spotify_url_set(mock_search, mock_lookup, mock_venue, mock_ticket):
+async def test_mb_spotify_url_set(mock_search, mock_lookup, mock_venue):
     mock_search.return_value = _mb_artist()
     mock_lookup.return_value = _mb_full(
         tags=[{"name": "indie", "count": "5"}],
@@ -236,11 +226,10 @@ async def test_mb_spotify_url_set(mock_search, mock_lookup, mock_venue, mock_tic
     assert result["soundcloud_url"] is None
 
 
-@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
 @patch("app.pipeline.enrichment._enrich_venue", return_value={})
 @patch("app.pipeline.enrichment._mb_lookup")
 @patch("app.pipeline.enrichment._mb_search")
-async def test_mb_soundcloud_url_set(mock_search, mock_lookup, mock_venue, mock_ticket):
+async def test_mb_soundcloud_url_set(mock_search, mock_lookup, mock_venue):
     mock_search.return_value = _mb_artist()
     mock_lookup.return_value = _mb_full(
         tags=[{"name": "indie", "count": "5"}],
@@ -251,11 +240,10 @@ async def test_mb_soundcloud_url_set(mock_search, mock_lookup, mock_venue, mock_
     assert result["spotify_url"] is None
 
 
-@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
 @patch("app.pipeline.enrichment._enrich_venue", return_value={})
 @patch("app.pipeline.enrichment._mb_lookup")
 @patch("app.pipeline.enrichment._mb_search")
-async def test_mb_below_threshold_no_match(mock_search, mock_lookup, mock_venue, mock_ticket):
+async def test_mb_below_threshold_no_match(mock_search, mock_lookup, mock_venue):
     """Score below threshold → treated as no result."""
     mock_search.return_value = None  # _mb_search filters below threshold internally
     result = await enrich_show(_raw())
@@ -266,12 +254,11 @@ async def test_mb_below_threshold_no_match(mock_search, mock_lookup, mock_venue,
 
 # ── Google Maps venue enrichment ──────────────────────────────────────────────
 
-@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
 @patch("app.pipeline.enrichment._mb_search", return_value=None)
 @patch("app.pipeline.enrichment.settings")
 @patch("app.pipeline.enrichment.httpx.get")   # Timezone API
 @patch("app.pipeline.enrichment.httpx.post")  # Places API
-async def test_venue_maps_result_sets_fields(mock_post, mock_get, mock_settings, mock_mb, mock_ticket):
+async def test_venue_maps_result_sets_fields(mock_post, mock_get, mock_settings, mock_mb):
     mock_settings.google_maps_api_key = "fake-key"
     mock_settings.musicbrainz_app_name = "the-list"
     mock_settings.musicbrainz_app_version = "0.1"
@@ -299,11 +286,10 @@ async def test_venue_maps_result_sets_fields(mock_post, mock_get, mock_settings,
     assert result["timezone"] == "America/Los_Angeles"
 
 
-@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
 @patch("app.pipeline.enrichment._mb_search", return_value=None)
 @patch("app.pipeline.enrichment.settings")
 @patch("app.pipeline.enrichment.httpx.post")
-async def test_venue_maps_no_result_fields_none(mock_post, mock_settings, mock_mb, mock_ticket):
+async def test_venue_maps_no_result_fields_none(mock_post, mock_settings, mock_mb):
     mock_settings.google_maps_api_key = "fake-key"
     mock_settings.musicbrainz_app_name = "the-list"
     mock_settings.musicbrainz_app_version = "0.1"
@@ -317,10 +303,9 @@ async def test_venue_maps_no_result_fields_none(mock_post, mock_settings, mock_m
     assert result["google_place_id"] is None
 
 
-@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
 @patch("app.pipeline.enrichment._mb_search", return_value=None)
 @patch("app.pipeline.enrichment.settings")
-async def test_venue_maps_skipped_when_no_api_key(mock_settings, mock_mb, mock_ticket):
+async def test_venue_maps_skipped_when_no_api_key(mock_settings, mock_mb):
     mock_settings.google_maps_api_key = ""
     mock_settings.musicbrainz_app_name = "the-list"
     mock_settings.musicbrainz_app_version = "0.1"
@@ -332,42 +317,14 @@ async def test_venue_maps_skipped_when_no_api_key(mock_settings, mock_mb, mock_t
 
 # ── ticket URL ────────────────────────────────────────────────────────────────
 
-@patch("app.pipeline.enrichment._enrich_venue", return_value={})
-@patch("app.pipeline.enrichment._mb_search", return_value=None)
-@patch("app.pipeline.enrichment._find_ticket_url")
-async def test_free_show_no_ticket_search(mock_find_ticket, mock_mb, mock_venue):
-    result = await enrich_show(_raw(price_raw="free"))
-    assert result["ticket_url"] is None
-    mock_find_ticket.assert_not_called()
-
-
-@patch("app.pipeline.enrichment._enrich_venue", return_value={})
-@patch("app.pipeline.enrichment._mb_search", return_value=None)
-@patch("app.pipeline.enrichment._find_ticket_url", return_value="https://eventbrite.com/e/headliner-123")
-async def test_nonfree_show_ticket_url_set(mock_find_ticket, mock_mb, mock_venue):
-    result = await enrich_show(_raw(price_raw="$25"))
-    assert result["ticket_url"] == "https://eventbrite.com/e/headliner-123"
-    mock_find_ticket.assert_called_once()
-
-
-@patch("app.pipeline.enrichment._enrich_venue", return_value={"website_url": "https://thefillmore.com"})
-@patch("app.pipeline.enrichment._mb_search", return_value=None)
-@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
-async def test_ticket_venue_website_passed_to_finder(mock_find_ticket, mock_mb, mock_venue):
-    await enrich_show(_raw())
-    call_args = mock_find_ticket.call_args
-    assert call_args[0][0] == "https://thefillmore.com"
-
-
 # ── Bandcamp LLM fallback ────────────────────────────────────────────────────
 
-@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
 @patch("app.pipeline.enrichment._enrich_venue", return_value={})
 @patch("app.pipeline.enrichment.httpx.head")
 @patch("app.pipeline.enrichment.get_enrichment_llm")
 @patch("app.pipeline.enrichment._mb_lookup")
 @patch("app.pipeline.enrichment._mb_search")
-async def test_bandcamp_llm_fallback_when_no_spotify_or_soundcloud(mock_search, mock_lookup, mock_llm, mock_head, mock_venue, mock_ticket):
+async def test_bandcamp_llm_fallback_when_no_spotify_or_soundcloud(mock_search, mock_lookup, mock_llm, mock_head, mock_venue):
     """No spotify + no soundcloud → LLM suggests Bandcamp subdomain → verified → bandcamp_url set."""
     mock_search.return_value = _mb_artist()
     mock_lookup.return_value = _mb_full(tags=[{"name": "indie", "count": "5"}], url_rels=[])
@@ -386,13 +343,12 @@ async def test_bandcamp_llm_fallback_when_no_spotify_or_soundcloud(mock_search, 
     assert result["spotify_url"] is None
 
 
-@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
 @patch("app.pipeline.enrichment._enrich_venue", return_value={})
 @patch("app.pipeline.enrichment.httpx.head")
 @patch("app.pipeline.enrichment.get_enrichment_llm")
 @patch("app.pipeline.enrichment._mb_lookup")
 @patch("app.pipeline.enrichment._mb_search")
-async def test_bandcamp_skipped_when_soundcloud_found(mock_search, mock_lookup, mock_llm, mock_head, mock_venue, mock_ticket):
+async def test_bandcamp_skipped_when_soundcloud_found(mock_search, mock_lookup, mock_llm, mock_head, mock_venue):
     """SoundCloud found → Bandcamp LLM fallback not attempted."""
     mock_search.return_value = _mb_artist()
     mock_lookup.return_value = _mb_full(
@@ -406,13 +362,12 @@ async def test_bandcamp_skipped_when_soundcloud_found(mock_search, mock_lookup, 
     assert result["soundcloud_url"] == "https://soundcloud.com/headliner"
 
 
-@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
 @patch("app.pipeline.enrichment._enrich_venue", return_value={})
 @patch("app.pipeline.enrichment.httpx.head")
 @patch("app.pipeline.enrichment.get_enrichment_llm")
 @patch("app.pipeline.enrichment._mb_lookup")
 @patch("app.pipeline.enrichment._mb_search")
-async def test_bandcamp_llm_slug_with_dot_rejected(mock_search, mock_lookup, mock_llm, mock_head, mock_venue, mock_ticket):
+async def test_bandcamp_llm_slug_with_dot_rejected(mock_search, mock_lookup, mock_llm, mock_head, mock_venue):
     """Slug containing a dot is rejected without HEAD request."""
     mock_search.return_value = _mb_artist()
     mock_lookup.return_value = _mb_full(tags=[{"name": "indie", "count": "5"}], url_rels=[])
@@ -429,10 +384,9 @@ async def test_bandcamp_llm_slug_with_dot_rejected(mock_search, mock_lookup, moc
 
 # ── no bands ──────────────────────────────────────────────────────────────────
 
-@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
 @patch("app.pipeline.enrichment._enrich_venue", return_value={})
 @patch("app.pipeline.enrichment._mb_search")
-async def test_no_bands_skips_mb(mock_search, mock_venue, mock_ticket):
+async def test_no_bands_skips_mb(mock_search, mock_venue):
     result = await enrich_show(_raw(bands=[]))
     assert result["genres"] == []
     assert result["spotify_url"] is None

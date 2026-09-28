@@ -74,7 +74,6 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                     "phone": venue.phone if venue else None,
                     "google_rating": venue.google_rating if venue else None,
                     "timezone": venue.timezone if venue else None,
-                    "ticket_url": None,
                 })
             else:
                 new_count += 1

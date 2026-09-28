@@ -144,7 +144,6 @@ def _upsert_show(db: Session, venue: Venue, data: dict) -> Show:
     show.is_pit = bool(data.get("is_pit"))
     show.is_drink_tickets = bool(data.get("is_drink_tickets"))
     show.is_no_reentry = bool(data.get("is_no_reentry"))
-    show.ticket_url = data.get("ticket_url")
     show.notes = data.get("notes")
     show.raw_text = data.get("raw_text")
     db.flush()
