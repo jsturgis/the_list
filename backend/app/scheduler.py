@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import date, timedelta
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -15,7 +18,9 @@ from app.ingestion.gmail import fetch_latest_list_email
 from app.ingestion.parser import parse_email_body
 from app.ingestion.upsert import upsert_shows
 from app.models.act import Act
+from app.models.band import Band
 from app.models.show import Show, ShowStatus
+from app.models.venue import Venue
 from app.pipeline.embed import embed_and_index_band, embed_and_index_show
 from app.pipeline.enrichment import enrich_show
 
@@ -26,17 +31,58 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
     if _own_db:
         db = SessionLocal()
     try:
+        logger.info("ingestion: fetching latest email")
         text = fetch_latest_list_email()
         if not text:
+            logger.info("ingestion: no email found, aborting")
             return
 
         raw_shows = parse_email_body(text)
         if not raw_shows:
+            logger.info("ingestion: no shows parsed, aborting")
             return
+        logger.info("ingestion: parsed %d shows", len(raw_shows))
 
-        enriched = [await enrich_show(raw) for raw in raw_shows]
+        # Pre-load known headliners and venues to skip redundant API calls
+        headliner_names = [raw.bands[0] for raw in raw_shows if raw.bands]
+        venue_names = [raw.venue_name for raw in raw_shows if raw.venue_name]
+        known_bands = {b.name: b for b in db.query(Band).filter(Band.name.in_(headliner_names)).all()}
+        known_venues = {v.name: v for v in db.query(Venue).filter(Venue.name.in_(venue_names)).all()}
+
+        enriched = []
+        new_count = 0
+        for raw in raw_shows:
+            headliner = raw.bands[0] if raw.bands else None
+            if headliner and headliner in known_bands:
+                band = known_bands[headliner]
+                venue = known_venues.get(raw.venue_name or "")
+                enriched.append({
+                    "date": raw.date, "bands": raw.bands, "venue_name": raw.venue_name,
+                    "city": raw.city, "door_time": raw.door_time, "set_time": raw.set_time,
+                    "price_raw": raw.price_raw, "age_restriction": raw.age_restriction,
+                    "status": raw.status, "is_recommended": raw.is_recommended,
+                    "will_sell_out": raw.will_sell_out, "is_pit": raw.is_pit,
+                    "is_drink_tickets": raw.is_drink_tickets, "is_no_reentry": raw.is_no_reentry,
+                    "notes": raw.notes, "raw_text": raw.raw_text,
+                    "genres": band.genres or [], "spotify_url": band.spotify_url,
+                    "soundcloud_url": band.soundcloud_url,
+                    "venue_website": venue.website_url if venue else None,
+                    "address": venue.address if venue else None,
+                    "latitude": venue.latitude if venue else None,
+                    "longitude": venue.longitude if venue else None,
+                    "google_place_id": venue.google_place_id if venue else None,
+                    "ticket_url": None,
+                })
+            else:
+                new_count += 1
+                logger.info("ingestion: enriching [new %d] %s @ %s", new_count, headliner or "?", raw.venue_name)
+                enriched.append(await enrich_show(raw))
+
+        logger.info("ingestion: %d new, %d reused from DB", new_count, len(raw_shows) - new_count)
+
         shows = upsert_shows(db, enriched)
         db.commit()
+        logger.info("ingestion: upserted %d shows", len(shows))
 
         # Reload with relationships for embedding
         show_ids = [s.id for s in shows]
@@ -46,13 +92,16 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
             .filter(Show.id.in_(show_ids))
             .all()
         )
+        logger.info("ingestion: embedding and indexing")
         for show in shows:
             await embed_and_index_show(db, show)
             if show.acts:
                 await embed_and_index_band(db, show.acts[0].band)
         db.commit()
+        logger.info("ingestion: done")
 
     except Exception:
+        logger.exception("ingestion: pipeline failed")
         db.rollback()
         raise
     finally:

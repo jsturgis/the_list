@@ -253,6 +253,32 @@ async def test_pipeline_returns_early_when_no_email(mock_fetch, db):
 @patch("app.pipeline.embed.load_or_create_index")
 @patch("app.pipeline.embed.upsert_vector")
 @patch("app.pipeline.embed.save_index")
+async def test_pipeline_skips_enrichment_for_known_bands(
+    mock_save, mock_upsert_v, mock_load, mock_embed, mock_enrich, mock_fetch, db
+):
+    """Second run should not call enrich_show for headliners already in the DB."""
+    mock_embed.return_value = _FAKE_VEC
+    mock_load.return_value = MagicMock()
+    mock_enrich.side_effect = _passthrough_enrich
+
+    # First run — enriches everything
+    await _run_ingestion_async(db=db)
+    first_run_calls = mock_enrich.call_count
+
+    # Second run — headliners already in DB, enrich_show should not be called for them
+    mock_enrich.reset_mock()
+    mock_enrich.side_effect = _passthrough_enrich
+    await _run_ingestion_async(db=db)
+
+    assert mock_enrich.call_count < first_run_calls
+
+
+@patch("app.scheduler.fetch_latest_list_email", return_value=_SAMPLE_BODY)
+@patch("app.scheduler.enrich_show", new_callable=AsyncMock)
+@patch("app.pipeline.embed.embed", new_callable=AsyncMock)
+@patch("app.pipeline.embed.load_or_create_index")
+@patch("app.pipeline.embed.upsert_vector")
+@patch("app.pipeline.embed.save_index")
 async def test_faiss_indices_saved(
     mock_save, mock_upsert_v, mock_load, mock_embed, mock_enrich, mock_fetch, db
 ):
