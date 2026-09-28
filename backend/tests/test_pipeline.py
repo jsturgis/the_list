@@ -337,10 +337,11 @@ def test_maintenance_hard_deletes_old_shows(db):
 
 # ── startIngestion mutation ───────────────────────────────────────────────────
 
-@patch("app.graphql.mutations._run_ingestion_async", new_callable=AsyncMock)
-def test_start_ingestion_mutation(mock_pipeline, client):
+@patch("app.graphql.mutations.asyncio.create_task")
+def test_start_ingestion_mutation(mock_create_task, client):
     resp = client.post("/graphql", json={"query": "mutation { startIngestion }"})
     assert resp.status_code == 200
     body = resp.json()
     assert "errors" not in body
     assert body["data"]["startIngestion"] == "ingestion started"
+    mock_create_task.assert_called_once()
