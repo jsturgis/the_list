@@ -96,6 +96,38 @@ Required env vars:
 | `DATABASE_URL` | SQLite or PostgreSQL URL (default: `sqlite:///./the_list.db`) |
 | `OLLAMA_BASE_URL` | Ollama server URL (default: `http://localhost:11434`) |
 
+## Environment variables reference
+
+### Required (no working default)
+
+| Variable | Description |
+|---|---|
+| `ANTHROPIC_API_KEY` | Claude API key for genre enrichment fallback |
+| `GOOGLE_MAPS_API_KEY` | Venue enrichment (address, lat/lng, place ID) |
+| `GMAIL_CREDENTIALS_PATH` | Path to Gmail OAuth2 credentials JSON file |
+| `GMAIL_TOKEN_PATH` | Path to Gmail OAuth2 token JSON file |
+
+### Required for production (defaults are dev-only)
+
+| Variable | Default | Notes |
+|---|---|---|
+| `DATABASE_URL` | `sqlite:///./the_list.db` | Use a PostgreSQL URL in production |
+| `FAISS_INDEX_PATH` | `./data/faiss` | Point to a persistent volume path (e.g. `/app/data/faiss`) |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | URL of your Ollama instance |
+
+### Optional
+
+| Variable | Default | Notes |
+|---|---|---|
+| `GMAIL_WATCH_EMAIL` | `skoepke@stevelist.com` | Sender address to fetch from |
+| `OLLAMA_EMBEDDING_MODEL` | `nomic-embed-text` | Change only if swapping embedding models |
+| `DATA_RETENTION_DAYS` | `90` | Shows older than this are hard-deleted |
+| `MUSICBRAINZ_APP_NAME` | `the-list` | MusicBrainz rate-limit user-agent |
+| `MUSICBRAINZ_APP_VERSION` | `0.1` | MusicBrainz rate-limit user-agent |
+| `MUSICBRAINZ_CONTACT` | `https://github.com/jsturgis/the_list` | MusicBrainz rate-limit contact |
+
+> **Gmail credentials**: the `GMAIL_CREDENTIALS_PATH` and `GMAIL_TOKEN_PATH` files must be provisioned ahead of time via the Google Cloud Console OAuth2 flow and mounted into the container.
+
 Run the tests:
 
 ```bash
