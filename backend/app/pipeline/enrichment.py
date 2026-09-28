@@ -79,6 +79,25 @@ def _scrape_text(url: str) -> Optional[str]:
         return None
 
 
+def _find_soundcloud_url(name: str) -> Optional[str]:
+    """Ask LLM for the likely SoundCloud slug, then verify it exists."""
+    llm = get_enrichment_llm()
+    try:
+        result = llm.invoke(
+            f"What is the SoundCloud URL slug for the musical artist '{name}'? "
+            "Reply with ONLY the slug (e.g. 'the-national'), nothing else. "
+            "If you are not confident, reply with 'unknown'."
+        )
+        slug = result.content.strip().lower().strip("/")
+        if not slug or slug == "unknown" or " " in slug:
+            return None
+        url = f"https://soundcloud.com/{slug}"
+        resp = httpx.head(url, timeout=5.0, follow_redirects=True)
+        return url if resp.status_code == 200 else None
+    except Exception:
+        return None
+
+
 def _generate_description(name: str, disambiguation: Optional[str], genres: list[str], tags: list[str]) -> Optional[str]:
     """Generate a one-sentence band description using known facts. No speculation."""
     if not genres and not disambiguation:
@@ -130,6 +149,10 @@ def _enrich_band(name: str) -> dict:
             spotify_url = target
         if not soundcloud_url and "soundcloud.com" in target:
             soundcloud_url = target
+
+    # LLM fallback: find SoundCloud URL when MB doesn't have one
+    if not soundcloud_url:
+        soundcloud_url = _find_soundcloud_url(name)
 
     # LLM fallback: genres empty + SoundCloud page available to scrape
     if not genres and soundcloud_url:

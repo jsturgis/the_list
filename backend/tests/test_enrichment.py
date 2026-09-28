@@ -162,6 +162,65 @@ async def test_mb_empty_tags_with_soundcloud_calls_llm(mock_llm, mock_search, mo
     llm_instance.with_structured_output.assert_called_once()
 
 
+# ── SoundCloud LLM fallback ───────────────────────────────────────────────────
+
+@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment.httpx.head")
+@patch("app.pipeline.enrichment.get_enrichment_llm")
+@patch("app.pipeline.enrichment._mb_lookup")
+@patch("app.pipeline.enrichment._mb_search")
+async def test_soundcloud_llm_fallback_verified(mock_search, mock_lookup, mock_llm, mock_head, mock_venue, mock_ticket):
+    """LLM suggests slug → HEAD verifies → soundcloud_url set."""
+    mock_search.return_value = _mb_artist()
+    mock_lookup.return_value = _mb_full(tags=[{"name": "indie", "count": "5"}], url_rels=[])
+    llm_instance = MagicMock()
+    llm_instance.invoke.return_value = MagicMock(content="headliner-band")
+    mock_llm.return_value = llm_instance
+    mock_head.return_value = MagicMock(status_code=200)
+
+    result = await enrich_show(_raw())
+    assert result["soundcloud_url"] == "https://soundcloud.com/headliner-band"
+
+
+@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment.httpx.head")
+@patch("app.pipeline.enrichment.get_enrichment_llm")
+@patch("app.pipeline.enrichment._mb_lookup")
+@patch("app.pipeline.enrichment._mb_search")
+async def test_soundcloud_llm_fallback_404(mock_search, mock_lookup, mock_llm, mock_head, mock_venue, mock_ticket):
+    """LLM suggests slug → HEAD returns 404 → soundcloud_url stays None."""
+    mock_search.return_value = _mb_artist()
+    mock_lookup.return_value = _mb_full(tags=[{"name": "indie", "count": "5"}], url_rels=[])
+    llm_instance = MagicMock()
+    llm_instance.invoke.return_value = MagicMock(content="wrong-slug")
+    mock_llm.return_value = llm_instance
+    mock_head.return_value = MagicMock(status_code=404)
+
+    result = await enrich_show(_raw())
+    assert result["soundcloud_url"] is None
+
+
+@patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment.httpx.head")
+@patch("app.pipeline.enrichment.get_enrichment_llm")
+@patch("app.pipeline.enrichment._mb_lookup")
+@patch("app.pipeline.enrichment._mb_search")
+async def test_soundcloud_llm_fallback_unknown(mock_search, mock_lookup, mock_llm, mock_head, mock_venue, mock_ticket):
+    """LLM replies 'unknown' → no HEAD request → soundcloud_url stays None."""
+    mock_search.return_value = _mb_artist()
+    mock_lookup.return_value = _mb_full(tags=[{"name": "indie", "count": "5"}], url_rels=[])
+    llm_instance = MagicMock()
+    llm_instance.invoke.return_value = MagicMock(content="unknown")
+    mock_llm.return_value = llm_instance
+
+    result = await enrich_show(_raw())
+    assert result["soundcloud_url"] is None
+    mock_head.assert_not_called()
+
+
 # ── MusicBrainz streaming URLs ────────────────────────────────────────────────
 
 @patch("app.pipeline.enrichment._find_ticket_url", return_value=None)
