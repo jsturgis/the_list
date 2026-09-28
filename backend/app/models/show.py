@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 import enum
 from datetime import date, datetime, time
+from typing import List, Optional
 
 from sqlalchemy import (
     Boolean, Date, DateTime, Enum, Float, ForeignKey,
@@ -37,27 +39,27 @@ class Show(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     date: Mapped[date] = mapped_column(Date, index=True)
-    door_time: Mapped[time | None] = mapped_column(Time)
-    set_time: Mapped[time | None] = mapped_column(Time)
+    door_time: Mapped[Optional[time]] = mapped_column(Time)
+    set_time: Mapped[Optional[time]] = mapped_column(Time)
     venue_id: Mapped[int] = mapped_column(ForeignKey("venues.id"), index=True)
-    price_min: Mapped[float | None] = mapped_column(Float)
-    price_max: Mapped[float | None] = mapped_column(Float)
+    price_min: Mapped[Optional[float]] = mapped_column(Float)
+    price_max: Mapped[Optional[float]] = mapped_column(Float)
     is_free: Mapped[bool] = mapped_column(Boolean, default=False)
     age_restriction: Mapped[AgeRestriction] = mapped_column(Enum(AgeRestriction), default=AgeRestriction.unknown)
     status: Mapped[ShowStatus] = mapped_column(Enum(ShowStatus), default=ShowStatus.upcoming, index=True)
-    is_recommended: Mapped[bool] = mapped_column(Boolean, default=False)    # * Steve's Pick
-    will_sell_out: Mapped[bool] = mapped_column(Boolean, default=False)     # $
-    is_pit: Mapped[bool] = mapped_column(Boolean, default=False)            # @ pit warning
-    is_drink_tickets: Mapped[bool] = mapped_column(Boolean, default=False)  # ^ under-21 drink tickets
-    is_no_reentry: Mapped[bool] = mapped_column(Boolean, default=False)     # # no ins/outs
-    ticket_url: Mapped[str | None] = mapped_column(String(500))
-    notes: Mapped[str | None] = mapped_column(Text)
-    raw_text: Mapped[str | None] = mapped_column(Text)
-    embedding: Mapped[bytes | None] = mapped_column(LargeBinary)
+    is_recommended: Mapped[bool] = mapped_column(Boolean, default=False)
+    will_sell_out: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_pit: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_drink_tickets: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_no_reentry: Mapped[bool] = mapped_column(Boolean, default=False)
+    ticket_url: Mapped[Optional[str]] = mapped_column(String(500))
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    raw_text: Mapped[Optional[str]] = mapped_column(Text)
+    embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
     venue: Mapped["Venue"] = relationship(back_populates="shows")
-    acts: Mapped[list["Act"]] = relationship(
+    acts: Mapped[List["Act"]] = relationship(
         back_populates="show", order_by="Act.position", cascade="all, delete-orphan"
     )

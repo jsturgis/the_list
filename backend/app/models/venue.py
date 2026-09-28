@@ -1,8 +1,10 @@
 from __future__ import annotations
+
 import enum
 from datetime import datetime
+from typing import List, Optional
 
-from sqlalchemy import DateTime, Enum, String, func
+from sqlalchemy import DateTime, Enum, Float, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -21,11 +23,14 @@ class Venue(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(255), index=True)
-    address: Mapped[str | None] = mapped_column(String(500))
+    address: Mapped[Optional[str]] = mapped_column(String(500))
     city: Mapped[str] = mapped_column(String(100))
     region: Mapped[Region] = mapped_column(Enum(Region))
-    website_url: Mapped[str | None] = mapped_column(String(500))
+    website_url: Mapped[Optional[str]] = mapped_column(String(500))
+    latitude: Mapped[Optional[float]] = mapped_column(Float)
+    longitude: Mapped[Optional[float]] = mapped_column(Float)
+    google_place_id: Mapped[Optional[str]] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
-    shows: Mapped[list["Show"]] = relationship(back_populates="venue")
+    shows: Mapped[List["Show"]] = relationship(back_populates="venue")

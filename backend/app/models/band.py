@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 import json
 from datetime import datetime
+from typing import List, Optional
 
 from sqlalchemy import DateTime, LargeBinary, String, Text, TypeDecorator, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -25,11 +27,11 @@ class Band(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     genres: Mapped[list] = mapped_column(JSONList, default=list)
-    spotify_url: Mapped[str | None] = mapped_column(String(500))
-    soundcloud_url: Mapped[str | None] = mapped_column(String(500))
-    description: Mapped[str | None] = mapped_column(Text)
-    embedding: Mapped[bytes | None] = mapped_column(LargeBinary)
+    spotify_url: Mapped[Optional[str]] = mapped_column(String(500))
+    soundcloud_url: Mapped[Optional[str]] = mapped_column(String(500))
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
-    acts: Mapped[list["Act"]] = relationship(back_populates="band")
+    acts: Mapped[List["Act"]] = relationship(back_populates="band")
