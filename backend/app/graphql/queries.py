@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from typing import Optional
 
+import numpy as np
 import strawberry
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 from strawberry.types import Info
 
+from app.embeddings.search import find_similar_bands, find_similar_shows
 from app.graphql.types import ActType, BandType, ShowFilters, ShowType, VenueType
 from app.models.act import Act
 from app.models.band import Band
@@ -152,24 +154,58 @@ class Query:
 
     @strawberry.field
     def bands(self, info: Info, query: str, limit: int = 20) -> list[BandType]:
-        # TODO: implement (T4)
-        raise NotImplementedError
+        db: Session = info.context["db"]
+        rows = (
+            db.query(Band)
+            .filter(Band.name.ilike(f"%{query}%"))
+            .order_by(Band.name)
+            .limit(limit)
+            .all()
+        )
+        return [_band(b) for b in rows]
 
     @strawberry.field
     def band(self, info: Info, id: strawberry.ID) -> Optional[BandType]:
-        # TODO: implement (T4)
-        raise NotImplementedError
+        db: Session = info.context["db"]
+        b = db.query(Band).filter(Band.id == int(id)).first()
+        return _band(b) if b else None
 
     @strawberry.field
     def similar_bands(
         self, info: Info, band_id: strawberry.ID, k: int = 10
     ) -> list[BandType]:
-        # TODO: implement (T4)
-        raise NotImplementedError
+        db: Session = info.context["db"]
+        band = db.query(Band).filter(Band.id == int(band_id)).first()
+        if band is None:
+            raise ValueError(f"Band {band_id} not found")
+        if not band.embedding:
+            return []
+        embedding = np.frombuffer(band.embedding, dtype=np.float32)
+        similar = find_similar_bands(embedding, k)
+        ids = [bid for bid, _ in similar]
+        rows = db.query(Band).filter(Band.id.in_(ids)).all()
+        by_id = {b.id: b for b in rows}
+        return [_band(by_id[bid]) for bid in ids if bid in by_id]
 
     @strawberry.field
     def similar_shows(
         self, info: Info, show_id: strawberry.ID, k: int = 10
     ) -> list[ShowType]:
-        # TODO: implement (T4)
-        raise NotImplementedError
+        db: Session = info.context["db"]
+        show = db.query(Show).filter(Show.id == int(show_id)).first()
+        if show is None or not show.embedding:
+            return []
+        embedding = np.frombuffer(show.embedding, dtype=np.float32)
+        similar = find_similar_shows(embedding, k)
+        ids = [sid for sid, _ in similar]
+        rows = (
+            db.query(Show)
+            .options(
+                joinedload(Show.venue),
+                joinedload(Show.acts).joinedload(Act.band),
+            )
+            .filter(Show.id.in_(ids), Show.status == ShowStatus.upcoming)
+            .all()
+        )
+        by_id = {s.id: s for s in rows}
+        return [_show(by_id[sid]) for sid in ids if sid in by_id]
