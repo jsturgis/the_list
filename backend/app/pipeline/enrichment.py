@@ -1,6 +1,7 @@
 """Enrichment chain: MusicBrainz genres/URLs, Google Maps venue data, ticket URL."""
 from __future__ import annotations
 
+import asyncio
 import re
 import time as _time
 from functools import lru_cache
@@ -353,16 +354,18 @@ async def enrich_show(raw: RawShow) -> dict:
         "venue_wikipedia_url": None,
     }
 
+    loop = asyncio.get_event_loop()
+
     headliner = raw.bands[0] if raw.bands else None
     if headliner:
-        band_data = _enrich_band(headliner)
+        band_data = await loop.run_in_executor(None, _enrich_band, headliner)
         result["genres"] = band_data["genres"]
         result["spotify_url"] = band_data["spotify_url"]
         result["soundcloud_url"] = band_data["soundcloud_url"]
         result["bandcamp_url"] = band_data["bandcamp_url"]
 
     if raw.venue_name:
-        venue_data = _enrich_venue(raw.venue_name, raw.city or "")
+        venue_data = await loop.run_in_executor(None, _enrich_venue, raw.venue_name, raw.city or "")
         result["address"] = venue_data.get("address")
         result["venue_website"] = venue_data.get("website_url")
         result["latitude"] = venue_data.get("latitude")
