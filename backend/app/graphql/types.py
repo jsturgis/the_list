@@ -57,6 +57,14 @@ class ShowType:
     notes: str | None
 
 
+@strawberry.type
+class FilterOptionsType:
+    regions: list[str]
+    ages: list[str]
+    genres: list[str]
+    dates: list[str]
+
+
 @strawberry.input
 class ShowFilters:
     from_date: date | None = None

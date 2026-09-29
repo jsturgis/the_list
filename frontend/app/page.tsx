@@ -1,7 +1,14 @@
 import { Suspense } from 'react'
 import { gqlClient } from '@/lib/graphql'
-import { SHOWS_QUERY, SHOW_COUNT_QUERY } from '@/lib/queries'
+import { SHOWS_QUERY, SHOW_COUNT_QUERY, FILTER_OPTIONS_QUERY } from '@/lib/queries'
 import type { Show } from '@/lib/types'
+
+interface FilterOptions {
+  regions: string[]
+  ages: string[]
+  genres: string[]
+  dates: string[]
+}
 import ShowList from '@/components/ShowList'
 
 async function fetchShows(): Promise<Show[]> {
@@ -22,8 +29,21 @@ async function fetchShowCount(): Promise<number> {
   }
 }
 
+async function fetchFilterOptions(): Promise<FilterOptions> {
+  try {
+    const data = await gqlClient.request<{ filterOptions: FilterOptions }>(FILTER_OPTIONS_QUERY)
+    return data.filterOptions
+  } catch {
+    return { regions: [], ages: [], genres: [], dates: [] }
+  }
+}
+
 export default async function Home() {
-  const [shows, dbTotal] = await Promise.all([fetchShows(), fetchShowCount()])
+  const [shows, dbTotal, filterOptions] = await Promise.all([
+    fetchShows(),
+    fetchShowCount(),
+    fetchFilterOptions(),
+  ])
 
   return (
     <div className="flex flex-col gap-6">
@@ -37,7 +57,7 @@ export default async function Home() {
         </p>
       </div>
       <Suspense>
-        <ShowList shows={shows} dbTotal={dbTotal} />
+        <ShowList shows={shows} dbTotal={dbTotal} filterOptions={filterOptions} />
       </Suspense>
     </div>
   )

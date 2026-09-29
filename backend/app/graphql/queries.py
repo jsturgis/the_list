@@ -5,12 +5,12 @@ from typing import Optional
 
 import numpy as np
 import strawberry
-from sqlalchemy import func
+from sqlalchemy import Text, case, cast, func
 from sqlalchemy.orm import Session, joinedload
 from strawberry.types import Info
 
 from app.embeddings.search import find_similar_bands, find_similar_shows
-from app.graphql.types import ActType, BandType, ShowFilters, ShowType, VenueType
+from app.graphql.types import ActType, BandType, FilterOptionsType, ShowFilters, ShowType, VenueType
 from app.models.act import Act
 from app.models.band import Band
 from app.models.show import Show, ShowStatus
@@ -135,13 +135,26 @@ def _query_shows(
             )
         )
     if f.genre:
-        q = q.filter(
-            Show.id.in_(
-                db.query(Act.show_id)
-                .join(Act.band)
-                .filter(Band.genres.like(f"%{f.genre}%"))
+        genre_match_ids = (
+            db.query(Act.show_id)
+            .join(Act.band)
+            .filter(cast(Band.genres, Text).like(f"%{f.genre}%"))
+        )
+        no_genre_ids = (
+            db.query(Show.id)
+            .filter(
+                ~Show.id.in_(
+                    db.query(Act.show_id)
+                    .join(Act.band)
+                    .filter(cast(Band.genres, Text) != "[]")
+                )
             )
         )
+        q = q.filter(Show.id.in_(genre_match_ids) | Show.id.in_(no_genre_ids))
+        return q.order_by(
+            case((Show.id.in_(genre_match_ids), 0), else_=1),
+            Show.date,
+        ).limit(limit).offset(offset).all()
     if f.price_max is not None:
         q = q.filter(Show.price_min <= f.price_max)
     if f.is_free is not None:
@@ -163,11 +176,45 @@ class Query:
         self,
         info: Info,
         filters: Optional[ShowFilters] = None,
-        limit: int = 100,
+        limit: int = 50,
         offset: int = 0,
     ) -> list[ShowType]:
         db: Session = info.context["db"]
         return [_show(s) for s in _query_shows(db, filters, limit, offset)]
+
+    @strawberry.field
+    def filter_options(self, info: Info) -> FilterOptionsType:
+        import json
+        db: Session = info.context["db"]
+        today = datetime.date.today()
+
+        upcoming = (
+            db.query(Show)
+            .options(joinedload(Show.venue), joinedload(Show.acts).joinedload(Act.band))
+            .filter(Show.status == ShowStatus.upcoming, Show.date >= today)
+            .all()
+        )
+
+        regions, ages, genres, dates = set(), set(), set(), set()
+        for show in upcoming:
+            if show.venue.region:
+                regions.add(show.venue.region.value if hasattr(show.venue.region, 'value') else show.venue.region)
+            if show.age_restriction and show.age_restriction.value != 'unknown':
+                ages.add(show.age_restriction.value)
+            dates.add(str(show.date))
+            for act in show.acts:
+                for g in (json.loads(act.band.genres) if isinstance(act.band.genres, str) else act.band.genres):
+                    genres.add(g)
+
+        def age_key(a):
+            return 0 if a == 'a/a' else int(a.rstrip('+'))
+
+        return FilterOptionsType(
+            regions=sorted(regions),
+            ages=sorted(ages, key=age_key),
+            genres=sorted(genres),
+            dates=sorted(dates),
+        )
 
     @strawberry.field
     def show_count(

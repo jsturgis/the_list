@@ -11,9 +11,17 @@ import { SHOWS_QUERY } from '@/lib/queries'
 
 const PAGE_SIZE = 50
 
+interface FilterOptions {
+  regions: string[]
+  ages: string[]
+  genres: string[]
+  dates: string[]
+}
+
 interface ShowListProps {
   shows: Show[]
   dbTotal: number
+  filterOptions: FilterOptions
 }
 
 function groupByDate(shows: Show[]): Map<string, Show[]> {
@@ -40,7 +48,7 @@ function buildFilters(params: URLSearchParams): Record<string, unknown> | null {
   return Object.keys(f).length > 0 ? f : null
 }
 
-export default function ShowList({ shows: initialShows, dbTotal }: ShowListProps) {
+export default function ShowList({ shows: initialShows, dbTotal, filterOptions }: ShowListProps) {
   const searchParams = useSearchParams()
 
   // Unfiltered shows — grows via infinite scroll
@@ -105,34 +113,7 @@ export default function ShowList({ shows: initialShows, dbTotal }: ShowListProps
   // Display: filtered results from backend, or unfiltered loaded set
   const displayShows = hasFilters ? (filteredShows ?? []) : shows
 
-  // Filter bar options always derived from unfiltered loaded shows
-  const genres = useMemo(() => {
-    const set = new Set<string>()
-    for (const show of shows) for (const act of show.acts) for (const g of act.band.genres) set.add(g)
-    return Array.from(set).sort()
-  }, [shows])
-
-  const regions = useMemo(() => {
-    const set = new Set<string>()
-    for (const show of shows) if (show.venue.region) set.add(show.venue.region)
-    return Array.from(set).sort()
-  }, [shows])
-
-  const ages = useMemo(() => {
-    const set = new Set<string>()
-    for (const show of shows) if (show.ageRestriction && show.ageRestriction !== 'unknown') set.add(show.ageRestriction)
-    return Array.from(set).sort((a, b) => {
-      const numA = a === 'a/a' ? 0 : parseInt(a)
-      const numB = b === 'a/a' ? 0 : parseInt(b)
-      return numA - numB
-    })
-  }, [shows])
-
-  const availableDates = useMemo(() => {
-    const set = new Set<string>()
-    for (const show of shows) set.add(show.date)
-    return Array.from(set).sort()
-  }, [shows])
+  const { regions, ages, genres, dates: availableDates } = filterOptions
 
   const picks = useMemo(() => displayShows.filter(s => s.isRecommended), [displayShows])
   const nonPicks = useMemo(

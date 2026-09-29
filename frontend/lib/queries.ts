@@ -1,3 +1,14 @@
+export const FILTER_OPTIONS_QUERY = /* GraphQL */ `
+  query GetFilterOptions {
+    filterOptions {
+      regions
+      ages
+      genres
+      dates
+    }
+  }
+`
+
 export const SHOW_COUNT_QUERY = /* GraphQL */ `
   query GetShowCount {
     showCount
