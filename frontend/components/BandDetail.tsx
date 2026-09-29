@@ -1,11 +1,7 @@
 import Link from 'next/link'
 import type { Band, Show } from '@/lib/types'
 import SimilarBands from './SimilarBands'
-
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr + 'T12:00:00')
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-}
+import { formatDateShort } from '@/lib/format'
 
 interface BandDetailProps {
   band: Band
@@ -73,15 +69,19 @@ export default function BandDetail({ band, upcomingShows }: BandDetailProps) {
           </h2>
           <ul className="flex flex-col gap-2">
             {upcomingShows.map(show => (
-              <li key={show.id}>
+              <li key={show.id} className="flex items-center justify-between gap-4 text-sm -mx-2 px-2 py-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800">
+                <span className="font-medium text-zinc-900 dark:text-zinc-50 min-w-0 truncate">
+                  <Link href={`/venues/${show.venue.id}`} className="hover:underline">
+                    {show.venue.name}
+                  </Link>
+                  {' · '}
+                  {show.venue.city}
+                </span>
                 <Link
                   href={`/shows/${show.id}`}
-                  className="flex items-center justify-between text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 -mx-2 px-2 py-1 rounded"
+                  className="text-zinc-500 dark:text-zinc-400 shrink-0 hover:underline"
                 >
-                  <span className="font-medium text-zinc-900 dark:text-zinc-50">
-                    {show.venue.name} · {show.venue.city}
-                  </span>
-                  <span className="text-zinc-500 dark:text-zinc-400">{formatDate(show.date)}</span>
+                  {formatDateShort(show.date)}
                 </Link>
               </li>
             ))}

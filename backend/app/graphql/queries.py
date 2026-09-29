@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from typing import Optional
 
 import numpy as np
@@ -91,12 +92,16 @@ def _query_shows(
     # Status (default: upcoming)
     status_val = (f.status or "upcoming").lower()
     q = q.filter(Show.status == ShowStatus(status_val))
+    if status_val == "upcoming":
+        q = q.filter(Show.date >= datetime.date.today())
 
     if f.from_date:
         q = q.filter(Show.date >= f.from_date)
     if f.to_date:
         q = q.filter(Show.date <= f.to_date)
 
+    if f.venue_id is not None:
+        q = q.filter(Show.venue_id == f.venue_id)
     if f.city:
         q = q.filter(
             Show.venue_id.in_(
@@ -121,6 +126,20 @@ def _query_shows(
                 db.query(Act.show_id)
                 .join(Act.band)
                 .filter(Band.name.ilike(f"%{f.band_name}%"))
+            )
+        )
+    if f.venue_name:
+        q = q.filter(
+            Show.venue_id.in_(
+                db.query(Venue.id).filter(Venue.name.ilike(f"%{f.venue_name}%"))
+            )
+        )
+    if f.genre:
+        q = q.filter(
+            Show.id.in_(
+                db.query(Act.show_id)
+                .join(Act.band)
+                .filter(Band.genres.like(f"%{f.genre}%"))
             )
         )
     if f.price_max is not None:
@@ -151,6 +170,20 @@ class Query:
         return [_show(s) for s in _query_shows(db, filters, limit, offset)]
 
     @strawberry.field
+    def show_count(
+        self,
+        info: Info,
+        filters: Optional[ShowFilters] = None,
+    ) -> int:
+        db: Session = info.context["db"]
+        f = filters or ShowFilters()
+        status_val = (f.status or "upcoming").lower()
+        q = db.query(func.count(Show.id)).filter(Show.status == ShowStatus(status_val))
+        if status_val == "upcoming":
+            q = q.filter(Show.date >= datetime.date.today())
+        return q.scalar() or 0
+
+    @strawberry.field
     def show(self, info: Info, id: strawberry.ID) -> Optional[ShowType]:
         db: Session = info.context["db"]
         s = (
@@ -163,6 +196,12 @@ class Query:
             .first()
         )
         return _show(s) if s else None
+
+    @strawberry.field
+    def venue(self, info: Info, id: strawberry.ID) -> Optional[VenueType]:
+        db: Session = info.context["db"]
+        v = db.query(Venue).filter(Venue.id == int(id)).first()
+        return _venue(v) if v else None
 
     @strawberry.field
     def bands(self, info: Info, query: str, limit: int = 20) -> list[BandType]:

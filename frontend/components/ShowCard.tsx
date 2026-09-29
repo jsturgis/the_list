@@ -1,20 +1,9 @@
+'use client'
+
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import type { Show } from '@/lib/types'
-
-function formatTime(t: string | null): string | null {
-  if (!t) return null
-  const [h, m] = t.split(':').map(Number)
-  const ampm = h >= 12 ? 'pm' : 'am'
-  const h12 = h % 12 || 12
-  return `${h12}:${String(m).padStart(2, '0')}${ampm}`
-}
-
-function formatPrice(show: Show): string {
-  if (show.isFree) return 'Free'
-  if (show.priceMin === null) return ''
-  if (show.priceMin === show.priceMax) return `$${show.priceMin}`
-  return `$${show.priceMin}–$${show.priceMax}`
-}
+import { formatTime, formatPrice } from '@/lib/format'
 
 function formatAge(age: string): string {
   if (age === 'a/a') return 'All Ages'
@@ -26,17 +15,21 @@ interface ShowCardProps {
 }
 
 export default function ShowCard({ show }: ShowCardProps) {
+  const searchParams = useSearchParams()
+  const qs = searchParams.toString()
+  const showHref = qs ? `/shows/${show.id}?${qs}` : `/shows/${show.id}`
   const headliner = show.acts[0]?.band
   const supports = show.acts.slice(1)
-  const price = formatPrice(show)
+  const price = formatPrice(show.priceMin, show.priceMax, show.isFree) ?? ''
   const door = formatTime(show.doorTime)
   const age = formatAge(show.ageRestriction)
   const isCancelled = show.status === 'cancelled'
   const isPostponed = show.status === 'postponed'
 
   return (
-    <article
-      className={`rounded-lg border p-4 flex flex-col gap-2 ${
+    <Link
+      href={showHref}
+      className={`rounded-lg border p-4 flex flex-col gap-2 transition-all hover:shadow-md hover:brightness-[0.97] dark:hover:brightness-110 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
         show.isRecommended
           ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-600'
           : 'border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900'
@@ -56,13 +49,8 @@ export default function ShowCard({ show }: ShowCardProps) {
       )}
 
       {headliner && (
-        <h3 className="font-semibold text-base leading-tight">
-          <Link
-            href={`/shows/${show.id}`}
-            className="hover:underline text-zinc-900 dark:text-zinc-50"
-          >
-            {headliner.name}
-          </Link>
+        <h3 className="font-semibold text-base leading-tight text-zinc-900 dark:text-zinc-50">
+          {headliner.name}
         </h3>
       )}
 
@@ -73,7 +61,14 @@ export default function ShowCard({ show }: ShowCardProps) {
       )}
 
       <div className="text-sm text-zinc-600 dark:text-zinc-300">
-        {show.venue.name} · {show.venue.city}
+        <span
+          className="hover:underline"
+          onClick={e => { e.preventDefault(); window.location.href = `/venues/${show.venue.id}` }}
+        >
+          {show.venue.name}
+        </span>
+        {' · '}
+        {show.venue.city}
       </div>
 
       <div className="flex flex-wrap gap-2 text-xs text-zinc-500 dark:text-zinc-400">
@@ -106,6 +101,6 @@ export default function ShowCard({ show }: ShowCardProps) {
           )}
         </div>
       )}
-    </article>
+    </Link>
   )
 }

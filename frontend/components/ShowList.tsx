@@ -1,62 +1,19 @@
 'use client'
 
 import { useSearchParams } from 'next/navigation'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Show } from '@/lib/types'
 import ShowCard from './ShowCard'
 import FilterBar from './FilterBar'
+import { formatDateLong } from '@/lib/format'
+import { gqlClient } from '@/lib/graphql'
+import { SHOWS_QUERY } from '@/lib/queries'
+
+const PAGE_SIZE = 50
 
 interface ShowListProps {
   shows: Show[]
-}
-
-function applyFilters(shows: Show[], params: URLSearchParams): Show[] {
-  let result = shows
-
-  const region = params.get('region')
-  if (region) {
-    result = result.filter(s => s.venue.region === region)
-  }
-
-  const band = params.get('band')
-  if (band) {
-    const lower = band.toLowerCase()
-    result = result.filter(s =>
-      s.acts.some(a => a.band.name.toLowerCase().includes(lower)),
-    )
-  }
-
-  const priceMax = params.get('priceMax')
-  if (priceMax !== null && priceMax !== '') {
-    const max = parseFloat(priceMax)
-    if (!isNaN(max)) {
-      result = result.filter(s => s.priceMin !== null && s.priceMin <= max)
-    }
-  }
-
-  if (params.get('free') === '1') {
-    result = result.filter(s => s.isFree)
-  }
-
-  const age = params.get('age')
-  if (age) {
-    result = result.filter(s => s.ageRestriction === age)
-  }
-
-  const genre = params.get('genre')
-  if (genre) {
-    result = result.filter(s =>
-      s.acts.some(a => a.band.genres.includes(genre)),
-    )
-  }
-
-  const venue = params.get('venue')
-  if (venue) {
-    const lower = venue.toLowerCase()
-    result = result.filter(s => s.venue.name.toLowerCase().includes(lower))
-  }
-
-  return result
+  dbTotal: number
 }
 
 function groupByDate(shows: Show[]): Map<string, Show[]> {
@@ -69,88 +26,178 @@ function groupByDate(shows: Show[]): Map<string, Show[]> {
   return map
 }
 
-function formatDateHeading(dateStr: string): string {
-  const d = new Date(dateStr + 'T12:00:00')
-  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+function buildFilters(params: URLSearchParams): Record<string, unknown> | null {
+  const f: Record<string, unknown> = {}
+  const band = params.get('band'); if (band) f.bandName = band
+  const venue = params.get('venue'); if (venue) f.venueName = venue
+  const region = params.get('region'); if (region) f.region = region
+  const fromDate = params.get('fromDate'); if (fromDate) f.fromDate = fromDate
+  const toDate = params.get('toDate'); if (toDate) f.toDate = toDate
+  const priceMax = params.get('priceMax'); if (priceMax) f.priceMax = parseFloat(priceMax)
+  if (params.get('free') === '1') f.isFree = true
+  const age = params.get('age'); if (age) f.ageRestriction = age
+  const genre = params.get('genre'); if (genre) f.genre = genre
+  return Object.keys(f).length > 0 ? f : null
 }
 
-export default function ShowList({ shows }: ShowListProps) {
+export default function ShowList({ shows: initialShows, dbTotal }: ShowListProps) {
   const searchParams = useSearchParams()
 
-  const picks = useMemo(() => shows.filter(s => s.isRecommended), [shows])
+  // Unfiltered shows — grows via infinite scroll
+  const [shows, setShows] = useState(initialShows)
 
+  // Filtered shows — fetched from backend when filters active
+  const [filteredShows, setFilteredShows] = useState<Show[] | null>(null)
+  const [filterLoading, setFilterLoading] = useState(false)
+
+  // Infinite scroll
+  const [scrollLoading, setScrollLoading] = useState(false)
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  const loadingRef = useRef(false)
+
+  const filters = useMemo(() => buildFilters(searchParams), [searchParams.toString()])
+  const hasFilters = filters !== null
+
+  // Fetch from backend when filters change
+  useEffect(() => {
+    if (!filters) {
+      setFilteredShows(null)
+      return
+    }
+    let cancelled = false
+    setFilterLoading(true)
+    gqlClient
+      .request<{ shows: Show[] }>(SHOWS_QUERY, { limit: 200, filters })
+      .then(data => { if (!cancelled) setFilteredShows(data.shows) })
+      .finally(() => { if (!cancelled) setFilterLoading(false) })
+    return () => { cancelled = true }
+  }, [searchParams.toString()])
+
+  // Infinite scroll for unfiltered view
+  async function loadMore() {
+    if (loadingRef.current) return
+    loadingRef.current = true
+    setScrollLoading(true)
+    try {
+      const data = await gqlClient.request<{ shows: Show[] }>(SHOWS_QUERY, {
+        limit: PAGE_SIZE,
+        offset: shows.length,
+      })
+      setShows(prev => [...prev, ...data.shows])
+    } finally {
+      loadingRef.current = false
+      setScrollLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (hasFilters) return
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      entries => { if (entries[0].isIntersecting) loadMore() },
+      { rootMargin: '200px' },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [shows.length, dbTotal, hasFilters])
+
+  // Display: filtered results from backend, or unfiltered loaded set
+  const displayShows = hasFilters ? (filteredShows ?? []) : shows
+
+  // Filter bar options always derived from unfiltered loaded shows
   const genres = useMemo(() => {
     const set = new Set<string>()
-    for (const show of shows) {
-      for (const act of show.acts) {
-        for (const genre of act.band.genres) {
-          set.add(genre)
-        }
-      }
-    }
+    for (const show of shows) for (const act of show.acts) for (const g of act.band.genres) set.add(g)
     return Array.from(set).sort()
   }, [shows])
 
+  const regions = useMemo(() => {
+    const set = new Set<string>()
+    for (const show of shows) if (show.venue.region) set.add(show.venue.region)
+    return Array.from(set).sort()
+  }, [shows])
 
-  const filtered = useMemo(() => applyFilters(shows, searchParams), [shows, searchParams])
+  const ages = useMemo(() => {
+    const set = new Set<string>()
+    for (const show of shows) if (show.ageRestriction && show.ageRestriction !== 'unknown') set.add(show.ageRestriction)
+    return Array.from(set).sort((a, b) => {
+      const numA = a === 'a/a' ? 0 : parseInt(a)
+      const numB = b === 'a/a' ? 0 : parseInt(b)
+      return numA - numB
+    })
+  }, [shows])
 
-  const filteredPicks = useMemo(
-    () => picks.filter(s => filtered.some(f => f.id === s.id)),
-    [picks, filtered],
+  const availableDates = useMemo(() => {
+    const set = new Set<string>()
+    for (const show of shows) set.add(show.date)
+    return Array.from(set).sort()
+  }, [shows])
+
+  const picks = useMemo(() => displayShows.filter(s => s.isRecommended), [displayShows])
+  const nonPicks = useMemo(
+    () => picks.length > 0 ? displayShows.filter(s => !s.isRecommended) : displayShows,
+    [displayShows, picks],
   )
+  const byDate = useMemo(() => groupByDate(nonPicks), [nonPicks])
+  const sortedDates = useMemo(() => Array.from(byDate.keys()).sort(), [byDate])
 
-  const nonPickFiltered = useMemo(
-    () => filteredPicks.length > 0 ? filtered.filter(s => !s.isRecommended) : filtered,
-    [filtered, filteredPicks],
-  )
-
-  const byDate = useMemo(() => groupByDate(nonPickFiltered), [nonPickFiltered])
-  const sortedDates = useMemo(
-    () => Array.from(byDate.keys()).sort(),
-    [byDate],
-  )
+  const showCount = hasFilters ? (filteredShows?.length ?? 0) : shows.length
 
   return (
     <div className="flex flex-col gap-6">
-      <FilterBar showCount={filtered.length} totalCount={shows.length} genres={genres} />
+      <FilterBar
+        showCount={showCount}
+        totalCount={shows.length}
+        dbTotal={dbTotal}
+        genres={genres}
+        regions={regions}
+        ages={ages}
+        availableDates={availableDates}
+      />
 
-      {filteredPicks.length > 0 && (
-        <section>
-          <h2 className="text-lg font-bold mb-3 text-amber-700 dark:text-amber-400">
-            Steve&apos;s Picks ★
-          </h2>
-          <div
-            data-testid="steves-picks"
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
-          >
-            {filteredPicks.map(show => (
-              <ShowCard key={show.id} show={show} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {filtered.length === 0 ? (
+      {filterLoading ? (
+        <p className="text-center text-zinc-400 dark:text-zinc-500 py-12">Loading…</p>
+      ) : displayShows.length === 0 ? (
         <p className="text-center text-zinc-500 py-12">No shows match your filters.</p>
       ) : (
-        <section>
-          <div className="flex flex-col gap-6">
-            {sortedDates.map(date => (
-              <div key={date}>
-                <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2">
-                  {formatDateHeading(date)}
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {(byDate.get(date) ?? [])
-                    .sort((a, b) => (a.doorTime ?? '').localeCompare(b.doorTime ?? ''))
-                    .map(show => (
-                      <ShowCard key={show.id} show={show} />
-                    ))}
-                </div>
+        <>
+          {picks.length > 0 && (
+            <section>
+              <h2 className="text-lg font-bold mb-3 text-amber-700 dark:text-amber-400">
+                Steve&apos;s Picks ★
+              </h2>
+              <div data-testid="steves-picks" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {picks.map(show => <ShowCard key={show.id} show={show} />)}
               </div>
-            ))}
-          </div>
-        </section>
+            </section>
+          )}
+
+          <section>
+            <div className="flex flex-col gap-6">
+              {sortedDates.map(date => (
+                <div key={date}>
+                  <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2">
+                    {formatDateLong(date)}
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {(byDate.get(date) ?? [])
+                      .sort((a, b) => (a.doorTime ?? '').localeCompare(b.doorTime ?? ''))
+                      .map(show => <ShowCard key={show.id} show={show} />)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </>
+      )}
+
+      {!hasFilters && shows.length < dbTotal && (
+        <div ref={sentinelRef} className="flex justify-center py-6">
+          {scrollLoading && (
+            <span className="text-sm text-zinc-400 dark:text-zinc-500">Loading…</span>
+          )}
+        </div>
       )}
     </div>
   )

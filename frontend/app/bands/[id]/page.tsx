@@ -3,7 +3,7 @@ import { gqlClient } from '@/lib/graphql'
 import { BAND_QUERY, BAND_SHOWS_QUERY, ALL_BANDS_STATIC_QUERY } from '@/lib/queries'
 import type { Band, Show } from '@/lib/types'
 import BandDetail from '@/components/BandDetail'
-import Link from 'next/link'
+import BackToShows from '@/components/BackToShows'
 
 export async function generateStaticParams() {
   try {
@@ -48,12 +48,7 @@ export default async function BandPage({ params }: PageProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href="/"
-        className="text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-      >
-        ← Back to all shows
-      </Link>
+      <BackToShows />
       <BandDetail band={band} upcomingShows={upcomingShows} />
     </div>
   )

@@ -1,6 +1,12 @@
+export const SHOW_COUNT_QUERY = /* GraphQL */ `
+  query GetShowCount {
+    showCount
+  }
+`
+
 export const SHOWS_QUERY = /* GraphQL */ `
-  query GetShows {
-    shows(limit: 200) {
+  query GetShows($limit: Int, $offset: Int, $filters: ShowFilters) {
+    shows(limit: $limit, offset: $offset, filters: $filters) {
       id
       date
       doorTime
@@ -133,6 +139,68 @@ export const SIMILAR_BANDS_QUERY = /* GraphQL */ `
       spotifyUrl
       soundcloudUrl
       bandcampUrl
+    }
+  }
+`
+
+export const VENUE_QUERY = /* GraphQL */ `
+  query GetVenue($id: ID!) {
+    venue(id: $id) {
+      id
+      name
+      address
+      city
+      region
+      websiteUrl
+      phone
+      googleRating
+      description
+      wikipediaUrl
+    }
+  }
+`
+
+export const VENUE_SHOWS_QUERY = /* GraphQL */ `
+  query GetVenueShows($venueId: Int!) {
+    shows(filters: { venueId: $venueId }, limit: 100) {
+      id
+      date
+      doorTime
+      venue {
+        id
+        name
+        city
+        region
+      }
+      acts {
+        position
+        band {
+          id
+          name
+          genres
+        }
+      }
+      priceMin
+      priceMax
+      isFree
+      ageRestriction
+      status
+      isRecommended
+      willSellOut
+      isPit
+      isDrinkTickets
+      isNoReentry
+      notes
+    }
+  }
+`
+
+export const ALL_VENUES_STATIC_QUERY = /* GraphQL */ `
+  query GetAllVenueIds {
+    shows(limit: 500) {
+      venue {
+        id
+      }
     }
   }
 `

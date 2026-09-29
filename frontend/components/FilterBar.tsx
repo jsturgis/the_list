@@ -3,29 +3,30 @@
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-const REGIONS = [
-  { value: '', label: 'All Regions' },
-  { value: 'sf', label: 'SF' },
-  { value: 'east_bay', label: 'East Bay' },
-  { value: 'north_bay', label: 'North Bay' },
-  { value: 'south_bay', label: 'South Bay' },
-  { value: 'santa_cruz', label: 'Santa Cruz' },
-]
+const REGION_LABELS: Record<string, string> = {
+  sf: 'SF',
+  east_bay: 'East Bay',
+  north_bay: 'North Bay',
+  south_bay: 'South Bay',
+  santa_cruz: 'Santa Cruz',
+}
 
-const AGE_OPTIONS = [
-  { value: '', label: 'Any Age' },
-  { value: 'a/a', label: 'All Ages' },
-  { value: '18+', label: '18+' },
-  { value: '21+', label: '21+' },
-]
+function ageLabel(age: string): string {
+  return age === 'a/a' ? 'All Ages' : age
+}
+
 
 interface FilterBarProps {
   showCount: number
   totalCount: number
+  dbTotal: number
   genres: string[]
+  regions: string[]
+  ages: string[]
+  availableDates: string[]
 }
 
-export default function FilterBar({ showCount, totalCount, genres }: FilterBarProps) {
+export default function FilterBar({ showCount, totalCount, dbTotal, genres, regions, ages, availableDates }: FilterBarProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -52,12 +53,23 @@ export default function FilterBar({ showCount, totalCount, genres }: FilterBarPr
   const [bandInput, setBandInput] = useState(searchParams.get('band') ?? '')
   const [venueInput, setVenueInput] = useState(searchParams.get('venue') ?? '')
 
-  // Sync local state when the URL changes externally (e.g. Clear filters).
-  // React bails out of re-renders when state is set to the same value, so
-  // the debounce effects below won't re-fire after our own URL writes.
+  // Track the last value we sent to the URL. The sync effect below checks
+  // this so it doesn't overwrite local state with a stale URL update that
+  // WE triggered — only genuine external changes (e.g. Clear filters) sync.
+  const lastSentBand = useRef(searchParams.get('band') ?? '')
+  const lastSentVenue = useRef(searchParams.get('venue') ?? '')
+
   useEffect(() => {
-    setBandInput(searchParams.get('band') ?? '')
-    setVenueInput(searchParams.get('venue') ?? '')
+    const urlBand = searchParams.get('band') ?? ''
+    const urlVenue = searchParams.get('venue') ?? ''
+    if (urlBand !== lastSentBand.current) {
+      setBandInput(urlBand)
+      lastSentBand.current = urlBand
+    }
+    if (urlVenue !== lastSentVenue.current) {
+      setVenueInput(urlVenue)
+      lastSentVenue.current = urlVenue
+    }
   }, [searchParams])
 
   // Keep a stable ref to `update` so the debounce effects depend only on
@@ -66,16 +78,32 @@ export default function FilterBar({ showCount, totalCount, genres }: FilterBarPr
   updateRef.current = update
 
   useEffect(() => {
-    const timer = setTimeout(() => updateRef.current('band', bandInput), 300)
+    const timer = setTimeout(() => {
+      lastSentBand.current = bandInput
+      updateRef.current('band', bandInput)
+    }, 300)
     return () => clearTimeout(timer)
   }, [bandInput])
 
   useEffect(() => {
-    const timer = setTimeout(() => updateRef.current('venue', venueInput), 300)
+    const timer = setTimeout(() => {
+      lastSentVenue.current = venueInput
+      updateRef.current('venue', venueInput)
+    }, 300)
     return () => clearTimeout(timer)
   }, [venueInput])
 
+  const hasAdvancedFilters =
+    searchParams.has('fromDate') ||
+    searchParams.has('toDate') ||
+    searchParams.has('priceMax') ||
+    searchParams.has('age')
+
+  const [showAdvanced, setShowAdvanced] = useState(hasAdvancedFilters)
+
   const hasFilters =
+    searchParams.has('fromDate') ||
+    searchParams.has('toDate') ||
     searchParams.has('region') ||
     searchParams.has('band') ||
     searchParams.has('priceMax') ||
@@ -88,13 +116,7 @@ export default function FilterBar({ showCount, totalCount, genres }: FilterBarPr
     <div className="flex flex-col gap-3 p-4 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-          {showCount === totalCount ? (
-            <>{totalCount} shows</>
-          ) : (
-            <>
-              {showCount} of {totalCount} shows
-            </>
-          )}
+          Showing {showCount} of {dbTotal} shows
         </p>
         {hasFilters && (
           <button
@@ -117,9 +139,10 @@ export default function FilterBar({ showCount, totalCount, genres }: FilterBarPr
             onChange={e => update('region', e.target.value)}
             className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
           >
-            {REGIONS.map(r => (
-              <option key={r.value} value={r.value}>
-                {r.label}
+            <option value="">All Regions</option>
+            {regions.map(r => (
+              <option key={r} value={r}>
+                {REGION_LABELS[r] ?? r}
               </option>
             ))}
           </select>
@@ -140,36 +163,17 @@ export default function FilterBar({ showCount, totalCount, genres }: FilterBarPr
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="filter-price" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-            Max price ($)
+          <label htmlFor="filter-venue" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Venue
           </label>
           <input
-            id="filter-price"
-            type="number"
-            min={0}
-            placeholder="e.g. 20"
-            value={searchParams.get('priceMax') ?? ''}
-            onChange={e => update('priceMax', e.target.value)}
+            id="filter-venue"
+            type="text"
+            placeholder="Search by venue…"
+            value={venueInput}
+            onChange={e => setVenueInput(e.target.value)}
             className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
           />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="filter-age" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-            Age restriction
-          </label>
-          <select
-            id="filter-age"
-            value={searchParams.get('age') ?? ''}
-            onChange={e => update('age', e.target.value)}
-            className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
-          >
-            {AGE_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
         </div>
 
         <div className="flex flex-col gap-1">
@@ -191,20 +195,6 @@ export default function FilterBar({ showCount, totalCount, genres }: FilterBarPr
           </select>
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="filter-venue" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-            Venue
-          </label>
-          <input
-            id="filter-venue"
-            type="text"
-            placeholder="Search by venue…"
-            value={venueInput}
-            onChange={e => setVenueInput(e.target.value)}
-            className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
-          />
-        </div>
-
         <div className="flex items-center gap-2 pt-5">
           <input
             id="filter-free"
@@ -217,6 +207,87 @@ export default function FilterBar({ showCount, totalCount, genres }: FilterBarPr
             Free only
           </label>
         </div>
+      </div>
+
+      <div>
+        <button
+          onClick={() => setShowAdvanced(v => !v)}
+          className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+        >
+          <span className={`transition-transform ${showAdvanced ? 'rotate-90' : ''}`}>▶</span>
+          Advanced filters
+          {hasAdvancedFilters && !showAdvanced && (
+            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 text-[10px] font-medium">active</span>
+          )}
+        </button>
+
+        {showAdvanced && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
+            <div className="flex flex-col gap-1">
+              <label htmlFor="filter-from-date" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                From date
+              </label>
+              <input
+                id="filter-from-date"
+                type="date"
+                value={searchParams.get('fromDate') ?? ''}
+                min={availableDates[0] ?? ''}
+                max={searchParams.get('toDate') || availableDates[availableDates.length - 1] || ''}
+                onChange={e => update('fromDate', e.target.value)}
+                className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label htmlFor="filter-to-date" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                To date
+              </label>
+              <input
+                id="filter-to-date"
+                type="date"
+                value={searchParams.get('toDate') ?? ''}
+                min={searchParams.get('fromDate') || availableDates[0] || ''}
+                max={availableDates[availableDates.length - 1] ?? ''}
+                onChange={e => update('toDate', e.target.value)}
+                className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label htmlFor="filter-age" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                Age restriction
+              </label>
+              <select
+                id="filter-age"
+                value={searchParams.get('age') ?? ''}
+                onChange={e => update('age', e.target.value)}
+                className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
+              >
+                <option value="">Any Age</option>
+                {ages.map(a => (
+                  <option key={a} value={a}>
+                    {ageLabel(a)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label htmlFor="filter-price" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                Max price ($)
+              </label>
+              <input
+                id="filter-price"
+                type="number"
+                min={0}
+                placeholder="e.g. 20"
+                value={searchParams.get('priceMax') ?? ''}
+                onChange={e => update('priceMax', e.target.value)}
+                className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
