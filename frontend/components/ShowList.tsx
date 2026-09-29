@@ -8,6 +8,7 @@ import FilterBar from './FilterBar'
 import { formatDateLong } from '@/lib/format'
 import { gqlClient } from '@/lib/graphql'
 import { SHOWS_QUERY } from '@/lib/queries'
+import { buildFilters } from '@/lib/filters'
 
 const PAGE_SIZE = 50
 
@@ -24,6 +25,7 @@ interface ShowListProps {
   shows: Show[]
   dbTotal?: number
   filterOptions?: FilterOptions
+  initialFiltersKey?: string
 }
 
 function groupByDate(shows: Show[]): Map<string, Show[]> {
@@ -36,21 +38,7 @@ function groupByDate(shows: Show[]): Map<string, Show[]> {
   return map
 }
 
-function buildFilters(params: URLSearchParams): Record<string, unknown> | null {
-  const f: Record<string, unknown> = {}
-  const band = params.get('band'); if (band) f.bandName = band
-  const venue = params.get('venue'); if (venue) f.venueName = venue
-  const region = params.get('region'); if (region) f.region = region
-  const fromDate = params.get('fromDate'); if (fromDate) f.fromDate = fromDate
-  const toDate = params.get('toDate'); if (toDate) f.toDate = toDate
-  const priceMax = params.get('priceMax'); if (priceMax) f.priceMax = parseFloat(priceMax)
-  if (params.get('free') === '1') f.isFree = true
-  const age = params.get('age'); if (age) f.ageRestriction = age
-  const genre = params.get('genre'); if (genre) f.genre = genre
-  return Object.keys(f).length > 0 ? f : null
-}
-
-export default function ShowList({ shows: initialShows, dbTotal = 0, filterOptions = EMPTY_FILTER_OPTIONS }: ShowListProps) {
+export default function ShowList({ shows: initialShows, dbTotal = 0, filterOptions = EMPTY_FILTER_OPTIONS, initialFiltersKey = '' }: ShowListProps) {
   const searchParams = useSearchParams()
 
   const [shows, setShows] = useState(initialShows)
@@ -69,7 +57,12 @@ export default function ShowList({ shows: initialShows, dbTotal = 0, filterOptio
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false
-      if (!filters) return  // SSR gave us the correct initial unfiltered data
+      if (filtersKey === initialFiltersKey) {
+        // SSR already fetched for this exact filter state — skip.
+        // Reset the flag on cleanup so React Strict Mode's double-invocation
+        // doesn't fall through to setShows([]) on the second run.
+        return () => { isFirstRender.current = true }
+      }
     }
 
     let cancelled = false

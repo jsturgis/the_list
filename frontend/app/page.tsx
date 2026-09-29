@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { gqlClient } from '@/lib/graphql'
 import { SHOWS_QUERY, SHOW_COUNT_QUERY, FILTER_OPTIONS_QUERY } from '@/lib/queries'
+import { buildFilters } from '@/lib/filters'
 import type { Show } from '@/lib/types'
 
 interface FilterOptions {
@@ -11,9 +12,13 @@ interface FilterOptions {
 }
 import ShowList from '@/components/ShowList'
 
-async function fetchShows(): Promise<Show[]> {
+async function fetchShows(filters?: Record<string, unknown> | null): Promise<Show[]> {
   try {
-    const data = await gqlClient.request<{ shows: Show[] }>(SHOWS_QUERY, { limit: 50, offset: 0 })
+    const data = await gqlClient.request<{ shows: Show[] }>(SHOWS_QUERY, {
+      limit: 50,
+      offset: 0,
+      ...(filters ? { filters } : {}),
+    })
     return data.shows
   } catch {
     return []
@@ -38,9 +43,25 @@ async function fetchFilterOptions(): Promise<FilterOptions> {
   }
 }
 
-export default async function Home() {
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[]>>
+}
+
+export default async function Home({ searchParams }: PageProps) {
+  const rawParams = await searchParams
+  const urlParams = new URLSearchParams()
+  for (const [key, value] of Object.entries(rawParams)) {
+    if (Array.isArray(value)) {
+      value.forEach(v => urlParams.append(key, v))
+    } else {
+      urlParams.set(key, value)
+    }
+  }
+  const filterQs = urlParams.toString()
+  const filters = buildFilters(urlParams)
+
   const [shows, dbTotal, filterOptions] = await Promise.all([
-    fetchShows(),
+    fetchShows(filters),
     fetchShowCount(),
     fetchFilterOptions(),
   ])
@@ -57,7 +78,12 @@ export default async function Home() {
         </p>
       </div>
       <Suspense>
-        <ShowList shows={shows} dbTotal={dbTotal} filterOptions={filterOptions} />
+        <ShowList
+          shows={shows}
+          dbTotal={dbTotal}
+          filterOptions={filterOptions}
+          initialFiltersKey={filterQs}
+        />
       </Suspense>
     </div>
   )
