@@ -23,10 +23,9 @@ interface FilterBarProps {
   showCount: number
   totalCount: number
   genres: string[]
-  venues: string[]
 }
 
-export default function FilterBar({ showCount, totalCount, genres, venues }: FilterBarProps) {
+export default function FilterBar({ showCount, totalCount, genres }: FilterBarProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -48,19 +47,21 @@ export default function FilterBar({ showCount, totalCount, genres, venues }: Fil
     router.replace(pathname, { scroll: false })
   }, [router, pathname])
 
-  // Local state for the text input so every keystroke doesn't round-trip
+  // Local state for text inputs so every keystroke doesn't round-trip
   // through router.replace (which is async and causes characters to drop).
   const [bandInput, setBandInput] = useState(searchParams.get('band') ?? '')
+  const [venueInput, setVenueInput] = useState(searchParams.get('venue') ?? '')
 
   // Sync local state when the URL changes externally (e.g. Clear filters).
   // React bails out of re-renders when state is set to the same value, so
-  // the debounce effect below won't re-fire after our own URL writes.
+  // the debounce effects below won't re-fire after our own URL writes.
   useEffect(() => {
     setBandInput(searchParams.get('band') ?? '')
+    setVenueInput(searchParams.get('venue') ?? '')
   }, [searchParams])
 
-  // Keep a stable ref to `update` so the debounce effect depends only on
-  // bandInput, not on searchParams changing via other filters.
+  // Keep a stable ref to `update` so the debounce effects depend only on
+  // input state, not on searchParams changing via other filters.
   const updateRef = useRef(update)
   updateRef.current = update
 
@@ -68,6 +69,11 @@ export default function FilterBar({ showCount, totalCount, genres, venues }: Fil
     const timer = setTimeout(() => updateRef.current('band', bandInput), 300)
     return () => clearTimeout(timer)
   }, [bandInput])
+
+  useEffect(() => {
+    const timer = setTimeout(() => updateRef.current('venue', venueInput), 300)
+    return () => clearTimeout(timer)
+  }, [venueInput])
 
   const hasFilters =
     searchParams.has('region') ||
@@ -189,19 +195,14 @@ export default function FilterBar({ showCount, totalCount, genres, venues }: Fil
           <label htmlFor="filter-venue" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
             Venue
           </label>
-          <select
+          <input
             id="filter-venue"
-            value={searchParams.get('venue') ?? ''}
-            onChange={e => update('venue', e.target.value)}
-            className="rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
-          >
-            <option value="">All Venues</option>
-            {venues.map(v => (
-              <option key={v} value={v}>
-                {v}
-              </option>
-            ))}
-          </select>
+            type="text"
+            placeholder="Search by venue…"
+            value={venueInput}
+            onChange={e => setVenueInput(e.target.value)}
+            className="rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+          />
         </div>
 
         <div className="flex items-center gap-2 pt-5">

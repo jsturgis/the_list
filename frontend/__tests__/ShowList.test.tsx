@@ -109,8 +109,8 @@ describe('ShowList', () => {
     expect(screen.queryByText('Headliner Band')).not.toBeInTheDocument()
   })
 
-  it('filters by venue', () => {
-    setParams({ venue: 'The Fillmore' })
+  it('filters by venue (partial, case-insensitive)', () => {
+    setParams({ venue: 'fillmore' })
     render(<ShowList shows={shows} />)
     expect(screen.getByText(/1 of 20 shows/)).toBeInTheDocument()
     expect(screen.getByText('Headliner Band')).toBeInTheDocument()
