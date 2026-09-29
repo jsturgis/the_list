@@ -23,6 +23,7 @@ musicbrainzngs.set_useragent(
 musicbrainzngs.set_rate_limit(True)
 
 _PLACES_FIELD_MASK = "places.formattedAddress,places.location,places.websiteUri,places.id,places.nationalPhoneNumber,places.rating,places.utcOffsetMinutes"
+_WIKI_HEADERS = {"User-Agent": "the-list/1.0 (music discovery app; contact@thelist.app)"}
 
 
 class _GenreList(BaseModel):
@@ -175,6 +176,7 @@ def _search_wikipedia(name: str, city: str) -> Optional[str]:
             "https://en.wikipedia.org/w/api.php",
             params={"action": "query", "list": "search", "srsearch": query,
                     "format": "json", "srlimit": 3},
+            headers=_WIKI_HEADERS,
             timeout=10.0,
         )
         results = resp.json().get("query", {}).get("search", [])
@@ -193,6 +195,7 @@ def _fetch_wikipedia_data(title: str) -> dict:
     try:
         resp = httpx.get(
             f"https://en.wikipedia.org/api/rest_v1/page/summary/{_url_quote(title)}",
+            headers=_WIKI_HEADERS,
             timeout=10.0,
         )
         if resp.status_code == 200:
@@ -210,6 +213,7 @@ def _fetch_wikipedia_data(title: str) -> dict:
             "https://en.wikipedia.org/w/api.php",
             params={"action": "query", "prop": "revisions", "rvprop": "content",
                     "rvslots": "main", "titles": title, "format": "json"},
+            headers=_WIKI_HEADERS,
             timeout=10.0,
         )
         pages = resp.json().get("query", {}).get("pages", {})
