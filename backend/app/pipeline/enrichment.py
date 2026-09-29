@@ -353,9 +353,8 @@ def _enrich_venue(venue_name: str, city: str) -> dict:
     wiki_title = _search_wikipedia(clean_name, city)
     wiki_data = _fetch_wikipedia_data(wiki_title) if wiki_title else {}
     description = _generate_venue_description(clean_name, wiki_data.get("extract", ""))
-    wikipedia_url = wiki_data.get("wikipedia_url") if wiki_title else None
-    wiki_website = wiki_data.get("website_url") if wiki_title else None
-    website_url = google_website or wiki_website
+    wikipedia_url = wiki_data.get("wikipedia_url") if description else None
+    website_url = google_website or (wiki_data.get("website_url") if description else None)
 
     return {
         "address": place.get("formattedAddress"),
