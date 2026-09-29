@@ -9,9 +9,11 @@ function formatAge(age: string): string {
 
 interface ShowDetailProps {
   show: Show
+  filterQs?: string
 }
 
-export default function ShowDetail({ show }: ShowDetailProps) {
+export default function ShowDetail({ show, filterQs }: ShowDetailProps) {
+  const venueHref = filterQs ? `/venues/${show.venue.id}?${filterQs}` : `/venues/${show.venue.id}`
   const isCancelled = show.status === 'cancelled'
   const isPostponed = show.status === 'postponed'
   const door = formatTime(show.doorTime)
@@ -39,7 +41,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
           {show.acts[0]?.band.name ?? 'Unknown'}
         </h1>
         <p className="text-lg text-zinc-600 dark:text-zinc-300 mt-1">
-          at <Link href={`/venues/${show.venue.id}`} className="hover:underline">{show.venue.name}</Link> · {show.venue.city}
+          at <Link href={venueHref} className="hover:underline">{show.venue.name}</Link> · {show.venue.city}
         </p>
       </header>
 
@@ -113,7 +115,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
       <section>
         <h2 className="text-base font-semibold mb-3 text-zinc-900 dark:text-zinc-100">Venue</h2>
         <div className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-300">
-          <Link href={`/venues/${show.venue.id}`} className="font-medium text-zinc-900 dark:text-zinc-100 hover:underline">{show.venue.name}</Link>
+          <Link href={venueHref} className="font-medium text-zinc-900 dark:text-zinc-100 hover:underline">{show.venue.name}</Link>
           {show.venue.address && <p>{show.venue.address}</p>}
           {show.venue.websiteUrl && (
             <a

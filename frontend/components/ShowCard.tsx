@@ -18,6 +18,7 @@ export default function ShowCard({ show }: ShowCardProps) {
   const searchParams = useSearchParams()
   const qs = searchParams.toString()
   const showHref = qs ? `/shows/${show.id}?${qs}` : `/shows/${show.id}`
+  const venueHref = qs ? `/venues/${show.venue.id}?${qs}` : `/venues/${show.venue.id}`
   const headliner = show.acts[0]?.band
   const supports = show.acts.slice(1)
   const price = formatPrice(show.priceMin, show.priceMax, show.isFree) ?? ''
@@ -63,7 +64,7 @@ export default function ShowCard({ show }: ShowCardProps) {
       <div className="text-sm text-zinc-600 dark:text-zinc-300">
         <span
           className="hover:underline"
-          onClick={e => { e.preventDefault(); window.location.href = `/venues/${show.venue.id}` }}
+          onClick={e => { e.preventDefault(); window.location.href = venueHref }}
         >
           {show.venue.name}
         </span>

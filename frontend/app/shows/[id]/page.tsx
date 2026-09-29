@@ -16,10 +16,18 @@ export async function generateStaticParams() {
 
 interface PageProps {
   params: Promise<{ id: string }>
+  searchParams: Promise<Record<string, string | string[]>>
 }
 
-export default async function ShowPage({ params }: PageProps) {
+export default async function ShowPage({ params, searchParams }: PageProps) {
   const { id } = await params
+  const sp = await searchParams
+  const filterQs = new URLSearchParams(
+    Object.fromEntries(
+      Object.entries(sp).flatMap(([k, v]) => (Array.isArray(v) ? v.map(val => [k, val]) : [[k, v]]))
+    )
+  ).toString()
+
   let show: Show | null = null
 
   try {
@@ -34,7 +42,7 @@ export default async function ShowPage({ params }: PageProps) {
   return (
     <div className="flex flex-col gap-6">
       <BackToShows />
-      <ShowDetail show={show} />
+      <ShowDetail show={show} filterQs={filterQs || undefined} />
     </div>
   )
 }
