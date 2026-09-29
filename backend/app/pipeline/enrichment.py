@@ -242,10 +242,13 @@ def _generate_venue_description(name: str, extract: str) -> Optional[str]:
         result = llm.invoke(
             f"Summarize the following Wikipedia text about the music venue '{name}' "
             "into one or two concise sentences for a music event listing. "
-            "Focus on what kind of venue it is, its history, and what makes it notable.\n\n"
+            "Focus on what kind of venue it is, its history, and what makes it notable. "
+            "If the article is not about this venue or is clearly inaccurate, reply with only the word 'SKIP'. "
+            "Reply with only the summary — do not include any commentary, preamble, or explanation.\n\n"
             + extract[:2000]
         )
-        return result.content.strip()
+        text = result.content.strip()
+        return None if text.upper() == "SKIP" else text
     except Exception:
         return None
 
