@@ -1,10 +1,13 @@
 'use client'
 
+import { useSearchParams } from 'next/navigation'
+
 export default function BackToShows() {
-  const qs = typeof window !== 'undefined' ? window.location.search : ''
+  const searchParams = useSearchParams()
+  const qs = searchParams.toString()
   return (
     <a
-      href={`/${qs}`}
+      href={qs ? `/?${qs}` : '/'}
       className="text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
     >
       ← Back to all shows
