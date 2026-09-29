@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import date, timedelta
+import traceback
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,7 @@ from app.ingestion.parser import parse_email_body
 from app.ingestion.upsert import region_for_city, upsert_shows
 from app.models.act import Act
 from app.models.band import Band
+from app.models.ingestion_run import IngestionRun, IngestionStatus
 from app.models.show import Show, ShowStatus
 from app.models.venue import Venue
 from app.pipeline.embed import batch_embed_and_index
@@ -30,18 +32,35 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
     _own_db = db is None
     if _own_db:
         db = SessionLocal()
+
+    run = IngestionRun(started_at=datetime.utcnow(), status=IngestionStatus.success)
+    db.add(run)
+    db.flush()
+
     try:
         logger.info("ingestion: fetching latest email")
-        text = fetch_latest_list_email()
+        text, email_meta = fetch_latest_list_email()
         if not text:
             logger.info("ingestion: no email found, aborting")
+            run.status = IngestionStatus.no_email
+            run.finished_at = datetime.utcnow()
+            db.commit()
             return
+
+        run.email_received_at = email_meta.get("email_received_at")
+        run.email_subject = email_meta.get("email_subject")
+        run.email_message_id = email_meta.get("email_message_id")
 
         raw_shows = parse_email_body(text)
         if not raw_shows:
             logger.info("ingestion: no shows parsed, aborting")
+            run.shows_parsed = 0
+            run.status = IngestionStatus.no_email
+            run.finished_at = datetime.utcnow()
+            db.commit()
             return
         logger.info("ingestion: parsed %d shows", len(raw_shows))
+        run.shows_parsed = len(raw_shows)
 
         # Pre-load known headliners and venues to skip redundant API calls
         headliner_names = [raw.bands[0] for raw in raw_shows if raw.bands]
@@ -83,8 +102,10 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                 enriched.append(await enrich_show(raw))
 
         logger.info("ingestion: %d new, %d reused from DB", new_count, len(raw_shows) - new_count)
+        run.shows_new = new_count
 
         shows = upsert_shows(db, enriched)
+        run.shows_upserted = len(shows)
         db.commit()
         logger.info("ingestion: upserted %d shows", len(shows))
 
@@ -98,12 +119,20 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
         )
         logger.info("ingestion: embedding and indexing")
         await batch_embed_and_index(db, shows)
+
+        run.finished_at = datetime.utcnow()
         db.commit()
         logger.info("ingestion: done")
 
-    except Exception:
+    except Exception as exc:
         logger.exception("ingestion: pipeline failed")
-        db.rollback()
+        run.status = IngestionStatus.failure
+        run.error = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))[-2000:]
+        run.finished_at = datetime.utcnow()
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
         raise
     finally:
         if _own_db:

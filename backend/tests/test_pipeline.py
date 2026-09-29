@@ -88,10 +88,10 @@ def test_fetch_returns_decoded_body(mock_svc):
             "body": {"data": _b64_qp("the list 2026\n\nsep 25 fri")},
         }
     }
-    result = fetch_latest_list_email()
-    assert result is not None
-    assert "the list 2026" in result
-    assert "sep 25 fri" in result
+    text, meta = fetch_latest_list_email()
+    assert text is not None
+    assert "the list 2026" in text
+    assert "sep 25 fri" in text
 
 
 @patch("app.ingestion.gmail.get_gmail_service")
@@ -101,7 +101,9 @@ def test_fetch_returns_none_when_no_messages(mock_svc):
     svc.users.return_value.messages.return_value.list.return_value.execute.return_value = {
         "messages": []
     }
-    assert fetch_latest_list_email() is None
+    text, meta = fetch_latest_list_email()
+    assert text is None
+    assert meta is None
 
 
 @patch("app.ingestion.gmail.get_gmail_service")
@@ -114,6 +116,7 @@ def test_fetch_finds_plaintext_in_multipart(mock_svc):
     svc.users.return_value.messages.return_value.get.return_value.execute.return_value = {
         "payload": {
             "mimeType": "multipart/alternative",
+            "headers": [],
             "parts": [
                 {
                     "mimeType": "text/plain",
@@ -129,8 +132,8 @@ def test_fetch_finds_plaintext_in_multipart(mock_svc):
             ],
         }
     }
-    result = fetch_latest_list_email()
-    assert result == "plain text body"
+    text, meta = fetch_latest_list_email()
+    assert text == "plain text body"
 
 
 # ── embedding helpers ─────────────────────────────────────────────────────────
@@ -198,7 +201,9 @@ async def test_embed_and_index_show_stores_bytes(
 
 # ── full pipeline ─────────────────────────────────────────────────────────────
 
-@patch("app.scheduler.fetch_latest_list_email", return_value=_SAMPLE_BODY)
+_SAMPLE_FETCH = (_SAMPLE_BODY, {"email_received_at": None, "email_subject": "the list 2026", "email_message_id": None})
+
+@patch("app.scheduler.fetch_latest_list_email", return_value=_SAMPLE_FETCH)
 @patch("app.scheduler.enrich_show", new_callable=AsyncMock)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
 async def test_pipeline_creates_shows_and_bands(mock_batch, mock_enrich, mock_fetch, db):
@@ -211,7 +216,7 @@ async def test_pipeline_creates_shows_and_bands(mock_batch, mock_enrich, mock_fe
     mock_batch.assert_called_once()
 
 
-@patch("app.scheduler.fetch_latest_list_email", return_value=_SAMPLE_BODY)
+@patch("app.scheduler.fetch_latest_list_email", return_value=_SAMPLE_FETCH)
 @patch("app.scheduler.enrich_show", new_callable=AsyncMock)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
 async def test_pipeline_idempotent(mock_batch, mock_enrich, mock_fetch, db):
@@ -227,13 +232,13 @@ async def test_pipeline_idempotent(mock_batch, mock_enrich, mock_fetch, db):
     assert db.query(Band).count() == band_count
 
 
-@patch("app.scheduler.fetch_latest_list_email", return_value=None)
+@patch("app.scheduler.fetch_latest_list_email", return_value=(None, None))
 async def test_pipeline_returns_early_when_no_email(mock_fetch, db):
     await _run_ingestion_async(db=db)
     assert db.query(Show).count() == 0
 
 
-@patch("app.scheduler.fetch_latest_list_email", return_value=_SAMPLE_BODY)
+@patch("app.scheduler.fetch_latest_list_email", return_value=_SAMPLE_FETCH)
 @patch("app.scheduler.enrich_show", new_callable=AsyncMock)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
 async def test_pipeline_skips_enrichment_for_known_bands(mock_batch, mock_enrich, mock_fetch, db):
@@ -249,7 +254,7 @@ async def test_pipeline_skips_enrichment_for_known_bands(mock_batch, mock_enrich
     assert mock_enrich.call_count < first_run_calls
 
 
-@patch("app.scheduler.fetch_latest_list_email", return_value=_SAMPLE_BODY)
+@patch("app.scheduler.fetch_latest_list_email", return_value=_SAMPLE_FETCH)
 @patch("app.scheduler.enrich_show", new_callable=AsyncMock)
 @patch("app.pipeline.embed.save_index")
 @patch("app.pipeline.embed.upsert_vector")

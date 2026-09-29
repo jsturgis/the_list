@@ -5,7 +5,7 @@ from sqlalchemy import engine_from_config, pool
 from alembic import context
 
 from app.database import Base
-from app.models import Act, Band, Show, Venue  # noqa: F401 — register models with metadata
+from app.models import Act, Band, IngestionRun, Show, Venue  # noqa: F401 — register models with metadata
 
 config = context.config
 

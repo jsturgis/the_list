@@ -55,8 +55,8 @@ def _find_text_plain(payload: dict) -> str | None:
     return None
 
 
-def fetch_latest_list_email() -> str | None:
-    """Return the plain-text body of the most recent Steve List email, or None."""
+def fetch_latest_list_email() -> tuple[str, dict] | tuple[None, None]:
+    """Return (plain-text body, metadata) for the most recent Steve List email, or (None, None)."""
     service = get_gmail_service()
     results = service.users().messages().list(
         userId="me",
@@ -66,7 +66,7 @@ def fetch_latest_list_email() -> str | None:
 
     messages = results.get("messages", [])
     if not messages:
-        return None
+        return None, None
 
     msg = service.users().messages().get(
         userId="me",
@@ -74,4 +74,25 @@ def fetch_latest_list_email() -> str | None:
         format="full",
     ).execute()
 
-    return _find_text_plain(msg.get("payload", {}))
+    payload = msg.get("payload", {})
+    headers = {h["name"].lower(): h["value"] for h in payload.get("headers", [])}
+
+    # Parse the Date header into a datetime
+    import email.utils
+    received_at = None
+    date_str = headers.get("date")
+    if date_str:
+        try:
+            parsed = email.utils.parsedate_to_datetime(date_str)
+            received_at = parsed.replace(tzinfo=None)  # store as naive UTC-equivalent
+        except Exception:
+            pass
+
+    metadata = {
+        "email_received_at": received_at,
+        "email_subject": headers.get("subject"),
+        "email_message_id": headers.get("message-id"),
+    }
+
+    text = _find_text_plain(payload)
+    return text, metadata
