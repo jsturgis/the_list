@@ -30,7 +30,7 @@ def _run_sync(fn, *args):
 async def embed_and_index_band(db: Session, band: Band) -> None:
     """Generate an embedding for a Band and persist it to the DB and FAISS index."""
     genres = ", ".join(band.genres) if band.genres else ""
-    text = f"{band.name}. Genres: {genres}. {band.description or ''}".strip(". ")
+    text = f"{band.name}. Genres: {genres}".strip(". ")
     arr = await embed(text)
     band.embedding = arr.tobytes()
     index = await _run_sync(load_or_create_index, BAND_INDEX_PATH, _DIM)
