@@ -149,9 +149,54 @@ async def test_mb_empty_tags_with_soundcloud_calls_llm(mock_llm, mock_search, mo
     llm_instance.with_structured_output.return_value.invoke.return_value = MagicMock(genres=["shoegaze", "electronic"])
     mock_llm.return_value = llm_instance
 
-    result = await enrich_show(_raw())
+    # Single-band lineup so only one LLM call is expected.
+    result = await enrich_show(_raw(bands=["Headliner"]))
     assert result["genres"] == ["shoegaze", "electronic"]
     llm_instance.with_structured_output.assert_called_once()
+
+
+# ── Genre fallback to supporting acts ────────────────────────────────────────
+
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment._mb_lookup")
+@patch("app.pipeline.enrichment._mb_search")
+async def test_genre_fallback_to_support_when_headliner_empty(mock_search, mock_lookup, mock_venue):
+    """Headliner has no genres → use genres from first supporting act that has them."""
+    def mb_search_by_name(name):
+        return {"id": name, "name": name}
+
+    def mb_lookup_by_id(mbid):
+        if mbid == "Headliner":
+            return _mb_full(tags=[])
+        if mbid == "Support":
+            return _mb_full(tags=[{"name": "jazz", "count": "3"}, {"name": "funk", "count": "2"}])
+        return _mb_full(tags=[])
+
+    mock_search.side_effect = lambda name: mb_search_by_name(name)
+    mock_lookup.side_effect = lambda mbid: mb_lookup_by_id(mbid)
+
+    result = await enrich_show(_raw(bands=["Headliner", "Support"]))
+    assert result["genres"] == ["jazz", "funk"]
+
+
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment._mb_lookup")
+@patch("app.pipeline.enrichment._mb_search")
+async def test_headliner_genres_take_precedence(mock_search, mock_lookup, mock_venue):
+    """Headliner has genres → support act genres are not used for the show."""
+    def mb_search_by_name(name):
+        return {"id": name, "name": name}
+
+    def mb_lookup_by_id(mbid):
+        if mbid == "Headliner":
+            return _mb_full(tags=[{"name": "punk", "count": "10"}])
+        return _mb_full(tags=[{"name": "jazz", "count": "5"}])
+
+    mock_search.side_effect = lambda name: mb_search_by_name(name)
+    mock_lookup.side_effect = lambda mbid: mb_lookup_by_id(mbid)
+
+    result = await enrich_show(_raw(bands=["Headliner", "Support"]))
+    assert result["genres"] == ["punk"]
 
 
 # ── SoundCloud LLM fallback ───────────────────────────────────────────────────

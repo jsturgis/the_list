@@ -413,13 +413,24 @@ async def enrich_show(raw: RawShow) -> dict:
 
     loop = asyncio.get_event_loop()
 
-    headliner = raw.bands[0] if raw.bands else None
-    if headliner:
-        band_data = await loop.run_in_executor(None, _enrich_band, headliner)
-        result["genres"] = band_data["genres"]
-        result["spotify_url"] = band_data["spotify_url"]
-        result["soundcloud_url"] = band_data["soundcloud_url"]
-        result["bandcamp_url"] = band_data["bandcamp_url"]
+    if raw.bands:
+        # Enrich all bands concurrently so each gets its own URLs/genres.
+        all_band_data = await asyncio.gather(
+            *[loop.run_in_executor(None, _enrich_band, name) for name in raw.bands]
+        )
+        headliner_data = all_band_data[0]
+        result["genres"] = headliner_data["genres"]
+        result["spotify_url"] = headliner_data["spotify_url"]
+        result["soundcloud_url"] = headliner_data["soundcloud_url"]
+        result["bandcamp_url"] = headliner_data["bandcamp_url"]
+        result["band_enrichment"] = list(zip(raw.bands, all_band_data))
+
+        # If headliner has no genres, use the first supporting act that does.
+        if not result["genres"]:
+            for _, band_data in list(zip(raw.bands, all_band_data))[1:]:
+                if band_data["genres"]:
+                    result["genres"] = band_data["genres"]
+                    break
 
     if raw.venue_name:
         venue_data = await loop.run_in_executor(None, _enrich_venue, raw.venue_name, raw.city or "")

@@ -18,10 +18,12 @@ interface FilterOptions {
   dates: string[]
 }
 
+const EMPTY_FILTER_OPTIONS: FilterOptions = { regions: [], ages: [], genres: [], dates: [] }
+
 interface ShowListProps {
   shows: Show[]
-  dbTotal: number
-  filterOptions: FilterOptions
+  dbTotal?: number
+  filterOptions?: FilterOptions
 }
 
 function groupByDate(shows: Show[]): Map<string, Show[]> {
@@ -48,58 +50,77 @@ function buildFilters(params: URLSearchParams): Record<string, unknown> | null {
   return Object.keys(f).length > 0 ? f : null
 }
 
-export default function ShowList({ shows: initialShows, dbTotal, filterOptions }: ShowListProps) {
+export default function ShowList({ shows: initialShows, dbTotal = 0, filterOptions = EMPTY_FILTER_OPTIONS }: ShowListProps) {
   const searchParams = useSearchParams()
 
-  // Unfiltered shows — grows via infinite scroll
   const [shows, setShows] = useState(initialShows)
+  const [hasMore, setHasMore] = useState(initialShows.length >= PAGE_SIZE)
+  const [loading, setLoading] = useState(false)
 
-  // Filtered shows — fetched from backend when filters active
-  const [filteredShows, setFilteredShows] = useState<Show[] | null>(null)
-  const [filterLoading, setFilterLoading] = useState(false)
-
-  // Infinite scroll
-  const [scrollLoading, setScrollLoading] = useState(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
   const loadingRef = useRef(false)
+  // Skip the initial no-filter fetch — SSR already gave us the first page.
+  const isFirstRender = useRef(true)
 
   const filters = useMemo(() => buildFilters(searchParams), [searchParams.toString()])
-  const hasFilters = filters !== null
+  const filtersKey = searchParams.toString()
 
-  // Fetch from backend when filters change
+  // Reset and fetch page 1 whenever filters change.
   useEffect(() => {
-    if (!filters) {
-      setFilteredShows(null)
-      return
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      if (!filters) return  // SSR gave us the correct initial unfiltered data
     }
-    let cancelled = false
-    setFilterLoading(true)
-    gqlClient
-      .request<{ shows: Show[] }>(SHOWS_QUERY, { limit: 200, filters })
-      .then(data => { if (!cancelled) setFilteredShows(data.shows) })
-      .finally(() => { if (!cancelled) setFilterLoading(false) })
-    return () => { cancelled = true }
-  }, [searchParams.toString()])
 
-  // Infinite scroll for unfiltered view
-  async function loadMore() {
-    if (loadingRef.current) return
+    let cancelled = false
     loadingRef.current = true
-    setScrollLoading(true)
+    setLoading(true)
+    setShows([])
+    setHasMore(false)
+
+    gqlClient
+      .request<{ shows: Show[] }>(SHOWS_QUERY, {
+        limit: PAGE_SIZE,
+        offset: 0,
+        ...(filters ? { filters } : {}),
+      })
+      .then(data => {
+        if (!cancelled) {
+          setShows(data.shows)
+          setHasMore(data.shows.length >= PAGE_SIZE)
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          loadingRef.current = false
+          setLoading(false)
+        }
+      })
+
+    return () => { cancelled = true }
+  }, [filtersKey])
+
+  // Append the next page when the sentinel comes into view.
+  async function loadMore() {
+    if (loadingRef.current || !hasMore) return
+    loadingRef.current = true
+    setLoading(true)
     try {
       const data = await gqlClient.request<{ shows: Show[] }>(SHOWS_QUERY, {
         limit: PAGE_SIZE,
         offset: shows.length,
+        ...(filters ? { filters } : {}),
       })
       setShows(prev => [...prev, ...data.shows])
+      setHasMore(data.shows.length >= PAGE_SIZE)
     } finally {
       loadingRef.current = false
-      setScrollLoading(false)
+      setLoading(false)
     }
   }
 
   useEffect(() => {
-    if (hasFilters) return
+    if (!hasMore) return
     const el = sentinelRef.current
     if (!el) return
     const observer = new IntersectionObserver(
@@ -108,28 +129,22 @@ export default function ShowList({ shows: initialShows, dbTotal, filterOptions }
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [shows.length, dbTotal, hasFilters])
-
-  // Display: filtered results from backend, or unfiltered loaded set
-  const displayShows = hasFilters ? (filteredShows ?? []) : shows
+  }, [shows.length, hasMore, filtersKey])
 
   const { regions, ages, genres, dates: availableDates } = filterOptions
 
-  const picks = useMemo(() => displayShows.filter(s => s.isRecommended), [displayShows])
+  const picks = useMemo(() => shows.filter(s => s.isRecommended), [shows])
   const nonPicks = useMemo(
-    () => picks.length > 0 ? displayShows.filter(s => !s.isRecommended) : displayShows,
-    [displayShows, picks],
+    () => picks.length > 0 ? shows.filter(s => !s.isRecommended) : shows,
+    [shows, picks],
   )
   const byDate = useMemo(() => groupByDate(nonPicks), [nonPicks])
   const sortedDates = useMemo(() => Array.from(byDate.keys()).sort(), [byDate])
 
-  const showCount = hasFilters ? (filteredShows?.length ?? 0) : shows.length
-
   return (
     <div className="flex flex-col gap-6">
       <FilterBar
-        showCount={showCount}
-        totalCount={shows.length}
+        showCount={shows.length}
         dbTotal={dbTotal}
         genres={genres}
         regions={regions}
@@ -137,9 +152,9 @@ export default function ShowList({ shows: initialShows, dbTotal, filterOptions }
         availableDates={availableDates}
       />
 
-      {filterLoading ? (
+      {loading && shows.length === 0 ? (
         <p className="text-center text-zinc-400 dark:text-zinc-500 py-12">Loading…</p>
-      ) : displayShows.length === 0 ? (
+      ) : shows.length === 0 ? (
         <p className="text-center text-zinc-500 py-12">No shows match your filters.</p>
       ) : (
         <>
@@ -173,9 +188,9 @@ export default function ShowList({ shows: initialShows, dbTotal, filterOptions }
         </>
       )}
 
-      {!hasFilters && shows.length < dbTotal && (
+      {hasMore && (
         <div ref={sentinelRef} className="flex justify-center py-6">
-          {scrollLoading && (
+          {loading && (
             <span className="text-sm text-zinc-400 dark:text-zinc-500">Loading…</span>
           )}
         </div>

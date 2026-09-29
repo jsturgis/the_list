@@ -169,6 +169,19 @@ def _upsert_acts(db: Session, show: Show, data: dict) -> None:
     db.query(Act).filter(Act.show_id == show.id).delete()
     db.flush()
 
+    # Build a lookup of per-band enrichment keyed by name.
+    band_enrichment: dict[str, dict] = {}
+    for bname, bdata in (data.get("band_enrichment") or []):
+        band_enrichment[bname] = bdata
+    # Fall back to top-level fields for the headliner when band_enrichment absent.
+    if band_names and not band_enrichment and band_names[0] not in band_enrichment:
+        band_enrichment[band_names[0]] = {
+            "genres": data.get("genres") or [],
+            "spotify_url": data.get("spotify_url"),
+            "soundcloud_url": data.get("soundcloud_url"),
+            "bandcamp_url": data.get("bandcamp_url"),
+        }
+
     for position, name in enumerate(band_names):
         band = db.query(Band).filter(Band.name == name).first()
         if not band:
@@ -176,16 +189,15 @@ def _upsert_acts(db: Session, show: Show, data: dict) -> None:
             db.add(band)
             db.flush()
 
-        # Headliner (position 0) gets enrichment data when not already set
-        if position == 0:
-            if data.get("genres") and not band.genres:
-                band.genres = data["genres"]
-            if data.get("spotify_url") and not band.spotify_url:
-                band.spotify_url = data["spotify_url"]
-            if data.get("soundcloud_url") and not band.soundcloud_url:
-                band.soundcloud_url = data["soundcloud_url"]
-            if data.get("bandcamp_url") and not band.bandcamp_url:
-                band.bandcamp_url = data["bandcamp_url"]
+        enrichment = band_enrichment.get(name, {})
+        if enrichment.get("genres") and not band.genres:
+            band.genres = enrichment["genres"]
+        if enrichment.get("spotify_url") and not band.spotify_url:
+            band.spotify_url = enrichment["spotify_url"]
+        if enrichment.get("soundcloud_url") and not band.soundcloud_url:
+            band.soundcloud_url = enrichment["soundcloud_url"]
+        if enrichment.get("bandcamp_url") and not band.bandcamp_url:
+            band.bandcamp_url = enrichment["bandcamp_url"]
 
         db.add(Act(show_id=show.id, band_id=band.id, position=position))
 

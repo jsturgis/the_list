@@ -18,7 +18,6 @@ function ageLabel(age: string): string {
 
 interface FilterBarProps {
   showCount: number
-  totalCount: number
   dbTotal: number
   genres: string[]
   regions: string[]
@@ -26,7 +25,7 @@ interface FilterBarProps {
   availableDates: string[]
 }
 
-export default function FilterBar({ showCount, totalCount, dbTotal, genres, regions, ages, availableDates }: FilterBarProps) {
+export default function FilterBar({ showCount, dbTotal, genres, regions, ages, availableDates }: FilterBarProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
