@@ -109,7 +109,13 @@ def _query_shows(
                 db.query(Venue.id).filter(Venue.region == f.region)
             )
         )
-    if f.band_name:
+    if f.band_id is not None:
+        q = q.filter(
+            Show.id.in_(
+                db.query(Act.show_id).filter(Act.band_id == f.band_id)
+            )
+        )
+    elif f.band_name:
         q = q.filter(
             Show.id.in_(
                 db.query(Act.show_id)

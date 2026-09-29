@@ -36,7 +36,7 @@ export default async function BandPage({ params }: PageProps) {
     band = bandData.band
     if (band) {
       const showsData = await gqlClient.request<{ shows: Show[] }>(BAND_SHOWS_QUERY, {
-        bandName: band.name,
+        bandId: band.id,
       })
       upcomingShows = showsData.shows
     }

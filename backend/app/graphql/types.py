@@ -63,6 +63,7 @@ class ShowFilters:
     to_date: date | None = None
     city: str | None = None
     region: str | None = None
+    band_id: int | None = None
     band_name: str | None = None
     price_max: float | None = None
     is_free: bool | None = None

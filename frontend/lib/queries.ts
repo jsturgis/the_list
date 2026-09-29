@@ -98,8 +98,8 @@ export const BAND_QUERY = /* GraphQL */ `
 `
 
 export const BAND_SHOWS_QUERY = /* GraphQL */ `
-  query GetBandShows($bandName: String!) {
-    shows(filters: { bandName: $bandName }, limit: 50) {
+  query GetBandShows($bandId: Int!) {
+    shows(filters: { bandId: $bandId }, limit: 50) {
       id
       date
       doorTime
