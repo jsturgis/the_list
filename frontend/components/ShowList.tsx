@@ -47,8 +47,11 @@ export default function ShowList({ shows: initialShows, dbTotal = 0, filterOptio
 
   const sentinelRef = useRef<HTMLDivElement>(null)
   const loadingRef = useRef(false)
-  // Skip the initial no-filter fetch — SSR already gave us the first page.
   const isFirstRender = useRef(true)
+  // Freeze the SSR filter state at mount time. The prop can change on soft
+  // navigations (page re-renders), but the guard should only skip the fetch
+  // for the exact filter state that SSR already served.
+  const initialFiltersKeyRef = useRef(initialFiltersKey)
 
   const filtersKey = searchParams.toString()
   const filters = useMemo(() => buildFilters(searchParams), [filtersKey])
@@ -57,7 +60,7 @@ export default function ShowList({ shows: initialShows, dbTotal = 0, filterOptio
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false
-      if (filtersKey === initialFiltersKey) {
+      if (filtersKey === initialFiltersKeyRef.current) {
         // SSR already fetched for this exact filter state — skip.
         // Reset the flag on cleanup so React Strict Mode's double-invocation
         // doesn't fall through to setShows([]) on the second run.
