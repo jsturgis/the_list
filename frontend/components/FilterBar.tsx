@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 const REGIONS = [
   { value: '', label: 'All Regions' },
@@ -46,6 +46,27 @@ export default function FilterBar({ showCount, totalCount, genres }: FilterBarPr
   const clearAll = useCallback(() => {
     router.replace(pathname, { scroll: false })
   }, [router, pathname])
+
+  // Local state for the text input so every keystroke doesn't round-trip
+  // through router.replace (which is async and causes characters to drop).
+  const [bandInput, setBandInput] = useState(searchParams.get('band') ?? '')
+
+  // Sync local state when the URL changes externally (e.g. Clear filters).
+  // React bails out of re-renders when state is set to the same value, so
+  // the debounce effect below won't re-fire after our own URL writes.
+  useEffect(() => {
+    setBandInput(searchParams.get('band') ?? '')
+  }, [searchParams])
+
+  // Keep a stable ref to `update` so the debounce effect depends only on
+  // bandInput, not on searchParams changing via other filters.
+  const updateRef = useRef(update)
+  updateRef.current = update
+
+  useEffect(() => {
+    const timer = setTimeout(() => updateRef.current('band', bandInput), 300)
+    return () => clearTimeout(timer)
+  }, [bandInput])
 
   const hasFilters =
     searchParams.has('region') ||
@@ -104,8 +125,8 @@ export default function FilterBar({ showCount, totalCount, genres }: FilterBarPr
             id="filter-band"
             type="text"
             placeholder="Search by band…"
-            value={searchParams.get('band') ?? ''}
-            onChange={e => update('band', e.target.value)}
+            value={bandInput}
+            onChange={e => setBandInput(e.target.value)}
             className="rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
           />
         </div>
