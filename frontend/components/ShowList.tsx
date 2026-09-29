@@ -62,8 +62,8 @@ export default function ShowList({ shows: initialShows, dbTotal = 0, filterOptio
   // Skip the initial no-filter fetch — SSR already gave us the first page.
   const isFirstRender = useRef(true)
 
-  const filters = useMemo(() => buildFilters(searchParams), [searchParams.toString()])
   const filtersKey = searchParams.toString()
+  const filters = useMemo(() => buildFilters(searchParams), [filtersKey])
 
   // Reset and fetch page 1 whenever filters change.
   useEffect(() => {
@@ -164,7 +164,7 @@ export default function ShowList({ shows: initialShows, dbTotal = 0, filterOptio
                 Steve&apos;s Picks ★
               </h2>
               <div data-testid="steves-picks" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {picks.map(show => <ShowCard key={show.id} show={show} />)}
+                {picks.map(show => <ShowCard key={show.id} show={show} filterQs={filtersKey} />)}
               </div>
             </section>
           )}
@@ -179,7 +179,7 @@ export default function ShowList({ shows: initialShows, dbTotal = 0, filterOptio
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {(byDate.get(date) ?? [])
                       .sort((a, b) => (a.doorTime ?? '').localeCompare(b.doorTime ?? ''))
-                      .map(show => <ShowCard key={show.id} show={show} />)}
+                      .map(show => <ShowCard key={show.id} show={show} filterQs={filtersKey} />)}
                   </div>
                 </div>
               ))}

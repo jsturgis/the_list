@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import type { Show } from '@/lib/types'
 import { formatTime, formatPrice } from '@/lib/format'
 
@@ -12,13 +11,12 @@ function formatAge(age: string): string {
 
 interface ShowCardProps {
   show: Show
+  filterQs?: string
 }
 
-export default function ShowCard({ show }: ShowCardProps) {
-  const searchParams = useSearchParams()
-  const qs = searchParams.toString()
-  const showHref = qs ? `/shows/${show.id}?${qs}` : `/shows/${show.id}`
-  const venueHref = qs ? `/venues/${show.venue.id}?${qs}` : `/venues/${show.venue.id}`
+export default function ShowCard({ show, filterQs = '' }: ShowCardProps) {
+  const showHref = filterQs ? `/shows/${show.id}?${filterQs}` : `/shows/${show.id}`
+  const venueHref = filterQs ? `/venues/${show.venue.id}?${filterQs}` : `/venues/${show.venue.id}`
   const headliner = show.acts[0]?.band
   const supports = show.acts.slice(1)
   const price = formatPrice(show.priceMin, show.priceMax, show.isFree) ?? ''
