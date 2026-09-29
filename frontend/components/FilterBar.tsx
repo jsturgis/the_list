@@ -115,7 +115,7 @@ export default function FilterBar({ showCount, totalCount, genres }: FilterBarPr
             id="filter-region"
             value={searchParams.get('region') ?? ''}
             onChange={e => update('region', e.target.value)}
-            className="rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
+            className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
           >
             {REGIONS.map(r => (
               <option key={r.value} value={r.value}>
@@ -135,7 +135,7 @@ export default function FilterBar({ showCount, totalCount, genres }: FilterBarPr
             placeholder="Search by band…"
             value={bandInput}
             onChange={e => setBandInput(e.target.value)}
-            className="rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+            className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
           />
         </div>
 
@@ -150,7 +150,7 @@ export default function FilterBar({ showCount, totalCount, genres }: FilterBarPr
             placeholder="e.g. 20"
             value={searchParams.get('priceMax') ?? ''}
             onChange={e => update('priceMax', e.target.value)}
-            className="rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+            className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
           />
         </div>
 
@@ -162,7 +162,7 @@ export default function FilterBar({ showCount, totalCount, genres }: FilterBarPr
             id="filter-age"
             value={searchParams.get('age') ?? ''}
             onChange={e => update('age', e.target.value)}
-            className="rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
+            className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
           >
             {AGE_OPTIONS.map(o => (
               <option key={o.value} value={o.value}>
@@ -180,7 +180,7 @@ export default function FilterBar({ showCount, totalCount, genres }: FilterBarPr
             id="filter-genre"
             value={searchParams.get('genre') ?? ''}
             onChange={e => update('genre', e.target.value)}
-            className="rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
+            className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
           >
             <option value="">All Genres</option>
             {genres.map(g => (
@@ -201,7 +201,7 @@ export default function FilterBar({ showCount, totalCount, genres }: FilterBarPr
             placeholder="Search by venue…"
             value={venueInput}
             onChange={e => setVenueInput(e.target.value)}
-            className="rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+            className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
           />
         </div>
 
