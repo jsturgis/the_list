@@ -250,6 +250,30 @@ def _generate_venue_description(name: str, extract: str) -> Optional[str]:
         return None
 
 
+# ── Venue name cleaning ───────────────────────────────────────────────────────
+
+@lru_cache(maxsize=512)
+def _clean_venue_name(raw_name: str) -> str:
+    """Use LLM to strip city names, age restrictions, etc. from a parsed venue name."""
+    llm = get_enrichment_llm()
+    try:
+        result = llm.invoke(
+            "Extract only the venue name from the string below, removing any city names, "
+            "neighborhoods, age restrictions (e.g. '21+', '18+', 'A/A'), or other details. "
+            "Reply with ONLY the venue name, nothing else.\n\n"
+            "Examples:\n"
+            "  'the Ivy Room Albany 21+' → 'the Ivy Room'\n"
+            "  '924 Gilman Street Berkeley' → '924 Gilman Street'\n"
+            "  'The Chapel SF' → 'The Chapel'\n"
+            "  'Bottom of the Hill SF 18+' → 'Bottom of the Hill'\n\n"
+            f"Input: '{raw_name}'"
+        )
+        cleaned = result.content.strip().strip("'\"")
+        return cleaned if cleaned else raw_name
+    except Exception:
+        return raw_name
+
+
 # ── Google Maps ───────────────────────────────────────────────────────────────
 
 def _get_timezone(lat: float, lng: float, api_key: str) -> Optional[str]:
@@ -274,11 +298,12 @@ def _enrich_venue(venue_name: str, city: str) -> dict:
     api_key = settings.google_maps_api_key
     if not api_key:
         return {}
+    clean_name = _clean_venue_name(venue_name)
     try:
         resp = httpx.post(
             "https://places.googleapis.com/v1/places:searchText",
             headers={"X-Goog-Api-Key": api_key, "X-Goog-FieldMask": _PLACES_FIELD_MASK},
-            json={"textQuery": f"{venue_name} {city}"},
+            json={"textQuery": f"{clean_name} {city}"},
             timeout=10.0,
         )
         data = resp.json()
@@ -297,9 +322,9 @@ def _enrich_venue(venue_name: str, city: str) -> dict:
     google_website = place.get("websiteUri")
 
     # Wikipedia: description + wikipedia_url + website fallback
-    wiki_title = _search_wikipedia(venue_name, city)
+    wiki_title = _search_wikipedia(clean_name, city)
     wiki_data = _fetch_wikipedia_data(wiki_title) if wiki_title else {}
-    description = _generate_venue_description(venue_name, wiki_data.get("extract", ""))
+    description = _generate_venue_description(clean_name, wiki_data.get("extract", ""))
     wikipedia_url = wiki_data.get("wikipedia_url")
     website_url = google_website or wiki_data.get("website_url")
 
