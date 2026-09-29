@@ -43,6 +43,13 @@ function applyFilters(shows: Show[], params: URLSearchParams): Show[] {
     result = result.filter(s => s.ageRestriction === age)
   }
 
+  const genre = params.get('genre')
+  if (genre) {
+    result = result.filter(s =>
+      s.acts.some(a => a.band.genres.includes(genre)),
+    )
+  }
+
   return result
 }
 
@@ -66,6 +73,18 @@ export default function ShowList({ shows }: ShowListProps) {
 
   const picks = useMemo(() => shows.filter(s => s.isRecommended), [shows])
 
+  const genres = useMemo(() => {
+    const set = new Set<string>()
+    for (const show of shows) {
+      for (const act of show.acts) {
+        for (const genre of act.band.genres) {
+          set.add(genre)
+        }
+      }
+    }
+    return Array.from(set).sort()
+  }, [shows])
+
   const filtered = useMemo(() => applyFilters(shows, searchParams), [shows, searchParams])
 
   const filteredPicks = useMemo(
@@ -86,7 +105,7 @@ export default function ShowList({ shows }: ShowListProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <FilterBar showCount={filtered.length} totalCount={shows.length} />
+      <FilterBar showCount={filtered.length} totalCount={shows.length} genres={genres} />
 
       {filteredPicks.length > 0 && (
         <section>

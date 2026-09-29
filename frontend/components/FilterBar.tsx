@@ -22,9 +22,10 @@ const AGE_OPTIONS = [
 interface FilterBarProps {
   showCount: number
   totalCount: number
+  genres: string[]
 }
 
-export default function FilterBar({ showCount, totalCount }: FilterBarProps) {
+export default function FilterBar({ showCount, totalCount, genres }: FilterBarProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -51,7 +52,8 @@ export default function FilterBar({ showCount, totalCount }: FilterBarProps) {
     searchParams.has('band') ||
     searchParams.has('priceMax') ||
     searchParams.has('free') ||
-    searchParams.has('age')
+    searchParams.has('age') ||
+    searchParams.has('genre')
 
   return (
     <div className="flex flex-col gap-3 p-4 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700">
@@ -136,6 +138,25 @@ export default function FilterBar({ showCount, totalCount }: FilterBarProps) {
             {AGE_OPTIONS.map(o => (
               <option key={o.value} value={o.value}>
                 {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="filter-genre" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Genre
+          </label>
+          <select
+            id="filter-genre"
+            value={searchParams.get('genre') ?? ''}
+            onChange={e => update('genre', e.target.value)}
+            className="rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
+          >
+            <option value="">All Genres</option>
+            {genres.map(g => (
+              <option key={g} value={g}>
+                {g}
               </option>
             ))}
           </select>

@@ -98,6 +98,30 @@ describe('ShowList', () => {
     expect(screen.queryByText('Folk Duo')).not.toBeInTheDocument()
   })
 
+  it('filters by genre', () => {
+    setParams({ genre: 'folk' })
+    render(<ShowList shows={shows} />)
+    // folk shows: 3 (North Bay Band), 11 (Family Band), 19 (Folk Duo)
+    expect(screen.getByText(/3 of 20 shows/)).toBeInTheDocument()
+    expect(screen.getByText('North Bay Band')).toBeInTheDocument()
+    expect(screen.getByText('Family Band')).toBeInTheDocument()
+    expect(screen.getByText('Folk Duo')).toBeInTheDocument()
+    expect(screen.queryByText('Headliner Band')).not.toBeInTheDocument()
+  })
+
+  it('renders genre select with sorted options from shows', () => {
+    render(<ShowList shows={shows} />)
+    const select = screen.getByLabelText(/genre/i)
+    const options = Array.from(select.querySelectorAll('option')).map(o => o.value)
+    expect(options[0]).toBe('')  // "All Genres" default
+    expect(options).toContain('blues')
+    expect(options).toContain('folk')
+    expect(options).toContain('punk')
+    // verify sorted
+    const genres = options.filter(Boolean)
+    expect(genres).toEqual([...genres].sort())
+  })
+
   it('shows result count for filtered set', () => {
     setParams({ region: 'santa_cruz' })
     render(<ShowList shows={shows} />)
