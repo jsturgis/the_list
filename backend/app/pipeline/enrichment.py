@@ -23,7 +23,7 @@ musicbrainzngs.set_useragent(
 musicbrainzngs.set_rate_limit(True)
 
 _PLACES_FIELD_MASK = "places.formattedAddress,places.location,places.websiteUri,places.id,places.nationalPhoneNumber,places.rating,places.utcOffsetMinutes"
-_WIKI_HEADERS = {"User-Agent": "the-list/1.0 (music discovery app; contact@thelist.app)"}
+_WIKI_HEADERS = {"User-Agent": "the-list/1.0 (https://github.com/jsturgis/the_list) python-httpx"}
 
 
 class _GenreList(BaseModel):
