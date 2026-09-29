@@ -22,7 +22,7 @@ from app.models.band import Band
 from app.models.show import Show, ShowStatus
 from app.models.venue import Venue
 from app.pipeline.embed import batch_embed_and_index
-from app.pipeline.enrichment import enrich_show
+from app.pipeline.enrichment import _clean_venue_name, _enrich_venue, enrich_show
 
 
 async def _run_ingestion_async(db: Optional[Session] = None) -> None:
@@ -108,6 +108,52 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
     finally:
         if _own_db:
             db.close()
+
+
+async def _run_venue_enrichment_async(venue_id: Optional[int] = None) -> None:
+    """Re-enrich one venue (by id) or all venues, overwriting existing data."""
+    db = SessionLocal()
+    try:
+        # Clear caches so stale data isn't returned
+        _enrich_venue.cache_clear()
+        _clean_venue_name.cache_clear()
+
+        venues = (
+            db.query(Venue).filter(Venue.id == venue_id).all()
+            if venue_id
+            else db.query(Venue).all()
+        )
+        logger.info("venue enrichment: refreshing %d venue(s)", len(venues))
+
+        loop = asyncio.get_event_loop()
+        for venue in venues:
+            logger.info("venue enrichment: enriching %s", venue.name)
+            data = await loop.run_in_executor(None, _enrich_venue, venue.name, venue.city or "")
+            if not data:
+                continue
+            for attr, key in [
+                ("website_url", "website_url"),
+                ("address", "address"),
+                ("google_place_id", "google_place_id"),
+                ("timezone", "timezone"),
+                ("phone", "phone"),
+                ("description", "description"),
+                ("wikipedia_url", "wikipedia_url"),
+            ]:
+                if data.get(key) is not None:
+                    setattr(venue, attr, data[key])
+            for attr in ("latitude", "longitude", "google_rating"):
+                if data.get(attr) is not None:
+                    setattr(venue, attr, data[attr])
+
+        db.commit()
+        logger.info("venue enrichment: done")
+    except Exception:
+        logger.exception("venue enrichment: failed")
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 def run_ingestion_pipeline() -> None:
