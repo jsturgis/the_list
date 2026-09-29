@@ -50,6 +50,11 @@ function applyFilters(shows: Show[], params: URLSearchParams): Show[] {
     )
   }
 
+  const venue = params.get('venue')
+  if (venue) {
+    result = result.filter(s => s.venue.name === venue)
+  }
+
   return result
 }
 
@@ -85,6 +90,11 @@ export default function ShowList({ shows }: ShowListProps) {
     return Array.from(set).sort()
   }, [shows])
 
+  const venues = useMemo(
+    () => Array.from(new Set(shows.map(s => s.venue.name))).sort(),
+    [shows],
+  )
+
   const filtered = useMemo(() => applyFilters(shows, searchParams), [shows, searchParams])
 
   const filteredPicks = useMemo(
@@ -105,7 +115,7 @@ export default function ShowList({ shows }: ShowListProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <FilterBar showCount={filtered.length} totalCount={shows.length} genres={genres} />
+      <FilterBar showCount={filtered.length} totalCount={shows.length} genres={genres} venues={venues} />
 
       {filteredPicks.length > 0 && (
         <section>
