@@ -31,6 +31,8 @@ def _venue(v: Venue) -> VenueType:
         timezone=v.timezone,
         phone=v.phone,
         google_rating=v.google_rating,
+        description=v.description,
+        wikipedia_url=v.wikipedia_url,
     )
 
 

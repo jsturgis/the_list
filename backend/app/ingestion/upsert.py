@@ -103,6 +103,8 @@ def _upsert_venue(db: Session, data: dict) -> Venue:
         ("google_place_id", "google_place_id"),
         ("timezone", "timezone"),
         ("phone", "phone"),
+        ("description", "venue_description"),
+        ("wikipedia_url", "venue_wikipedia_url"),
     ]:
         if data.get(key) and not getattr(venue, attr):
             setattr(venue, attr, data[key])

@@ -5,6 +5,7 @@ import re
 import time as _time
 from functools import lru_cache
 from typing import Optional
+from urllib.parse import quote as _url_quote
 
 import httpx
 import musicbrainzngs
@@ -164,6 +165,86 @@ def _enrich_band(name: str) -> dict:
     }
 
 
+# ── Wikipedia ────────────────────────────────────────────────────────────────
+
+def _search_wikipedia(name: str, city: str) -> Optional[str]:
+    """Return the Wikipedia page title for a venue, or None if not found."""
+    query = f"{name} {city}"
+    try:
+        resp = httpx.get(
+            "https://en.wikipedia.org/w/api.php",
+            params={"action": "query", "list": "search", "srsearch": query,
+                    "format": "json", "srlimit": 3},
+            timeout=10.0,
+        )
+        results = resp.json().get("query", {}).get("search", [])
+    except Exception:
+        return None
+    name_lower = name.lower()
+    for r in results:
+        if any(word in r["title"].lower() for word in name_lower.split() if len(word) > 3):
+            return r["title"]
+    return None
+
+
+def _fetch_wikipedia_data(title: str) -> dict:
+    """Return {extract, wikipedia_url, website_url} from a Wikipedia page title."""
+    result: dict = {}
+    try:
+        resp = httpx.get(
+            f"https://en.wikipedia.org/api/rest_v1/page/summary/{_url_quote(title)}",
+            timeout=10.0,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            result["extract"] = data.get("extract", "")
+            result["wikipedia_url"] = (
+                data.get("content_urls", {}).get("desktop", {}).get("page")
+            )
+    except Exception:
+        pass
+
+    # Extract official website from infobox wikitext
+    try:
+        resp = httpx.get(
+            "https://en.wikipedia.org/w/api.php",
+            params={"action": "query", "prop": "revisions", "rvprop": "content",
+                    "rvslots": "main", "titles": title, "format": "json"},
+            timeout=10.0,
+        )
+        pages = resp.json().get("query", {}).get("pages", {})
+        wikitext = (
+            next(iter(pages.values()))
+            .get("revisions", [{}])[0]
+            .get("slots", {}).get("main", {}).get("*", "")
+        )
+        m = re.search(r'\|\s*website\s*=\s*(.+?)(?:\n|\|)', wikitext, re.IGNORECASE)
+        if m:
+            url_m = re.search(r'https?://[^\s\|\}\]\n]+', m.group(1))
+            if url_m:
+                result["website_url"] = url_m.group(0).rstrip("}")
+    except Exception:
+        pass
+
+    return result
+
+
+def _generate_venue_description(name: str, extract: str) -> Optional[str]:
+    if not extract:
+        return None
+    llm = get_enrichment_llm()
+    try:
+        result = llm.invoke(
+            f"Summarize the following Wikipedia text about the music venue '{name}' "
+            "into one or two concise sentences for a music event listing. "
+            "Focus on what kind of venue it is, its history, and what makes it notable.\n\n"
+            + extract[:2000]
+        )
+        return result.content.strip()
+    except Exception:
+        return None
+
+
 # ── Google Maps ───────────────────────────────────────────────────────────────
 
 def _get_timezone(lat: float, lng: float, api_key: str) -> Optional[str]:
@@ -208,16 +289,26 @@ def _enrich_venue(venue_name: str, city: str) -> dict:
     lat = loc.get("latitude")
     lng = loc.get("longitude")
     timezone = _get_timezone(lat, lng, api_key) if lat and lng else None
+    google_website = place.get("websiteUri")
+
+    # Wikipedia: description + wikipedia_url + website fallback
+    wiki_title = _search_wikipedia(venue_name, city)
+    wiki_data = _fetch_wikipedia_data(wiki_title) if wiki_title else {}
+    description = _generate_venue_description(venue_name, wiki_data.get("extract", ""))
+    wikipedia_url = wiki_data.get("wikipedia_url")
+    website_url = google_website or wiki_data.get("website_url")
 
     return {
         "address": place.get("formattedAddress"),
-        "website_url": place.get("websiteUri"),
+        "website_url": website_url,
         "latitude": lat,
         "longitude": lng,
         "google_place_id": place.get("id"),
         "phone": place.get("nationalPhoneNumber"),
         "google_rating": place.get("rating"),
         "timezone": timezone,
+        "description": description,
+        "wikipedia_url": wikipedia_url,
     }
 
 
@@ -254,6 +345,8 @@ async def enrich_show(raw: RawShow) -> dict:
         "phone": None,
         "google_rating": None,
         "timezone": None,
+        "venue_description": None,
+        "venue_wikipedia_url": None,
     }
 
     headliner = raw.bands[0] if raw.bands else None
@@ -274,5 +367,7 @@ async def enrich_show(raw: RawShow) -> dict:
         result["phone"] = venue_data.get("phone")
         result["google_rating"] = venue_data.get("google_rating")
         result["timezone"] = venue_data.get("timezone")
+        result["venue_description"] = venue_data.get("description")
+        result["venue_wikipedia_url"] = venue_data.get("wikipedia_url")
 
     return result

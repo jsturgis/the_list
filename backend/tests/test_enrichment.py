@@ -254,11 +254,12 @@ async def test_mb_below_threshold_no_match(mock_search, mock_lookup, mock_venue)
 
 # ── Google Maps venue enrichment ──────────────────────────────────────────────
 
+@patch("app.pipeline.enrichment._search_wikipedia", return_value=None)
 @patch("app.pipeline.enrichment._mb_search", return_value=None)
 @patch("app.pipeline.enrichment.settings")
 @patch("app.pipeline.enrichment.httpx.get")   # Timezone API
 @patch("app.pipeline.enrichment.httpx.post")  # Places API
-async def test_venue_maps_result_sets_fields(mock_post, mock_get, mock_settings, mock_mb):
+async def test_venue_maps_result_sets_fields(mock_post, mock_get, mock_settings, mock_mb, mock_wiki):
     mock_settings.google_maps_api_key = "fake-key"
     mock_settings.musicbrainz_app_name = "the-list"
     mock_settings.musicbrainz_app_version = "0.1"
@@ -284,6 +285,44 @@ async def test_venue_maps_result_sets_fields(mock_post, mock_get, mock_settings,
     assert result["phone"] == "(415) 346-3000"
     assert result["google_rating"] == pytest.approx(4.7)
     assert result["timezone"] == "America/Los_Angeles"
+    assert result["venue_description"] is None
+    assert result["venue_wikipedia_url"] is None
+
+
+@patch("app.pipeline.enrichment._generate_venue_description", return_value="A historic SF music venue.")
+@patch("app.pipeline.enrichment._fetch_wikipedia_data")
+@patch("app.pipeline.enrichment._search_wikipedia", return_value="The Fillmore")
+@patch("app.pipeline.enrichment._mb_search", return_value=None)
+@patch("app.pipeline.enrichment.settings")
+@patch("app.pipeline.enrichment.httpx.get")
+@patch("app.pipeline.enrichment.httpx.post")
+async def test_venue_wikipedia_description_and_url(mock_post, mock_get, mock_settings, mock_mb, mock_wiki_search, mock_wiki_data, mock_desc):
+    """Wikipedia found → description generated, wikipedia_url set, website falls back to wiki if Google has none."""
+    mock_settings.google_maps_api_key = "fake-key"
+    mock_settings.musicbrainz_app_name = "the-list"
+    mock_settings.musicbrainz_app_version = "0.1"
+    mock_settings.musicbrainz_contact = "test@example.com"
+    mock_post.return_value.json.return_value = {
+        "places": [{
+            "formattedAddress": "1805 Geary Blvd",
+            "websiteUri": None,
+            "location": {"latitude": 37.78, "longitude": -122.43},
+            "id": "ChIJabc",
+            "nationalPhoneNumber": None,
+            "rating": None,
+        }]
+    }
+    mock_get.return_value.json.return_value = {"status": "OK", "timeZoneId": "America/Los_Angeles"}
+    mock_wiki_data.return_value = {
+        "extract": "The Fillmore is a historic music venue...",
+        "wikipedia_url": "https://en.wikipedia.org/wiki/The_Fillmore",
+        "website_url": "https://thefillmore.com",
+    }
+
+    result = await enrich_show(_raw())
+    assert result["venue_description"] == "A historic SF music venue."
+    assert result["venue_wikipedia_url"] == "https://en.wikipedia.org/wiki/The_Fillmore"
+    assert result["venue_website"] == "https://thefillmore.com"  # wiki fallback used
 
 
 @patch("app.pipeline.enrichment._mb_search", return_value=None)
