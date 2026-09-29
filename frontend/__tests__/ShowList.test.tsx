@@ -1,10 +1,11 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import ShowList from '@/components/ShowList'
-import { makeShowFixtures } from './fixtures'
+import { makeShow, makeShowFixtures } from './fixtures'
 
-// Mutable URLSearchParams that the mock reads from
+// ── navigation mock ───────────────────────────────────────────────────────────
+
 const currentParams = new URLSearchParams()
 const mockReplace = vi.fn()
 
@@ -14,163 +15,225 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/',
 }))
 
+// ── graphql client mock ───────────────────────────────────────────────────────
+
+const { mockRequest } = vi.hoisted(() => ({ mockRequest: vi.fn() }))
+
+vi.mock('@/lib/graphql', () => ({
+  gqlClient: { request: mockRequest },
+}))
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+
 function setParams(params: Record<string, string>) {
   for (const key of Array.from(currentParams.keys())) currentParams.delete(key)
   for (const [k, v] of Object.entries(params)) currentParams.set(k, v)
 }
 
+const FILTER_OPTIONS = {
+  regions: ['east_bay', 'north_bay', 'sf', 'santa_cruz', 'south_bay'],
+  ages: ['a/a', '18+', '21+'],
+  genres: ['blues', 'folk', 'metal', 'punk', 'rock'],
+  dates: ['2026-10-03', '2026-10-04', '2026-10-05'],
+}
+
 beforeEach(() => {
   setParams({})
   mockReplace.mockClear()
+  mockRequest.mockReset()
+  // Default: filtered fetch returns empty (tests that need results configure it)
+  mockRequest.mockResolvedValue({ shows: [] })
 })
+
+// ── tests ─────────────────────────────────────────────────────────────────────
 
 describe('ShowList', () => {
   const shows = makeShowFixtures()
 
-  it('renders all shows when no filters active', () => {
-    render(<ShowList shows={shows} />)
-    expect(screen.getByText('20 shows')).toBeInTheDocument()
+  describe('initial render', () => {
+    it('renders all passed shows with no filters', () => {
+      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
+      // Shows count in FilterBar
+      expect(screen.getByText(`Showing ${shows.length} of ${shows.length} shows`)).toBeInTheDocument()
+    })
+
+    it('does not call gqlClient on first render when no filters are active', () => {
+      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
+      expect(mockRequest).not.toHaveBeenCalled()
+    })
+
+    it('renders Steve\'s Picks section for recommended shows', () => {
+      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
+      expect(screen.getByRole('heading', { name: /steve'?s pick/i })).toBeInTheDocument()
+    })
+
+    it('places recommended shows in the Steve\'s Picks section', () => {
+      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
+      const section = screen.getByTestId('steves-picks')
+      expect(within(section).getByText('Headliner Band')).toBeInTheDocument()
+      expect(within(section).getByText('Oakland Blues Band')).toBeInTheDocument()
+    })
+
+    it('groups non-pick shows under date headings', () => {
+      const twoShows = [
+        makeShow({ id: 1, date: '2026-10-03' }),
+        makeShow({ id: 2, date: '2026-10-04' }),
+      ]
+      render(<ShowList shows={twoShows} dbTotal={2} filterOptions={FILTER_OPTIONS} />)
+      // formatDateLong produces something like "Saturday, October 3, 2026"
+      expect(screen.getByText(/october 3/i)).toBeInTheDocument()
+      expect(screen.getByText(/october 4/i)).toBeInTheDocument()
+    })
+
+    it('renders empty state when no shows are passed and not loading', () => {
+      render(<ShowList shows={[]} dbTotal={0} filterOptions={FILTER_OPTIONS} />)
+      expect(screen.getByText(/no shows/i)).toBeInTheDocument()
+    })
+
+    it('populates genre select from filterOptions', () => {
+      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
+      const select = screen.getByLabelText(/genre/i)
+      const values = Array.from(select.querySelectorAll('option')).map(o => o.value)
+      expect(values[0]).toBe('')  // All Genres default
+      expect(values).toContain('blues')
+      expect(values).toContain('folk')
+      expect(values).toContain('punk')
+    })
+
+    it('populates region select from filterOptions', () => {
+      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
+      const select = screen.getByLabelText(/region/i)
+      const values = Array.from(select.querySelectorAll('option')).map(o => o.value)
+      expect(values).toContain('east_bay')
+      expect(values).toContain('sf')
+    })
   })
 
-  it('renders Steve\'s Picks section heading', () => {
-    render(<ShowList shows={shows} />)
-    expect(screen.getByRole('heading', { name: /steve'?s pick/i })).toBeInTheDocument()
+  describe('filter controls → URL updates', () => {
+    it('updates URL when region is selected', async () => {
+      const user = userEvent.setup()
+      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
+      await user.selectOptions(screen.getByLabelText(/region/i), 'east_bay')
+      expect(mockReplace).toHaveBeenCalledWith(
+        expect.stringContaining('region=east_bay'),
+        expect.anything(),
+      )
+    })
+
+    it('updates URL when genre is selected', async () => {
+      const user = userEvent.setup()
+      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
+      await user.selectOptions(screen.getByLabelText(/genre/i), 'folk')
+      expect(mockReplace).toHaveBeenCalledWith(
+        expect.stringContaining('genre=folk'),
+        expect.anything(),
+      )
+    })
+
+    it('updates URL when free-only is checked', async () => {
+      const user = userEvent.setup()
+      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
+      await user.click(screen.getByLabelText(/free only/i))
+      expect(mockReplace).toHaveBeenCalledWith(
+        expect.stringContaining('free=1'),
+        expect.anything(),
+      )
+    })
   })
 
-  it('shows recommended shows in the Steve\'s Picks section', () => {
-    render(<ShowList shows={shows} />)
-    const picksSection = screen.getByTestId('steves-picks')
-    expect(within(picksSection).getByText('Headliner Band')).toBeInTheDocument()
-    expect(within(picksSection).getByText('Oakland Blues Band')).toBeInTheDocument()
+  describe('Clear filters button', () => {
+    it('shows Clear filters button when filters are active', () => {
+      setParams({ region: 'sf' })
+      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
+      expect(screen.getByRole('button', { name: /clear/i })).toBeInTheDocument()
+    })
+
+    it('hides Clear filters button when no filters active', () => {
+      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
+      expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument()
+    })
   })
 
-  it('filters by region (East Bay)', () => {
-    setParams({ region: 'east_bay' })
-    render(<ShowList shows={shows} />)
-    // East Bay shows: 2 (Berkeley), 10 (Oakland), 12 (Oakland), 19 (Berkeley)
-    expect(screen.getByText(/4 of 20 shows/)).toBeInTheDocument()
-    expect(screen.getByText('East Bay Band')).toBeInTheDocument()
-    expect(screen.queryByText('North Bay Band')).not.toBeInTheDocument()
-  })
+  describe('backend fetch when filters active', () => {
+    it('calls gqlClient.request on first render when filters are already set', async () => {
+      setParams({ region: 'east_bay' })
+      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
+      await waitFor(() => expect(mockRequest).toHaveBeenCalledTimes(1))
+      const [, variables] = mockRequest.mock.calls[0]
+      expect(variables).toMatchObject({ filters: { region: 'east_bay' } })
+    })
 
-  it('filters by maximum price', () => {
-    setParams({ priceMax: '15' })
-    render(<ShowList shows={shows} />)
-    // Shows with priceMin <= 15: free shows + $10, $5, $12, $8, $15 min
-    expect(screen.queryByText('Headliner Band')).not.toBeInTheDocument() // $25 min
-    expect(screen.getByText('East Bay Band')).toBeInTheDocument()        // free
-    expect(screen.getByText('Santa Cruz Band')).toBeInTheDocument()      // $10
-  })
+    it('passes genre filter to gqlClient.request', async () => {
+      setParams({ genre: 'punk' })
+      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
+      await waitFor(() => expect(mockRequest).toHaveBeenCalled())
+      const [, variables] = mockRequest.mock.calls[0]
+      expect(variables.filters).toMatchObject({ genre: 'punk' })
+    })
 
-  it('filters by free only', () => {
-    setParams({ free: '1' })
-    render(<ShowList shows={shows} />)
-    // Free shows: 2 (Berkeley), 10 (Oakland), 14 (Mountain View), 18 (SF)
-    expect(screen.getByText(/4 of 20 shows/)).toBeInTheDocument()
-    expect(screen.getByText('East Bay Band')).toBeInTheDocument()
-    expect(screen.queryByText('Headliner Band')).not.toBeInTheDocument()
-  })
+    it('passes free filter to gqlClient.request', async () => {
+      setParams({ free: '1' })
+      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
+      await waitFor(() => expect(mockRequest).toHaveBeenCalled())
+      const [, variables] = mockRequest.mock.calls[0]
+      expect(variables.filters).toMatchObject({ isFree: true })
+    })
 
-  it('filters by band name (partial, case-insensitive)', () => {
-    setParams({ band: 'bay' })
-    render(<ShowList shows={shows} />)
-    expect(screen.getByText('East Bay Band')).toBeInTheDocument()
-    expect(screen.getByText('North Bay Band')).toBeInTheDocument()
-    expect(screen.getByText('South Bay Band')).toBeInTheDocument()
-    expect(screen.queryByText('Headliner Band')).not.toBeInTheDocument()
-  })
+    it('passes band name filter to gqlClient.request', async () => {
+      setParams({ band: 'headliner' })
+      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
+      await waitFor(() => expect(mockRequest).toHaveBeenCalled())
+      const [, variables] = mockRequest.mock.calls[0]
+      expect(variables.filters).toMatchObject({ bandName: 'headliner' })
+    })
 
-  it('filters by age restriction (all ages)', () => {
-    setParams({ age: 'a/a' })
-    render(<ShowList shows={shows} />)
-    // All-ages shows: 2, 5, 9, 10, 14, 15, 20
-    expect(screen.getByText('East Bay Band')).toBeInTheDocument()
-    expect(screen.queryByText('Headliner Band')).not.toBeInTheDocument() // 21+
-  })
+    it('passes venue filter to gqlClient.request', async () => {
+      setParams({ venue: 'fillmore' })
+      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
+      await waitFor(() => expect(mockRequest).toHaveBeenCalled())
+      const [, variables] = mockRequest.mock.calls[0]
+      expect(variables.filters).toMatchObject({ venueName: 'fillmore' })
+    })
 
-  it('combines region + free filters', () => {
-    setParams({ region: 'east_bay', free: '1' })
-    render(<ShowList shows={shows} />)
-    // East Bay + free: shows 2, 10
-    expect(screen.getByText(/2 of 20 shows/)).toBeInTheDocument()
-    expect(screen.getByText('East Bay Band')).toBeInTheDocument()
-    expect(screen.getByText('Oakland Blues Band')).toBeInTheDocument()
-    expect(screen.queryByText('Folk Duo')).not.toBeInTheDocument()
-  })
+    it('passes combined filters to gqlClient.request', async () => {
+      setParams({ region: 'sf', free: '1' })
+      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
+      await waitFor(() => expect(mockRequest).toHaveBeenCalled())
+      const [, variables] = mockRequest.mock.calls[0]
+      expect(variables.filters).toMatchObject({ region: 'sf', isFree: true })
+    })
 
-  it('filters by genre', () => {
-    setParams({ genre: 'folk' })
-    render(<ShowList shows={shows} />)
-    // folk shows: 3 (North Bay Band), 11 (Family Band), 19 (Folk Duo)
-    expect(screen.getByText(/3 of 20 shows/)).toBeInTheDocument()
-    expect(screen.getByText('North Bay Band')).toBeInTheDocument()
-    expect(screen.getByText('Family Band')).toBeInTheDocument()
-    expect(screen.getByText('Folk Duo')).toBeInTheDocument()
-    expect(screen.queryByText('Headliner Band')).not.toBeInTheDocument()
-  })
+    it('renders shows returned by the filtered fetch', async () => {
+      setParams({ region: 'east_bay' })
+      mockRequest.mockResolvedValue({
+        shows: [makeShow({ id: 2, acts: [{ position: 0, band: { id: 3, name: 'East Bay Band', genres: ['punk'], spotifyUrl: null, soundcloudUrl: null, bandcampUrl: null } }] })],
+      })
+      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
+      await waitFor(() => expect(screen.getByText('East Bay Band')).toBeInTheDocument())
+    })
 
-  it('filters by venue (partial, case-insensitive)', () => {
-    setParams({ venue: 'fillmore' })
-    render(<ShowList shows={shows} />)
-    expect(screen.getByText(/1 of 20 shows/)).toBeInTheDocument()
-    expect(screen.getByText('Headliner Band')).toBeInTheDocument()
-    expect(screen.queryByText('East Bay Band')).not.toBeInTheDocument()
-  })
+    it('shows loading state while fetch is in progress', async () => {
+      setParams({ region: 'sf' })
+      // Never resolves so the loading spinner stays up
+      mockRequest.mockReturnValue(new Promise(() => {}))
+      render(<ShowList shows={[]} dbTotal={0} filterOptions={FILTER_OPTIONS} />)
+      expect(screen.getByText(/loading/i)).toBeInTheDocument()
+    })
 
-  it('renders genre select with sorted options from shows', () => {
-    render(<ShowList shows={shows} />)
-    const select = screen.getByLabelText(/genre/i)
-    const options = Array.from(select.querySelectorAll('option')).map(o => o.value)
-    expect(options[0]).toBe('')  // "All Genres" default
-    expect(options).toContain('blues')
-    expect(options).toContain('folk')
-    expect(options).toContain('punk')
-    // verify sorted
-    const genres = options.filter(Boolean)
-    expect(genres).toEqual([...genres].sort())
-  })
+    it('shows empty state when filtered fetch returns no shows', async () => {
+      setParams({ band: 'xyznonexistent' })
+      mockRequest.mockResolvedValue({ shows: [] })
+      render(<ShowList shows={[]} dbTotal={0} filterOptions={FILTER_OPTIONS} />)
+      await waitFor(() => expect(screen.getByText(/no shows/i)).toBeInTheDocument())
+    })
 
-  it('shows result count for filtered set', () => {
-    setParams({ region: 'santa_cruz' })
-    render(<ShowList shows={shows} />)
-    // Santa Cruz shows: 5, 17
-    expect(screen.getByText(/2 of 20 shows/)).toBeInTheDocument()
-  })
-
-  it('renders empty state when no shows match', () => {
-    setParams({ band: 'xyznonexistent' })
-    render(<ShowList shows={shows} />)
-    expect(screen.getByText(/no shows/i)).toBeInTheDocument()
-  })
-
-  it('calls router.replace with updated region param', async () => {
-    const user = userEvent.setup()
-    render(<ShowList shows={shows} />)
-    await user.selectOptions(screen.getByLabelText(/region/i), 'east_bay')
-    expect(mockReplace).toHaveBeenCalledWith(
-      expect.stringContaining('region=east_bay'),
-      expect.anything(),
-    )
-  })
-
-  it('shows Clear filters button when filters are active', () => {
-    setParams({ region: 'sf' })
-    render(<ShowList shows={shows} />)
-    expect(screen.getByRole('button', { name: /clear/i })).toBeInTheDocument()
-  })
-
-  it('hides Clear filters button when no filters active', () => {
-    render(<ShowList shows={shows} />)
-    expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument()
-  })
-
-  it('reflects free filter in URL via router.replace', async () => {
-    const user = userEvent.setup()
-    render(<ShowList shows={shows} />)
-    await user.click(screen.getByLabelText(/free only/i))
-    expect(mockReplace).toHaveBeenCalledWith(
-      expect.stringContaining('free=1'),
-      expect.anything(),
-    )
+    it('uses page size of 50 for the initial filtered fetch', async () => {
+      setParams({ genre: 'metal' })
+      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
+      await waitFor(() => expect(mockRequest).toHaveBeenCalled())
+      const [, variables] = mockRequest.mock.calls[0]
+      expect(variables.limit).toBe(50)
+      expect(variables.offset).toBe(0)
+    })
   })
 })

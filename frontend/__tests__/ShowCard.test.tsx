@@ -1,7 +1,13 @@
 import { render, screen } from '@testing-library/react'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import ShowCard from '@/components/ShowCard'
 import { makeShow, makeVenue, makeBand } from './fixtures'
+
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  usePathname: () => '/',
+}))
 
 describe('ShowCard', () => {
   it('renders headliner name', () => {
