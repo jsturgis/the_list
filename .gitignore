@@ -8,6 +8,8 @@ venv/
 node_modules/
 .next/
 *.db
+*.db-shm
+*.db-wal
 backend/data/faiss/*.index
 backend/token.json
 backend/credentials.json
