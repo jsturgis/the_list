@@ -30,7 +30,7 @@ _PRICE_RE = re.compile(
     re.IGNORECASE,
 )
 
-_AGE_RE = re.compile(r"\b(a/a|\d{1,2}\+)\b", re.IGNORECASE)
+_AGE_RE = re.compile(r"\b(a/a|\d{1,2}\+)(?!\w)", re.IGNORECASE)
 _STATUS_RE = re.compile(r"^(CANCELLED|POSTPONED)[:\s\xa0]+", re.IGNORECASE)
 _DJ_RE = re.compile(r"^dj\s+", re.IGNORECASE)
 _B2B_RE = re.compile(r"\s+b2b\s+", re.IGNORECASE)
