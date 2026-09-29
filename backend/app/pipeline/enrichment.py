@@ -23,7 +23,7 @@ musicbrainzngs.set_useragent(
 )
 musicbrainzngs.set_rate_limit(True)
 
-_PLACES_FIELD_MASK = "places.formattedAddress,places.location,places.websiteUri,places.id,places.nationalPhoneNumber,places.rating,places.utcOffsetMinutes"
+_PLACES_FIELD_MASK = "places.formattedAddress,places.addressComponents,places.location,places.websiteUri,places.id,places.nationalPhoneNumber,places.rating,places.utcOffsetMinutes"
 _WIKI_HEADERS = {"User-Agent": "the-list/1.0 (https://github.com/jsturgis/the_list) python-httpx"}
 
 
@@ -170,24 +170,41 @@ def _enrich_band(name: str) -> dict:
 # ── Wikipedia ────────────────────────────────────────────────────────────────
 
 def _search_wikipedia(name: str, city: str) -> Optional[str]:
-    """Return the Wikipedia page title for a venue, or None if not found."""
+    """Return the Wikipedia page title for a venue, or None if not found.
+
+    Prefers exact title matches over partial ones so e.g. 'The Fillmore'
+    beats 'Fillmore District, San Francisco'.
+    """
     query = f"{name} {city}"
     try:
         resp = httpx.get(
             "https://en.wikipedia.org/w/api.php",
             params={"action": "query", "list": "search", "srsearch": query,
-                    "format": "json", "srlimit": 3},
+                    "format": "json", "srlimit": 5},
             headers=_WIKI_HEADERS,
             timeout=10.0,
         )
         results = resp.json().get("query", {}).get("search", [])
     except Exception:
         return None
+
     name_lower = name.lower()
+    name_words = [w for w in name_lower.split() if len(w) > 3]
+    if not name_words:
+        return None
+
+    exact = partial_all = partial_any = None
     for r in results:
-        if any(word in r["title"].lower() for word in name_lower.split() if len(word) > 3):
-            return r["title"]
-    return None
+        title_lower = r["title"].lower()
+        if title_lower == name_lower:
+            exact = r["title"]
+            break
+        if partial_all is None and all(w in title_lower for w in name_words):
+            partial_all = r["title"]
+        elif partial_any is None and any(w in title_lower for w in name_words):
+            partial_any = r["title"]
+
+    return exact or partial_all or partial_any
 
 
 def _fetch_wikipedia_data(title: str) -> dict:
@@ -323,16 +340,22 @@ def _enrich_venue(venue_name: str, city: str) -> dict:
     lng = loc.get("longitude")
     timezone = _get_timezone(lat, lng, api_key) if lat and lng else None
     google_website = place.get("websiteUri")
+    place_city = next(
+        (c.get("longText") for c in place.get("addressComponents", [])
+         if "locality" in c.get("types", [])),
+        None,
+    )
 
     # Wikipedia: description + wikipedia_url + website fallback
     wiki_title = _search_wikipedia(clean_name, city)
     wiki_data = _fetch_wikipedia_data(wiki_title) if wiki_title else {}
     description = _generate_venue_description(clean_name, wiki_data.get("extract", ""))
-    wikipedia_url = wiki_data.get("wikipedia_url")
-    website_url = google_website or wiki_data.get("website_url")
+    wikipedia_url = wiki_data.get("wikipedia_url") if description else None
+    website_url = google_website or (wiki_data.get("website_url") if description else None)
 
     return {
         "address": place.get("formattedAddress"),
+        "city": place_city,
         "website_url": website_url,
         "latitude": lat,
         "longitude": lng,
@@ -380,6 +403,7 @@ async def enrich_show(raw: RawShow) -> dict:
         "timezone": None,
         "venue_description": None,
         "venue_wikipedia_url": None,
+        "place_city": None,
     }
 
     loop = asyncio.get_event_loop()
@@ -404,5 +428,6 @@ async def enrich_show(raw: RawShow) -> dict:
         result["timezone"] = venue_data.get("timezone")
         result["venue_description"] = venue_data.get("description")
         result["venue_wikipedia_url"] = venue_data.get("wikipedia_url")
+        result["place_city"] = venue_data.get("city")
 
     return result

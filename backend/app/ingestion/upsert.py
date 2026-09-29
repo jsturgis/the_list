@@ -87,14 +87,19 @@ def _parse_time(s: str | None) -> time | None:
 def _upsert_venue(db: Session, data: dict) -> Venue:
     name = (data.get("venue_name") or "Unknown Venue").strip()
     venue = db.query(Venue).filter(Venue.name == name).first()
+    place_city = data.get("place_city")
     if not venue:
+        city = place_city or data.get("city") or "Unknown"
         venue = Venue(
             name=name,
-            city=data.get("city") or "Unknown",
-            region=_region_for_city(data.get("city")),
+            city=city,
+            region=_region_for_city(city),
         )
         db.add(venue)
         db.flush()
+    elif place_city:
+        venue.city = place_city
+        venue.region = _region_for_city(place_city)
 
     # Apply enrichment fields only when not already set
     for attr, key in [
