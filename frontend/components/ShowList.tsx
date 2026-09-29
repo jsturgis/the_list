@@ -29,7 +29,9 @@ function applyFilters(shows: Show[], params: URLSearchParams): Show[] {
   const priceMax = params.get('priceMax')
   if (priceMax !== null && priceMax !== '') {
     const max = parseFloat(priceMax)
-    result = result.filter(s => s.priceMin !== null && s.priceMin <= max)
+    if (!isNaN(max)) {
+      result = result.filter(s => s.priceMin !== null && s.priceMin <= max)
+    }
   }
 
   if (params.get('free') === '1') {

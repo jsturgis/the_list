@@ -15,11 +15,13 @@ export default function SimilarBands({ bandId }: SimilarBandsProps) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let cancelled = false
     gqlClient
       .request<{ similarBands: Band[] }>(SIMILAR_BANDS_QUERY, { bandId: String(bandId), k: 6 })
-      .then(data => setBands(data.similarBands))
-      .catch(() => setBands([]))
-      .finally(() => setLoading(false))
+      .then(data => { if (!cancelled) setBands(data.similarBands) })
+      .catch(() => { if (!cancelled) setBands([]) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
   }, [bandId])
 
   if (loading || bands.length === 0) return null

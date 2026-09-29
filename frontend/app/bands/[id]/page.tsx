@@ -32,16 +32,13 @@ export default async function BandPage({ params }: PageProps) {
   let upcomingShows: Show[] = []
 
   try {
-    const [bandData, showsData] = await Promise.all([
-      gqlClient.request<{ band: Band | null }>(BAND_QUERY, { id }),
-      gqlClient.request<{ shows: Show[] }>(BAND_SHOWS_QUERY, { bandName: '' }),
-    ])
+    const bandData = await gqlClient.request<{ band: Band | null }>(BAND_QUERY, { id })
     band = bandData.band
     if (band) {
-      const nameData = await gqlClient.request<{ shows: Show[] }>(BAND_SHOWS_QUERY, {
+      const showsData = await gqlClient.request<{ shows: Show[] }>(BAND_SHOWS_QUERY, {
         bandName: band.name,
       })
-      upcomingShows = nameData.shows
+      upcomingShows = showsData.shows
     }
   } catch {
     // fall through to notFound
