@@ -201,6 +201,8 @@ def _search_wikipedia(name: str, city: str) -> Optional[str]:
             break
         if partial_all is None and all(w in title_lower for w in name_words):
             partial_all = r["title"]
+            if partial_any is not None:
+                break
         elif partial_any is None and any(w in title_lower for w in name_words):
             partial_any = r["title"]
 
@@ -340,9 +342,10 @@ def _enrich_venue(venue_name: str, city: str) -> dict:
     lng = loc.get("longitude")
     timezone = _get_timezone(lat, lng, api_key) if lat and lng else None
     google_website = place.get("websiteUri")
+    _CITY_TYPES = {"locality", "administrative_area_level_3", "sublocality", "sublocality_level_1"}
     place_city = next(
         (c.get("longText") for c in place.get("addressComponents", [])
-         if "locality" in c.get("types", [])),
+         if _CITY_TYPES & set(c.get("types", []))),
         None,
     )
 
@@ -350,8 +353,9 @@ def _enrich_venue(venue_name: str, city: str) -> dict:
     wiki_title = _search_wikipedia(clean_name, city)
     wiki_data = _fetch_wikipedia_data(wiki_title) if wiki_title else {}
     description = _generate_venue_description(clean_name, wiki_data.get("extract", ""))
-    wikipedia_url = wiki_data.get("wikipedia_url") if description else None
-    website_url = google_website or (wiki_data.get("website_url") if description else None)
+    wikipedia_url = wiki_data.get("wikipedia_url") if wiki_title else None
+    wiki_website = wiki_data.get("website_url") if wiki_title else None
+    website_url = google_website or wiki_website
 
     return {
         "address": place.get("formattedAddress"),

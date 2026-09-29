@@ -48,7 +48,7 @@ _AGE_MAP: dict[str, AgeRestriction] = {
 }
 
 
-def _region_for_city(city: str | None) -> Region:
+def region_for_city(city: str | None) -> Region:
     if not city:
         return Region.sf
     return _CITY_REGION.get(city.lower().strip(), Region.sf)
@@ -93,13 +93,13 @@ def _upsert_venue(db: Session, data: dict) -> Venue:
         venue = Venue(
             name=name,
             city=city,
-            region=_region_for_city(city),
+            region=region_for_city(city),
         )
         db.add(venue)
         db.flush()
-    elif place_city:
+    elif place_city and not venue.city:
         venue.city = place_city
-        venue.region = _region_for_city(place_city)
+        venue.region = region_for_city(place_city)
 
     # Apply enrichment fields only when not already set
     for attr, key in [
