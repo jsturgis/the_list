@@ -89,7 +89,6 @@ Required env vars:
 
 | Variable | Description |
 |---|---|
-| `ANTHROPIC_API_KEY` | Claude API key (enrichment fallback) |
 | `DRIVE_LATEST_FILE_ID` | Drive file id of the public `latest.json` pointer |
 | `GOOGLE_MAPS_API_KEY` | Google Maps Places API key (venue enrichment) |
 | `DATABASE_URL` | SQLite or PostgreSQL URL (default: `sqlite:///./the_list.db`) |
@@ -101,7 +100,6 @@ Required env vars:
 
 | Variable | Description |
 |---|---|
-| `ANTHROPIC_API_KEY` | Claude API key for genre enrichment fallback |
 | `GOOGLE_MAPS_API_KEY` | Venue enrichment (address, lat/lng, place ID) |
 | `DRIVE_LATEST_FILE_ID` | Drive file id of the public `latest.json` pointer (see below) |
 
@@ -117,6 +115,7 @@ Required env vars:
 
 | Variable | Default | Notes |
 |---|---|---|
+| `ANTHROPIC_API_KEY` | — | Only for the manual venue re-enrichment job (LLM name clean-up and Wikipedia descriptions); weekly ingestion makes no LLM calls |
 | `OLLAMA_EMBEDDING_MODEL` | `nomic-embed-text` | Change only if swapping embedding models |
 | `DATA_RETENTION_DAYS` | `90` | Shows older than this are hard-deleted |
 | `MUSICBRAINZ_APP_NAME` | `the-list` | MusicBrainz rate-limit user-agent |

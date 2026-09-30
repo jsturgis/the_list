@@ -315,15 +315,18 @@ def _get_timezone(lat: float, lng: float, api_key: str) -> Optional[str]:
 
 
 @lru_cache(maxsize=512)
-def _enrich_venue(venue_name: str, city: str, street: str | None = None) -> dict:
+def _enrich_venue(venue_name: str, city: str, street: str | None = None, use_llm: bool = True) -> dict:
     """Return venue enrichment dict from Google Places + Timezone APIs, or {}.
 
     `street` (when the listing gave one) narrows the search for generic names like "Music Hall".
+    With `use_llm=False` (names already clean, e.g. from a formatted edition) there are no LLM calls:
+    the name is searched as given, and the Wikipedia description is skipped because without the LLM
+    there's nothing to confirm the Wikipedia article is about this Venue.
     """
     api_key = settings.google_maps_api_key
     if not api_key:
         return {}
-    clean_name = _clean_venue_name(venue_name)
+    clean_name = _clean_venue_name(venue_name) if use_llm else venue_name
     try:
         resp = httpx.post(
             "https://places.googleapis.com/v1/places:searchText",
@@ -352,10 +355,10 @@ def _enrich_venue(venue_name: str, city: str, street: str | None = None) -> dict
         None,
     )
 
-    # Wikipedia: description + wikipedia_url + website fallback
-    wiki_title = _search_wikipedia(clean_name, city)
+    # Wikipedia: description + wikipedia_url + website fallback (needs the LLM to validate the match)
+    wiki_title = _search_wikipedia(clean_name, city) if use_llm else None
     wiki_data = _fetch_wikipedia_data(wiki_title) if wiki_title else {}
-    description = _generate_venue_description(clean_name, wiki_data.get("extract", ""))
+    description = _generate_venue_description(clean_name, wiki_data.get("extract", "")) if use_llm else None
     # A None description means the LLM flagged the Wikipedia match as wrong (SKIP)
     # or the extract was empty — discard the URL so a bad match doesn't persist.
     wikipedia_url = wiki_data.get("wikipedia_url") if description else None

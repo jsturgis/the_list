@@ -81,7 +81,8 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
             key = (name, city, street)
             if key not in venue_cache:
                 logger.info("ingestion: enriching new venue %s (%s)", name, city)
-                venue_cache[key] = await loop.run_in_executor(None, _enrich_venue, name, city or "", street)
+                # Edition names are already clean: no LLM name clean-up or Wikipedia description.
+                venue_cache[key] = await loop.run_in_executor(None, _enrich_venue, name, city or "", street, False)
             _apply_venue_data(data, venue_cache[key])
 
         shows_before = db.query(Show).count()

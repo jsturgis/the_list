@@ -110,7 +110,7 @@ _EDITION = {
 _SAMPLE_FETCH = (_EDITION, {"file_id": "edition-file-id", "file_name": "Concert Events - September 25, 2026.json"})
 
 
-def _venue_data(name, city, street=None):
+def _venue_data(name, city, street=None, use_llm=True):
     """Google Places stand-in: a distinct place per Venue."""
     return {"address": f"{street}, {city}, CA, USA", "google_place_id": f"ChIJ-{name}", "city": city}
 
@@ -160,6 +160,18 @@ async def test_pipeline_idempotent_and_enriches_only_new_venues(mock_batch, mock
     assert (db.query(Show).count(), db.query(Band).count(), db.query(Venue).count()) == counts
     mock_venue.assert_not_called()
     assert db.query(IngestionRun).order_by(IngestionRun.id.desc()).first().shows_new == 0
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_makes_no_llm_calls(mock_batch, mock_venue, mock_fetch, db):
+    """Edition names are already clean, so venue enrichment runs without the LLM."""
+    with patch("app.pipeline.enrichment.get_enrichment_llm") as llm:
+        await _run_ingestion_async(db=db)
+    llm.assert_not_called()
+    assert mock_venue.call_count == 2
+    assert all(call.args[3] is False for call in mock_venue.call_args_list)  # use_llm=False
 
 
 @patch("app.scheduler.fetch_latest_edition", return_value=(None, None))
