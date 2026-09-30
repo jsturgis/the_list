@@ -6,9 +6,10 @@ import HomeShows from '@/components/HomeShows'
 import { resetSiteData } from '@/lib/data'
 import type { ExportBand, ExportShow, ExportVenue, ExportMeta } from '@/lib/types'
 
+let currentParams = new URLSearchParams()
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => currentParams,
   usePathname: () => '/',
 }))
 
@@ -51,6 +52,7 @@ beforeAll(() => server.listen())
 afterAll(() => server.close())
 afterEach(() => server.resetHandlers())
 beforeEach(() => {
+  currentParams = new URLSearchParams()
   resetSiteData()
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-10-01T19:00:00Z'))  // noon Pacific, Oct 1
@@ -125,5 +127,54 @@ describe('HomeShows', () => {
     act(() => observers.at(-1)!([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver))
     expect(await screen.findByText('Band 59')).toBeInTheDocument()
     vi.unstubAllGlobals()
+  })
+
+  describe('filters from the URL', () => {
+    beforeEach(() => {
+      files.venues = [venue(1, 'The Fillmore', 'Western Addition'), { ...venue(2, 'Fox Theater'), region: 'east_bay' }]
+      files.bands = [
+        { ...band(20, 'Punk Band'), genres: ['punk'] },
+        { ...band(21, 'Jazz Band'), genres: ['jazz'] },
+        { ...band(22, 'Mystery Band'), genres: [] },
+      ]
+      files.shows = [
+        show(20, TODAY, 20, { priceMin: 10, priceMax: 10 }),
+        show(21, '2026-10-02', 21, { venueId: 2, priceMin: 40, priceMax: 40 }),
+        show(22, '2026-10-03', 22, { isFree: true, priceMin: 0, priceMax: 0 }),
+      ]
+      files.meta = { ...META, totalUpcoming: 3 }
+    })
+
+    it('filters the list and the count', async () => {
+      currentParams = new URLSearchParams('genre=punk')
+      render(<HomeShows />)
+      expect(await screen.findByText('Punk Band')).toBeInTheDocument()
+      expect(screen.queryByText('Jazz Band')).not.toBeInTheDocument()
+      expect(screen.queryByText('Mystery Band')).not.toBeInTheDocument()
+      expect(screen.getByText('Showing 1 of 3 shows')).toBeInTheDocument()
+    })
+
+    it('updates when the URL filters change', async () => {
+      const { rerender } = render(<HomeShows />)
+      await screen.findByText('Jazz Band')
+      expect(screen.getByText('Showing 3 of 3 shows')).toBeInTheDocument()
+
+      currentParams = new URLSearchParams('region=east_bay')
+      rerender(<HomeShows />)
+      expect(await screen.findByText('Showing 1 of 3 shows')).toBeInTheDocument()
+      expect(screen.getByText('Jazz Band')).toBeInTheDocument()
+      expect(screen.queryByText('Punk Band')).not.toBeInTheDocument()
+
+      currentParams = new URLSearchParams('free=1')
+      rerender(<HomeShows />)
+      expect(await screen.findByText('Mystery Band')).toBeInTheDocument()
+      expect(screen.queryByText('Jazz Band')).not.toBeInTheDocument()
+    })
+
+    it('shows the empty state when nothing matches', async () => {
+      currentParams = new URLSearchParams('band=nobody')
+      render(<HomeShows />)
+      expect(await screen.findByText('No shows match your filters.')).toBeInTheDocument()
+    })
   })
 })

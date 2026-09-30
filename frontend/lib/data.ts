@@ -20,13 +20,6 @@ export function hydrateShows(shows: ExportShow[], venues: ExportVenue[], bands: 
   }))
 }
 
-/** Upcoming Shows dated today or later, in date then door-time order. */
-export function upcomingShows(shows: Show[], today: string = bayAreaToday()): Show[] {
-  return shows
-    .filter(s => s.status === 'upcoming' && s.date >= today)
-    .sort((a, b) => a.date.localeCompare(b.date) || (a.doorTime ?? '').localeCompare(b.doorTime ?? ''))
-}
-
 async function getJson<T>(name: string): Promise<T> {
   const url = new URL(`/data/${name}.json`, window.location.href)
   const res = await fetch(url)

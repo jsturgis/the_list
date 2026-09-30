@@ -45,3 +45,24 @@ describe('FilterBar genre combobox', () => {
     expect(screen.getByRole('combobox', { name: 'Genre' })).toHaveValue('punk')
   })
 })
+
+describe('FilterBar clear filters', () => {
+  beforeEach(() => { params = new URLSearchParams(); replace.mockClear() })
+
+  it('resets every filter, including the genre combobox', () => {
+    params = new URLSearchParams('genre=punk&region=sf&band=rose&free=1')
+    const { rerender } = render(<FilterBar {...props} />)
+    expect(screen.getByRole('combobox', { name: 'Genre' })).toHaveValue('punk')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(replace).toHaveBeenLastCalledWith('/', { scroll: false })
+
+    // The router then clears the URL; every control follows it.
+    params = new URLSearchParams()
+    rerender(<FilterBar {...props} />)
+    expect(screen.getByRole('combobox', { name: 'Genre' })).toHaveValue('')
+    expect(screen.getByLabelText(/^band/i)).toHaveValue('')
+    expect(screen.getByLabelText(/free only/i)).not.toBeChecked()
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument()
+  })
+})
