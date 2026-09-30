@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import type { Show, Venue } from '@/lib/types'
 import ShowCard from './ShowCard'
 import { formatDateLong, mapsHref, telHref } from '@/lib/format'
