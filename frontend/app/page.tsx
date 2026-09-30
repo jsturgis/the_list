@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import { gqlClient } from '@/lib/graphql'
-import { SHOWS_QUERY, SHOW_COUNT_QUERY, FILTER_OPTIONS_QUERY } from '@/lib/queries'
+import { SHOWS_QUERY, SHOW_COUNT_QUERY, FILTER_OPTIONS_QUERY, LATEST_EMAIL_SUBJECT_QUERY } from '@/lib/queries'
 import { buildFilters } from '@/lib/filters'
 import type { Show } from '@/lib/types'
 
@@ -43,6 +43,18 @@ async function fetchFilterOptions(): Promise<FilterOptions> {
   }
 }
 
+// Subject of the most recently ingested email, e.g. "San Francisco Area Music List for Friday, …".
+async function fetchLatestEmailSubject(): Promise<string | null> {
+  try {
+    const data = await gqlClient.request<{ ingestionRuns: { emailSubject: string | null }[] }>(
+      LATEST_EMAIL_SUBJECT_QUERY,
+    )
+    return data.ingestionRuns[0]?.emailSubject ?? null
+  } catch {
+    return null
+  }
+}
+
 interface PageProps {
   searchParams: Promise<Record<string, string | string[]>>
 }
@@ -60,10 +72,11 @@ export default async function Home({ searchParams }: PageProps) {
   const filterQs = urlParams.toString()
   const filters = buildFilters(urlParams)
 
-  const [shows, dbTotal, filterOptions] = await Promise.all([
+  const [shows, dbTotal, filterOptions, emailSubject] = await Promise.all([
     fetchShows(filters),
     fetchShowCount(),
     fetchFilterOptions(),
+    fetchLatestEmailSubject(),
   ])
 
   return (
@@ -71,7 +84,7 @@ export default async function Home({ searchParams }: PageProps) {
       <div>
         <h1 className="text-2xl font-bold">This Week&apos;s Shows</h1>
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-          Upcoming Bay Area music — curated by{' '}
+          {emailSubject ?? 'Upcoming Bay Area music'} — curated by{' '}
           <a href="mailto:skoepke@stevelist.com" className="underline hover:text-zinc-700 dark:hover:text-zinc-300">
             Steve List
           </a>.
