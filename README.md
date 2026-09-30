@@ -1,12 +1,12 @@
 # The List
 
-A weekly SF Bay Area music discovery app. Ingests [Steve List's](mailto:skoepke@stevelist.com) curated Friday email, enriches shows with genre tags and venue data, and serves them through a GraphQL API and Next.js frontend.
+A weekly SF Bay Area music discovery app. Ingests the formatted edition of [Steve List's](mailto:skoepke@stevelist.com) curated Friday list, enriches new venues, and serves them through a GraphQL API and Next.js frontend.
 
 ## What it does
 
-1. **Ingests** a quoted-printable plain-text email from Gmail each Friday
-2. **Parses** dates, venues, bands, prices, age restrictions, and show flags (`*` recommended, `$` will sell out, etc.)
-3. **Enriches** headlining bands via MusicBrainz (genres, Spotify/SoundCloud links) and venues via Google Maps Places API (address, lat/lng)
+1. **Ingests** the newest formatted edition (structured JSON: shows, venues, artists with genres and links) from a public Google Drive folder each Friday
+2. **Parses** each show's details (prices, age restrictions, times, and flags: `*` recommended, `$` will sell out, etc.)
+3. **Enriches** new venues via Google Maps Places API (address, lat/lng, place ID)
 4. **Stores** shows, bands, venues, and acts in SQLite (Alembic-managed schema)
 5. **Indexes** show embeddings in FAISS for similarity search (Ollama nomic-embed-text)
 6. **Serves** a Strawberry GraphQL API over FastAPI
@@ -22,7 +22,7 @@ A weekly SF Bay Area music discovery app. Ingests [Steve List's](mailto:skoepke@
 | Enrichment | MusicBrainz API, Google Maps Places API, Claude Haiku 4.5 |
 | Embeddings | Ollama `nomic-embed-text` (dim=768) |
 | Vector search | FAISS `IndexIDMap(IndexFlatL2)` |
-| Email | Gmail API (service account) |
+| Source | Formatted edition JSON on Google Drive (public link, `latest.json` pointer) |
 | Frontend | Next.js (SSG), React Testing Library, MSW |
 
 ## Local setup
@@ -43,7 +43,7 @@ The API starts at `http://localhost:8000/graphql`. Tables are created automatica
 docker compose exec ollama ollama pull nomic-embed-text
 ```
 
-**Seed from the sample email** (no Gmail credentials needed — bypasses enrichment):
+**Seed from the sample email** (bypasses enrichment):
 ```bash
 docker compose exec api python -c "
 import email as e, sys
@@ -90,8 +90,7 @@ Required env vars:
 | Variable | Description |
 |---|---|
 | `ANTHROPIC_API_KEY` | Claude API key (enrichment fallback) |
-| `GMAIL_CREDENTIALS_PATH` | Path to Gmail OAuth2 credentials JSON |
-| `GMAIL_TOKEN_PATH` | Path to Gmail token JSON |
+| `DRIVE_LATEST_FILE_ID` | Drive file id of the public `latest.json` pointer |
 | `GOOGLE_MAPS_API_KEY` | Google Maps Places API key (venue enrichment) |
 | `DATABASE_URL` | SQLite or PostgreSQL URL (default: `sqlite:///./the_list.db`) |
 | `OLLAMA_BASE_URL` | Ollama server URL (default: `http://localhost:11434`) |
@@ -104,8 +103,7 @@ Required env vars:
 |---|---|
 | `ANTHROPIC_API_KEY` | Claude API key for genre enrichment fallback |
 | `GOOGLE_MAPS_API_KEY` | Venue enrichment (address, lat/lng, place ID) |
-| `GMAIL_CREDENTIALS_PATH` | Path to Gmail OAuth2 credentials JSON file |
-| `GMAIL_TOKEN_PATH` | Path to Gmail OAuth2 token JSON file |
+| `DRIVE_LATEST_FILE_ID` | Drive file id of the public `latest.json` pointer (see below) |
 
 ### Required for production (defaults are dev-only)
 
@@ -119,14 +117,13 @@ Required env vars:
 
 | Variable | Default | Notes |
 |---|---|---|
-| `GMAIL_WATCH_EMAIL` | `skoepke@stevelist.com` | Sender address to fetch from |
 | `OLLAMA_EMBEDDING_MODEL` | `nomic-embed-text` | Change only if swapping embedding models |
 | `DATA_RETENTION_DAYS` | `90` | Shows older than this are hard-deleted |
 | `MUSICBRAINZ_APP_NAME` | `the-list` | MusicBrainz rate-limit user-agent |
 | `MUSICBRAINZ_APP_VERSION` | `0.1` | MusicBrainz rate-limit user-agent |
 | `MUSICBRAINZ_CONTACT` | `https://github.com/jsturgis/the_list` | MusicBrainz rate-limit contact |
 
-> **Gmail credentials**: the `GMAIL_CREDENTIALS_PATH` and `GMAIL_TOKEN_PATH` files must be provisioned ahead of time via the Google Cloud Console OAuth2 flow and mounted into the container.
+> **Drive setup**: install `scripts/drive-publisher.gs` as a Google Apps Script with a weekly trigger. It moves formatted editions from your Drive root into a public folder (raw email exports into a private one) and keeps `latest.json` pointing at the newest edition. Set `DRIVE_LATEST_FILE_ID` to that file's id.
 
 Run the tests:
 
@@ -167,10 +164,10 @@ docs/
 ## How ingestion works
 
 ```
-Gmail API
-  └─ fetch latest email from skoepke@stevelist.com
-       └─ parse_email_body()   → list[RawShow]
-            └─ enrich_show()   → enriched dict per show
+Google Drive (public folder)
+  └─ latest.json → newest formatted edition JSON
+       └─ edition_shows()      → upsert-ready dict per show (details parsed, bands with genres/links)
+            └─ Google Places   → only for venues not yet in the DB
                  └─ upsert_shows()  → Show rows in DB
                       └─ embed + index in FAISS
 ```
