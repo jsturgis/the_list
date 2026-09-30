@@ -37,11 +37,28 @@ function StatusBadge({ status, compact }: { status: Show['status']; compact?: bo
 }
 
 function Flags({ show, compact }: { show: Show; compact?: boolean }) {
-  if (!(show.willSellOut || show.isPit || show.isDrinkTickets || show.isNoReentry)) return null
+  if (!(show.isSoldOut || show.isBenefit || show.isMatinee || show.willSellOut || show.isPit ||
+        show.isDrinkTickets || show.isNoReentry)) return null
   const size = compact ? 'text-[11px] px-1 py-px' : 'px-1.5 py-0.5'
   const neutral = 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'
   return (
     <div className={`flex flex-wrap gap-1 ${compact ? 'sm:flex-nowrap' : 'text-xs'}`}>
+      {show.isSoldOut && (
+        <span className={`${size} rounded font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400`}>
+          Sold out
+        </span>
+      )}
+      {show.isBenefit && (
+        <span
+          className={`${size} rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400`}
+          title={show.benefitCause ?? undefined}
+        >
+          Benefit
+        </span>
+      )}
+      {show.isMatinee && (
+        <span className={`${size} rounded bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400`}>Matinee</span>
+      )}
       {show.willSellOut && (
         <span className={`${size} rounded bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400`}>
           Will Sell Out
@@ -52,6 +69,11 @@ function Flags({ show, compact }: { show: Show; compact?: boolean }) {
       {show.isNoReentry && <span className={`${size} rounded ${neutral}`}>No Re-entry</span>}
     </div>
   )
+}
+
+/** "Western Addition, San Francisco" when the neighborhood is known, else the city. */
+function venueLocation(show: Show): string {
+  return show.venue.neighborhood ? `${show.venue.neighborhood}, ${show.venue.city}` : show.venue.city
 }
 
 export default function ShowCard({ show, filterQs = '', layout = 'card', showVenue = true }: ShowCardProps) {
@@ -95,7 +117,7 @@ export default function ShowCard({ show, filterQs = '', layout = 'card', showVen
           <div className="text-sm text-zinc-600 dark:text-zinc-300 truncate sm:w-56 sm:shrink-0">
             {show.venue.name}
             {' · '}
-            {show.venue.city}
+            {venueLocation(show)}
           </div>
         )}
 
@@ -135,7 +157,7 @@ export default function ShowCard({ show, filterQs = '', layout = 'card', showVen
         <div className="text-sm text-zinc-600 dark:text-zinc-300">
           {show.venue.name}
           {' · '}
-          {show.venue.city}
+          {venueLocation(show)}
         </div>
       )}
 
