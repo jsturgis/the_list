@@ -37,6 +37,8 @@ _DJ_RE = re.compile(r"^dj\s+", re.IGNORECASE)
 # (legend, radio links, EmailOctopus footer) is not show data.
 _END_OF_LISTINGS_RE = re.compile(r"^\*\s+All bands deserve", re.IGNORECASE)
 _B2B_RE = re.compile(r"\s+b2b\s+", re.IGNORECASE)
+# A street address part after the venue name: "6275 Hwy 9", "1339 N. 1st St." (not "9th Street Stage").
+_STREET_RE = re.compile(r"^\d+[a-z]?\s+\S", re.IGNORECASE)
 # Per-band set time after a name: "The Coverups (2:30pm)", "Black Excellence Band (noon)".
 _SET_TIME_SUFFIX_RE = re.compile(
     r"\s*\((?:noon|midnight|\d{1,2}(?::\d{2})?\s*(?:am|pm))\)\s*$", re.IGNORECASE
@@ -68,6 +70,7 @@ class RawShow:
     is_no_reentry: bool = False     # #
     status: str = "upcoming"        # upcoming | cancelled | postponed
     notes: str | None = None
+    venue_address: str | None = None  # street address listed after the venue name, if any
 
 
 def _extract_year(text: str) -> int:
@@ -80,7 +83,7 @@ def _parse_venue_part(s: str) -> dict:
         "venue_name": None, "city": None, "age_restriction": None,
         "price_raw": None, "door_time": None, "set_time": None,
         "is_recommended": False, "will_sell_out": False, "is_pit": False,
-        "is_drink_tickets": False, "is_no_reentry": False, "notes": None,
+        "is_drink_tickets": False, "is_no_reentry": False, "notes": None, "venue_address": None,
     }
 
     note_parts: list[str] = []
@@ -132,11 +135,28 @@ def _parse_venue_part(s: str) -> dict:
     parts = [p.strip() for p in venue_city.split(",") if p.strip()]
     if len(parts) >= 2:
         result["city"] = parts[-1]
-        result["venue_name"] = ", ".join(parts[:-1])
+        # "Felton Music Hall, 6275 Hwy 9, Felton": keep the street out of the name. The first part is
+        # always the name, since some venues are named by address ("924 Gilman Street").
+        name_parts, street_parts = parts[:1], []
+        for part in parts[1:-1]:
+            (street_parts if _STREET_RE.match(part) else name_parts).append(part)
+        result["venue_name"] = ", ".join(name_parts)
+        result["venue_address"] = ", ".join(street_parts) or None
     elif parts:
         result["venue_name"] = parts[0]
 
     return result
+
+
+def split_venue_street(name: str) -> tuple[str, str | None]:
+    """Split "Felton Music Hall, 6275 Hwy 9" into ("Felton Music Hall", "6275 Hwy 9")."""
+    parts = [p.strip() for p in name.split(",") if p.strip()]
+    if not parts:
+        return name, None
+    name_parts, street_parts = parts[:1], []
+    for part in parts[1:]:
+        (street_parts if _STREET_RE.match(part) else name_parts).append(part)
+    return ", ".join(name_parts), ", ".join(street_parts) or None
 
 
 def clean_band_name(name: str) -> str:

@@ -99,20 +99,36 @@ def venue_key(name: str) -> str:
     return key[4:] if key.startswith("the ") else key
 
 
-def find_venue(db: Session, name: str) -> Venue | None:
+def find_venue(
+    db: Session, name: str, google_place_id: str | None = None, city: str | None = None
+) -> Venue | None:
+    """Existing Venue for a listing: same Google place first, then same name (see venue_key).
+
+    A name match must be in the same Region and must not belong to a different Google place,
+    so e.g. Redwood City's "Fox Theater" doesn't merge with Oakland's.
+    """
+    if google_place_id:
+        venue = (
+            db.query(Venue)
+            .filter(Venue.google_place_id == google_place_id)
+            .order_by(Venue.id)
+            .first()
+        )
+        if venue:
+            return venue
     key = venue_key(name)
-    return (
-        db.query(Venue)
-        .filter(func.lower(Venue.name).in_([key, f"the {key}"]))
-        .order_by(Venue.id)
-        .first()
-    )
+    q = db.query(Venue).filter(func.lower(Venue.name).in_([key, f"the {key}"]))
+    if city:
+        q = q.filter(Venue.region == region_for_city(city))
+    if google_place_id:
+        q = q.filter((Venue.google_place_id.is_(None)) | (Venue.google_place_id == google_place_id))
+    return q.order_by(Venue.id).first()
 
 
 def _upsert_venue(db: Session, data: dict) -> Venue:
     name = (data.get("venue_name") or "Unknown Venue").strip()
-    venue = find_venue(db, name)
     place_city = data.get("place_city")
+    venue = find_venue(db, name, data.get("google_place_id"), place_city or data.get("city"))
     if not venue:
         city = place_city or data.get("city") or "Unknown"
         venue = Venue(

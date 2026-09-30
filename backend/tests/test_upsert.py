@@ -313,3 +313,28 @@ def test_flags_persisted(db):
 ])
 def test_region_for_city(city, region):
     assert region_for_city(city) == region
+
+
+def test_reuses_venue_with_same_google_place_id(db):
+    upsert_shows(db, [
+        _show(venue_name="Felton Music Hall", city="Felton", date_=date(2026, 10, 15), google_place_id="ChIJfelton"),
+        _show(venue_name="The Felton Music Hall & Bar", city="Felton", date_=date(2026, 10, 23), google_place_id="ChIJfelton"),
+    ])
+    assert db.query(Venue).count() == 1
+    assert db.query(Show).count() == 2
+
+
+def test_same_name_in_another_region_is_a_different_venue(db):
+    upsert_shows(db, [
+        _show(venue_name="the Fox Theater", city="Oakland", date_=date(2026, 10, 1), google_place_id="ChIJoakland"),
+        _show(venue_name="Fox Theater", city="Redwood City", date_=date(2026, 10, 2), google_place_id="ChIJredwood"),
+    ])
+    assert db.query(Venue).count() == 2
+
+
+def test_same_name_with_different_place_id_is_a_different_venue(db):
+    upsert_shows(db, [
+        _show(venue_name="Music Hall", city="Napa", date_=date(2026, 10, 1), google_place_id="ChIJone"),
+        _show(venue_name="Music Hall", city="Napa", date_=date(2026, 10, 2), google_place_id="ChIJtwo"),
+    ])
+    assert db.query(Venue).count() == 2

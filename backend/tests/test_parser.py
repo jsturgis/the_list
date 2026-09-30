@@ -289,3 +289,21 @@ def test_venue_details_win_over_details_before_at():
 def test_band_names_ending_in_free_or_symbols_are_kept():
     [show] = parse_email_body("oct 3 sat Set Me Free, TheArti$t at Shoreline Amphitheater, Mountain View a/a $40+ 5pm\n")
     assert show.bands == ["Set Me Free", "TheArti$t"]
+
+
+# ── venue street addresses ────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("line, name, street, city", [
+    ("oct 15 thr Band at Felton Music Hall, 6275 Hwy 9, Felton a/a $20 9pm",
+     "Felton Music Hall", "6275 Hwy 9", "Felton"),
+    ("oct 15 thr Band at Jade Cathey Resturant, 1339 N. 1st St., San Jose a/a $15 7pm",
+     "Jade Cathey Resturant", "1339 N. 1st St.", "San Jose"),
+    ("oct 15 thr Band at 924 Gilman Street, Berkeley a/a $10 7pm",
+     "924 Gilman Street", None, "Berkeley"),
+    ("oct 15 thr Band at Folsom Street Fair, 9th Streets Stage, S.F. 18+ 11am",
+     "Folsom Street Fair, 9th Streets Stage", None, "S.F."),
+])
+def test_street_address_is_split_from_venue_name(line, name, street, city):
+    [show] = parse_email_body(line + "\n")
+    assert (show.venue_name, show.venue_address, show.city) == (name, street, city)

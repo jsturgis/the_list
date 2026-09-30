@@ -315,8 +315,11 @@ def _get_timezone(lat: float, lng: float, api_key: str) -> Optional[str]:
 
 
 @lru_cache(maxsize=512)
-def _enrich_venue(venue_name: str, city: str) -> dict:
-    """Return venue enrichment dict from Google Places + Timezone APIs, or {}."""
+def _enrich_venue(venue_name: str, city: str, street: str | None = None) -> dict:
+    """Return venue enrichment dict from Google Places + Timezone APIs, or {}.
+
+    `street` (when the listing gave one) narrows the search for generic names like "Music Hall".
+    """
     api_key = settings.google_maps_api_key
     if not api_key:
         return {}
@@ -325,7 +328,7 @@ def _enrich_venue(venue_name: str, city: str) -> dict:
         resp = httpx.post(
             "https://places.googleapis.com/v1/places:searchText",
             headers={"X-Goog-Api-Key": api_key, "X-Goog-FieldMask": _PLACES_FIELD_MASK},
-            json={"textQuery": f"{clean_name} {city}"},
+            json={"textQuery": " ".join(p for p in (clean_name, street, city) if p)},
             timeout=10.0,
         )
         data = resp.json()
@@ -433,8 +436,11 @@ async def enrich_show(raw: RawShow) -> dict:
                     break
 
     if raw.venue_name:
-        venue_data = await loop.run_in_executor(None, _enrich_venue, raw.venue_name, raw.city or "")
-        result["address"] = venue_data.get("address")
+        venue_data = await loop.run_in_executor(
+            None, _enrich_venue, raw.venue_name, raw.city or "", raw.venue_address
+        )
+        listed_address = ", ".join(p for p in (raw.venue_address, raw.city) if p) if raw.venue_address else None
+        result["address"] = venue_data.get("address") or listed_address
         result["venue_website"] = venue_data.get("website_url")
         result["latitude"] = venue_data.get("latitude")
         result["longitude"] = venue_data.get("longitude")
