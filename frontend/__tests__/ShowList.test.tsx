@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import ShowList from '@/components/ShowList'
@@ -90,11 +90,10 @@ describe('ShowList', () => {
       expect(screen.getByText(/no shows/i)).toBeInTheDocument()
     })
 
-    it('populates genre select from filterOptions', () => {
+    it('populates genre suggestions from filterOptions', () => {
       render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
-      const select = screen.getByLabelText(/genre/i)
-      const values = Array.from(select.querySelectorAll('option')).map(o => o.value)
-      expect(values[0]).toBe('')  // All Genres default
+      fireEvent.focus(screen.getByLabelText(/genre/i))
+      const values = within(screen.getByRole('listbox')).getAllByRole('option').map(o => o.textContent)
       expect(values).toContain('blues')
       expect(values).toContain('folk')
       expect(values).toContain('punk')
@@ -120,10 +119,10 @@ describe('ShowList', () => {
       )
     })
 
-    it('updates URL when genre is selected', async () => {
+    it('updates URL when a genre is typed', async () => {
       const user = userEvent.setup()
       render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
-      await user.selectOptions(screen.getByLabelText(/genre/i), 'folk')
+      await user.type(screen.getByLabelText(/genre/i), 'folk')
       expect(mockReplace).toHaveBeenCalledWith(
         expect.stringContaining('genre=folk'),
         expect.anything(),
