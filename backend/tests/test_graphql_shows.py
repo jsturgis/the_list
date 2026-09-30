@@ -240,6 +240,15 @@ def test_nested_venue_fields(db, client):
     assert venue["region"] == "sf"
 
 
+def test_venue_google_place_id(db, client):
+    v = _venue(db)
+    v.google_place_id = "ChIJ-test-place-id"
+    _show(db, v)
+
+    data = _gql(client, "{ shows { venue { googlePlaceId } } }")
+    assert data["shows"][0]["venue"]["googlePlaceId"] == "ChIJ-test-place-id"
+
+
 def test_nested_acts_and_band(db, client):
     v = _venue(db)
     s = _show(db, v)

@@ -3,7 +3,7 @@ import { gqlClient } from '@/lib/graphql'
 import { VENUE_QUERY, VENUE_SHOWS_QUERY, ALL_VENUES_STATIC_QUERY } from '@/lib/queries'
 import type { Venue, Show } from '@/lib/types'
 import VenueDetail from '@/components/VenueDetail'
-import BackToShows from '@/components/BackToShows'
+import BackLink from '@/components/BackLink'
 
 export async function generateStaticParams() {
   try {
@@ -46,7 +46,7 @@ export default async function VenuePage({ params }: PageProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <BackToShows />
+      <BackLink />
       <VenueDetail venue={venue} upcomingShows={upcomingShows} />
     </div>
   )

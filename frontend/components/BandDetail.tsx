@@ -69,19 +69,19 @@ export default function BandDetail({ band, upcomingShows }: BandDetailProps) {
           </h2>
           <ul className="flex flex-col gap-2">
             {upcomingShows.map(show => (
-              <li key={show.id} className="flex items-center justify-between gap-4 text-sm -mx-2 px-2 py-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800">
-                <span className="font-medium text-zinc-900 dark:text-zinc-50 min-w-0 truncate">
-                  <Link href={`/venues/${show.venue.id}`} className="hover:underline">
-                    {show.venue.name}
-                  </Link>
-                  {' · '}
-                  {show.venue.city}
-                </span>
+              <li key={show.id}>
                 <Link
                   href={`/shows/${show.id}`}
-                  className="text-zinc-500 dark:text-zinc-400 shrink-0 hover:underline"
+                  className="flex items-center justify-between gap-4 text-sm -mx-2 px-2 py-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800"
                 >
-                  {formatDateShort(show.date)}
+                  <span className="font-medium text-zinc-900 dark:text-zinc-50 min-w-0 truncate">
+                    {show.venue.name}
+                    {' · '}
+                    {show.venue.city}
+                  </span>
+                  <span className="text-zinc-500 dark:text-zinc-400 shrink-0">
+                    {formatDateShort(show.date)}
+                  </span>
                 </Link>
               </li>
             ))}

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import type { Show, Venue } from '@/lib/types'
 import ShowCard from './ShowCard'
-import { formatDateLong } from '@/lib/format'
+import { formatDateLong, mapsHref, telHref } from '@/lib/format'
 
 const REGION_LABELS: Record<string, string> = {
   sf: 'SF',
@@ -42,8 +42,21 @@ export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) 
 
       {(venue.websiteUrl || venue.wikipediaUrl || venue.phone || venue.googleRating || venue.address) && (
         <section className="flex flex-col gap-2 text-sm text-zinc-600 dark:text-zinc-300">
-          {venue.address && <p>{venue.address}</p>}
-          {venue.phone && <p>{venue.phone}</p>}
+          {venue.address && (
+            <a
+              href={mapsHref(venue)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-fit hover:underline"
+            >
+              {venue.address}
+            </a>
+          )}
+          {venue.phone && (
+            <a href={telHref(venue.phone)} className="w-fit hover:underline">
+              {venue.phone}
+            </a>
+          )}
           {venue.googleRating && (
             <p>Google rating: {venue.googleRating.toFixed(1)} ★</p>
           )}
@@ -89,11 +102,11 @@ export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) 
                 <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2">
                   {formatDateLong(date)}
                 </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
                   {(byDate.get(date) ?? [])
                     .sort((a, b) => (a.doorTime ?? '').localeCompare(b.doorTime ?? ''))
                     .map(show => (
-                      <ShowCard key={show.id} show={show} />
+                      <ShowCard key={show.id} show={show} layout="row" showVenue={false} />
                     ))}
                 </div>
               </div>

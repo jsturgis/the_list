@@ -3,7 +3,7 @@ import { gqlClient } from '@/lib/graphql'
 import { SHOW_QUERY, ALL_SHOWS_STATIC_QUERY } from '@/lib/queries'
 import type { Show } from '@/lib/types'
 import ShowDetail from '@/components/ShowDetail'
-import BackToShows from '@/components/BackToShows'
+import BackLink from '@/components/BackLink'
 
 export async function generateStaticParams() {
   try {
@@ -41,7 +41,7 @@ export default async function ShowPage({ params, searchParams }: PageProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <BackToShows />
+      <BackLink />
       <ShowDetail show={show} filterQs={filterQs || undefined} />
     </div>
   )

@@ -32,6 +32,7 @@ def _venue(v: Venue) -> VenueType:
         timezone=v.timezone,
         phone=v.phone,
         google_rating=v.google_rating,
+        google_place_id=v.google_place_id,
         description=v.description,
         wikipedia_url=v.wikipedia_url,
     )
@@ -279,8 +280,9 @@ class Query:
         if not band.embedding:
             return []
         embedding = np.frombuffer(band.embedding, dtype=np.float32)
-        similar = find_similar_bands(embedding, k)
-        ids = [bid for bid, _ in similar]
+        # The band is its own nearest neighbour; fetch one extra and drop it.
+        similar = find_similar_bands(embedding, k + 1)
+        ids = [bid for bid, _ in similar if bid != band.id][:k]
         rows = db.query(Band).filter(Band.id.in_(ids)).all()
         by_id = {b.id: b for b in rows}
         return [_band(by_id[bid]) for bid in ids if bid in by_id]

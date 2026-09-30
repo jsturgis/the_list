@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import type { Show } from '@/lib/types'
-import { formatTime, formatPrice, formatDateLongYear } from '@/lib/format'
+import { formatTime, formatPrice, formatDateLongYear, mapsHref } from '@/lib/format'
 
 function formatAge(age: string): string {
   if (age === 'a/a') return 'All Ages'
@@ -95,15 +95,10 @@ export default function ShowDetail({ show, filterQs }: ShowDetailProps) {
             .slice()
             .sort((a, b) => a.position - b.position)
             .map(act => (
-              <li key={act.band.id} className="flex items-center gap-2">
-                {act.position === 0 && (
-                  <span className="text-xs px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-                    Headliner
-                  </span>
-                )}
+              <li key={act.band.id}>
                 <Link
                   href={`/bands/${act.band.id}`}
-                  className="font-medium hover:underline text-zinc-900 dark:text-zinc-50"
+                  className={`${act.position === 0 ? 'font-bold' : 'font-normal'} hover:underline text-zinc-900 dark:text-zinc-50`}
                 >
                   <span data-testid="act-name">{act.band.name}</span>
                 </Link>
@@ -116,7 +111,16 @@ export default function ShowDetail({ show, filterQs }: ShowDetailProps) {
         <h2 className="text-base font-semibold mb-3 text-zinc-900 dark:text-zinc-100">Venue</h2>
         <div className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-300">
           <Link href={venueHref} className="font-medium text-zinc-900 dark:text-zinc-100 hover:underline">{show.venue.name}</Link>
-          {show.venue.address && <p>{show.venue.address}</p>}
+          {show.venue.address && (
+            <a
+              href={mapsHref(show.venue)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-fit hover:underline"
+            >
+              {show.venue.address}
+            </a>
+          )}
           {show.venue.websiteUrl && (
             <a
               href={show.venue.websiteUrl}

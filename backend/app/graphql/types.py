@@ -16,6 +16,7 @@ class VenueType:
     timezone: str | None
     phone: str | None
     google_rating: float | None
+    google_place_id: str | None
     description: str | None
     wikipedia_url: str | None
 
