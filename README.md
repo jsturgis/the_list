@@ -160,6 +160,22 @@ docs/
   agents/            # Agent skill docs (issue tracker, triage labels, domain)
 ```
 
+## Database migrations
+
+The API creates missing tables on startup, but new columns need an Alembic migration. Alembic uses the
+app's `DATABASE_URL`.
+
+```bash
+docker compose exec api alembic upgrade head
+```
+
+A database created by the app itself has no Alembic version yet. Mark it once before the first upgrade:
+
+```bash
+docker compose exec api alembic stamp 5b5092d5ef44
+docker compose exec api alembic upgrade head
+```
+
 ## How ingestion works
 
 ```

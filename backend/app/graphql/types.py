@@ -19,6 +19,15 @@ class VenueType:
     google_place_id: str | None
     description: str | None
     wikipedia_url: str | None
+    neighborhood: str | None
+    venue_type: str | None
+    nearest_transit: str | None
+    instagram: str | None
+    image_url: str | None
+    default_age_restriction: str | None
+    is_sober_space: bool | None
+    is_cash_only: bool | None
+    membership_required: bool | None
 
 
 @strawberry.type
@@ -29,6 +38,9 @@ class BandType:
     spotify_url: str | None
     soundcloud_url: str | None
     bandcamp_url: str | None
+    website_url: str | None
+    image_url: str | None
+    is_local: bool | None
 
 
 @strawberry.type
@@ -56,6 +68,12 @@ class ShowType:
     is_drink_tickets: bool
     is_no_reentry: bool
     notes: str | None
+    is_matinee: bool
+    is_sold_out: bool
+    ticket_provider: str | None
+    is_benefit: bool
+    benefit_cause: str | None
+    special_event: str | None
 
 
 @strawberry.type

@@ -325,3 +325,23 @@ def test_filter_options_query(db, client):
         "regions": ["east_bay"], "ages": ["21+"], "genres": ["punk"],
         "dates": [str(local_today() + timedelta(days=1))],
     }
+
+
+def test_edition_extra_fields_are_exposed(db, client):
+    v = _venue(db)
+    v.neighborhood, v.is_cash_only, v.instagram = "Mission", True, "@venue"
+    s = _show(db, v, is_sold_out=True, ticket_provider="ticketweb", is_benefit=True, benefit_cause="food drive",
+              special_event="Fest", is_matinee=True)
+    b = _band(db, "Local Heroes")
+    b.image_url, b.website_url, b.is_local = "img.jpg", "https://heroes.com", True
+    _act(db, s, b)
+
+    data = _gql(client, """{ shows { isSoldOut ticketProvider isBenefit benefitCause specialEvent isMatinee
+        venue { neighborhood isCashOnly instagram isSoberSpace }
+        acts { band { imageUrl websiteUrl isLocal } } } }""")
+
+    show = data["shows"][0]
+    assert (show["isSoldOut"], show["ticketProvider"], show["isBenefit"], show["benefitCause"],
+            show["specialEvent"], show["isMatinee"]) == (True, "ticketweb", True, "food drive", "Fest", True)
+    assert show["venue"] == {"neighborhood": "Mission", "isCashOnly": True, "instagram": "@venue", "isSoberSpace": None}
+    assert show["acts"][0]["band"] == {"imageUrl": "img.jpg", "websiteUrl": "https://heroes.com", "isLocal": True}

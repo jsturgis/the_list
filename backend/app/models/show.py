@@ -55,6 +55,13 @@ class Show(Base):
     is_drink_tickets: Mapped[bool] = mapped_column(Boolean, default=False)
     is_no_reentry: Mapped[bool] = mapped_column(Boolean, default=False)
     notes: Mapped[Optional[str]] = mapped_column(Text)
+    # From the formatted edition
+    is_matinee: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_sold_out: Mapped[bool] = mapped_column(Boolean, default=False)
+    ticket_provider: Mapped[Optional[str]] = mapped_column(String(100))
+    is_benefit: Mapped[bool] = mapped_column(Boolean, default=False)
+    benefit_cause: Mapped[Optional[str]] = mapped_column(String(255))
+    special_event: Mapped[Optional[str]] = mapped_column(String(255))
     raw_text: Mapped[Optional[str]] = mapped_column(Text)
     embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

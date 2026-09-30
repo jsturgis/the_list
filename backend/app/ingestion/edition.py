@@ -74,6 +74,8 @@ def _show(event: dict) -> dict:
         "venue_website": (venue.get("url") or "").strip() or None,
         # Optional in the schema (added after v2.0.0); stored only when the Venue has no description yet.
         "venue_description": (venue.get("description") or "").strip() or None,
+        **_venue_extras(venue),
+        **_show_extras(event),
         "latitude": coordinates.get("lat"),
         "longitude": coordinates.get("lng"),
         "status": _STATUS.get((event.get("status") or "").lower(), "upcoming"),
@@ -113,6 +115,41 @@ def _venue(event: dict) -> tuple[str | None, str | None, str | None, dict]:
     return name or None, None, None, {}
 
 
+def _text(value) -> str | None:
+    """A stripped non-empty string, or None."""
+    if not isinstance(value, str):
+        return None
+    return value.strip() or None
+
+
+def _show_extras(event: dict) -> dict:
+    ticketing = event.get("ticketing") or {}
+    context = event.get("event_context") or {}
+    return {
+        "is_matinee": bool(event.get("is_matinee")),
+        "is_sold_out": bool(ticketing.get("sold_out")),
+        "ticket_provider": _text(ticketing.get("provider")),
+        "is_benefit": bool(context.get("is_benefit")),
+        "benefit_cause": _text(context.get("benefit_cause")),
+        "special_event": _text(context.get("special_event")),
+    }
+
+
+def _venue_extras(venue: dict) -> dict:
+    rules = venue.get("rules") or {}
+    return {
+        "venue_neighborhood": _text(venue.get("neighborhood")),
+        "venue_type": _text(venue.get("venue_type")),
+        "venue_nearest_transit": _text(venue.get("nearest_transit")),
+        "venue_instagram": _text(venue.get("instagram")),
+        "venue_image_url": _text(venue.get("image_url")),
+        "venue_default_age_restriction": _text(rules.get("default_age_restriction")),
+        "venue_is_sober_space": rules.get("sober_space"),
+        "venue_is_cash_only": rules.get("cash_only"),
+        "venue_membership_required": rules.get("membership_required"),
+    }
+
+
 def _clock(hhmm: str | None) -> str | None:
     """"19:30" -> "7:30pm", in the notation the rest of the pipeline parses."""
     if not hhmm:
@@ -136,9 +173,16 @@ def _band_enrichment(artist: dict) -> dict:
     genres = [g.lower() for g in _GENRE_SPLIT_RE.split((artist.get("genre") or "").strip()) if g]
     url = (artist.get("url") or "").strip()
     host = urlparse(url).netloc.lower()
-    return {
-        "genres": list(dict.fromkeys(genres)),
+    streaming = {
         "spotify_url": url if host.endswith("spotify.com") else None,
         "soundcloud_url": url if host.endswith("soundcloud.com") else None,
         "bandcamp_url": url if host.endswith("bandcamp.com") else None,
+    }
+    return {
+        "genres": list(dict.fromkeys(genres)),
+        **streaming,
+        # Any other link (official site, label page) is the Band's website.
+        "website_url": url if url and not any(streaming.values()) else None,
+        "image_url": _text(artist.get("image_url")),
+        "is_local": artist.get("is_local"),
     }
