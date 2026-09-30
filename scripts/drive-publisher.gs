@@ -4,7 +4,7 @@
  * Moves each week's exports out of the Drive root and keeps a public pointer to the newest
  * formatted edition, so the ingest can download it without Google credentials.
  *
- *   "Bay Area & Santa Cruz Concert Events - <Month D, YYYY>.json"  -> PUBLIC folder (anyone with the link)
+ *   "Bay Area & Santa Cruz Concert Events - <date>.json"  -> PUBLIC folder (anyone with the link)
  *   "... (Raw Email).json"                                -> PRIVATE folder (contains the recipient address)
  *   PUBLIC folder / latest.json                           -> {"latest": {id, name, edition_date, updated}}
  *
@@ -18,8 +18,7 @@
 const PUBLIC_FOLDER = 'The List (public)';
 const PRIVATE_FOLDER = 'The List (raw, private)';
 const POINTER_NAME = 'latest.json';
-// e.g. "Bay Area & Santa Cruz Concert Events - September 25, 2026.json"
-const FORMATTED_RE = /^Bay Area & Santa Cruz Concert Events - [A-Z][a-z]+ \d{1,2}, \d{4}\.json$/;
+const FORMATTED_RE = /^Bay Area & Santa Cruz Concert Events - .+\.json$/;
 const RAW_RE = /\(Raw Email\)\.json$/;
 const PERSONAL_DATA_RE = /eocampaign1\.com|unsubscribe|[A-Za-z0-9._%+-]+@gmail\.com/i;
 
