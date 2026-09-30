@@ -126,6 +126,21 @@ def test_similar_bands_preserves_result_order(db, client):
     assert names == ["Beta", "Alpha"]
 
 
+def test_similar_bands_excludes_source_band(db, client):
+    source = _band(db, "Source", embedding=_fake_embedding())
+    b1 = _band(db, "Alpha")
+    b2 = _band(db, "Beta")
+
+    # The index returns the source itself as its own nearest neighbour.
+    hits = [(source.id, 0.0), (b1.id, 0.1), (b2.id, 0.2)]
+    with patch("app.graphql.queries.find_similar_bands", return_value=hits) as mock_search:
+        body = _gql(client, f'{{ similarBands(bandId: "{source.id}", k: 2) {{ name }} }}')
+
+    names = [b["name"] for b in body["data"]["similarBands"]]
+    assert names == ["Alpha", "Beta"]
+    assert mock_search.call_args.args[1] == 3  # over-fetch by one to still return k
+
+
 def test_similar_bands_no_embedding_returns_empty(db, client):
     b = _band(db, "Deafheaven")  # no embedding
 
