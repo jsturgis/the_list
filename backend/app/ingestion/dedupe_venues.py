@@ -23,6 +23,15 @@ _FILL_FIELDS = (
 )
 
 
+# Show details that come from a listing; when two copies of a Show are combined, the more recently
+# updated copy's values win.
+_SHOW_LISTING_FIELDS = (
+    "set_time", "price_min", "price_max", "is_free", "age_restriction", "status",
+    "is_recommended", "will_sell_out", "is_pit", "is_drink_tickets", "is_no_reentry",
+    "notes", "raw_text",
+)
+
+
 @dataclass
 class VenueRename:
     venue: Venue
@@ -39,13 +48,16 @@ class VenueMerge:
 
 
 def strip_street_from_names(db: Session) -> list[VenueRename]:
-    """Remove a street address from Venue names ("Felton Music Hall, 6275 Hwy 9")."""
+    """Remove a street address from Venue names ("Felton Music Hall, 6275 Hwy 9"), keeping it as
+    the address when the Venue has none."""
     renames = []
     for v in db.query(Venue).order_by(Venue.id):
-        name, _street = split_venue_street(v.name)
+        name, street = split_venue_street(v.name)
         if name != v.name:
             renames.append(VenueRename(v, v.name))
             v.name = name
+            if street and not v.address:
+                v.address = ", ".join(p for p in (street, v.city) if p)
     return renames
 
 
@@ -78,10 +90,10 @@ def merge_duplicate_venues(db: Session, apply: bool = False) -> list[VenueMerge]
         by_name[(venue_key(v.name), v.region.value)].append(v)
     for ids in by_place.values():
         join(ids)
-    # Same name in the same Region is one Venue, unless Google says they're different places.
+    # Same name in the same Region is one Venue (matching ingest; Google can return a
+    # different place for the same Venue).
     for group in by_name.values():
-        if len({v.google_place_id for v in group if v.google_place_id}) <= 1:
-            join([v.id for v in group])
+        join([v.id for v in group])
 
     groups: dict[int, list[Venue]] = defaultdict(list)
     for v in venues_all:
@@ -109,7 +121,11 @@ def merge_duplicate_venues(db: Session, apply: bool = False) -> list[VenueMerge]
                     kept_shows[(show.date, show.door_time)] = show
                     moved += 1
                     continue
-                # The same Show listed under both names: keep one, adding any Bands it lacks.
+                # The same Show listed under both names: keep one, adding any Bands it lacks and
+                # taking the newer listing's details.
+                if show.updated_at and same.updated_at and show.updated_at > same.updated_at:
+                    for field in _SHOW_LISTING_FIELDS:
+                        setattr(same, field, getattr(show, field))
                 have = {a.band_id for a in same.acts}
                 for act in list(show.acts):
                     if act.band_id not in have:

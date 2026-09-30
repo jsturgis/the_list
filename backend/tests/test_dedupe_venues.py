@@ -110,12 +110,13 @@ def test_same_name_in_different_regions_is_not_merged(db):
     assert db.query(Venue).count() == 2
 
 
-def test_same_name_with_different_place_ids_is_not_merged(db):
+def test_same_name_in_same_region_is_merged_even_with_different_place_ids(db):
     _venue(db, "Music Hall", google_place_id="ChIJone")
     _venue(db, "Music Hall", google_place_id="ChIJtwo")
     db.commit()
 
-    assert merge_duplicate_venues(db, apply=True) == []
+    [merge] = merge_duplicate_venues(db, apply=True)
+    assert len(merge.merged) == 1 and db.query(Venue).count() == 1
 
 
 def test_street_stripped_from_names_then_merged(db):
@@ -160,3 +161,38 @@ def test_same_show_listed_under_both_venues_is_combined(db):
     assert (merge.shows_moved, merge.shows_combined) == (0, 1)
     assert db.get(Show, b.id) is None
     assert sorted(act.band.name for act in db.get(Show, a.id).acts) == ["Headliner", "Opener"]
+
+
+def test_stripped_street_becomes_the_address_when_missing(db):
+    no_address = _venue(db, "Alliance Francaise, 1345 Bush Street", city="San Francisco", region=Region.sf)
+    has_address = _venue(db, "the Nikko, 222 Mason Street", city="San Francisco", region=Region.sf,
+                         address="222 Mason St, San Francisco, CA 94102, USA")
+    db.commit()
+
+    strip_street_from_names(db)
+
+    assert (no_address.name, no_address.address) == ("Alliance Francaise", "1345 Bush Street, San Francisco")
+    assert (has_address.name, has_address.address) == ("the Nikko", "222 Mason St, San Francisco, CA 94102, USA")
+
+
+@pytest.mark.parametrize("dup_is_newer", [True, False])
+def test_combined_show_keeps_the_newer_listing_details(db, dup_is_newer):
+    from datetime import datetime, time
+    from app.models.show import ShowStatus
+
+    keep = _venue(db, "Hopmonk Tavern", google_place_id="ChIJhop")
+    dup = _venue(db, "Hopmonk", google_place_id="ChIJhop")
+    _show(db, keep, 5)  # keep has more Shows, so it's kept
+    older, newer = datetime(2026, 9, 18, 9), datetime(2026, 9, 25, 9)
+    a = Show(date=date(2026, 10, 1), venue_id=keep.id, door_time=time(20), status=ShowStatus.upcoming,
+             price_min=15.0, updated_at=newer if not dup_is_newer else older)
+    b = Show(date=date(2026, 10, 1), venue_id=dup.id, door_time=time(20), status=ShowStatus.cancelled,
+             price_min=30.0, updated_at=newer if dup_is_newer else older)
+    db.add_all([a, b])
+    db.commit()
+
+    merge_duplicate_venues(db, apply=True)
+
+    survivor = db.get(Show, a.id)
+    expected = (ShowStatus.cancelled, 30.0) if dup_is_newer else (ShowStatus.upcoming, 15.0)
+    assert (survivor.status, survivor.price_min) == expected

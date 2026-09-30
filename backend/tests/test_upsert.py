@@ -332,9 +332,20 @@ def test_same_name_in_another_region_is_a_different_venue(db):
     assert db.query(Venue).count() == 2
 
 
-def test_same_name_with_different_place_id_is_a_different_venue(db):
+def test_same_name_in_same_region_is_the_same_venue_even_if_place_id_changes(db):
+    # Adding the street to the Places query can return a different place for the same Venue.
     upsert_shows(db, [
-        _show(venue_name="Music Hall", city="Napa", date_=date(2026, 10, 1), google_place_id="ChIJone"),
-        _show(venue_name="Music Hall", city="Napa", date_=date(2026, 10, 2), google_place_id="ChIJtwo"),
+        _show(venue_name="Felton Music Hall", city="Felton", date_=date(2026, 10, 1), google_place_id="ChIJbusiness"),
+        _show(venue_name="Felton Music Hall", city="Felton", date_=date(2026, 10, 2), google_place_id="ChIJbuilding"),
     ])
-    assert db.query(Venue).count() == 2
+    assert db.query(Venue).count() == 1
+
+
+def test_google_neighbourhood_city_does_not_split_a_venue(db):
+    # First run: Google reports the neighbourhood; later run: no Google result, listing city only.
+    upsert_shows(db, [
+        _show(venue_name="Starry Plough", city="Berkeley", place_city="Temescal", date_=date(2026, 10, 1)),
+        _show(venue_name="Starry Plough", city="Berkeley", date_=date(2026, 10, 2)),
+    ])
+    [venue] = db.query(Venue).all()
+    assert venue.region == Region.east_bay
