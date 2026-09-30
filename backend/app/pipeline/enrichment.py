@@ -117,8 +117,11 @@ def _find_bandcamp_url(name: str) -> Optional[str]:
 
 
 
-def _enrich_band(name: str) -> dict:
-    """Return {genres, spotify_url, soundcloud_url, bandcamp_url} for a band name."""
+def _enrich_band(name: str, use_llm: bool = True) -> dict:
+    """Return {genres, spotify_url, soundcloud_url, bandcamp_url} for a band name.
+
+    With `use_llm=False` only MusicBrainz is used (no LLM guesses for SoundCloud/Bandcamp or genres).
+    """
     artist = _mb_search(name)
     if artist is None:
         return {"genres": [], "spotify_url": None, "soundcloud_url": None, "bandcamp_url": None}
@@ -144,6 +147,10 @@ def _enrich_band(name: str) -> dict:
             soundcloud_url = target
         if not bandcamp_url and "bandcamp.com" in target:
             bandcamp_url = target
+
+    if not use_llm:
+        return {"genres": genres, "spotify_url": spotify_url, "soundcloud_url": soundcloud_url,
+                "bandcamp_url": bandcamp_url}
 
     # LLM fallback: find SoundCloud URL when MB doesn't have one
     if not soundcloud_url:

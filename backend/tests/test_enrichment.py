@@ -517,3 +517,26 @@ def test_venue_enrichment_without_llm_skips_name_cleanup_and_wikipedia(
     assert result["google_place_id"] == "ChIJrickshaw"
     assert result["website_url"] == "https://rickshawstop.com"
     assert (result["description"], result["wikipedia_url"]) == (None, None)
+
+
+@patch("app.pipeline.enrichment.get_enrichment_llm")
+@patch("app.pipeline.enrichment._find_bandcamp_url")
+@patch("app.pipeline.enrichment._find_soundcloud_url")
+@patch("app.pipeline.enrichment._mb_lookup")
+@patch("app.pipeline.enrichment._mb_search")
+def test_band_enrichment_without_llm_uses_musicbrainz_only(mock_search, mock_lookup, mock_sc, mock_bc, mock_llm):
+    from app.pipeline.enrichment import _enrich_band
+    mock_search.return_value = {"id": "mbid-chat-pile", "name": "Chat Pile"}
+    mock_lookup.return_value = _mb_full(
+        tags=[{"name": "sludge metal", "count": "5"}, {"name": "noise rock", "count": "9"}],
+        url_rels=[{"type": "bandcamp", "target": "https://chatpile.bandcamp.com/"}],
+    )
+
+    result = _enrich_band("Chat Pile", use_llm=False)
+
+    assert result["genres"] == ["noise rock", "sludge metal"]
+    assert result["bandcamp_url"] == "https://chatpile.bandcamp.com/"
+    assert (result["spotify_url"], result["soundcloud_url"]) == (None, None)
+    mock_sc.assert_not_called()
+    mock_bc.assert_not_called()
+    mock_llm.assert_not_called()
