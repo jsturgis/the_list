@@ -99,14 +99,15 @@ export interface SiteData {
   meta: ExportMeta
 }
 
+/** Filters parsed from the home page URL (see lib/filters.ts buildFilters). */
 export interface ShowFilters {
   fromDate?: string
   toDate?: string
-  city?: string
   region?: string
   bandName?: string
+  venueName?: string
+  genre?: string
   priceMax?: number
   isFree?: boolean
   ageRestriction?: string
-  isRecommended?: boolean
 }

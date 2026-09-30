@@ -152,7 +152,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
 
         <div className="flex flex-col gap-1">
           <label htmlFor="filter-band" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-            Band name
+            Band
           </label>
           <input
             id="filter-band"

@@ -1,5 +1,7 @@
-export function buildFilters(params: URLSearchParams): Record<string, unknown> | null {
-  const f: Record<string, unknown> = {}
+import type { ShowFilters } from './types'
+
+export function buildFilters(params: URLSearchParams): ShowFilters | null {
+  const f: ShowFilters = {}
   const band = params.get('band'); if (band) f.bandName = band
   const venue = params.get('venue'); if (venue) f.venueName = venue
   const region = params.get('region'); if (region) f.region = region

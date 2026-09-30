@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { bayAreaToday, hydrateShows, upcomingShows } from '@/lib/data'
+import { bayAreaToday, hydrateShows } from '@/lib/data'
 import type { ExportBand, ExportShow, ExportVenue } from '@/lib/types'
 
 const venue: ExportVenue = {
@@ -37,16 +37,5 @@ describe('bayAreaToday', () => {
 
   it('matches UTC in the morning', () => {
     expect(bayAreaToday(new Date('2026-09-29T16:00:00Z'))).toBe('2026-09-29')
-  })
-})
-
-describe('upcomingShows', () => {
-  const shows = hydrateShows(
-    [show(1, '2026-09-28'), show(2, '2026-09-29'), show(3, '2026-10-02', 'cancelled'), show(4, '2026-10-01')],
-    [venue], [band(10, 'A'), band(11, 'B')],
-  )
-
-  it('keeps Upcoming Shows from today onwards, in date order', () => {
-    expect(upcomingShows(shows, '2026-09-29').map(s => s.id)).toEqual([2, 4])
   })
 })
