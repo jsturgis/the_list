@@ -72,6 +72,8 @@ def _show(event: dict) -> dict:
         "city": city or _REGION_CITY.get(venue.get("region", "")),
         "address": address,
         "venue_website": (venue.get("url") or "").strip() or None,
+        # Optional in the schema (added after v2.0.0); stored only when the Venue has no description yet.
+        "venue_description": (venue.get("description") or "").strip() or None,
         "latitude": coordinates.get("lat"),
         "longitude": coordinates.get("lng"),
         "status": _STATUS.get((event.get("status") or "").lower(), "upcoming"),

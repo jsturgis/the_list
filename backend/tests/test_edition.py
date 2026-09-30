@@ -202,3 +202,10 @@ def test_sample_statuses_and_ages(sample):
     shows = edition_shows(sample)
     assert sum(s["status"] == "cancelled" for s in shows) == 1 and sum(s["status"] == "postponed" for s in shows) == 1
     assert {"13+", "8+"} <= {s["age_restriction"] for s in shows}
+
+
+def test_venue_description_is_used_when_present():
+    [with_desc] = edition_shows(_doc(_event(venue={"description": "  Santa Cruz's long-running rock club.  "})))
+    [without] = edition_shows(_doc(_event()))
+    assert with_desc["venue_description"] == "Santa Cruz's long-running rock club."
+    assert without["venue_description"] is None
