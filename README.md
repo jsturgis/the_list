@@ -72,6 +72,14 @@ Then query at `http://localhost:8000/graphql`:
 
 > If you have Ollama running locally already, remove the `ollama` service from `docker-compose.yml` and add `OLLAMA_BASE_URL=http://host.docker.internal:11434` to `.env`.
 
+**Frontend data.** The home page reads static JSON exported from the database, not the API. Export it
+into `frontend/public/data/` (gitignored) whenever the data changes, then run the frontend:
+
+```bash
+docker compose run --rm -v "$PWD/frontend/public:/public" api python -m app.cli export --out /public/data
+cd frontend && npm run dev
+```
+
 ---
 
 ### Without Docker
