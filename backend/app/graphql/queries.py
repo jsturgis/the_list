@@ -4,7 +4,7 @@ from typing import Optional
 
 import numpy as np
 import strawberry
-from sqlalchemy import Text, case, cast, func
+from sqlalchemy import Text, cast, func
 from sqlalchemy.orm import Session, joinedload
 from strawberry.types import Info
 
@@ -160,21 +160,7 @@ def _query_shows(
             .join(Act.band)
             .filter(cast(Band.genres, Text).like(f"%{f.genre}%"))
         )
-        no_genre_ids = (
-            db.query(Show.id)
-            .filter(
-                ~Show.id.in_(
-                    db.query(Act.show_id)
-                    .join(Act.band)
-                    .filter(cast(Band.genres, Text) != "[]")
-                )
-            )
-        )
-        q = q.filter(Show.id.in_(genre_match_ids) | Show.id.in_(no_genre_ids))
-        return q.order_by(
-            case((Show.id.in_(genre_match_ids), 0), else_=1),
-            Show.date,
-        ).limit(limit).offset(offset).all()
+        q = q.filter(Show.id.in_(genre_match_ids))
     if f.price_max is not None:
         q = q.filter(Show.price_min <= f.price_max)
     if f.is_free is not None:

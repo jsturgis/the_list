@@ -227,6 +227,35 @@ def test_offset(db, client):
     assert paged == all_ids[2:]
 
 
+# ── shows: genre filter ───────────────────────────────────────────────────────
+
+def _genre_show(db, venue, day, genres, **kwargs):
+    s = _show(db, venue, show_date=date(2026, 10, day), **kwargs)
+    _act(db, s, _band(db, f"Band {day}", genres=genres))
+    return s
+
+
+def test_filter_genre_excludes_shows_with_unknown_genre(db, client):
+    v = _venue(db)
+    _genre_show(db, v, 1, ["punk"])
+    _genre_show(db, v, 2, [])  # no genre data
+    _genre_show(db, v, 3, ["jazz"])
+
+    data = _gql(client, '{ shows(filters: { genre: "punk" }) { date } }')
+
+    assert [s["date"] for s in data["shows"]] == ["2026-10-01"]
+
+
+def test_filter_genre_combines_with_other_filters(db, client):
+    v = _venue(db)
+    _genre_show(db, v, 1, ["punk"], price_min=10.0)
+    _genre_show(db, v, 2, ["punk"], price_min=50.0)
+
+    data = _gql(client, '{ shows(filters: { genre: "punk", priceMax: 20 }) { date } }')
+
+    assert [s["date"] for s in data["shows"]] == ["2026-10-01"]
+
+
 # ── shows: nested fields ──────────────────────────────────────────────────────
 
 def test_nested_venue_fields(db, client):
