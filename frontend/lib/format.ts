@@ -50,3 +50,32 @@ export function formatPrice(
   if (priceMin === priceMax || priceMax === null) return lo
   return `${lo}–${USD.format(priceMax)}`
 }
+
+/**
+ * Google Maps link for a Venue. With a place ID it opens the exact place listing
+ * (query is then only a fallback); otherwise it searches the address.
+ */
+export function mapsHref(venue: {
+  name: string
+  address: string | null
+  city: string
+  googlePlaceId: string | null
+}): string {
+  const params = new URLSearchParams({ api: '1' })
+  if (venue.googlePlaceId) {
+    params.set('query', venue.name)
+    params.set('query_place_id', venue.googlePlaceId)
+  } else {
+    params.set('query', venue.address ?? `${venue.name}, ${venue.city}`)
+  }
+  return `https://www.google.com/maps/search/?${params}`
+}
+
+/** tel: URI for a display phone number. Assumes US numbers when there's no country code. */
+export function telHref(phone: string): string {
+  const digits = phone.replace(/[^\d+]/g, '')
+  if (digits.startsWith('+')) return `tel:${digits}`
+  if (digits.length === 10) return `tel:+1${digits}`
+  if (digits.length === 11 && digits.startsWith('1')) return `tel:+${digits}`
+  return `tel:${digits}`
+}

@@ -40,6 +40,13 @@ describe('ShowDetail', () => {
     expect(actNames).toEqual(['Headliner Act', 'Support One', 'Opener'])
   })
 
+  it('marks the headliner in bold instead of with a label', () => {
+    render(<ShowDetail show={show} />)
+    expect(screen.queryByText(/^Headliner$/)).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Headliner Act' })).toHaveClass('font-bold')
+    expect(screen.getByRole('link', { name: 'Support One' })).not.toHaveClass('font-bold')
+  })
+
   it('links each act to its band page', () => {
     render(<ShowDetail show={show} />)
     expect(screen.getByRole('link', { name: /Headliner Act/i })).toHaveAttribute('href', '/bands/1')

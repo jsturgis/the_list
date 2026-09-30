@@ -12,6 +12,7 @@ export const makeVenue = (overrides: Partial<Venue> = {}): Venue => ({
   timezone: 'America/Los_Angeles',
   phone: null,
   googleRating: 4.7,
+  googlePlaceId: null,
   description: 'Historic SF venue.',
   wikipediaUrl: null,
   ...overrides,

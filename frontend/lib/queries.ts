@@ -72,6 +72,7 @@ export const SHOW_QUERY = /* GraphQL */ `
         address
         phone
         googleRating
+        googlePlaceId
         description
         wikipediaUrl
       }
@@ -165,6 +166,7 @@ export const VENUE_QUERY = /* GraphQL */ `
       websiteUrl
       phone
       googleRating
+      googlePlaceId
       description
       wikipediaUrl
     }

@@ -10,6 +10,7 @@ export interface Venue {
   timezone: string | null
   phone: string | null
   googleRating: number | null
+  googlePlaceId: string | null
   description: string | null
   wikipediaUrl: string | null
 }
