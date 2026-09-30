@@ -1,0 +1,49 @@
+'use client'
+
+import { useSyncExternalStore } from 'react'
+import ShowCard from './ShowCard'
+import { bayAreaToday } from '@/lib/data'
+import { formatDateLong } from '@/lib/format'
+import type { Show } from '@/lib/types'
+
+/**
+ * A Venue's Upcoming Shows as compact rows grouped by date. Pages are built weekly, so dates before
+ * today (Bay Area time) are hidden in the browser.
+ */
+const noSubscription = () => () => {}
+
+export default function VenueShowRows({ shows }: { shows: Show[] }) {
+  // No date while prerendering and hydrating (so the markup matches the build), then today in the browser.
+  const today = useSyncExternalStore(noSubscription, () => bayAreaToday(), () => null)
+
+  const visible = today ? shows.filter(s => s.date >= today) : shows
+  if (visible.length === 0) {
+    return <p className="text-sm text-zinc-500 dark:text-zinc-400">No upcoming shows.</p>
+  }
+
+  const byDate = new Map<string, Show[]>()
+  for (const s of visible) byDate.set(s.date, [...(byDate.get(s.date) ?? []), s])
+
+  return (
+    <section aria-labelledby="venue-upcoming-shows">
+      <h2 id="venue-upcoming-shows" className="text-base font-semibold mb-3 text-zinc-900 dark:text-zinc-100">
+        Upcoming Shows
+      </h2>
+      <div className="flex flex-col gap-6">
+        {Array.from(byDate.keys()).sort().map(date => (
+          <div key={date}>
+            <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2">
+              {formatDateLong(date)}
+            </h3>
+            <div className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
+              {(byDate.get(date) ?? [])
+                .slice()
+                .sort((a, b) => (a.doorTime ?? '').localeCompare(b.doorTime ?? ''))
+                .map(show => <ShowCard key={show.id} show={show} layout="row" showVenue={false} />)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}

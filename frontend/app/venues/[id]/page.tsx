@@ -1,23 +1,13 @@
 import { notFound } from 'next/navigation'
-import { gqlClient } from '@/lib/graphql'
-import { VENUE_QUERY, VENUE_SHOWS_QUERY, ALL_VENUES_STATIC_QUERY } from '@/lib/queries'
-import type { Venue, Show } from '@/lib/types'
+import { siteData } from '@/lib/siteData.server'
 import VenueDetail from '@/components/VenueDetail'
 import BackLink from '@/components/BackLink'
 
-export async function generateStaticParams() {
-  try {
-    const data = await gqlClient.request<{ shows: { venue: { id: number } }[] }>(
-      ALL_VENUES_STATIC_QUERY,
-    )
-    const ids = new Set<number>()
-    for (const show of data.shows) {
-      ids.add(show.venue.id)
-    }
-    return Array.from(ids).map(id => ({ id: String(id) }))
-  } catch {
-    return []
-  }
+// One static page per exported Venue; anything else is a 404.
+export const dynamicParams = false
+
+export function generateStaticParams() {
+  return siteData().venueIds().map(id => ({ id }))
 }
 
 interface PageProps {
@@ -26,28 +16,14 @@ interface PageProps {
 
 export default async function VenuePage({ params }: PageProps) {
   const { id } = await params
-  let venue: Venue | null = null
-  let upcomingShows: Show[] = []
-
-  try {
-    const venueData = await gqlClient.request<{ venue: Venue | null }>(VENUE_QUERY, { id })
-    venue = venueData.venue
-    if (venue) {
-      const showsData = await gqlClient.request<{ shows: Show[] }>(VENUE_SHOWS_QUERY, {
-        venueId: venue.id,
-      })
-      upcomingShows = showsData.shows
-    }
-  } catch {
-    // fall through to notFound
-  }
-
+  const data = siteData()
+  const venue = data.venue(Number(id))
   if (!venue) notFound()
 
   return (
     <div className="flex flex-col gap-6">
       <BackLink />
-      <VenueDetail venue={venue} upcomingShows={upcomingShows} />
+      <VenueDetail venue={venue} upcomingShows={data.venueShows(venue.id)} />
     </div>
   )
 }
