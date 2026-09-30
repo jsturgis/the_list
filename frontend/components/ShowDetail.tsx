@@ -1,6 +1,6 @@
-import Link from 'next/link'
 import type { Show } from '@/lib/types'
 import { formatTime, formatPrice, formatDateLongYear, mapsHref } from '@/lib/format'
+import BandLink from './BandLink'
 import VenueLink from './VenueLink'
 
 function formatAge(age: string): string {
@@ -115,12 +115,12 @@ export default function ShowDetail({ show }: ShowDetailProps) {
             .sort((a, b) => a.position - b.position)
             .map(act => (
               <li key={act.band.id}>
-                <Link
-                  href={`/bands/${act.band.id}`}
+                <BandLink
+                  bandId={act.band.id}
                   className={`${act.position === 0 ? 'font-bold' : 'font-normal'} hover:underline text-zinc-900 dark:text-zinc-50`}
                 >
                   <span data-testid="act-name">{act.band.name}</span>
-                </Link>
+                </BandLink>
               </li>
             ))}
         </ol>

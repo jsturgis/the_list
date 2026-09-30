@@ -1,14 +1,14 @@
 'use client'
 
-import React, { createContext, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import React, { useEffect, useRef } from 'react'
 
-// Lets links inside the modal replace the current history entry instead of pushing, so
-// moving between Bands in the modal keeps a single entry and one close dismisses it.
-export const InModalContext = createContext(false)
+interface ModalProps {
+  /** Called when the dialog closes: ×, Esc or a backdrop click. */
+  onClose: () => void
+  children: React.ReactNode
+}
 
-export default function Modal({ children }: { children: React.ReactNode }) {
-  const router = useRouter()
+export default function Modal({ onClose, children }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
@@ -19,7 +19,7 @@ export default function Modal({ children }: { children: React.ReactNode }) {
   return (
     <dialog
       ref={ref}
-      onClose={() => router.back()}
+      onClose={onClose}
       onClick={e => { if (e.target === ref.current) ref.current?.close() }}
       className="m-auto w-[calc(100%-2rem)] max-w-2xl max-h-[85vh] overflow-y-auto rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-50 p-6 backdrop:bg-black/50"
     >
@@ -31,7 +31,7 @@ export default function Modal({ children }: { children: React.ReactNode }) {
       >
         ×
       </button>
-      <InModalContext.Provider value={true}>{children}</InModalContext.Provider>
+      {children}
     </dialog>
   )
 }

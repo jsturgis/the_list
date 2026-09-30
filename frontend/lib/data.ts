@@ -20,6 +20,19 @@ export function hydrateShows(shows: ExportShow[], venues: ExportVenue[], bands: 
   }))
 }
 
+const byDateThenDoor = (a: Show, b: Show) =>
+  a.date.localeCompare(b.date) || (a.doorTime ?? '').localeCompare(b.doorTime ?? '')
+
+/** A Band's Upcoming Shows (any Act), in date then door-time order. */
+export function bandShows(shows: Show[], bandId: number): Show[] {
+  return shows.filter(s => s.status === 'upcoming' && s.acts.some(a => a.band.id === bandId)).sort(byDateThenDoor)
+}
+
+/** A Band's Similar Bands, resolved in order (ids missing from the export are skipped). */
+export function similarBands(band: ExportBand, bandById: Map<number, ExportBand>): ExportBand[] {
+  return band.similar.map(id => bandById.get(id)).filter((b): b is ExportBand => b !== undefined)
+}
+
 async function getJson<T>(name: string): Promise<T> {
   const url = new URL(`/data/${name}.json`, window.location.href)
   const res = await fetch(url)

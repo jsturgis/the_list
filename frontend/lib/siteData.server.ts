@@ -4,7 +4,7 @@
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { hydrateShows } from './data'
+import { bandShows, hydrateShows, similarBands } from './data'
 import type { ExportBand, ExportMeta, ExportShow, ExportVenue, Show } from './types'
 
 export interface ExportData {
@@ -14,8 +14,12 @@ export interface ExportData {
   band(id: number): ExportBand | undefined
   /** A Venue's Upcoming Shows, in date then door-time order (past dates are hidden in the browser). */
   venueShows(venueId: number): Show[]
+  /** A Band's Upcoming Shows, in date then door-time order (past dates are hidden in the browser). */
+  bandShows(bandId: number): Show[]
+  similarBands(bandId: number): ExportBand[]
   showIds(): string[]
   venueIds(): string[]
+  bandIds(): string[]
 }
 
 export const DEFAULT_DATA_DIR = join(process.cwd(), 'public', 'data')
@@ -56,8 +60,14 @@ export function readExport(dir: string = DEFAULT_DATA_DIR): ExportData {
       (byVenue.get(venueId) ?? [])
         .slice()
         .sort((a, b) => a.date.localeCompare(b.date) || (a.doorTime ?? '').localeCompare(b.doorTime ?? '')),
+    bandShows: bandId => bandShows(shows, bandId),
+    similarBands: bandId => {
+      const band = bandById.get(bandId)
+      return band ? similarBands(band, bandById) : []
+    },
     showIds: () => shows.map(s => String(s.id)).sort(byNumber),
     venueIds: () => venues.map(v => String(v.id)).sort(byNumber),
+    bandIds: () => bands.map(b => String(b.id)).sort(byNumber),
   }
 }
 

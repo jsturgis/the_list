@@ -11,9 +11,9 @@ const venue = (id: number, name: string): ExportVenue => ({
   neighborhood: null, venueType: null, nearestTransit: null, instagram: null, imageUrl: null,
   defaultAgeRestriction: null, isSoberSpace: null, isCashOnly: null, membershipRequired: null,
 })
-const band = (id: number): ExportBand => ({
+const band = (id: number, similar: number[] = []): ExportBand => ({
   id, name: `Band ${id}`, genres: [], spotifyUrl: null, soundcloudUrl: null, bandcampUrl: null, websiteUrl: null,
-  imageUrl: null, isLocal: null, similar: [],
+  imageUrl: null, isLocal: null, similar,
 })
 const show = (id: number, venueId: number, date: string, status = 'upcoming'): ExportShow => ({
   id, date, doorTime: '20:00:00', setTime: null, priceMin: null, priceMax: null, isFree: false, ageRestriction: 'a/a',
@@ -27,7 +27,7 @@ beforeAll(() => {
   dir = mkdtempSync(join(tmpdir(), 'the-list-export-'))
   const files = {
     venues: [venue(1, 'The Fillmore'), venue(2, 'The Chapel')],
-    bands: [band(10), band(20), band(30)],
+    bands: [band(10, [30, 20]), band(20), band(30)],
     shows: [show(3, 1, '2026-10-05'), show(1, 1, '2026-10-01'), show(2, 2, '2026-10-02', 'cancelled')],
     meta: { generatedAt: '', emailSubject: null, filterOptions: { regions: [], ages: [], genres: [], dates: [] }, totalUpcoming: 2 },
   }
@@ -63,5 +63,21 @@ describe('readExport', () => {
 
   it('explains how to create the data when it is missing', () => {
     expect(() => readExport(join(dir, 'missing'))).toThrow(/app\.cli export/)
+  })
+
+  it("lists a Band's Upcoming Shows in date order", () => {
+    const data = readExport(dir)
+    expect(data.bandShows(30).map(s => s.id)).toEqual([3])
+    expect(data.bandShows(20)).toEqual([])  // cancelled only
+  })
+
+  it('resolves Similar Bands in order', () => {
+    const data = readExport(dir)
+    expect(data.similarBands(10).map(b => b.name)).toEqual(['Band 30', 'Band 20'])
+    expect(data.similarBands(20)).toEqual([])
+  })
+
+  it('provides every Band id for static generation', () => {
+    expect(readExport(dir).bandIds()).toEqual(['10', '20', '30'])
   })
 })
