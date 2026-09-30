@@ -16,20 +16,33 @@ from sqlalchemy.orm import Session, joinedload
 from app.clock import local_today
 from app.config import settings
 from app.database import SessionLocal
-from app.ingestion.gmail import fetch_latest_list_email
-from app.ingestion.parser import parse_email_body
-from app.ingestion.upsert import known_region, upsert_shows
+from app.ingestion.drive import fetch_latest_edition
+from app.ingestion.edition import edition_meta, edition_shows
+from app.ingestion.upsert import find_venue, known_region, upsert_shows
 from app.models.act import Act
-from app.models.band import Band
 from app.models.ingestion_run import IngestionRun, IngestionStatus
 from app.models.show import Show, ShowStatus
 from app.models.venue import Venue
 from app.pipeline.embed import batch_embed_and_index
-from app.pipeline.enrichment import _clean_venue_name, _enrich_venue, enrich_show
+from app.pipeline.enrichment import _clean_venue_name, _enrich_venue
+
+
+def _apply_venue_data(data: dict, venue_data: dict) -> None:
+    """Merge Google Places results into an edition show dict. Google's address wins (it's complete);
+    the edition's own website and coordinates are kept when Google has none."""
+    data["address"] = venue_data.get("address") or data["address"]
+    data["venue_website"] = data["venue_website"] or venue_data.get("website_url")
+    for key, source in [
+        ("latitude", "latitude"), ("longitude", "longitude"), ("google_place_id", "google_place_id"),
+        ("phone", "phone"), ("google_rating", "google_rating"), ("timezone", "timezone"),
+        ("venue_description", "description"), ("venue_wikipedia_url", "wikipedia_url"), ("place_city", "city"),
+    ]:
+        if venue_data.get(source) is not None or key not in data:
+            data[key] = venue_data.get(source)
 
 
 async def _run_ingestion_async(db: Optional[Session] = None) -> None:
-    """Full pipeline: fetch → parse → enrich → upsert → embed."""
+    """Full pipeline: fetch the newest edition from Drive → map → enrich new Venues → upsert → embed."""
     _own_db = db is None
     if _own_db:
         db = SessionLocal()
@@ -39,76 +52,44 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
     db.flush()
 
     try:
-        logger.info("ingestion: fetching latest email")
-        text, email_meta = fetch_latest_list_email()
-        if not text:
-            logger.info("ingestion: no email found, aborting")
-            run.status = IngestionStatus.no_email
-            run.finished_at = datetime.utcnow()
-            db.commit()
-            return
-
-        run.email_received_at = email_meta.get("email_received_at")
-        run.email_subject = email_meta.get("email_subject")
-        run.email_message_id = email_meta.get("email_message_id")
-
-        raw_shows = parse_email_body(text)
-        if not raw_shows:
-            logger.info("ingestion: no shows parsed, aborting")
+        logger.info("ingestion: fetching latest edition")
+        doc, file_meta = fetch_latest_edition()
+        shows_data = edition_shows(doc) if doc else []
+        if not shows_data:
+            logger.info("ingestion: no edition found, aborting")
             run.shows_parsed = 0
             run.status = IngestionStatus.no_email
             run.finished_at = datetime.utcnow()
             db.commit()
             return
-        logger.info("ingestion: parsed %d shows", len(raw_shows))
-        run.shows_parsed = len(raw_shows)
 
-        # Pre-load known headliners and venues to skip redundant API calls
-        headliner_names = [raw.bands[0] for raw in raw_shows if raw.bands]
-        venue_names = [raw.venue_name for raw in raw_shows if raw.venue_name]
-        known_bands = {b.name: b for b in db.query(Band).filter(Band.name.in_(headliner_names)).all()}
-        known_venues = {v.name: v for v in db.query(Venue).filter(Venue.name.in_(venue_names)).all()}
+        meta = edition_meta(doc)
+        run.email_received_at = datetime.combine(meta["edition_date"], datetime.min.time())
+        run.email_subject = meta["subject"]
+        run.email_message_id = file_meta["file_id"]
+        run.shows_parsed = len(shows_data)
+        logger.info("ingestion: %d shows in %s", len(shows_data), file_meta.get("file_name"))
 
-        enriched = []
-        new_count = 0
-        for raw in raw_shows:
-            headliner = raw.bands[0] if raw.bands else None
-            if headliner and headliner in known_bands:
-                band = known_bands[headliner]
-                venue = known_venues.get(raw.venue_name or "")
-                enriched.append({
-                    "date": raw.date, "bands": raw.bands, "venue_name": raw.venue_name,
-                    "city": raw.city, "door_time": raw.door_time, "set_time": raw.set_time,
-                    "price_raw": raw.price_raw, "age_restriction": raw.age_restriction,
-                    "status": raw.status, "is_recommended": raw.is_recommended,
-                    "will_sell_out": raw.will_sell_out, "is_pit": raw.is_pit,
-                    "is_drink_tickets": raw.is_drink_tickets, "is_no_reentry": raw.is_no_reentry,
-                    "notes": raw.notes, "raw_text": raw.raw_text,
-                    "genres": band.genres or [], "spotify_url": band.spotify_url,
-                    "soundcloud_url": band.soundcloud_url, "bandcamp_url": band.bandcamp_url,
-                    "venue_website": venue.website_url if venue else None,
-                    "address": venue.address if venue else None,
-                    "latitude": venue.latitude if venue else None,
-                    "longitude": venue.longitude if venue else None,
-                    "google_place_id": venue.google_place_id if venue else None,
-                    "phone": venue.phone if venue else None,
-                    "google_rating": venue.google_rating if venue else None,
-                    "timezone": venue.timezone if venue else None,
-                    "venue_description": venue.description if venue else None,
-                    "venue_wikipedia_url": venue.wikipedia_url if venue else None,
-                })
-            else:
-                new_count += 1
-                logger.info("ingestion: enriching [new %d] %s @ %s", new_count, headliner or "?", raw.venue_name)
-                enriched.append(await enrich_show(raw))
+        # Bands arrive with genres and links; only Venues we haven't seen need Google Places.
+        loop = asyncio.get_event_loop()
+        venue_cache: dict[tuple, dict] = {}
+        for data in shows_data:
+            name, city = data["venue_name"], data["city"]
+            if not name or find_venue(db, name, None, (city,)):
+                continue
+            street = data["address"].rsplit(",", 1)[0] if data["address"] else None
+            key = (name, city, street)
+            if key not in venue_cache:
+                logger.info("ingestion: enriching new venue %s (%s)", name, city)
+                venue_cache[key] = await loop.run_in_executor(None, _enrich_venue, name, city or "", street)
+            _apply_venue_data(data, venue_cache[key])
 
-        logger.info("ingestion: %d new, %d reused from DB", new_count, len(raw_shows) - new_count)
-        run.shows_new = new_count
-
-        shows = upsert_shows(db, enriched)
+        shows_before = db.query(Show).count()
+        shows = upsert_shows(db, shows_data)
         run.shows_upserted = len(shows)
+        run.shows_new = db.query(Show).count() - shows_before
         db.commit()
-        logger.info("ingestion: upserted %d shows", len(shows))
+        logger.info("ingestion: upserted %d shows (%d new)", len(shows), run.shows_new)
 
         # Reload with relationships for embedding
         show_ids = [s.id for s in shows]
