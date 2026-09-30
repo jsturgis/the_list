@@ -85,10 +85,13 @@ function folder_(name, isPublic) {
   return folder;
 }
 
-/** Run once: publish daily at about 6am, well before the Friday-evening ingest. */
+/**
+ * Run once: publish daily between 6pm and 7pm (script time zone, Pacific). Steve's email arrives
+ * Friday ~5:20pm and the ingest runs Friday 8pm, so the new edition is published in between.
+ */
 function installTrigger() {
   ScriptApp.getProjectTriggers()
     .filter(t => t.getHandlerFunction() === 'publish')
     .forEach(t => ScriptApp.deleteTrigger(t));
-  ScriptApp.newTrigger('publish').timeBased().everyDays(1).atHour(6).create();
+  ScriptApp.newTrigger('publish').timeBased().everyDays(1).atHour(18).create();
 }

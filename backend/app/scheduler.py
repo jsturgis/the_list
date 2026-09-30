@@ -6,6 +6,7 @@ import logging
 import traceback
 from datetime import datetime, timedelta
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
@@ -203,18 +204,22 @@ def run_daily_maintenance(db: Optional[Session] = None) -> None:
             db.close()
 
 
-scheduler = BackgroundScheduler()
+# Schedules are in Bay Area time; the server runs in UTC.
+_TZ = ZoneInfo(settings.timezone)
+scheduler = BackgroundScheduler(timezone=_TZ)
 
+# Steve's email arrives Friday ~5:20pm Pacific and the Drive publisher updates latest.json between
+# 6pm and 7pm, so ingest after that.
 scheduler.add_job(
     run_ingestion_pipeline,
-    CronTrigger(day_of_week="fri", hour=18, minute=0),
+    CronTrigger(day_of_week="fri", hour=20, minute=0, timezone=_TZ),
     id="weekly_ingestion",
     replace_existing=True,
 )
 
 scheduler.add_job(
     run_daily_maintenance,
-    CronTrigger(hour=0, minute=0),
+    CronTrigger(hour=0, minute=0, timezone=_TZ),
     id="daily_maintenance",
     replace_existing=True,
 )
