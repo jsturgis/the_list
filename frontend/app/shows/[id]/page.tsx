@@ -1,48 +1,28 @@
 import { notFound } from 'next/navigation'
-import { gqlClient } from '@/lib/graphql'
-import { SHOW_QUERY, ALL_SHOWS_STATIC_QUERY } from '@/lib/queries'
-import type { Show } from '@/lib/types'
+import { siteData } from '@/lib/siteData.server'
 import ShowDetail from '@/components/ShowDetail'
 import BackLink from '@/components/BackLink'
 
-export async function generateStaticParams() {
-  try {
-    const data = await gqlClient.request<{ shows: { id: number }[] }>(ALL_SHOWS_STATIC_QUERY)
-    return data.shows.map(s => ({ id: String(s.id) }))
-  } catch {
-    return []
-  }
+// One static page per exported Show; anything else is a 404.
+export const dynamicParams = false
+
+export function generateStaticParams() {
+  return siteData().showIds().map(id => ({ id }))
 }
 
 interface PageProps {
   params: Promise<{ id: string }>
-  searchParams: Promise<Record<string, string | string[]>>
 }
 
-export default async function ShowPage({ params, searchParams }: PageProps) {
+export default async function ShowPage({ params }: PageProps) {
   const { id } = await params
-  const sp = await searchParams
-  const filterQs = new URLSearchParams(
-    Object.fromEntries(
-      Object.entries(sp).flatMap(([k, v]) => (Array.isArray(v) ? v.map(val => [k, val]) : [[k, v]]))
-    )
-  ).toString()
-
-  let show: Show | null = null
-
-  try {
-    const data = await gqlClient.request<{ show: Show | null }>(SHOW_QUERY, { id })
-    show = data.show
-  } catch {
-    // fall through to notFound
-  }
-
+  const show = siteData().show(Number(id))
   if (!show) notFound()
 
   return (
     <div className="flex flex-col gap-6">
       <BackLink />
-      <ShowDetail show={show} filterQs={filterQs || undefined} />
+      <ShowDetail show={show} />
     </div>
   )
 }

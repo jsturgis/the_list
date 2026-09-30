@@ -1,6 +1,6 @@
 import type { Show, Venue } from '@/lib/types'
-import ShowCard from './ShowCard'
-import { formatDateLong, mapsHref, telHref } from '@/lib/format'
+import VenueShowRows from './VenueShowRows'
+import { mapsHref, telHref } from '@/lib/format'
 
 const REGION_LABELS: Record<string, string> = {
   sf: 'SF',
@@ -10,14 +10,11 @@ const REGION_LABELS: Record<string, string> = {
   santa_cruz: 'Santa Cruz',
 }
 
-function groupByDate(shows: Show[]): Map<string, Show[]> {
-  const map = new Map<string, Show[]>()
-  for (const show of shows) {
-    const existing = map.get(show.date) ?? []
-    existing.push(show)
-    map.set(show.date, existing)
-  }
-  return map
+const AGE_POLICY: Record<string, string> = { all_ages: 'All ages', varies: 'Varies by show' }
+
+/** "@catalystclub" -> "https://www.instagram.com/catalystclub/" */
+function instagramUrl(handle: string): string {
+  return `https://www.instagram.com/${handle.replace(/^@/, '')}/`
 }
 
 interface VenueDetailProps {
@@ -26,18 +23,51 @@ interface VenueDetailProps {
 }
 
 export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) {
-  const byDate = groupByDate(upcomingShows)
-  const sortedDates = Array.from(byDate.keys()).sort()
+  const rules = [
+    venue.isSoberSpace && 'Sober space',
+    venue.isCashOnly && 'Cash only',
+    venue.membershipRequired && 'Membership required',
+  ].filter((r): r is string => Boolean(r))
+  const agePolicy = venue.defaultAgeRestriction
+    ? AGE_POLICY[venue.defaultAgeRestriction] ?? venue.defaultAgeRestriction
+    : null
 
   return (
     <article className="max-w-2xl mx-auto flex flex-col gap-6">
+      {venue.imageUrl && (
+        // Hosts vary (and the site is a static export), so a plain <img> rather than next/image.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={venue.imageUrl} alt={venue.name} className="w-full max-h-72 object-cover rounded-lg" />
+      )}
       <header>
         <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">{venue.name}</h1>
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+          {venue.neighborhood ? `${venue.neighborhood} · ` : ''}
           {venue.city}
           {venue.region && REGION_LABELS[venue.region] ? ` · ${REGION_LABELS[venue.region]}` : ''}
         </p>
+        {rules.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {rules.map(rule => (
+              <span key={rule} className="text-xs px-2 py-0.5 rounded bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                {rule}
+              </span>
+            ))}
+          </div>
+        )}
       </header>
+
+      {(venue.nearestTransit || venue.instagram || agePolicy) && (
+        <section className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-300">
+          {agePolicy && <p>Usual ages: {agePolicy}</p>}
+          {venue.nearestTransit && <p>Transit: {venue.nearestTransit}</p>}
+          {venue.instagram && (
+            <a href={instagramUrl(venue.instagram)} target="_blank" rel="noopener noreferrer" className="w-fit hover:underline">
+              {venue.instagram}
+            </a>
+          )}
+        </section>
+      )}
 
       {(venue.websiteUrl || venue.wikipediaUrl || venue.phone || venue.googleRating || venue.address) && (
         <section className="flex flex-col gap-2 text-sm text-zinc-600 dark:text-zinc-300">
@@ -90,31 +120,7 @@ export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) 
         </p>
       )}
 
-      {upcomingShows.length > 0 ? (
-        <section>
-          <h2 className="text-base font-semibold mb-3 text-zinc-900 dark:text-zinc-100">
-            Upcoming Shows
-          </h2>
-          <div className="flex flex-col gap-6">
-            {sortedDates.map(date => (
-              <div key={date}>
-                <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2">
-                  {formatDateLong(date)}
-                </h3>
-                <div className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
-                  {(byDate.get(date) ?? [])
-                    .sort((a, b) => (a.doorTime ?? '').localeCompare(b.doorTime ?? ''))
-                    .map(show => (
-                      <ShowCard key={show.id} show={show} layout="row" showVenue={false} />
-                    ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : (
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">No upcoming shows.</p>
-      )}
+      <VenueShowRows shows={upcomingShows} />
     </article>
   )
 }

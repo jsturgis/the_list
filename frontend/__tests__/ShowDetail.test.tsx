@@ -1,7 +1,11 @@
 import { render, screen } from '@testing-library/react'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import ShowDetail from '@/components/ShowDetail'
 import { makeShow, makeVenue, makeBand } from './fixtures'
+
+let currentParams = new URLSearchParams()
+vi.mock('next/navigation', () => ({ useSearchParams: () => currentParams }))
+beforeEach(() => { currentParams = new URLSearchParams() })
 
 describe('ShowDetail', () => {
   const show = makeShow({
@@ -110,5 +114,33 @@ describe('ShowDetail', () => {
     expect(screen.getByText(/sell out/i)).toBeInTheDocument()
     expect(screen.getByText(/drink/i)).toBeInTheDocument()
     expect(screen.getByText(/re-entry/i)).toBeInTheDocument()
+  })
+
+  it('shows sold out, matinee and benefit (with its cause)', () => {
+    render(<ShowDetail show={makeShow({ isSoldOut: true, isMatinee: true, isBenefit: true, benefitCause: 'canned food drive' })} />)
+    expect(screen.getByText('Sold out')).toBeInTheDocument()
+    expect(screen.getByText('Matinee')).toBeInTheDocument()
+    expect(screen.getByText(/Benefit: canned food drive/)).toBeInTheDocument()
+  })
+
+  it('shows the special event and ticket provider when known', () => {
+    render(<ShowDetail show={makeShow({ specialEvent: 'Hardly Strictly Bluegrass', ticketProvider: 'ticketweb' })} />)
+    expect(screen.getByText('Hardly Strictly Bluegrass')).toBeInTheDocument()
+    expect(screen.getByText(/Tickets via ticketweb/i)).toBeInTheDocument()
+  })
+
+  it('leaves the new details out when unknown', () => {
+    render(<ShowDetail show={show} />)
+    expect(screen.queryByText('Sold out')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Tickets via/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Benefit/)).not.toBeInTheDocument()
+  })
+
+  it('links to the venue, keeping the current filters from the URL', () => {
+    currentParams = new URLSearchParams('genre=punk&region=sf')
+    render(<ShowDetail show={show} />)
+    for (const link of screen.getAllByRole('link', { name: 'The Fillmore' })) {
+      expect(link).toHaveAttribute('href', `/venues/${show.venue.id}?genre=punk&region=sf`)
+    }
   })
 })
