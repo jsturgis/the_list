@@ -221,7 +221,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
         </button>
 
         {showAdvanced && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3">
             <div className="flex flex-col gap-1">
               <label htmlFor="filter-from-date" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
                 From date
