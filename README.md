@@ -169,12 +169,24 @@ app's `DATABASE_URL`.
 docker compose exec api alembic upgrade head
 ```
 
-A database created by the app itself has no Alembic version yet. Mark it once before the first upgrade:
+A database created by the app itself has no Alembic version yet. Mark it once, depending on which
+models created it:
 
-```bash
-docker compose exec api alembic stamp 5b5092d5ef44
-docker compose exec api alembic upgrade head
-```
+- **It already has the latest columns** (created by the current code): just record that it's up to date.
+  Running `upgrade` here fails, because the columns already exist.
+
+  ```bash
+  docker compose exec api alembic stamp head
+  ```
+
+- **It's missing newer columns** (created by older code): mark it at the first migration, then upgrade.
+
+  ```bash
+  docker compose exec api alembic stamp 5b5092d5ef44
+  docker compose exec api alembic upgrade head
+  ```
+
+Check with `docker compose exec api alembic current`: it should print the head revision.
 
 ## How ingestion works
 
