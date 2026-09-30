@@ -19,6 +19,14 @@
   }
 }
 
+/* Opt selects into customizable rendering (Chromium 135+); other browsers keep native selects. */
+@layer base {
+  select,
+  ::picker(select) {
+    appearance: base-select;
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
