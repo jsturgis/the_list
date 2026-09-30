@@ -90,7 +90,6 @@ Required env vars:
 | Variable | Description |
 |---|---|
 | `ANTHROPIC_API_KEY` | Claude API key (enrichment fallback) |
-| `DRIVE_LATEST_FILE_ID` | Drive file id of the public `latest.json` pointer |
 | `GOOGLE_MAPS_API_KEY` | Google Maps Places API key (venue enrichment) |
 | `DATABASE_URL` | SQLite or PostgreSQL URL (default: `sqlite:///./the_list.db`) |
 | `OLLAMA_BASE_URL` | Ollama server URL (default: `http://localhost:11434`) |
@@ -103,7 +102,6 @@ Required env vars:
 |---|---|
 | `ANTHROPIC_API_KEY` | Claude API key for genre enrichment fallback |
 | `GOOGLE_MAPS_API_KEY` | Venue enrichment (address, lat/lng, place ID) |
-| `DRIVE_LATEST_FILE_ID` | Drive file id of the public `latest.json` pointer (see below) |
 
 ### Required for production (defaults are dev-only)
 
@@ -117,13 +115,14 @@ Required env vars:
 
 | Variable | Default | Notes |
 |---|---|---|
+| `DRIVE_LATEST_FILE_ID` | the project's `latest.json` | Drive file id of the public pointer to the newest edition (see below) |
 | `OLLAMA_EMBEDDING_MODEL` | `nomic-embed-text` | Change only if swapping embedding models |
 | `DATA_RETENTION_DAYS` | `90` | Shows older than this are hard-deleted |
 | `MUSICBRAINZ_APP_NAME` | `the-list` | MusicBrainz rate-limit user-agent |
 | `MUSICBRAINZ_APP_VERSION` | `0.1` | MusicBrainz rate-limit user-agent |
 | `MUSICBRAINZ_CONTACT` | `https://github.com/jsturgis/the_list` | MusicBrainz rate-limit contact |
 
-> **Drive setup**: install `scripts/drive-publisher.gs` as a Google Apps Script with a weekly trigger. It moves formatted editions from your Drive root into a public folder (raw email exports into a private one) and keeps `latest.json` pointing at the newest edition. Set `DRIVE_LATEST_FILE_ID` to that file's id.
+> **Drive setup**: install `scripts/drive-publisher.gs` as a Google Apps Script with a weekly trigger. It moves formatted editions from your Drive root into a public folder (raw email exports into a private one) and keeps `latest.json` pointing at the newest edition. The script updates that file in place, so its id never changes; it's the built-in default for `DRIVE_LATEST_FILE_ID`.
 
 Run the tests:
 

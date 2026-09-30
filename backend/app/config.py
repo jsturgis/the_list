@@ -6,8 +6,9 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str = ""
 
-    # Public Drive file (maintained by the Apps Script) pointing at the newest formatted edition.
-    drive_latest_file_id: str = ""
+    # Public Drive file `latest.json` (maintained by scripts/drive-publisher.gs) pointing at the newest
+    # formatted edition. The script rewrites it in place, so its id never changes.
+    drive_latest_file_id: str = "1FVvPlzULHexHWjyKNHnZ9_QROCE4TDCN"
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_embedding_model: str = "nomic-embed-text"
