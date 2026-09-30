@@ -24,5 +24,8 @@ class Settings(BaseSettings):
 
     data_retention_days: int = 90
 
+    # Calendar dates ("today", upcoming vs past) are evaluated in this timezone.
+    timezone: str = "America/Los_Angeles"
+
 
 settings = Settings()
