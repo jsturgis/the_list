@@ -232,3 +232,25 @@ def test_future_date_with_explicit_year(shows):
     """Dates like 'may  9 2027' have the correct year."""
     future = [s for s in shows if s.date and s.date.year == 2027]
     assert future, "No 2027 shows found"
+
+
+# ── end of listings ───────────────────────────────────────────────────────────
+
+
+def test_last_listing_stops_at_flag_legend(shows):
+    """The final listing must not swallow the legend, radio links or EmailOctopus footer."""
+    last = max((s for s in shows if s.date), key=lambda s: s.date)
+    assert last.bands == ["The Airborne Toxic Event"]
+    assert "Guild Theater" in (last.venue_name or "")
+    assert "All bands deserve" not in last.raw_text
+    assert not any("EmailOctopus" in (s.city or "") or "EmailOctopus" in s.raw_text for s in shows)
+
+
+def test_parsing_stops_at_legend_even_if_dates_follow():
+    text = (
+        "sep 25 Band A at the Chapel, S.F. a/a 8pm\n"
+        "\xa0*\xa0 All bands deserve 3 stars a/a all ages\n"
+        "oct 1 Not A Show at the Footer, Nowhere\n"
+    )
+    shows = parse_email_body(text)
+    assert [s.bands for s in shows] == [["Band A"]]

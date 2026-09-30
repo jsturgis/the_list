@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, time
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.act import Act
@@ -15,8 +16,10 @@ _DJ_RE = re.compile(r"^dj\s+", re.IGNORECASE)
 _B2B_RE = re.compile(r"\s+b2b\s+", re.IGNORECASE)
 
 _CITY_REGION: dict[str, Region] = {
-    # SF
+    # SF (incl. Peninsula / San Mateo coast)
     "sf": Region.sf, "s.f.": Region.sf, "san francisco": Region.sf,
+    "pacifica": Region.sf, "daly city": Region.sf, "la honda": Region.sf,
+    "menlo park": Region.sf, "redwood city": Region.sf, "stanford": Region.sf,
     # East Bay
     "oakland": Region.east_bay, "berkeley": Region.east_bay,
     "albany": Region.east_bay, "alameda": Region.east_bay,
@@ -24,17 +27,20 @@ _CITY_REGION: dict[str, Region] = {
     "crockett": Region.east_bay, "san leandro": Region.east_bay,
     "rodeo": Region.east_bay, "orinda": Region.east_bay,
     "emeryville": Region.east_bay, "richmond": Region.east_bay,
-    "el cerrito": Region.east_bay,
+    "el cerrito": Region.east_bay, "fremont": Region.east_bay,
     # North Bay
     "petaluma": Region.north_bay, "novato": Region.north_bay,
     "mill valley": Region.north_bay, "sebastopol": Region.north_bay,
     "santa rosa": Region.north_bay, "san rafael": Region.north_bay,
+    "napa": Region.north_bay, "fairfax": Region.north_bay,
+    "rohnert park": Region.north_bay, "sonoma": Region.north_bay,
+    "vallejo": Region.north_bay,
     # South Bay
     "san jose": Region.south_bay, "saratoga": Region.south_bay,
-    "sunnyvale": Region.south_bay, "napa": Region.south_bay,
-    "mountain view": Region.south_bay,
+    "sunnyvale": Region.south_bay, "mountain view": Region.south_bay,
+    "cupertino": Region.south_bay, "santa clara": Region.south_bay,
     # Santa Cruz
-    "santa cruz": Region.santa_cruz, "pacifica": Region.santa_cruz,
+    "santa cruz": Region.santa_cruz, "felton": Region.santa_cruz,
 }
 
 _AGE_MAP: dict[str, AgeRestriction] = {
@@ -84,9 +90,28 @@ def _parse_time(s: str | None) -> time | None:
     return None
 
 
+def venue_key(name: str) -> str:
+    """Matching key for a Venue name: case-insensitive, ignoring a leading "the" and extra spaces.
+
+    Steve lists the same Venue as both "the Fox Theater" and "Fox Theater".
+    """
+    key = " ".join(name.lower().split())
+    return key[4:] if key.startswith("the ") else key
+
+
+def find_venue(db: Session, name: str) -> Venue | None:
+    key = venue_key(name)
+    return (
+        db.query(Venue)
+        .filter(func.lower(Venue.name).in_([key, f"the {key}"]))
+        .order_by(Venue.id)
+        .first()
+    )
+
+
 def _upsert_venue(db: Session, data: dict) -> Venue:
     name = (data.get("venue_name") or "Unknown Venue").strip()
-    venue = db.query(Venue).filter(Venue.name == name).first()
+    venue = find_venue(db, name)
     place_city = data.get("place_city")
     if not venue:
         city = place_city or data.get("city") or "Unknown"
