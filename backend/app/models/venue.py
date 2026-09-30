@@ -4,7 +4,7 @@ import enum
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import DateTime, Enum, Float, String, Text, func
+from sqlalchemy import Boolean, DateTime, Enum, Float, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -35,6 +35,16 @@ class Venue(Base):
     google_rating: Mapped[Optional[float]] = mapped_column(Float)
     description: Mapped[Optional[str]] = mapped_column(Text)
     wikipedia_url: Mapped[Optional[str]] = mapped_column(String(500))
+    # From the formatted edition
+    neighborhood: Mapped[Optional[str]] = mapped_column(String(255))
+    venue_type: Mapped[Optional[str]] = mapped_column(String(100))
+    nearest_transit: Mapped[Optional[str]] = mapped_column(String(255))
+    instagram: Mapped[Optional[str]] = mapped_column(String(100))
+    image_url: Mapped[Optional[str]] = mapped_column(String(500))
+    default_age_restriction: Mapped[Optional[str]] = mapped_column(String(50))
+    is_sober_space: Mapped[Optional[bool]] = mapped_column(Boolean)
+    is_cash_only: Mapped[Optional[bool]] = mapped_column(Boolean)
+    membership_required: Mapped[Optional[bool]] = mapped_column(Boolean)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

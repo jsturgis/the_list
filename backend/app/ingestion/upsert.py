@@ -158,6 +158,12 @@ def _upsert_venue(db: Session, data: dict) -> Venue:
         ("phone", "phone"),
         ("description", "venue_description"),
         ("wikipedia_url", "venue_wikipedia_url"),
+        ("neighborhood", "venue_neighborhood"),
+        ("venue_type", "venue_type"),
+        ("nearest_transit", "venue_nearest_transit"),
+        ("instagram", "venue_instagram"),
+        ("image_url", "venue_image_url"),
+        ("default_age_restriction", "venue_default_age_restriction"),
     ]:
         if data.get(key) and not getattr(venue, attr):
             setattr(venue, attr, data[key])
@@ -165,6 +171,9 @@ def _upsert_venue(db: Session, data: dict) -> Venue:
         ("latitude", "latitude"),
         ("longitude", "longitude"),
         ("google_rating", "google_rating"),
+        ("is_sober_space", "venue_is_sober_space"),
+        ("is_cash_only", "venue_is_cash_only"),
+        ("membership_required", "venue_membership_required"),
     ]:
         if data.get(key) is not None and getattr(venue, attr) is None:
             setattr(venue, attr, data[key])
@@ -200,6 +209,12 @@ def _upsert_show(db: Session, venue: Venue, data: dict) -> Show:
     show.is_drink_tickets = bool(data.get("is_drink_tickets"))
     show.is_no_reentry = bool(data.get("is_no_reentry"))
     show.notes = data.get("notes")
+    show.is_matinee = bool(data.get("is_matinee"))
+    show.is_sold_out = bool(data.get("is_sold_out"))
+    show.ticket_provider = data.get("ticket_provider")
+    show.is_benefit = bool(data.get("is_benefit"))
+    show.benefit_cause = data.get("benefit_cause")
+    show.special_event = data.get("special_event")
     show.raw_text = data.get("raw_text")
     db.flush()
     return show
@@ -246,6 +261,12 @@ def _upsert_acts(db: Session, show: Show, data: dict) -> None:
             band.soundcloud_url = enrichment["soundcloud_url"]
         if enrichment.get("bandcamp_url") and not band.bandcamp_url:
             band.bandcamp_url = enrichment["bandcamp_url"]
+        if enrichment.get("website_url") and not band.website_url:
+            band.website_url = enrichment["website_url"]
+        if enrichment.get("image_url") and not band.image_url:
+            band.image_url = enrichment["image_url"]
+        if enrichment.get("is_local") is not None and band.is_local is None:
+            band.is_local = enrichment["is_local"]
 
         db.add(Act(show_id=show.id, band_id=band.id, position=position))
 

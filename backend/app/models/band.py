@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import DateTime, LargeBinary, String, Text, TypeDecorator, func
+from sqlalchemy import Boolean, DateTime, LargeBinary, String, Text, TypeDecorator, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -30,6 +30,10 @@ class Band(Base):
     spotify_url: Mapped[Optional[str]] = mapped_column(String(500))
     soundcloud_url: Mapped[Optional[str]] = mapped_column(String(500))
     bandcamp_url: Mapped[Optional[str]] = mapped_column(String(500))
+    # From the formatted edition
+    website_url: Mapped[Optional[str]] = mapped_column(String(500))
+    image_url: Mapped[Optional[str]] = mapped_column(String(500))
+    is_local: Mapped[Optional[bool]] = mapped_column(Boolean)
     embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())

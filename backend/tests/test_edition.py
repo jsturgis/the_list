@@ -112,11 +112,13 @@ def test_bands_in_order_with_genres_and_streaming_links():
     enrichment = dict(s["band_enrichment"])
     assert enrichment["Headliner"] == {"genres": ["indie rock", "alternative"],
                                        "spotify_url": "https://open.spotify.com/artist/x",
-                                       "soundcloud_url": None, "bandcamp_url": None}
+                                       "soundcloud_url": None, "bandcamp_url": None,
+                                       "website_url": None, "image_url": None, "is_local": None}
     assert enrichment["Second"]["genres"] == ["lo-fi", "bedroom pop"]
     assert enrichment["Second"]["soundcloud_url"] == "https://soundcloud.com/second"
     assert enrichment["Third"]["bandcamp_url"] == "https://third.bandcamp.com/"
-    assert enrichment["Fourth"] == {"genres": [], "spotify_url": None, "soundcloud_url": None, "bandcamp_url": None}
+    assert enrichment["Fourth"] == {"genres": [], "spotify_url": None, "soundcloud_url": None, "bandcamp_url": None,
+                                    "website_url": "https://fourth-band.com/", "image_url": None, "is_local": None}
 
 
 def test_edition_meta():
@@ -209,3 +211,48 @@ def test_venue_description_is_used_when_present():
     [without] = edition_shows(_doc(_event()))
     assert with_desc["venue_description"] == "Santa Cruz's long-running rock club."
     assert without["venue_description"] is None
+
+
+# ── extra v2 fields (stored for the frontend) ─────────────────────────────────
+
+def test_show_extras_from_ticketing_context_and_matinee():
+    ev = _event(ticketing={"price_advance": 20, "price_door": 25, "is_free": False, "sold_out": True,
+                           "provider": "ticketweb"})
+    ev.update(is_matinee=True, event_context={"is_benefit": True, "benefit_cause": "canned food drive",
+                                              "special_event": "Hardly Strictly Bluegrass"})
+    [s] = edition_shows(_doc(ev))
+    assert (s["is_matinee"], s["is_sold_out"], s["ticket_provider"]) == (True, True, "ticketweb")
+    assert (s["is_benefit"], s["benefit_cause"], s["special_event"]) == (True, "canned food drive", "Hardly Strictly Bluegrass")
+
+
+def test_show_extras_default_when_missing():
+    [s] = edition_shows(_doc(_event()))
+    assert (s["is_matinee"], s["is_sold_out"], s["ticket_provider"]) == (False, False, None)
+    assert (s["is_benefit"], s["benefit_cause"], s["special_event"]) == (False, None, None)
+
+
+def test_venue_extras():
+    venue = {"neighborhood": "Downtown Santa Cruz", "venue_type": "independent_music_hall",
+             "nearest_transit": "Santa Cruz Metro Center (2 min walk)", "instagram": "@catalystclub",
+             "image_url": "https://example.com/catalyst.jpg",
+             "rules": {"default_age_restriction": "varies", "sober_space": False, "cash_only": True,
+                       "membership_required": False}}
+    [s] = edition_shows(_doc(_event(venue=venue)))
+    assert s["venue_neighborhood"] == "Downtown Santa Cruz"
+    assert s["venue_type"] == "independent_music_hall"
+    assert s["venue_nearest_transit"] == "Santa Cruz Metro Center (2 min walk)"
+    assert (s["venue_instagram"], s["venue_image_url"]) == ("@catalystclub", "https://example.com/catalyst.jpg")
+    assert (s["venue_default_age_restriction"], s["venue_is_sober_space"], s["venue_is_cash_only"],
+            s["venue_membership_required"]) == ("varies", False, True, False)
+
+
+def test_band_extras_image_local_and_website():
+    artists = [{"name": "Sleep", "role": "headliner", "genre": "Doom", "url": "https://thirdmanrecords.com/pages/sleep",
+                "image_url": "https://example.com/sleep.jpg", "is_local": False},
+               {"name": "Locals", "role": "support", "genre": "Punk", "url": "https://locals.bandcamp.com/", "is_local": True}]
+    [s] = edition_shows(_doc(_event(artists=artists)))
+    e = dict(s["band_enrichment"])
+    assert (e["Sleep"]["website_url"], e["Sleep"]["image_url"], e["Sleep"]["is_local"]) == (
+        "https://thirdmanrecords.com/pages/sleep", "https://example.com/sleep.jpg", False)
+    assert (e["Locals"]["website_url"], e["Locals"]["bandcamp_url"], e["Locals"]["is_local"]) == (
+        None, "https://locals.bandcamp.com/", True)

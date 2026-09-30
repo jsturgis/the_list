@@ -349,3 +349,32 @@ def test_google_neighbourhood_city_does_not_split_a_venue(db):
     ])
     [venue] = db.query(Venue).all()
     assert venue.region == Region.east_bay
+
+
+# ── extra edition fields ──────────────────────────────────────────────────────
+
+def test_show_extras_are_stored_and_refreshed(db):
+    upsert_shows(db, [_show(is_sold_out=False, ticket_provider="ticketweb", is_benefit=True,
+                            benefit_cause="food drive", special_event=None, is_matinee=True)])
+    upsert_shows(db, [_show(is_sold_out=True, ticket_provider="ticketweb", is_benefit=True,
+                            benefit_cause="food drive", special_event=None, is_matinee=True)])
+    s = db.query(Show).one()
+    assert (s.is_sold_out, s.ticket_provider, s.is_benefit, s.benefit_cause, s.is_matinee) == (
+        True, "ticketweb", True, "food drive", True)
+
+
+def test_venue_extras_fill_only_empty_fields(db):
+    upsert_shows(db, [_show(venue_neighborhood="Mission", venue_type="dive_bar_club", venue_instagram="@one",
+                            venue_is_cash_only=True, venue_default_age_restriction="21+")])
+    upsert_shows(db, [_show(date_=date(2026, 9, 26), venue_neighborhood="Other", venue_instagram="@two",
+                            venue_nearest_transit="16th St BART", venue_is_sober_space=False)])
+    v = db.query(Venue).one()
+    assert (v.neighborhood, v.venue_type, v.instagram, v.nearest_transit) == ("Mission", "dive_bar_club", "@one", "16th St BART")
+    assert (v.is_cash_only, v.is_sober_space, v.default_age_restriction) == (True, False, "21+")
+
+
+def test_band_extras_fill_only_empty_fields(db):
+    upsert_shows(db, [_show(bands=["Sleep"], band_enrichment=[("Sleep", {"image_url": "a.jpg", "website_url": "https://sleep.com", "is_local": False})])])
+    upsert_shows(db, [_show(bands=["Sleep"], date_=date(2026, 9, 26), band_enrichment=[("Sleep", {"image_url": "b.jpg", "is_local": True})])])
+    b = db.query(Band).one()
+    assert (b.image_url, b.website_url, b.is_local) == ("a.jpg", "https://sleep.com", False)

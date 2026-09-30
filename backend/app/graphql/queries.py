@@ -39,6 +39,15 @@ def _venue(v: Venue) -> VenueType:
         google_place_id=v.google_place_id,
         description=v.description,
         wikipedia_url=v.wikipedia_url,
+        neighborhood=v.neighborhood,
+        venue_type=v.venue_type,
+        nearest_transit=v.nearest_transit,
+        instagram=v.instagram,
+        image_url=v.image_url,
+        default_age_restriction=v.default_age_restriction,
+        is_sober_space=v.is_sober_space,
+        is_cash_only=v.is_cash_only,
+        membership_required=v.membership_required,
     )
 
 
@@ -50,6 +59,9 @@ def _band(b: Band) -> BandType:
         spotify_url=b.spotify_url,
         soundcloud_url=b.soundcloud_url,
         bandcamp_url=b.bandcamp_url,
+        website_url=b.website_url,
+        image_url=b.image_url,
+        is_local=b.is_local,
     )
 
 
@@ -76,6 +88,12 @@ def _show(s: Show) -> ShowType:
         is_drink_tickets=s.is_drink_tickets,
         is_no_reentry=s.is_no_reentry,
         notes=s.notes,
+        is_matinee=bool(s.is_matinee),
+        is_sold_out=bool(s.is_sold_out),
+        ticket_provider=s.ticket_provider,
+        is_benefit=bool(s.is_benefit),
+        benefit_cause=s.benefit_cause,
+        special_event=s.special_event,
     )
 
 
