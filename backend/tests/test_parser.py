@@ -254,3 +254,38 @@ def test_parsing_stops_at_legend_even_if_dates_follow():
     )
     shows = parse_email_body(text)
     assert [s.bands for s in shows] == [["Band A"]]
+
+
+# ── band name cleanup ─────────────────────────────────────────────────────────
+
+
+def test_strips_per_band_set_times():
+    text = (
+        "sep 26 sat The Coverups (2:30pm), Whateverglades (1:15pm),\n"
+        "\xa0\xa0 The Black Excellence Band (noon), Salt + (9:25pm)\n"
+        "\xa0\xa0 at Lefty Gomez Field, S.F. a/a free noon\n"
+    )
+    [show] = parse_email_body(text)
+    assert show.bands == ["The Coverups", "Whateverglades", "The Black Excellence Band", "Salt +"]
+
+
+def test_details_before_at_move_to_the_show():
+    text = (
+        "oct 10 sat Unwoman, Hare And Arrow, Brassica a/a $20 8pm\n"
+        "\xa0\xa0 at Bay Area Makers Farm, 2700 Barbers Point Rd, Alameda\n"
+    )
+    [show] = parse_email_body(text)
+    assert show.bands == ["Unwoman", "Hare And Arrow", "Brassica"]
+    assert (show.age_restriction, show.price_raw, show.door_time) == ("a/a", "$20", "8pm")
+    assert show.city == "Alameda"
+
+
+def test_venue_details_win_over_details_before_at():
+    [show] = parse_email_body("oct 10 sat Band A 8pm at the Chapel, S.F. 21+ $15 9pm\n")
+    assert show.bands == ["Band A"]
+    assert (show.age_restriction, show.price_raw, show.door_time) == ("21+", "$15", "9pm")
+
+
+def test_band_names_ending_in_free_or_symbols_are_kept():
+    [show] = parse_email_body("oct 3 sat Set Me Free, TheArti$t at Shoreline Amphitheater, Mountain View a/a $40+ 5pm\n")
+    assert show.bands == ["Set Me Free", "TheArti$t"]

@@ -37,6 +37,17 @@ _DJ_RE = re.compile(r"^dj\s+", re.IGNORECASE)
 # (legend, radio links, EmailOctopus footer) is not show data.
 _END_OF_LISTINGS_RE = re.compile(r"^\*\s+All bands deserve", re.IGNORECASE)
 _B2B_RE = re.compile(r"\s+b2b\s+", re.IGNORECASE)
+# Per-band set time after a name: "The Coverups (2:30pm)", "Black Excellence Band (noon)".
+_SET_TIME_SUFFIX_RE = re.compile(
+    r"\s*\((?:noon|midnight|\d{1,2}(?::\d{2})?\s*(?:am|pm))\)\s*$", re.IGNORECASE
+)
+# Age/price/time run at the end of the band list, before " at ": "Brassica a/a $20 8pm".
+# "free" is deliberately excluded so names like "Set Me Free" survive.
+_TRAILING_DETAILS_RE = re.compile(
+    r"(?:\s+(?:a/a|\d{1,2}\+|\$[\d.]+(?:[/\-]\$[\d.]+)*\+?"
+    r"|\d{1,2}(?::\d{2})?(?:am|pm)(?:/\d{1,2}(?::\d{2})?(?:am|pm))?))+\s*$",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -128,6 +139,15 @@ def _parse_venue_part(s: str) -> dict:
     return result
 
 
+def clean_band_name(name: str) -> str:
+    """Strip a trailing "(set time)" and trailing age/price/time from a band name."""
+    name = _SET_TIME_SUFFIX_RE.sub("", name).strip()
+    m = _TRAILING_DETAILS_RE.search(name)
+    if m and m.start() > 0:
+        name = name[: m.start()].strip()
+    return name
+
+
 def _parse_bands_str(s: str) -> tuple[str, list[str]]:
     status = "upcoming"
     sm = _STATUS_RE.match(s)
@@ -135,8 +155,8 @@ def _parse_bands_str(s: str) -> tuple[str, list[str]]:
         status = sm.group(1).lower()
         s = s[sm.end():].strip()
     s = s.replace(_NBSP, " ")
-    raw = [b.strip() for b in s.split(",") if b.strip()]
-    bands = [b for b in raw if not _DJ_RE.match(b) and not _B2B_RE.search(b)]
+    raw = [_SET_TIME_SUFFIX_RE.sub("", b).strip() for b in s.split(",")]
+    bands = [b for b in raw if b and not _DJ_RE.match(b) and not _B2B_RE.search(b)]
     bands = list(dict.fromkeys(bands))
     return status, bands
 
@@ -197,8 +217,21 @@ def parse_email_body(plain_text: str) -> list[RawShow]:
         bands_str = content[:at_idx].strip()
         venue_str = content[at_idx + 4:].strip()
 
+        # Details occasionally sit before " at " instead of after the venue; move them out of the
+        # last band name and use them for any fields the venue part doesn't provide.
+        details = ""
+        dm_ = _TRAILING_DETAILS_RE.search(bands_str)
+        if dm_ and dm_.start() > 0:
+            details = dm_.group(0)
+            bands_str = bands_str[: dm_.start()]
+
         status, bands = _parse_bands_str(bands_str)
         venue_data = _parse_venue_part(venue_str)
+        if details:
+            extra = _parse_venue_part(details)
+            for key in ("age_restriction", "price_raw", "door_time", "set_time"):
+                if venue_data[key] is None:
+                    venue_data[key] = extra[key]
 
         shows.append(RawShow(
             raw_text=raw_text,
