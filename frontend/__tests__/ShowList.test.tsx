@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import ShowList from '@/components/ShowList'
@@ -13,14 +13,6 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockReplace, replace: mockReplace }),
   useSearchParams: () => currentParams,
   usePathname: () => '/',
-}))
-
-// ── graphql client mock ───────────────────────────────────────────────────────
-
-const { mockRequest } = vi.hoisted(() => ({ mockRequest: vi.fn() }))
-
-vi.mock('@/lib/graphql', () => ({
-  gqlClient: { request: mockRequest },
 }))
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -40,9 +32,6 @@ const FILTER_OPTIONS = {
 beforeEach(() => {
   setParams({})
   mockReplace.mockClear()
-  mockRequest.mockReset()
-  // Default: filtered fetch returns empty (tests that need results configure it)
-  mockRequest.mockResolvedValue({ shows: [] })
 })
 
 // ── tests ─────────────────────────────────────────────────────────────────────
@@ -55,11 +44,6 @@ describe('ShowList', () => {
       render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
       // Shows count in FilterBar
       expect(screen.getByText(`Showing ${shows.length} of ${shows.length} shows`)).toBeInTheDocument()
-    })
-
-    it('does not call gqlClient on first render when no filters are active', () => {
-      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
-      expect(mockRequest).not.toHaveBeenCalled()
     })
 
     it('renders Steve\'s Picks section for recommended shows', () => {
@@ -153,86 +137,4 @@ describe('ShowList', () => {
     })
   })
 
-  describe('backend fetch when filters active', () => {
-    it('calls gqlClient.request on first render when filters are already set', async () => {
-      setParams({ region: 'east_bay' })
-      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
-      await waitFor(() => expect(mockRequest).toHaveBeenCalledTimes(1))
-      const [, variables] = mockRequest.mock.calls[0]
-      expect(variables).toMatchObject({ filters: { region: 'east_bay' } })
-    })
-
-    it('passes genre filter to gqlClient.request', async () => {
-      setParams({ genre: 'punk' })
-      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
-      await waitFor(() => expect(mockRequest).toHaveBeenCalled())
-      const [, variables] = mockRequest.mock.calls[0]
-      expect(variables.filters).toMatchObject({ genre: 'punk' })
-    })
-
-    it('passes free filter to gqlClient.request', async () => {
-      setParams({ free: '1' })
-      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
-      await waitFor(() => expect(mockRequest).toHaveBeenCalled())
-      const [, variables] = mockRequest.mock.calls[0]
-      expect(variables.filters).toMatchObject({ isFree: true })
-    })
-
-    it('passes band name filter to gqlClient.request', async () => {
-      setParams({ band: 'headliner' })
-      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
-      await waitFor(() => expect(mockRequest).toHaveBeenCalled())
-      const [, variables] = mockRequest.mock.calls[0]
-      expect(variables.filters).toMatchObject({ bandName: 'headliner' })
-    })
-
-    it('passes venue filter to gqlClient.request', async () => {
-      setParams({ venue: 'fillmore' })
-      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
-      await waitFor(() => expect(mockRequest).toHaveBeenCalled())
-      const [, variables] = mockRequest.mock.calls[0]
-      expect(variables.filters).toMatchObject({ venueName: 'fillmore' })
-    })
-
-    it('passes combined filters to gqlClient.request', async () => {
-      setParams({ region: 'sf', free: '1' })
-      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
-      await waitFor(() => expect(mockRequest).toHaveBeenCalled())
-      const [, variables] = mockRequest.mock.calls[0]
-      expect(variables.filters).toMatchObject({ region: 'sf', isFree: true })
-    })
-
-    it('renders shows returned by the filtered fetch', async () => {
-      setParams({ region: 'east_bay' })
-      mockRequest.mockResolvedValue({
-        shows: [makeShow({ id: 2, acts: [{ position: 0, band: { id: 3, name: 'East Bay Band', genres: ['punk'], spotifyUrl: null, soundcloudUrl: null, bandcampUrl: null } }] })],
-      })
-      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
-      await waitFor(() => expect(screen.getByText('East Bay Band')).toBeInTheDocument())
-    })
-
-    it('shows loading state while fetch is in progress', async () => {
-      setParams({ region: 'sf' })
-      // Never resolves so the loading spinner stays up
-      mockRequest.mockReturnValue(new Promise(() => {}))
-      render(<ShowList shows={[]} dbTotal={0} filterOptions={FILTER_OPTIONS} />)
-      expect(screen.getByText(/loading/i)).toBeInTheDocument()
-    })
-
-    it('shows empty state when filtered fetch returns no shows', async () => {
-      setParams({ band: 'xyznonexistent' })
-      mockRequest.mockResolvedValue({ shows: [] })
-      render(<ShowList shows={[]} dbTotal={0} filterOptions={FILTER_OPTIONS} />)
-      await waitFor(() => expect(screen.getByText(/no shows/i)).toBeInTheDocument())
-    })
-
-    it('uses page size of 50 for the initial filtered fetch', async () => {
-      setParams({ genre: 'metal' })
-      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
-      await waitFor(() => expect(mockRequest).toHaveBeenCalled())
-      const [, variables] = mockRequest.mock.calls[0]
-      expect(variables.limit).toBe(50)
-      expect(variables.offset).toBe(0)
-    })
-  })
 })

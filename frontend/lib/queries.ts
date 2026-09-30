@@ -1,61 +1,3 @@
-export const FILTER_OPTIONS_QUERY = /* GraphQL */ `
-  query GetFilterOptions {
-    filterOptions {
-      regions
-      ages
-      genres
-      dates
-    }
-  }
-`
-
-export const SHOW_COUNT_QUERY = /* GraphQL */ `
-  query GetShowCount {
-    showCount
-  }
-`
-
-export const SHOWS_QUERY = /* GraphQL */ `
-  query GetShows($limit: Int, $offset: Int, $filters: ShowFilters) {
-    shows(limit: $limit, offset: $offset, filters: $filters) {
-      id
-      date
-      doorTime
-      setTime
-      venue {
-        id
-        name
-        city
-        region
-        websiteUrl
-        address
-      }
-      acts {
-        position
-        band {
-          id
-          name
-          genres
-          spotifyUrl
-          soundcloudUrl
-          bandcampUrl
-        }
-      }
-      priceMin
-      priceMax
-      isFree
-      ageRestriction
-      status
-      isRecommended
-      willSellOut
-      isPit
-      isDrinkTickets
-      isNoReentry
-      notes
-    }
-  }
-`
-
 export const SHOW_QUERY = /* GraphQL */ `
   query GetShow($id: ID!) {
     show(id: $id) {
@@ -234,14 +176,6 @@ export const ALL_BANDS_STATIC_QUERY = /* GraphQL */ `
           id
         }
       }
-    }
-  }
-`
-
-export const LATEST_EMAIL_SUBJECT_QUERY = /* GraphQL */ `
-  query LatestEmailSubject {
-    ingestionRuns(limit: 1, status: "success") {
-      emailSubject
     }
   }
 `
