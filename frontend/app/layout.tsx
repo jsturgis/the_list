@@ -11,7 +11,13 @@ export const metadata: Metadata = {
   description: "Steve's weekly SF Bay Area music listing, enriched and made browsable.",
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+  modal,
+}: {
+  children: React.ReactNode
+  modal: React.ReactNode
+}) {
   return (
     <html
       lang="en"
@@ -29,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </header>
         <main className="max-w-5xl mx-auto px-4 py-6">{children}</main>
+        {modal}
       </body>
     </html>
   )
