@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime
 from typing import Optional
 
 import numpy as np
@@ -9,10 +8,14 @@ from sqlalchemy import Text, case, cast, func
 from sqlalchemy.orm import Session, joinedload
 from strawberry.types import Info
 
+from app.clock import local_today
 from app.embeddings.search import find_similar_bands, find_similar_shows
-from app.graphql.types import ActType, BandType, FilterOptionsType, ShowFilters, ShowType, VenueType
+from app.graphql.types import (
+    ActType, BandType, FilterOptionsType, IngestionRunType, ShowFilters, ShowType, VenueType,
+)
 from app.models.act import Act
 from app.models.band import Band
+from app.models.ingestion_run import IngestionRun, IngestionStatus
 from app.models.show import Show, ShowStatus
 from app.models.venue import Venue
 
@@ -77,6 +80,22 @@ def _show(s: Show) -> ShowType:
 
 # ── query helpers ─────────────────────────────────────────────────────────────
 
+def _ingestion_run(r: IngestionRun) -> IngestionRunType:
+    return IngestionRunType(
+        id=r.id,
+        started_at=r.started_at,
+        finished_at=r.finished_at,
+        status=r.status.value,
+        email_received_at=r.email_received_at,
+        email_subject=r.email_subject,
+        email_message_id=r.email_message_id,
+        shows_parsed=r.shows_parsed,
+        shows_upserted=r.shows_upserted,
+        shows_new=r.shows_new,
+        error=r.error,
+    )
+
+
 def _query_shows(
     db: Session,
     filters: Optional[ShowFilters],
@@ -94,7 +113,7 @@ def _query_shows(
     status_val = (f.status or "upcoming").lower()
     q = q.filter(Show.status == ShowStatus(status_val))
     if status_val == "upcoming":
-        q = q.filter(Show.date >= datetime.date.today())
+        q = q.filter(Show.date >= local_today())
 
     if f.from_date:
         q = q.filter(Show.date >= f.from_date)
@@ -187,7 +206,7 @@ class Query:
     def filter_options(self, info: Info) -> FilterOptionsType:
         import json
         db: Session = info.context["db"]
-        today = datetime.date.today()
+        today = local_today()
 
         upcoming = (
             db.query(Show)
@@ -228,7 +247,7 @@ class Query:
         status_val = (f.status or "upcoming").lower()
         q = db.query(func.count(Show.id)).filter(Show.status == ShowStatus(status_val))
         if status_val == "upcoming":
-            q = q.filter(Show.date >= datetime.date.today())
+            q = q.filter(Show.date >= local_today())
         return q.scalar() or 0
 
     @strawberry.field
@@ -309,3 +328,15 @@ class Query:
         )
         by_id = {s.id: s for s in rows}
         return [_show(by_id[sid]) for sid in ids if sid in by_id]
+
+    @strawberry.field
+    def ingestion_runs(
+        self, info: Info, limit: int = 20, status: Optional[str] = None
+    ) -> list[IngestionRunType]:
+        """Pipeline runs, newest first. `status` is one of success | failure | no_email."""
+        db: Session = info.context["db"]
+        q = db.query(IngestionRun)
+        if status is not None:
+            q = q.filter(IngestionRun.status == IngestionStatus(status))
+        rows = q.order_by(IngestionRun.started_at.desc()).limit(limit).all()
+        return [_ingestion_run(r) for r in rows]

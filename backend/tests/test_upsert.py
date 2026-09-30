@@ -5,7 +5,7 @@ from datetime import date
 
 import pytest
 
-from app.ingestion.upsert import upsert_shows
+from app.ingestion.upsert import region_for_city, upsert_shows
 from app.models.act import Act
 from app.models.band import Band
 from app.models.show import AgeRestriction, Show, ShowStatus
@@ -139,6 +139,16 @@ def test_reuses_existing_venue(db):
         _show(venue_name="Bottom of the Hill", city="S.F.", date_=date(2026, 9, 26)),
     ])
     assert db.query(Venue).count() == 1
+
+
+def test_reuses_venue_listed_with_and_without_the(db):
+    upsert_shows(db, [
+        _show(venue_name="the Fox Theater", city="Oakland", date_=date(2026, 10, 1)),
+        _show(venue_name="Fox Theater", city="Oakland", date_=date(2026, 10, 2)),
+        _show(venue_name="FOX THEATER", city="Oakland", date_=date(2026, 10, 3)),
+    ])
+    assert db.query(Venue).count() == 1
+    assert db.query(Show).count() == 3
 
 
 # ── price normalisation ───────────────────────────────────────────────────────
@@ -289,3 +299,17 @@ def test_flags_persisted(db):
     s = db.query(Show).one()
     assert s.is_recommended and s.will_sell_out and s.is_pit
     assert s.is_drink_tickets and s.is_no_reentry
+
+
+@pytest.mark.parametrize("city, region", [
+    ("Santa Cruz", Region.santa_cruz),
+    ("Pacifica", Region.sf),  # San Mateo coast, not Santa Cruz
+    ("San Francisco", Region.sf),
+    ("Napa", Region.north_bay),
+    ("Felton", Region.santa_cruz),
+    ("Cupertino", Region.south_bay),
+    ("Fremont", Region.east_bay),
+    ("Vallejo", Region.north_bay),
+])
+def test_region_for_city(city, region):
+    assert region_for_city(city) == region

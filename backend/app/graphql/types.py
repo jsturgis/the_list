@@ -1,6 +1,6 @@
 from __future__ import annotations
 import strawberry
-from datetime import date, time
+from datetime import date, datetime, time
 
 
 @strawberry.type
@@ -64,6 +64,21 @@ class FilterOptionsType:
     ages: list[str]
     genres: list[str]
     dates: list[str]
+
+
+@strawberry.type
+class IngestionRunType:
+    id: int
+    started_at: datetime
+    finished_at: datetime | None
+    status: str
+    email_received_at: datetime | None
+    email_subject: str | None
+    email_message_id: str | None
+    shows_parsed: int | None
+    shows_upserted: int | None
+    shows_new: int | None
+    error: str | None
 
 
 @strawberry.input

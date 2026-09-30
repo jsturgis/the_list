@@ -15,6 +15,7 @@ from app.models.band import Band
 from app.models.show import Show, ShowStatus
 from app.models.venue import Region, Venue
 from app.pipeline.embed import batch_embed_and_index, embed_and_index_band, embed_and_index_show
+from app.clock import local_today
 from app.scheduler import _run_ingestion_async, run_daily_maintenance
 
 # ── sample data ───────────────────────────────────────────────────────────────
@@ -287,7 +288,7 @@ def _seed_show(db, show_date, status=ShowStatus.upcoming):
 
 
 def test_maintenance_marks_past_shows(db):
-    today = date.today()
+    today = local_today()
     _seed_show(db, today - timedelta(days=1), ShowStatus.upcoming)
     _seed_show(db, today + timedelta(days=1), ShowStatus.upcoming)
     db.commit()
@@ -301,7 +302,7 @@ def test_maintenance_marks_past_shows(db):
 
 
 def test_maintenance_hard_deletes_old_shows(db):
-    today = date.today()
+    today = local_today()
     old_date = today - timedelta(days=settings.data_retention_days + 1)
     recent_date = today - timedelta(days=1)
     _seed_show(db, old_date, ShowStatus.past)

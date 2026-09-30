@@ -33,6 +33,9 @@ _PRICE_RE = re.compile(
 _AGE_RE = re.compile(r"\b(a/a|\d{1,2}\+)(?!\w)", re.IGNORECASE)
 _STATUS_RE = re.compile(r"^(CANCELLED|POSTPONED)[:\s\xa0]+", re.IGNORECASE)
 _DJ_RE = re.compile(r"^dj\s+", re.IGNORECASE)
+# The flag legend ("* All bands deserve 3 stars ...") follows the last listing; everything after it
+# (legend, radio links, EmailOctopus footer) is not show data.
+_END_OF_LISTINGS_RE = re.compile(r"^\*\s+All bands deserve", re.IGNORECASE)
 _B2B_RE = re.compile(r"\s+b2b\s+", re.IGNORECASE)
 
 
@@ -147,6 +150,8 @@ def parse_email_body(plain_text: str) -> list[RawShow]:
     blocks: list[list[str]] = []
     current: list[str] = []
     for line in lines:
+        if _END_OF_LISTINGS_RE.match(line.replace(_NBSP, " ").strip()):
+            break
         if _DATE_RE.match(line.lstrip(_NBSP)):
             if current:
                 blocks.append(current)

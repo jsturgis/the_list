@@ -237,3 +237,11 @@ export const ALL_BANDS_STATIC_QUERY = /* GraphQL */ `
     }
   }
 `
+
+export const LATEST_EMAIL_SUBJECT_QUERY = /* GraphQL */ `
+  query LatestEmailSubject {
+    ingestionRuns(limit: 1, status: "success") {
+      emailSubject
+    }
+  }
+`

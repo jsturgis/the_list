@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import traceback
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -13,6 +13,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy.orm import Session, joinedload
 
+from app.clock import local_today
 from app.config import settings
 from app.database import SessionLocal
 from app.ingestion.gmail import fetch_latest_list_email
@@ -199,7 +200,7 @@ def run_daily_maintenance(db: Optional[Session] = None) -> None:
     if _own_db:
         db = SessionLocal()
     try:
-        today = date.today()
+        today = local_today()
         cutoff = today - timedelta(days=settings.data_retention_days)
 
         db.query(Show).filter(
