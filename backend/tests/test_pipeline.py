@@ -174,6 +174,53 @@ async def test_pipeline_makes_no_llm_calls(mock_batch, mock_venue, mock_fetch, d
     assert all(call.args[3] is False for call in mock_venue.call_args_list)  # use_llm=False
 
 
+_NO_GENRE_EDITION = {
+    **_EDITION,
+    "events": _EDITION["events"] + [
+        _edition_event("Oct 2, 2026", "Bottom of the Hill", "San Francisco",
+                       [("Chat Pile", "", ""), ("Deafheaven", "Blackgaze", ""), ("Mystery Act", "", "")], "21+ $20 9pm"),
+        _edition_event("Oct 3, 2026", "The Chapel", "San Francisco", [("Chat Pile", "", "")], "21+ $20 9pm"),
+    ],
+}
+
+
+def _musicbrainz(name, use_llm=True):
+    found = {"Chat Pile": {"genres": ["noise rock", "sludge metal"], "spotify_url": None, "soundcloud_url": None,
+                           "bandcamp_url": "https://chatpile.bandcamp.com/"}}
+    return found.get(name, {"genres": [], "spotify_url": None, "soundcloud_url": None, "bandcamp_url": None})
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=(_NO_GENRE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler._enrich_band", side_effect=_musicbrainz)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_looks_up_genres_for_bands_without_one(mock_batch, mock_band, mock_venue, mock_fetch, db):
+    await _run_ingestion_async(db=db)
+
+    chat_pile = db.query(Band).filter(Band.name == "Chat Pile").one()
+    assert chat_pile.genres == ["noise rock", "sludge metal"]
+    assert chat_pile.bandcamp_url == "https://chatpile.bandcamp.com/"
+    assert db.query(Band).filter(Band.name == "Mystery Act").one().genres == []
+    # Only Bands without a genre are looked up, once per name, and without the LLM.
+    looked_up = sorted(call.args[0] for call in mock_band.call_args_list)
+    assert looked_up == ["Chat Pile", "Mystery Act"]  # Uniform and Deafheaven arrive with genres
+    assert all(call.args[1] is False for call in mock_band.call_args_list)
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=(_NO_GENRE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler._enrich_band", side_effect=_musicbrainz)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_skips_lookup_for_bands_already_known_with_genres(mock_batch, mock_band, mock_venue, mock_fetch, db):
+    await _run_ingestion_async(db=db)
+    mock_band.reset_mock()
+
+    await _run_ingestion_async(db=db)
+
+    # Chat Pile now has genres; only the still-unknown Bands are tried again.
+    assert [call.args[0] for call in mock_band.call_args_list] == ["Mystery Act"]
+
+
 @patch("app.scheduler.fetch_latest_edition", return_value=(None, None))
 async def test_pipeline_returns_early_when_no_edition(mock_fetch, db):
     await _run_ingestion_async(db=db)
