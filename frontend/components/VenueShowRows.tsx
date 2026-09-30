@@ -1,8 +1,7 @@
 'use client'
 
-import { useSyncExternalStore } from 'react'
 import ShowCard from './ShowCard'
-import { bayAreaToday } from '@/lib/data'
+import { useBayAreaToday } from '@/lib/useBayAreaToday'
 import { formatDateLong } from '@/lib/format'
 import type { Show } from '@/lib/types'
 
@@ -10,11 +9,8 @@ import type { Show } from '@/lib/types'
  * A Venue's Upcoming Shows as compact rows grouped by date. Pages are built weekly, so dates before
  * today (Bay Area time) are hidden in the browser.
  */
-const noSubscription = () => () => {}
-
 export default function VenueShowRows({ shows }: { shows: Show[] }) {
-  // No date while prerendering and hydrating (so the markup matches the build), then today in the browser.
-  const today = useSyncExternalStore(noSubscription, () => bayAreaToday(), () => null)
+  const today = useBayAreaToday()
 
   const visible = today ? shows.filter(s => s.date >= today) : shows
   if (visible.length === 0) {

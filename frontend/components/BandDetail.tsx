@@ -1,18 +1,38 @@
+'use client'
+
 import Link from 'next/link'
 import type { Band, Show } from '@/lib/types'
 import SimilarBands from './SimilarBands'
 import { formatDateShort } from '@/lib/format'
+import { useBayAreaToday } from '@/lib/useBayAreaToday'
 
 interface BandDetailProps {
   band: Band
+  /** The Band's Upcoming Shows; dates before today (Bay Area time) are hidden in the browser. */
   upcomingShows: Show[]
+  similarBands: Band[]
 }
 
-export default function BandDetail({ band, upcomingShows }: BandDetailProps) {
+export default function BandDetail({ band, upcomingShows, similarBands }: BandDetailProps) {
+  const today = useBayAreaToday()
+  const shows = today ? upcomingShows.filter(s => s.date >= today) : upcomingShows
+
   return (
     <article className="max-w-2xl mx-auto flex flex-col gap-6">
+      {band.imageUrl && (
+        // Hosts vary (and the site is a static export), so a plain <img> rather than next/image.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={band.imageUrl} alt={band.name} className="w-full max-h-72 object-cover rounded-lg" />
+      )}
       <header>
-        <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">{band.name}</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">{band.name}</h1>
+          {band.isLocal && (
+            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+              Local
+            </span>
+          )}
+        </div>
         {band.genres.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
             {band.genres.map(g => (
@@ -27,7 +47,7 @@ export default function BandDetail({ band, upcomingShows }: BandDetailProps) {
         )}
       </header>
 
-      {(band.spotifyUrl || band.soundcloudUrl || band.bandcampUrl) && (
+      {(band.spotifyUrl || band.soundcloudUrl || band.bandcampUrl || band.websiteUrl) && (
         <section className="flex flex-wrap gap-3">
           {band.spotifyUrl && (
             <a
@@ -59,16 +79,26 @@ export default function BandDetail({ band, upcomingShows }: BandDetailProps) {
               Bandcamp ↗
             </a>
           )}
+          {band.websiteUrl && (
+            <a
+              href={band.websiteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm px-3 py-1.5 rounded bg-zinc-800 text-white hover:bg-zinc-700 dark:bg-zinc-700 dark:hover:bg-zinc-600"
+            >
+              Website ↗
+            </a>
+          )}
         </section>
       )}
 
-      {upcomingShows.length > 0 && (
+      {shows.length > 0 && (
         <section>
           <h2 className="text-base font-semibold mb-3 text-zinc-900 dark:text-zinc-100">
             Upcoming Shows
           </h2>
           <ul className="flex flex-col gap-2">
-            {upcomingShows.map(show => (
+            {shows.map(show => (
               <li key={show.id}>
                 <Link
                   href={`/shows/${show.id}`}
@@ -89,7 +119,7 @@ export default function BandDetail({ band, upcomingShows }: BandDetailProps) {
         </section>
       )}
 
-      <SimilarBands bandId={band.id} />
+      <SimilarBands bands={similarBands} />
     </article>
   )
 }

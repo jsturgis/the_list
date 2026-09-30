@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import BandModalProvider from '@/components/BandModalProvider'
 import React from 'react'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
@@ -12,13 +13,7 @@ export const metadata: Metadata = {
   description: "Steve's weekly SF Bay Area music listing, enriched and made browsable.",
 }
 
-export default function RootLayout({
-  children,
-  modal,
-}: {
-  children: React.ReactNode
-  modal: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"
@@ -35,8 +30,9 @@ export default function RootLayout({
             </span>
           </div>
         </header>
-        <main className="max-w-5xl mx-auto px-4 py-6">{children}</main>
-        {modal}
+        <BandModalProvider>
+          <main className="max-w-5xl mx-auto px-4 py-6">{children}</main>
+        </BandModalProvider>
       </body>
     </html>
   )

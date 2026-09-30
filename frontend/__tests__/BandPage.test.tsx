@@ -1,18 +1,19 @@
-import { render, screen, waitFor } from '@testing-library/react'
-import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { graphql } from 'msw/graphql'
-import { HttpResponse } from 'msw'
-import { setupServer } from 'msw/node'
-
-const api = graphql.link('http://localhost:8000/graphql')
+import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import BandDetail from '@/components/BandDetail'
 import SimilarBands from '@/components/SimilarBands'
 import { makeBand, makeShow, makeVenue } from './fixtures'
 
-const server = setupServer()
-beforeAll(() => server.listen())
-afterEach(() => server.resetHandlers())
-afterAll(() => server.close())
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-01T19:00:00Z'))  // noon Pacific, Oct 1
+})
+afterEach(() => vi.useRealTimers())
+
+const similar = [
+  makeBand({ id: 10, name: 'LCD Soundsystem', genres: ['indie rock', 'electronic'] }),
+  makeBand({ id: 11, name: 'Interpol', genres: ['post-punk', 'indie rock'] }),
+]
 
 describe('BandDetail', () => {
   const band = makeBand({
@@ -25,7 +26,7 @@ describe('BandDetail', () => {
   })
 
   const upcomingShows = [
-    makeShow({ id: 1, acts: [{ position: 0, band }] }),
+    makeShow({ id: 1, date: '2026-10-03', acts: [{ position: 0, band }] }),
     makeShow({
       id: 2,
       date: '2026-10-05',
@@ -34,92 +35,72 @@ describe('BandDetail', () => {
     }),
   ]
 
+  const renderBand = (b = band, shows = upcomingShows) =>
+    render(<BandDetail band={b} upcomingShows={shows} similarBands={similar} />)
+
   it('renders band name', () => {
-    render(<BandDetail band={band} upcomingShows={upcomingShows} />)
+    renderBand()
     expect(screen.getByRole('heading', { name: 'The Strokes' })).toBeInTheDocument()
   })
 
   it('renders genres', () => {
-    render(<BandDetail band={band} upcomingShows={upcomingShows} />)
-    expect(screen.getByText(/indie rock/)).toBeInTheDocument()
+    renderBand()
     expect(screen.getByText(/garage rock/)).toBeInTheDocument()
   })
 
   it('renders Spotify link when available', () => {
-    render(<BandDetail band={band} upcomingShows={upcomingShows} />)
-    expect(screen.getByRole('link', { name: /spotify/i })).toHaveAttribute(
-      'href',
-      band.spotifyUrl,
-    )
+    renderBand()
+    expect(screen.getByRole('link', { name: /spotify/i })).toHaveAttribute('href', band.spotifyUrl)
   })
 
   it('renders SoundCloud as fallback when Spotify absent', () => {
-    const scBand = makeBand({
-      spotifyUrl: null,
-      soundcloudUrl: 'https://soundcloud.com/thestrokes',
-    })
-    render(<BandDetail band={scBand} upcomingShows={[]} />)
-    expect(screen.getByRole('link', { name: /soundcloud/i })).toHaveAttribute(
-      'href',
-      'https://soundcloud.com/thestrokes',
-    )
+    renderBand(makeBand({ spotifyUrl: null, soundcloudUrl: 'https://soundcloud.com/thestrokes' }), [])
+    expect(screen.getByRole('link', { name: /soundcloud/i })).toHaveAttribute('href', 'https://soundcloud.com/thestrokes')
     expect(screen.queryByRole('link', { name: /spotify/i })).not.toBeInTheDocument()
   })
 
-  it('renders upcoming shows list with venue links', () => {
-    render(<BandDetail band={band} upcomingShows={upcomingShows} />)
-    const showLinks = screen.getAllByRole('link').filter(l =>
-      l.getAttribute('href')?.startsWith('/shows/'),
-    )
-    expect(showLinks).toHaveLength(2)
-    expect(showLinks[0]).toHaveAttribute('href', '/shows/1')
-    expect(showLinks[1]).toHaveAttribute('href', '/shows/2')
+  it('renders upcoming shows list with show links', () => {
+    renderBand()
+    const showLinks = screen.getAllByRole('link').filter(l => l.getAttribute('href')?.startsWith('/shows/'))
+    expect(showLinks.map(l => l.getAttribute('href'))).toEqual(['/shows/1', '/shows/2'])
+  })
+
+  it('hides shows dated before today (Bay Area time)', () => {
+    renderBand(band, [makeShow({ id: 9, date: '2026-09-20', acts: [{ position: 0, band }] }), ...upcomingShows])
+    const showLinks = screen.getAllByRole('link').filter(l => l.getAttribute('href')?.startsWith('/shows/'))
+    expect(showLinks.map(l => l.getAttribute('href'))).toEqual(['/shows/1', '/shows/2'])
+  })
+
+  it('shows the image, Local tag and Website link when provided', () => {
+    renderBand(makeBand({ id: 6, name: 'Locals', imageUrl: 'https://example.com/locals.jpg', isLocal: true, websiteUrl: 'https://locals.com' }), [])
+    expect(screen.getByRole('img', { name: 'Locals' })).toHaveAttribute('src', 'https://example.com/locals.jpg')
+    expect(screen.getByText('Local')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /website/i })).toHaveAttribute('href', 'https://locals.com')
+  })
+
+  it('leaves them out otherwise', () => {
+    renderBand()
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(screen.queryByText('Local')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /website/i })).not.toBeInTheDocument()
+  })
+
+  it('lists the precomputed Similar Bands', () => {
+    renderBand()
+    expect(screen.getByRole('link', { name: /LCD Soundsystem/ })).toHaveAttribute('href', '/bands/10')
   })
 })
 
 describe('SimilarBands', () => {
-  const similarBands = [
-    makeBand({ id: 10, name: 'LCD Soundsystem', genres: ['indie rock', 'electronic'] }),
-    makeBand({ id: 11, name: 'Interpol', genres: ['post-punk', 'indie rock'] }),
-  ]
-
-  it('renders similar bands after live API call', async () => {
-    server.use(
-      api.query('GetSimilarBands', () =>
-        HttpResponse.json({ data: { similarBands } }),
-      ),
-    )
-    render(<SimilarBands bandId={5} />)
-    await waitFor(() => {
-      expect(screen.getByText('LCD Soundsystem')).toBeInTheDocument()
-      expect(screen.getByText('Interpol')).toBeInTheDocument()
-    })
+  it('links each similar band to its page, with its first genres', () => {
+    render(<SimilarBands bands={similar} />)
+    expect(screen.getByRole('link', { name: /LCD Soundsystem/i })).toHaveAttribute('href', '/bands/10')
+    expect(screen.getByRole('link', { name: /Interpol/i })).toHaveAttribute('href', '/bands/11')
+    expect(screen.getByText('post-punk, indie rock')).toBeInTheDocument()
   })
 
-  it('links each similar band to its page', async () => {
-    server.use(
-      api.query('GetSimilarBands', () =>
-        HttpResponse.json({ data: { similarBands } }),
-      ),
-    )
-    render(<SimilarBands bandId={5} />)
-    await waitFor(() => {
-      expect(screen.getByRole('link', { name: /LCD Soundsystem/i })).toHaveAttribute(
-        'href',
-        '/bands/10',
-      )
-    })
-  })
-
-  it('renders nothing when no similar bands returned', async () => {
-    server.use(
-      api.query('GetSimilarBands', () =>
-        HttpResponse.json({ data: { similarBands: [] } }),
-      ),
-    )
-    const { container } = render(<SimilarBands bandId={5} />)
-    await waitFor(() => {
-      expect(container.querySelector('[data-testid="similar-bands"]')).not.toBeInTheDocument()
-    })
+  it('renders nothing when there are no similar bands', () => {
+    const { container } = render(<SimilarBands bands={[]} />)
+    expect(container.querySelector('[data-testid="similar-bands"]')).not.toBeInTheDocument()
   })
 })
