@@ -107,7 +107,7 @@ def test_similar_bands_returns_results(db, client):
     b1 = _band(db, "Deafheaven", embedding=_fake_embedding())
     b2 = _band(db, "Alcest")
 
-    with patch("app.graphql.queries.find_similar_bands", return_value=[(b2.id, 0.42)]):
+    with patch("app.catalog.find_similar_bands", return_value=[(b2.id, 0.42)]):
         body = _gql(client, f'{{ similarBands(bandId: "{b1.id}", k: 1) {{ name }} }}')
 
     assert "errors" not in body
@@ -119,7 +119,7 @@ def test_similar_bands_preserves_result_order(db, client):
     b1 = _band(db, "Alpha")
     b2 = _band(db, "Beta")
 
-    with patch("app.graphql.queries.find_similar_bands", return_value=[(b2.id, 0.1), (b1.id, 0.2)]):
+    with patch("app.catalog.find_similar_bands", return_value=[(b2.id, 0.1), (b1.id, 0.2)]):
         body = _gql(client, f'{{ similarBands(bandId: "{source.id}", k: 2) {{ name }} }}')
 
     names = [b["name"] for b in body["data"]["similarBands"]]
@@ -133,7 +133,7 @@ def test_similar_bands_excludes_source_band(db, client):
 
     # The index returns the source itself as its own nearest neighbour.
     hits = [(source.id, 0.0), (b1.id, 0.1), (b2.id, 0.2)]
-    with patch("app.graphql.queries.find_similar_bands", return_value=hits) as mock_search:
+    with patch("app.catalog.find_similar_bands", return_value=hits) as mock_search:
         body = _gql(client, f'{{ similarBands(bandId: "{source.id}", k: 2) {{ name }} }}')
 
     names = [b["name"] for b in body["data"]["similarBands"]]
@@ -144,7 +144,7 @@ def test_similar_bands_excludes_source_band(db, client):
 def test_similar_bands_no_embedding_returns_empty(db, client):
     b = _band(db, "Deafheaven")  # no embedding
 
-    with patch("app.graphql.queries.find_similar_bands") as mock_search:
+    with patch("app.catalog.find_similar_bands") as mock_search:
         body = _gql(client, f'{{ similarBands(bandId: "{b.id}", k: 5) {{ name }} }}')
         mock_search.assert_not_called()
 

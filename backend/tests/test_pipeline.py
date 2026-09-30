@@ -327,3 +327,24 @@ def test_start_ingestion_mutation(mock_create_task, client):
     assert "errors" not in body
     assert body["data"]["startIngestion"] == "ingestion started"
     mock_create_task.assert_called_once()
+
+
+# ── venue re-enrichment ───────────────────────────────────────────────────────
+
+async def test_venue_enrichment_keeps_region_when_google_returns_a_neighbourhood(db):
+    from app.scheduler import _run_venue_enrichment_async
+
+    venue = Venue(name="Starry Plough", city="Berkeley", region=Region.east_bay)
+    db.add(venue)
+    db.commit()
+    venue_id = venue.id  # the function closes its session, detaching `venue`
+    enrich = MagicMock(return_value={"address": "3101 Shattuck Ave", "city": "Temescal"})
+
+    with patch("app.scheduler.SessionLocal", return_value=db), \
+         patch("app.scheduler._enrich_venue", enrich), \
+         patch("app.scheduler._clean_venue_name", MagicMock()):
+        await _run_venue_enrichment_async(venue_id)
+
+    refreshed = db.get(Venue, venue_id)
+    assert refreshed.city == "Temescal"
+    assert refreshed.region == Region.east_bay  # not moved to the "sf" default

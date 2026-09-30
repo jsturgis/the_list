@@ -475,3 +475,18 @@ async def test_no_bands_skips_mb(mock_search, mock_venue):
     assert result["genres"] == []
     assert result["spotify_url"] is None
     mock_search.assert_not_called()
+
+
+@patch("app.pipeline.enrichment._search_wikipedia", return_value=None)
+@patch("app.pipeline.enrichment._mb_search", return_value=None)
+@patch("app.pipeline.enrichment.settings")
+@patch("app.pipeline.enrichment.httpx.post")  # Places API
+async def test_venue_street_used_in_place_search(mock_post, mock_settings, mock_mb, mock_wiki):
+    mock_settings.google_maps_api_key = "fake-key"
+    mock_post.return_value.json.return_value = {"places": []}
+
+    result = await enrich_show(_raw(venue_name="Music Hall", city="Redwood City", venue_address="1030 Main St"))
+
+    assert mock_post.call_args.kwargs["json"]["textQuery"].endswith("1030 Main St Redwood City")
+    # No Google result: the listed street is kept as the address.
+    assert result["address"] == "1030 Main St, Redwood City"

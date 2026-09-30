@@ -4,12 +4,13 @@ from typing import Optional
 
 import numpy as np
 import strawberry
-from sqlalchemy import Text, case, cast, func
+from sqlalchemy import Text, cast, func
 from sqlalchemy.orm import Session, joinedload
 from strawberry.types import Info
 
+from app import catalog
 from app.clock import local_today
-from app.embeddings.search import find_similar_bands, find_similar_shows
+from app.embeddings.search import find_similar_shows
 from app.graphql.types import (
     ActType, BandType, FilterOptionsType, IngestionRunType, ShowFilters, ShowType, VenueType,
 )
@@ -160,21 +161,7 @@ def _query_shows(
             .join(Act.band)
             .filter(cast(Band.genres, Text).like(f"%{f.genre}%"))
         )
-        no_genre_ids = (
-            db.query(Show.id)
-            .filter(
-                ~Show.id.in_(
-                    db.query(Act.show_id)
-                    .join(Act.band)
-                    .filter(cast(Band.genres, Text) != "[]")
-                )
-            )
-        )
-        q = q.filter(Show.id.in_(genre_match_ids) | Show.id.in_(no_genre_ids))
-        return q.order_by(
-            case((Show.id.in_(genre_match_ids), 0), else_=1),
-            Show.date,
-        ).limit(limit).offset(offset).all()
+        q = q.filter(Show.id.in_(genre_match_ids))
     if f.price_max is not None:
         q = q.filter(Show.price_min <= f.price_max)
     if f.is_free is not None:
@@ -204,37 +191,8 @@ class Query:
 
     @strawberry.field
     def filter_options(self, info: Info) -> FilterOptionsType:
-        import json
-        db: Session = info.context["db"]
-        today = local_today()
-
-        upcoming = (
-            db.query(Show)
-            .options(joinedload(Show.venue), joinedload(Show.acts).joinedload(Act.band))
-            .filter(Show.status == ShowStatus.upcoming, Show.date >= today)
-            .all()
-        )
-
-        regions, ages, genres, dates = set(), set(), set(), set()
-        for show in upcoming:
-            if show.venue.region:
-                regions.add(show.venue.region.value if hasattr(show.venue.region, 'value') else show.venue.region)
-            if show.age_restriction and show.age_restriction.value != 'unknown':
-                ages.add(show.age_restriction.value)
-            dates.add(str(show.date))
-            for act in show.acts:
-                for g in (json.loads(act.band.genres) if isinstance(act.band.genres, str) else act.band.genres):
-                    genres.add(g)
-
-        def age_key(a):
-            return 0 if a == 'a/a' else int(a.rstrip('+'))
-
-        return FilterOptionsType(
-            regions=sorted(regions),
-            ages=sorted(ages, key=age_key),
-            genres=sorted(genres),
-            dates=sorted(dates),
-        )
+        opts = catalog.filter_options(info.context["db"])
+        return FilterOptionsType(regions=opts.regions, ages=opts.ages, genres=opts.genres, dates=opts.dates)
 
     @strawberry.field
     def show_count(
@@ -296,12 +254,7 @@ class Query:
         band = db.query(Band).filter(Band.id == int(band_id)).first()
         if band is None:
             raise ValueError(f"Band {band_id} not found")
-        if not band.embedding:
-            return []
-        embedding = np.frombuffer(band.embedding, dtype=np.float32)
-        # The band is its own nearest neighbour; fetch one extra and drop it.
-        similar = find_similar_bands(embedding, k + 1)
-        ids = [bid for bid, _ in similar if bid != band.id][:k]
+        ids = catalog.similar_band_ids(db, band, k)
         rows = db.query(Band).filter(Band.id.in_(ids)).all()
         by_id = {b.id: b for b in rows}
         return [_band(by_id[bid]) for bid in ids if bid in by_id]

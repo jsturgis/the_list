@@ -54,10 +54,13 @@ _AGE_MAP: dict[str, AgeRestriction] = {
 }
 
 
+def known_region(city: str | None) -> Region | None:
+    """Region for a city in the table, or None (e.g. a Google neighbourhood like "Temescal")."""
+    return _CITY_REGION.get(city.lower().strip()) if city else None
+
+
 def region_for_city(city: str | None) -> Region:
-    if not city:
-        return Region.sf
-    return _CITY_REGION.get(city.lower().strip(), Region.sf)
+    return known_region(city) or Region.sf
 
 
 def _age_restriction(s: str | None) -> AgeRestriction:
@@ -99,32 +102,50 @@ def venue_key(name: str) -> str:
     return key[4:] if key.startswith("the ") else key
 
 
-def find_venue(db: Session, name: str) -> Venue | None:
+def find_venue(
+    db: Session, name: str, google_place_id: str | None = None, cities: tuple[str | None, ...] = ()
+) -> Venue | None:
+    """Existing Venue for a listing: same Google place first, then same name (see venue_key).
+
+    A name match must be in a Region one of `cities` belongs to, when any of them is a known city,
+    so e.g. Redwood City's "Fox Theater" doesn't merge with Oakland's. Place IDs don't veto a name
+    match: the same Venue can come back from Google as a different place.
+    """
+    if google_place_id:
+        venue = (
+            db.query(Venue)
+            .filter(Venue.google_place_id == google_place_id)
+            .order_by(Venue.id)
+            .first()
+        )
+        if venue:
+            return venue
     key = venue_key(name)
-    return (
-        db.query(Venue)
-        .filter(func.lower(Venue.name).in_([key, f"the {key}"]))
-        .order_by(Venue.id)
-        .first()
-    )
+    q = db.query(Venue).filter(func.lower(Venue.name).in_([key, f"the {key}"]))
+    regions = {r for r in map(known_region, cities) if r}
+    if regions:
+        q = q.filter(Venue.region.in_(regions))
+    return q.order_by(Venue.id).first()
 
 
 def _upsert_venue(db: Session, data: dict) -> Venue:
     name = (data.get("venue_name") or "Unknown Venue").strip()
-    venue = find_venue(db, name)
     place_city = data.get("place_city")
+    listing_city = data.get("city")
+    venue = find_venue(db, name, data.get("google_place_id"), (listing_city, place_city))
     if not venue:
-        city = place_city or data.get("city") or "Unknown"
+        city = place_city or listing_city or "Unknown"
         venue = Venue(
             name=name,
             city=city,
-            region=region_for_city(city),
+            # Google's city can be a neighbourhood outside the table; prefer whichever city is known.
+            region=known_region(place_city) or known_region(listing_city) or Region.sf,
         )
         db.add(venue)
         db.flush()
     elif place_city and not venue.city:
         venue.city = place_city
-        venue.region = region_for_city(place_city)
+        venue.region = known_region(place_city) or venue.region
 
     # Apply enrichment fields only when not already set
     for attr, key in [

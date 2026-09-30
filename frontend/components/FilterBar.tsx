@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Combobox from './Combobox'
 
 const REGION_LABELS: Record<string, string> = {
   sf: 'SF',
@@ -74,7 +75,9 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
   // Keep a stable ref to `update` so the debounce effects depend only on
   // input state, not on searchParams changing via other filters.
   const updateRef = useRef(update)
-  updateRef.current = update
+  useEffect(() => {
+    updateRef.current = update
+  }, [update])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -179,22 +182,22 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
           <label htmlFor="filter-genre" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
             Genre
           </label>
-          <select
+          <Combobox
             id="filter-genre"
+            options={genres}
             value={searchParams.get('genre') ?? ''}
-            onChange={e => update('genre', e.target.value)}
-            className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
-          >
-            <option value="">All Genres</option>
-            {genres.map(g => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </select>
+            onChange={g => update('genre', g)}
+            placeholder="Any genre…"
+            aria-describedby={searchParams.get('genre') ? 'filter-genre-note' : undefined}
+          />
+          {searchParams.get('genre') && (
+            <p id="filter-genre-note" role="note" className="text-xs text-amber-700 dark:text-amber-400">
+              Not every artist has genre info yet, so shows where no artist has a known genre are hidden.
+            </p>
+          )}
         </div>
 
-        <div className="flex items-center gap-2 pt-5">
+        <div className="flex items-center gap-2 self-start h-9 mt-5">
           <input
             id="filter-free"
             type="checkbox"

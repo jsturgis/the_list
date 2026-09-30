@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import ShowCard, { type ShowCardLayout } from '@/components/ShowCard'
-import { makeShow, makeVenue, makeBand } from './fixtures'
+import { makeShow, makeBand } from './fixtures'
 
 vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),

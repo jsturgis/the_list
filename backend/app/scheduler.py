@@ -18,7 +18,7 @@ from app.config import settings
 from app.database import SessionLocal
 from app.ingestion.gmail import fetch_latest_list_email
 from app.ingestion.parser import parse_email_body
-from app.ingestion.upsert import region_for_city, upsert_shows
+from app.ingestion.upsert import known_region, upsert_shows
 from app.models.act import Act
 from app.models.band import Band
 from app.models.ingestion_run import IngestionRun, IngestionStatus
@@ -177,7 +177,8 @@ async def _run_venue_enrichment_async(venue_id: Optional[int] = None) -> None:
                     setattr(venue, attr, data[attr])
             if data.get("city"):
                 venue.city = data["city"]
-                venue.region = region_for_city(data["city"])
+                # Only move Regions for a known city; Google can return a neighbourhood.
+                venue.region = known_region(data["city"]) or venue.region
 
         db.commit()
         logger.info("venue enrichment: done")
