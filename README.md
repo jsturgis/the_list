@@ -31,7 +31,7 @@ A weekly SF Bay Area music discovery app. Ingests the formatted edition of [Stev
 
 ```bash
 cp backend/.env.example backend/.env
-# edit backend/.env — set ANTHROPIC_API_KEY at minimum
+# edit backend/.env — set GOOGLE_MAPS_API_KEY and DRIVE_LATEST_FILE_ID
 
 docker compose up --build
 ```
