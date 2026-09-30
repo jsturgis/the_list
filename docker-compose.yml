@@ -6,8 +6,6 @@ services:
     volumes:
       - ./data:/app/data          # SQLite DB + FAISS indices (persisted on host)
       - ./samples:/samples:ro     # sample emails — available for seed script
-      - ./backend/credentials.json:/app/credentials.json:ro
-      - ./backend/token.json:/app/token.json
     env_file:
       - ./backend/.env
     environment:

@@ -13,3 +13,6 @@ node_modules/
 backend/data/faiss/*.index
 backend/token.json
 backend/credentials.json
+
+# Raw email exports contain personal data (recipient address); never commit them
+*(Raw Email).json

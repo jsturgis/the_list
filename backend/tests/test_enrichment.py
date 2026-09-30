@@ -490,3 +490,30 @@ async def test_venue_street_used_in_place_search(mock_post, mock_settings, mock_
     assert mock_post.call_args.kwargs["json"]["textQuery"].endswith("1030 Main St Redwood City")
     # No Google result: the listed street is kept as the address.
     assert result["address"] == "1030 Main St, Redwood City"
+
+
+@patch("app.pipeline.enrichment._generate_venue_description")
+@patch("app.pipeline.enrichment._search_wikipedia")
+@patch("app.pipeline.enrichment._clean_venue_name")
+@patch("app.pipeline.enrichment.settings")
+@patch("app.pipeline.enrichment.httpx.get")   # Timezone API
+@patch("app.pipeline.enrichment.httpx.post")  # Places API
+def test_venue_enrichment_without_llm_skips_name_cleanup_and_wikipedia(
+    mock_post, mock_get, mock_settings, mock_clean, mock_wiki, mock_describe
+):
+    mock_settings.google_maps_api_key = "fake-key"
+    mock_post.return_value.json.return_value = {"places": [{
+        "formattedAddress": "155 9th St, San Francisco, CA 94103, USA", "id": "ChIJrickshaw",
+        "location": {"latitude": 37.77, "longitude": -122.42}, "websiteUri": "https://rickshawstop.com",
+    }]}
+    mock_get.return_value.json.return_value = {"status": "OK", "timeZoneId": "America/Los_Angeles"}
+
+    result = _enrich_venue("Rickshaw Stop", "San Francisco", None, use_llm=False)
+
+    mock_clean.assert_not_called()      # no Claude name clean-up
+    mock_describe.assert_not_called()   # no Claude description
+    mock_wiki.assert_not_called()       # no unvalidated Wikipedia match
+    assert mock_post.call_args.kwargs["json"]["textQuery"] == "Rickshaw Stop San Francisco"
+    assert result["google_place_id"] == "ChIJrickshaw"
+    assert result["website_url"] == "https://rickshawstop.com"
+    assert (result["description"], result["wikipedia_url"]) == (None, None)

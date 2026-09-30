@@ -6,9 +6,8 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str = ""
 
-    gmail_credentials_path: str = "credentials.json"
-    gmail_token_path: str = "token.json"
-    gmail_watch_email: str = "skoepke@stevelist.com"
+    # Public Drive file (maintained by the Apps Script) pointing at the newest formatted edition.
+    drive_latest_file_id: str = ""
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_embedding_model: str = "nomic-embed-text"

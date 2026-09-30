@@ -1,8 +1,6 @@
-"""Tests for T6: Gmail fetch, embedding helpers, full pipeline, maintenance, mutation."""
+"""Tests for embedding helpers, the edition ingestion pipeline, maintenance and venue re-enrichment."""
 from __future__ import annotations
 
-import base64
-import quopri
 from datetime import date, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -10,8 +8,8 @@ import numpy as np
 import pytest
 
 from app.config import settings
-from app.ingestion.gmail import fetch_latest_list_email
 from app.models.band import Band
+from app.models.ingestion_run import IngestionRun, IngestionStatus
 from app.models.show import Show, ShowStatus
 from app.models.venue import Region, Venue
 from app.pipeline.embed import batch_embed_and_index, embed_and_index_band, embed_and_index_show
@@ -20,121 +18,7 @@ from app.scheduler import _run_ingestion_async, run_daily_maintenance
 
 # ── sample data ───────────────────────────────────────────────────────────────
 
-# Minimal two-show email (matches the parser's expected format)
-_SAMPLE_BODY = """\
-the list 2026
-
-sep 25 fri
-Deafheaven / Uniform
-at Bottom of the Hill, SF a/a $15 8pm
-
-oct  1 thr
-Mdou Moctar
-at The Chapel, SF 18+ $25/$28 8pm
-"""
-
 _FAKE_VEC = np.zeros(768, dtype=np.float32)
-
-
-def _b64_qp(text: str) -> str:
-    """Encode text as quoted-printable then base64url (mirrors Gmail API body.data)."""
-    qp = quopri.encodestring(text.encode("utf-8"))
-    return base64.urlsafe_b64encode(qp).decode("ascii")
-
-
-async def _passthrough_enrich(raw):
-    """Minimal enrich_show stand-in that copies all RawShow fields verbatim."""
-    return {
-        "date": raw.date,
-        "bands": raw.bands,
-        "venue_name": raw.venue_name,
-        "city": raw.city,
-        "door_time": raw.door_time,
-        "set_time": raw.set_time,
-        "price_raw": raw.price_raw,
-        "age_restriction": raw.age_restriction,
-        "status": raw.status,
-        "is_recommended": raw.is_recommended,
-        "will_sell_out": raw.will_sell_out,
-        "is_pit": raw.is_pit,
-        "is_drink_tickets": raw.is_drink_tickets,
-        "is_no_reentry": raw.is_no_reentry,
-        "notes": raw.notes,
-        "raw_text": raw.raw_text,
-        "genres": [],
-        "spotify_url": None,
-        "soundcloud_url": None,
-        "venue_website": None,
-        "address": None,
-        "latitude": None,
-        "longitude": None,
-        "google_place_id": None,
-        "ticket_url": None,
-    }
-
-
-# ── Gmail fetch ───────────────────────────────────────────────────────────────
-
-@patch("app.ingestion.gmail.get_gmail_service")
-def test_fetch_returns_decoded_body(mock_svc):
-    svc = MagicMock()
-    mock_svc.return_value = svc
-    svc.users.return_value.messages.return_value.list.return_value.execute.return_value = {
-        "messages": [{"id": "msg1"}]
-    }
-    svc.users.return_value.messages.return_value.get.return_value.execute.return_value = {
-        "payload": {
-            "mimeType": "text/plain",
-            "headers": [{"name": "Content-Transfer-Encoding", "value": "quoted-printable"}],
-            "body": {"data": _b64_qp("the list 2026\n\nsep 25 fri")},
-        }
-    }
-    text, meta = fetch_latest_list_email()
-    assert text is not None
-    assert "the list 2026" in text
-    assert "sep 25 fri" in text
-
-
-@patch("app.ingestion.gmail.get_gmail_service")
-def test_fetch_returns_none_when_no_messages(mock_svc):
-    svc = MagicMock()
-    mock_svc.return_value = svc
-    svc.users.return_value.messages.return_value.list.return_value.execute.return_value = {
-        "messages": []
-    }
-    text, meta = fetch_latest_list_email()
-    assert text is None
-    assert meta is None
-
-
-@patch("app.ingestion.gmail.get_gmail_service")
-def test_fetch_finds_plaintext_in_multipart(mock_svc):
-    svc = MagicMock()
-    mock_svc.return_value = svc
-    svc.users.return_value.messages.return_value.list.return_value.execute.return_value = {
-        "messages": [{"id": "msg1"}]
-    }
-    svc.users.return_value.messages.return_value.get.return_value.execute.return_value = {
-        "payload": {
-            "mimeType": "multipart/alternative",
-            "headers": [],
-            "parts": [
-                {
-                    "mimeType": "text/plain",
-                    "headers": [
-                        {"name": "Content-Transfer-Encoding", "value": "quoted-printable"}
-                    ],
-                    "body": {"data": _b64_qp("plain text body")},
-                },
-                {
-                    "mimeType": "text/html",
-                    "body": {"data": _b64_qp("<html>html body</html>")},
-                },
-            ],
-        }
-    }
-    text, meta = fetch_latest_list_email()
-    assert text == "plain text body"
 
 
 # ── embedding helpers ─────────────────────────────────────────────────────────
@@ -202,71 +86,112 @@ async def test_embed_and_index_show_stores_bytes(
 
 # ── full pipeline ─────────────────────────────────────────────────────────────
 
-_SAMPLE_FETCH = (_SAMPLE_BODY, {"email_received_at": None, "email_subject": "the list 2026", "email_message_id": None})
+def _edition_event(date_, venue, city, artists, details, age="all_ages"):
+    """A schema v2.0.0 event."""
+    return {"event_id": f"{date_}-{venue}", "date": date_, "day_of_week": "", "status": "scheduled",
+            "age_restriction": age, "list_flags": [], "doors_time": None, "show_time": None, "ticketing": {},
+            "venue": {"name": venue, "address": f"1 Main St, {city}", "region": "San Francisco Venues",
+                      "url": f"https://{venue.lower().replace(' ', '')}.com/", "coordinates": None},
+            "artists": [{"name": n, "role": "headliner" if i == 0 else "support", "genre": g, "url": u}
+                        for i, (n, g, u) in enumerate(artists)],
+            "raw_details": details}
 
-@patch("app.scheduler.fetch_latest_list_email", return_value=_SAMPLE_FETCH)
-@patch("app.scheduler.enrich_show", new_callable=AsyncMock)
+
+_EDITION = {
+    "title": "Bay Area & Santa Cruz Concert Events", "edition_date": "2026-09-25", "schema_version": "2.0.0",
+    "events": [
+        _edition_event("Sep 25, 2026", "Bottom of the Hill", "San Francisco",
+                       [("Deafheaven", "Blackgaze", "https://deafheaven.bandcamp.com/"), ("Uniform", "Noise Rock", "")],
+                       "a/a $15 8pm"),
+        _edition_event("Oct 1, 2026", "The Chapel", "San Francisco",
+                       [("Mdou Moctar", "Tuareg Rock / Psych", "")], "18+ $25/$28 8pm", age="18+"),
+    ],
+}
+_SAMPLE_FETCH = (_EDITION, {"file_id": "edition-file-id", "file_name": "Concert Events - September 25, 2026.json"})
+
+
+def _venue_data(name, city, street=None, use_llm=True):
+    """Google Places stand-in: a distinct place per Venue."""
+    return {"address": f"{street}, {city}, CA, USA", "google_place_id": f"ChIJ-{name}", "city": city}
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
-async def test_pipeline_creates_shows_and_bands(mock_batch, mock_enrich, mock_fetch, db):
-    mock_enrich.side_effect = _passthrough_enrich
-
+async def test_pipeline_imports_the_edition(mock_batch, mock_venue, mock_fetch, db):
     await _run_ingestion_async(db=db)
 
     assert db.query(Show).count() == 2
-    assert db.query(Band).count() >= 2  # Deafheaven + Mdou Moctar (+ Uniform)
+    deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
+    assert deafheaven.genres == ["blackgaze"]
+    assert deafheaven.bandcamp_url == "https://deafheaven.bandcamp.com/"
+    assert {b.name for b in db.query(Band)} == {"Deafheaven", "Uniform", "Mdou Moctar"}
+    chapel = db.query(Venue).filter(Venue.name == "The Chapel").one()
+    assert chapel.google_place_id == "ChIJ-The Chapel"
+    assert chapel.website_url == "https://thechapel.com/"
     mock_batch.assert_called_once()
 
 
-@patch("app.scheduler.fetch_latest_list_email", return_value=_SAMPLE_FETCH)
-@patch("app.scheduler.enrich_show", new_callable=AsyncMock)
+@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
-async def test_pipeline_idempotent(mock_batch, mock_enrich, mock_fetch, db):
-    mock_enrich.side_effect = _passthrough_enrich
-    await _run_ingestion_async(db=db)
-    show_count = db.query(Show).count()
-    band_count = db.query(Band).count()
-
-    mock_enrich.side_effect = _passthrough_enrich
+async def test_pipeline_records_the_ingestion_run(mock_batch, mock_venue, mock_fetch, db):
     await _run_ingestion_async(db=db)
 
-    assert db.query(Show).count() == show_count
-    assert db.query(Band).count() == band_count
+    run = db.query(IngestionRun).one()
+    assert run.status == IngestionStatus.success
+    assert run.email_subject == "Bay Area & Santa Cruz Concert Events — Sep 25, 2026"
+    assert run.email_message_id == "edition-file-id"
+    assert run.email_received_at.date() == date(2026, 9, 25)
+    assert (run.shows_parsed, run.shows_upserted, run.shows_new) == (2, 2, 2)
 
 
-@patch("app.scheduler.fetch_latest_list_email", return_value=(None, None))
-async def test_pipeline_returns_early_when_no_email(mock_fetch, db):
+@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_idempotent_and_enriches_only_new_venues(mock_batch, mock_venue, mock_fetch, db):
+    await _run_ingestion_async(db=db)
+    assert mock_venue.call_count == 2
+    counts = (db.query(Show).count(), db.query(Band).count(), db.query(Venue).count())
+
+    mock_venue.reset_mock()
+    await _run_ingestion_async(db=db)
+
+    assert (db.query(Show).count(), db.query(Band).count(), db.query(Venue).count()) == counts
+    mock_venue.assert_not_called()
+    assert db.query(IngestionRun).order_by(IngestionRun.id.desc()).first().shows_new == 0
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_makes_no_llm_calls(mock_batch, mock_venue, mock_fetch, db):
+    """Edition names are already clean, so venue enrichment runs without the LLM."""
+    with patch("app.pipeline.enrichment.get_enrichment_llm") as llm:
+        await _run_ingestion_async(db=db)
+    llm.assert_not_called()
+    assert mock_venue.call_count == 2
+    assert all(call.args[3] is False for call in mock_venue.call_args_list)  # use_llm=False
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=(None, None))
+async def test_pipeline_returns_early_when_no_edition(mock_fetch, db):
     await _run_ingestion_async(db=db)
     assert db.query(Show).count() == 0
+    assert db.query(IngestionRun).one().status == IngestionStatus.no_email
 
 
-@patch("app.scheduler.fetch_latest_list_email", return_value=_SAMPLE_FETCH)
-@patch("app.scheduler.enrich_show", new_callable=AsyncMock)
-@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
-async def test_pipeline_skips_enrichment_for_known_bands(mock_batch, mock_enrich, mock_fetch, db):
-    """Second run should not call enrich_show for headliners already in the DB."""
-    mock_enrich.side_effect = _passthrough_enrich
-    await _run_ingestion_async(db=db)
-    first_run_calls = mock_enrich.call_count
-
-    mock_enrich.reset_mock()
-    mock_enrich.side_effect = _passthrough_enrich
-    await _run_ingestion_async(db=db)
-
-    assert mock_enrich.call_count < first_run_calls
-
-
-@patch("app.scheduler.fetch_latest_list_email", return_value=_SAMPLE_FETCH)
-@patch("app.scheduler.enrich_show", new_callable=AsyncMock)
+@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
+@patch("app.scheduler._enrich_venue", return_value={})
 @patch("app.pipeline.embed.save_index")
 @patch("app.pipeline.embed.upsert_vector")
 @patch("app.pipeline.embed.load_or_create_index")
 @patch("app.pipeline.embed.embed", new_callable=AsyncMock)
 async def test_faiss_indices_saved(
-    mock_embed, mock_load, mock_upsert_v, mock_save, mock_enrich, mock_fetch, db
+    mock_embed, mock_load, mock_upsert_v, mock_save, mock_venue, mock_fetch, db
 ):
     mock_embed.return_value = _FAKE_VEC
     mock_load.return_value = MagicMock()
-    mock_enrich.side_effect = _passthrough_enrich
 
     await _run_ingestion_async(db=db)
 
