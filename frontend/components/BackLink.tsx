@@ -1,10 +1,11 @@
 'use client'
 
 import Link from 'next/link'
+import { ArrowLeftIcon } from '@heroicons/react/20/solid'
 import { Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-const className = 'text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+const className = 'inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
 
 // Navigation API isn't in TypeScript's DOM lib yet.
 declare global {
@@ -33,7 +34,8 @@ function BackInHistory({ homeHref }: { homeHref: string }) {
         }
       }}
     >
-      ← Back
+      <ArrowLeftIcon className="size-4 shrink-0" />
+      Back
     </Link>
   )
 }

@@ -3,6 +3,7 @@
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Show } from '@/lib/types'
+import { MagnifyingGlassIcon, StarIcon } from '@heroicons/react/20/solid'
 import ShowCard from './ShowCard'
 import FilterBar from './FilterBar'
 import { formatDateLong } from '@/lib/format'
@@ -80,13 +81,17 @@ export default function ShowList({ shows, dbTotal = 0, filterOptions = EMPTY_FIL
       />
 
       {shows.length === 0 ? (
-        <p className="text-center text-zinc-500 py-12">No shows match your filters.</p>
+        <div className="flex flex-col items-center gap-2 py-12 text-zinc-500">
+          <MagnifyingGlassIcon className="size-6 text-zinc-400 dark:text-zinc-500" />
+          <p>No shows match your filters.</p>
+        </div>
       ) : (
         <>
           {picks.length > 0 && (
             <section>
-              <h2 className="text-lg font-bold mb-3 text-amber-700 dark:text-amber-400">
-                Steve&apos;s Picks ★
+              <h2 className="flex items-center gap-1.5 text-lg font-bold mb-3 text-amber-700 dark:text-amber-400">
+                <StarIcon className="size-5 shrink-0" />
+                Steve&apos;s Picks
               </h2>
               <div data-testid="steves-picks" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {picks.map(show => <ShowCard key={show.id} show={show} filterQs={filtersKey} />)}

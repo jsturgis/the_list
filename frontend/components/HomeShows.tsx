@@ -2,6 +2,7 @@
 
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
+import { ArrowPathIcon, ExclamationTriangleIcon } from '@heroicons/react/20/solid'
 import ShowList from './ShowList'
 import { loadSiteData } from '@/lib/data'
 import { filterShows } from '@/lib/filterShows'
@@ -37,11 +38,15 @@ export default function HomeShows() {
         </a>.
       </p>
       {error ? (
-        <p role="alert" className="text-center text-red-600 dark:text-red-400 py-12">
+        <p role="alert" className="flex items-center justify-center gap-1.5 text-red-600 dark:text-red-400 py-12">
+          <ExclamationTriangleIcon className="size-5 shrink-0" />
           Couldn&apos;t load the list of shows. Please try again later.
         </p>
       ) : !data ? (
-        <p className="text-center text-zinc-400 dark:text-zinc-500 py-12">Loading…</p>
+        <p className="flex items-center justify-center gap-1.5 text-zinc-400 dark:text-zinc-500 py-12">
+          <ArrowPathIcon className="size-4 shrink-0 animate-spin" />
+          Loading…
+        </p>
       ) : (
         <ShowList shows={shows} dbTotal={data.meta.totalUpcoming} filterOptions={data.meta.filterOptions} />
       )}

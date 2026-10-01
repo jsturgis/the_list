@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
+import { ChevronRightIcon, InformationCircleIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Combobox from './Combobox'
 
@@ -123,8 +124,9 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
         {hasFilters && (
           <button
             onClick={clearAll}
-            className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 underline"
+            className="inline-flex items-center gap-0.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 underline"
           >
+            <XMarkIcon className="size-3.5 shrink-0" />
             Clear filters
           </button>
         )}
@@ -154,28 +156,34 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
           <label htmlFor="filter-band" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
             Band
           </label>
-          <input
-            id="filter-band"
-            type="text"
-            placeholder="Search by band…"
-            value={bandInput}
-            onChange={e => setBandInput(e.target.value)}
-            className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
-          />
+          <div className="relative">
+            <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-zinc-400" />
+            <input
+              id="filter-band"
+              type="text"
+              placeholder="Search by band…"
+              value={bandInput}
+              onChange={e => setBandInput(e.target.value)}
+              className="h-9 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm pl-8 pr-2 py-1.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+            />
+          </div>
         </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="filter-venue" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
             Venue
           </label>
-          <input
-            id="filter-venue"
-            type="text"
-            placeholder="Search by venue…"
-            value={venueInput}
-            onChange={e => setVenueInput(e.target.value)}
-            className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
-          />
+          <div className="relative">
+            <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-zinc-400" />
+            <input
+              id="filter-venue"
+              type="text"
+              placeholder="Search by venue…"
+              value={venueInput}
+              onChange={e => setVenueInput(e.target.value)}
+              className="h-9 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm pl-8 pr-2 py-1.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+            />
+          </div>
         </div>
 
         <div className="flex flex-col gap-1">
@@ -191,7 +199,8 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
             aria-describedby={searchParams.get('genre') ? 'filter-genre-note' : undefined}
           />
           {searchParams.get('genre') && (
-            <p id="filter-genre-note" role="note" className="text-xs text-amber-700 dark:text-amber-400">
+            <p id="filter-genre-note" role="note" className="flex items-start gap-1 text-xs text-amber-700 dark:text-amber-400">
+              <InformationCircleIcon className="size-3.5 mt-px shrink-0" />
               Not every artist has genre info yet, so shows where no artist has a known genre are hidden.
             </p>
           )}
@@ -216,7 +225,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
           onClick={() => setShowAdvanced(v => !v)}
           className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
         >
-          <span className={`transition-transform ${showAdvanced ? 'rotate-90' : ''}`}>▶</span>
+          <ChevronRightIcon className={`size-3.5 transition-transform ${showAdvanced ? 'rotate-90' : ''}`} />
           Advanced filters
           {hasAdvancedFilters && !showAdvanced && (
             <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 text-[10px] font-medium">active</span>

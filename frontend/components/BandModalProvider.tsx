@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { ArrowPathIcon } from '@heroicons/react/20/solid'
 import BandDetail from './BandDetail'
 import Modal from './Modal'
 import { withBasePath } from '@/lib/basePath'
@@ -73,7 +74,10 @@ export default function BandModalProvider({ children }: { children: ReactNode })
             {band && data ? (
               <BandDetail band={band} upcomingShows={bandShows(data.shows, band.id)} similarBands={similarBands(band, data.bands)} />
             ) : (
-              <p className="text-zinc-500 dark:text-zinc-400 py-8 text-center">{data ? 'Band not found.' : 'Loading…'}</p>
+              <p className="flex items-center justify-center gap-1.5 text-zinc-500 dark:text-zinc-400 py-8">
+                {!data && <ArrowPathIcon className="size-4 shrink-0 animate-spin" />}
+                {data ? 'Band not found.' : 'Loading…'}
+              </p>
             )}
           </InBandModalContext.Provider>
         </Modal>

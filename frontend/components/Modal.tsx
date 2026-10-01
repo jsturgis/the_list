@@ -1,9 +1,10 @@
 'use client'
 
 import React, { useEffect, useRef } from 'react'
+import { XMarkIcon } from '@heroicons/react/20/solid'
 
 interface ModalProps {
-  /** Called when the dialog closes: ×, Esc or a backdrop click. */
+  /** Called when the dialog closes: the close button, Esc or a backdrop click. */
   onClose: () => void
   children: React.ReactNode
 }
@@ -27,9 +28,9 @@ export default function Modal({ onClose, children }: ModalProps) {
         type="button"
         aria-label="Close"
         onClick={() => ref.current?.close()}
-        className="absolute top-3 right-3 text-xl leading-none px-2 py-1 rounded text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 dark:hover:text-zinc-300 dark:hover:bg-zinc-800"
+        className="absolute top-3 right-3 p-1.5 rounded text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 dark:hover:text-zinc-300 dark:hover:bg-zinc-800"
       >
-        ×
+        <XMarkIcon className="size-5" />
       </button>
       {children}
     </dialog>
