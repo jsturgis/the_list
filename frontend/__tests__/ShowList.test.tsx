@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import ShowList from '@/components/ShowList'
-import { makeShow, makeShowFixtures } from './fixtures'
+import { makeBand, makeShow, makeShowFixtures } from './fixtures'
 
 // ── navigation mock ───────────────────────────────────────────────────────────
 
@@ -46,19 +46,27 @@ describe('ShowList', () => {
       expect(screen.getByText(`Showing ${shows.length} of ${shows.length} shows`)).toBeInTheDocument()
     })
 
-    it('renders Steve\'s Picks section for recommended shows', () => {
+    it('has no separate Steve\'s Picks section', () => {
       render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
-      expect(screen.getByRole('heading', { name: /steve'?s pick/i })).toBeInTheDocument()
+      expect(screen.queryByRole('heading', { name: /steve'?s pick/i })).not.toBeInTheDocument()
     })
 
-    it('places recommended shows in the Steve\'s Picks section', () => {
-      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
-      const section = screen.getByTestId('steves-picks')
-      expect(within(section).getByText('Headliner Band')).toBeInTheDocument()
-      expect(within(section).getByText('Oakland Blues Band')).toBeInTheDocument()
+    it('lists a pick under its own date, ahead of that date\'s other shows', () => {
+      const dated = [
+        makeShow({ id: 1, date: '2026-10-03', acts: [{ position: 0, band: makeBand({ id: 1, name: 'Early Band' }) }] }),
+        makeShow({ id: 2, date: '2026-10-04', acts: [{ position: 0, band: makeBand({ id: 2, name: 'Regular Band' }) }] }),
+        makeShow({ id: 3, date: '2026-10-04', isRecommended: true, acts: [{ position: 0, band: makeBand({ id: 3, name: 'Pick Band' }) }] }),
+      ]
+      render(<ShowList shows={dated} dbTotal={3} filterOptions={FILTER_OPTIONS} />)
+      const oct3 = screen.getByText(/october 3/i).parentElement!
+      const oct4 = screen.getByText(/october 4/i).parentElement!
+      expect(within(oct3).queryByText('Pick Band')).not.toBeInTheDocument()
+      const cards = within(oct4).getAllByRole('link')
+      expect(cards.map(c => within(c).getByRole('heading').textContent)).toEqual(['Pick Band', 'Regular Band'])
+      expect(cards[0]).toHaveAttribute('data-recommended')
     })
 
-    it('groups non-pick shows under date headings', () => {
+    it('groups shows under date headings', () => {
       const twoShows = [
         makeShow({ id: 1, date: '2026-10-03' }),
         makeShow({ id: 2, date: '2026-10-04' }),
