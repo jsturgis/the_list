@@ -2,8 +2,16 @@
 from __future__ import annotations
 
 import httpx
+import pytest
 
 from app.ingestion.links import check_links
+
+
+@pytest.fixture(autouse=True)
+def no_pacing(monkeypatch):
+    """Requests to one site are normally a second apart; tests don't wait unless they ask to."""
+    monkeypatch.setattr("app.ingestion.links._MIN_INTERVAL", 0.0)
+    monkeypatch.setattr("app.ingestion.links._last_request", {})
 
 
 def _client(requests: list[str] | None = None) -> httpx.Client:
@@ -92,3 +100,15 @@ def test_subdomains_of_one_site_share_a_rate_limit_slot():
     from app.ingestion.links import _slot
     assert _slot("https://a.bandcamp.com/") is _slot("https://b.bandcamp.com/")
     assert _slot("https://a.bandcamp.com/") is not _slot("https://soundcloud.com/x")
+
+
+def test_requests_to_one_site_are_spaced_out(monkeypatch):
+    waits: list[float] = []
+    monkeypatch.setattr("app.ingestion.links._sleep", waits.append)
+    monkeypatch.setattr("app.ingestion.links._MIN_INTERVAL", 60.0)
+    monkeypatch.setattr("app.ingestion.links._last_request", {})
+
+    check_links(["https://a.pacing.example/", "https://b.pacing.example/", "https://other.example/"], client=_client())
+
+    # The second pacing.example request waits out the interval; other.example doesn't wait.
+    assert len(waits) == 1 and 59 < waits[0] <= 60
