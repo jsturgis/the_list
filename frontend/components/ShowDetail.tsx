@@ -1,6 +1,7 @@
 import type { Show } from '@/lib/types'
 import { formatTime, formatPrice, formatDateLongYear, mapsHref } from '@/lib/format'
-import { BuildingOffice2Icon, CalendarIcon, ClockIcon, GlobeAltIcon, MapPinIcon, ShoppingCartIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
+import { ArrowDownTrayIcon, BuildingOffice2Icon, CalendarDaysIcon, CalendarIcon, ClockIcon, GlobeAltIcon, MapPinIcon, ShoppingCartIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
+import { googleCalendarUrl, icsDataUri, icsFilename } from '@/lib/calendar'
 import BandLink from './BandLink'
 import ExternalLink from './ExternalLink'
 import { Flags, StatusBadge } from './ShowBadges'
@@ -29,10 +30,33 @@ export default function ShowDetail({ show }: ShowDetailProps) {
         {show.specialEvent && (
           <p className="text-sm font-medium text-amber-700 dark:text-amber-400 mb-1">{show.specialEvent}</p>
         )}
-        <p className="flex items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400 mb-1">
+        <div className="flex items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400 mb-1">
           <CalendarIcon className="size-4 shrink-0" />
-          {formatDateLongYear(show.date)}
-        </p>
+          <span>{formatDateLongYear(show.date)}</span>
+          {show.status === 'upcoming' && (
+            <span className="flex items-center ml-1">
+              <a
+                href={icsDataUri(show)}
+                download={icsFilename(show)}
+                aria-label="Add to calendar"
+                title="Add to calendar (.ics)"
+                className="p-1 rounded hover:text-amber-600 hover:bg-zinc-100 dark:hover:text-amber-400 dark:hover:bg-zinc-800"
+              >
+                <ArrowDownTrayIcon className="size-4" />
+              </a>
+              <a
+                href={googleCalendarUrl(show)}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Add to Google Calendar"
+                title="Add to Google Calendar"
+                className="p-1 rounded hover:text-amber-600 hover:bg-zinc-100 dark:hover:text-amber-400 dark:hover:bg-zinc-800"
+              >
+                <CalendarDaysIcon className="size-4" />
+              </a>
+            </span>
+          )}
+        </div>
         <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
           {show.acts[0]?.band.name ?? 'Unknown'}
         </h1>

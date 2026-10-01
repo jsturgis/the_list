@@ -123,6 +123,21 @@ describe('ShowDetail', () => {
     expect(screen.getByText(/Benefit: canned food drive/)).toBeInTheDocument()
   })
 
+  it('offers the show as a calendar file and as a Google Calendar event', () => {
+    render(<ShowDetail show={makeShow({ id: 7, date: '2026-10-03' })} />)
+    const ics = screen.getByRole('link', { name: 'Add to calendar' })
+    expect(ics.getAttribute('href')).toMatch(/^data:text\/calendar/)
+    expect(ics).toHaveAttribute('download', expect.stringMatching(/2026-10-03\.ics$/))
+    const google = screen.getByRole('link', { name: 'Add to Google Calendar' })
+    expect(google.getAttribute('href')).toMatch(/^https:\/\/calendar\.google\.com\/calendar\/render\?/)
+    expect(google).toHaveAttribute('target', '_blank')
+  })
+
+  it.each(['cancelled', 'postponed'] as const)('leaves out the calendar links for a %s show', status => {
+    render(<ShowDetail show={makeShow({ status })} />)
+    expect(screen.queryByRole('link', { name: /calendar/i })).not.toBeInTheDocument()
+  })
+
   it('shows the special event and ticket provider when known', () => {
     render(<ShowDetail show={makeShow({ specialEvent: 'Hardly Strictly Bluegrass', ticketProvider: 'ticketweb' })} />)
     expect(screen.getByText('Hardly Strictly Bluegrass')).toBeInTheDocument()
