@@ -88,10 +88,12 @@ describe('HomeShows', () => {
     expect(screen.queryByText('Cancelled Band')).not.toBeInTheDocument()
   })
 
-  it("puts Steve's Picks in their own section", async () => {
+  it("lists Steve's Picks under their own date", async () => {
     render(<HomeShows />)
-    const picks = await screen.findByTestId('steves-picks')
-    expect(within(picks).getByText('Pick Band')).toBeInTheDocument()
+    const card = (await screen.findByText('Pick Band')).closest('a')!
+    expect(card).toHaveAttribute('data-recommended')
+    expect(within(screen.getByText(/october 2/i).parentElement!).getByText('Pick Band')).toBeInTheDocument()
+    expect(screen.getByText('Tonight Band').compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('shows sold out, benefit and matinee badges, and the venue neighborhood', async () => {

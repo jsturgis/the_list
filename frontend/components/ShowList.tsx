@@ -3,7 +3,7 @@
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Show } from '@/lib/types'
-import { MagnifyingGlassIcon, StarIcon } from '@heroicons/react/20/solid'
+import { MagnifyingGlassIcon } from '@heroicons/react/20/solid'
 import ShowCard from './ShowCard'
 import FilterBar from './FilterBar'
 import { formatDateLong } from '@/lib/format'
@@ -26,12 +26,16 @@ interface ShowListProps {
   filterOptions?: FilterOptions
 }
 
+/** Groups shows by date, with Steve's Picks first within each date. */
 function groupByDate(shows: Show[]): Map<string, Show[]> {
   const map = new Map<string, Show[]>()
   for (const show of shows) {
     const existing = map.get(show.date) ?? []
     existing.push(show)
     map.set(show.date, existing)
+  }
+  for (const group of map.values()) {
+    group.sort((a, b) => Number(b.isRecommended) - Number(a.isRecommended))
   }
   return map
 }
@@ -48,10 +52,8 @@ export default function ShowList({ shows, dbTotal = 0, filterOptions = EMPTY_FIL
     setVisible(PAGE_SIZE)
   }
 
-  const picks = useMemo(() => shows.filter(s => s.isRecommended), [shows])
-  const rest = useMemo(() => shows.filter(s => !s.isRecommended), [shows])
-  const hasMore = visible < rest.length
-  const byDate = useMemo(() => groupByDate(rest.slice(0, visible)), [rest, visible])
+  const hasMore = visible < shows.length
+  const byDate = useMemo(() => groupByDate(shows.slice(0, visible)), [shows, visible])
   const sortedDates = useMemo(() => Array.from(byDate.keys()).sort(), [byDate])
 
   // Reveal the next page when the sentinel scrolls into view.
@@ -87,18 +89,6 @@ export default function ShowList({ shows, dbTotal = 0, filterOptions = EMPTY_FIL
         </div>
       ) : (
         <>
-          {picks.length > 0 && (
-            <section>
-              <h2 className="flex items-center gap-1.5 text-lg font-bold mb-3 text-amber-700 dark:text-amber-400">
-                <StarIcon className="size-5 shrink-0" />
-                Steve&apos;s Picks
-              </h2>
-              <div data-testid="steves-picks" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {picks.map(show => <ShowCard key={show.id} show={show} filterQs={filtersKey} />)}
-              </div>
-            </section>
-          )}
-
           <section>
             <div className="flex flex-col gap-6">
               {sortedDates.map(date => (
