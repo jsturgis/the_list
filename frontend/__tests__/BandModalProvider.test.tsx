@@ -64,7 +64,7 @@ beforeEach(() => {
     window.dispatchEvent(new PopStateEvent('popstate', { state: null }))
   })
 })
-afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers() })
+afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); vi.unstubAllEnvs() })
 
 function renderPage() {
   return render(
@@ -80,7 +80,7 @@ describe('BandModalProvider', () => {
   it('opens the Band in a modal and pushes its URL on click', async () => {
     renderPage()
     fireEvent.click(screen.getByRole('link', { name: 'Headliner' }))
-    expect(push).toHaveBeenCalledWith(expect.objectContaining({ bandModal: 10 }), '', '/bands/10')
+    expect(push).toHaveBeenCalledWith(expect.objectContaining({ bandModal: 10 }), '', '/bands/10/')
     const modal = await screen.findByRole('dialog')
     expect(await within(modal).findByRole('heading', { name: 'Headliner' })).toBeInTheDocument()
     expect(screen.getByText('Show page')).toBeInTheDocument()  // page stays underneath
@@ -96,6 +96,14 @@ describe('BandModalProvider', () => {
     expect(within(modal).getByRole('link', { name: /Similar One/ })).toBeInTheDocument()
   })
 
+  it('puts the base path on the Band URL', async () => {
+    vi.stubEnv('NEXT_PUBLIC_BASE_PATH', '/the_list')
+    renderPage()
+    fireEvent.click(screen.getByRole('link', { name: 'Headliner' }))
+    expect(push).toHaveBeenCalledWith(expect.objectContaining({ bandModal: 10 }), '', '/the_list/bands/10/')
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+  })
+
   it.each([['metaKey'], ['ctrlKey'], ['shiftKey']])('lets %s-click open the full page normally', key => {
     renderPage()
     const notPrevented = fireEvent.click(screen.getByRole('link', { name: 'Headliner' }), { [key]: true })
@@ -109,7 +117,7 @@ describe('BandModalProvider', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Headliner' }))
     const modal = await screen.findByRole('dialog')
     fireEvent.click(await within(modal).findByRole('link', { name: /Similar One/ }))
-    expect(replace).toHaveBeenCalledWith(expect.objectContaining({ bandModal: 11 }), '', '/bands/11')
+    expect(replace).toHaveBeenCalledWith(expect.objectContaining({ bandModal: 11 }), '', '/bands/11/')
     expect(push).toHaveBeenCalledTimes(1)
     expect(await within(modal).findByRole('heading', { name: 'Similar One' })).toBeInTheDocument()
   })
