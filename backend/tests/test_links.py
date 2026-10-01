@@ -55,3 +55,40 @@ def test_no_links_means_no_requests():
     requests: list[str] = []
     assert check_links([], client=_client(requests)) == {}
     assert requests == []
+
+
+def _rate_limited_client(responses: dict[str, list[int]], requests: list[str]) -> httpx.Client:
+    """Each URL answers with its listed statuses in turn (429s carry Retry-After: 3)."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        requests.append(url)
+        status = responses[url].pop(0) if len(responses[url]) > 1 else responses[url][0]
+        return httpx.Response(status, headers={"Retry-After": "3"} if status == 429 else {})
+    return httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True)
+
+
+def test_rate_limited_links_are_retried_after_the_wait(monkeypatch):
+    waits: list[float] = []
+    monkeypatch.setattr("app.ingestion.links._sleep", waits.append)
+    requests: list[str] = []
+    client = _rate_limited_client({"https://a.bandcamp.com/": [429, 429, 404], "https://b.bandcamp.com/": [429, 200]}, requests)
+
+    assert check_links(["https://a.bandcamp.com/", "https://b.bandcamp.com/"], client=client) == {
+        "https://a.bandcamp.com/": False, "https://b.bandcamp.com/": True}
+    assert waits.count(3.0) == 3
+    assert requests.count("https://a.bandcamp.com/") == 3
+
+
+def test_links_still_rate_limited_after_the_retries_are_kept(monkeypatch):
+    monkeypatch.setattr("app.ingestion.links._sleep", lambda seconds: None)
+    requests: list[str] = []
+    client = _rate_limited_client({"https://a.bandcamp.com/": [429]}, requests)
+
+    assert check_links(["https://a.bandcamp.com/"], client=client) == {"https://a.bandcamp.com/": True}
+    assert len(requests) == 5  # the first try plus 4 retries
+
+
+def test_subdomains_of_one_site_share_a_rate_limit_slot():
+    from app.ingestion.links import _slot
+    assert _slot("https://a.bandcamp.com/") is _slot("https://b.bandcamp.com/")
+    assert _slot("https://a.bandcamp.com/") is not _slot("https://soundcloud.com/x")
