@@ -1,6 +1,6 @@
 import type { Show } from '@/lib/types'
 import { formatTime, formatPrice, formatDateLongYear, mapsHref } from '@/lib/format'
-import { ArrowDownTrayIcon, BuildingOffice2Icon, CalendarDaysIcon, CalendarIcon, ClockIcon, GlobeAltIcon, MapPinIcon, ShoppingCartIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
+import { ArrowDownTrayIcon, BuildingOffice2Icon, CalendarDaysIcon, CalendarIcon, ClockIcon, GlobeAltIcon, MapPinIcon, ShoppingCartIcon, SparklesIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
 import { googleCalendarUrl, icsDataUri, icsFilename } from '@/lib/calendar'
 import BandLink from './BandLink'
 import ExternalLink from './ExternalLink'
@@ -44,7 +44,14 @@ export default function ShowDetail({ show }: ShowDetailProps) {
 
       <header>
         {show.specialEvent && (
-          <p className="text-sm font-medium text-amber-700 dark:text-amber-400 mb-1">{show.specialEvent}</p>
+          <div
+            role="note"
+            aria-label="Special event"
+            className="flex items-center gap-2 mb-4 px-4 py-2.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200"
+          >
+            <SparklesIcon className="size-5 shrink-0 text-amber-500 dark:text-amber-400" />
+            <span className="font-semibold">{show.specialEvent}</span>
+          </div>
         )}
         <div className="flex items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400 mb-1">
           <CalendarIcon className="size-4 shrink-0" />

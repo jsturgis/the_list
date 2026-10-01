@@ -146,6 +146,16 @@ describe('ShowDetail', () => {
     expect(screen.queryByRole('link', { name: /calendar/i })).not.toBeInTheDocument()
   })
 
+  it('shows the special event in a banner', () => {
+    render(<ShowDetail show={makeShow({ specialEvent: 'Hardly Strictly Bluegrass' })} />)
+    expect(screen.getByRole('note', { name: 'Special event' })).toHaveTextContent('Hardly Strictly Bluegrass')
+  })
+
+  it('has no special event banner when there is none', () => {
+    render(<ShowDetail show={show} />)
+    expect(screen.queryByRole('note', { name: 'Special event' })).not.toBeInTheDocument()
+  })
+
   it('shows the special event and ticket provider when known', () => {
     render(<ShowDetail show={makeShow({ specialEvent: 'Hardly Strictly Bluegrass', ticketProvider: 'ticketweb' })} />)
     expect(screen.getByText('Hardly Strictly Bluegrass')).toBeInTheDocument()
