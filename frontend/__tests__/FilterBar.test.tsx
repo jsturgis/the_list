@@ -61,19 +61,19 @@ describe('FilterBar clear filters', () => {
     params = new URLSearchParams()
     rerender(<FilterBar {...props} />)
     expect(screen.getByRole('combobox', { name: 'Genre' })).toHaveValue('')
-    expect(screen.getByLabelText('Band or venue')).toHaveValue('')
+    expect(screen.getByLabelText('Search')).toHaveValue('')
     expect(screen.getByLabelText(/free only/i)).not.toBeChecked()
     expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument()
   })
 })
 
-describe('FilterBar band-or-venue search', () => {
+describe('FilterBar search', () => {
   beforeEach(() => { params = new URLSearchParams(); replace.mockClear(); vi.useFakeTimers() })
   afterEach(() => { vi.useRealTimers() })
 
   it('applies the typed text to the URL as q', () => {
     render(<FilterBar {...props} />)
-    fireEvent.change(screen.getByLabelText('Band or venue'), { target: { value: 'chapel' } })
+    fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'chapel' } })
     act(() => { vi.advanceTimersByTime(300) })
     expect(replace).toHaveBeenLastCalledWith('/?q=chapel', { scroll: false })
   })
@@ -81,7 +81,7 @@ describe('FilterBar band-or-venue search', () => {
   it('carries old band= and venue= links into the box and over to q', () => {
     params = new URLSearchParams('band=rose&venue=chapel&region=sf')
     render(<FilterBar {...props} />)
-    expect(screen.getByLabelText('Band or venue')).toHaveValue('rose chapel')
+    expect(screen.getByLabelText('Search')).toHaveValue('rose chapel')
     act(() => { vi.advanceTimersByTime(300) })
     expect(replace).toHaveBeenLastCalledWith('/?region=sf&q=rose+chapel', { scroll: false })
   })

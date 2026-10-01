@@ -140,7 +140,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
 
         <div className="flex flex-col gap-1">
           <label htmlFor="filter-search" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-            Band or venue
+            Search
           </label>
           <div className="relative">
             <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-zinc-400" />
