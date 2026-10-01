@@ -152,10 +152,18 @@ def _text(value) -> str | None:
     return value.strip() or None
 
 
+# "palmtreemusicfestival.com": a bare domain, with an optional path.
+_BARE_DOMAIN_RE = re.compile(r"^[\w-]+(\.[\w-]+)+(/\S*)?$")
+
+
 def _url(value) -> str | None:
-    """A link that fits its column (500 characters), or None."""
+    """An absolute web link that fits its column (500 characters), or None. A bare domain gets https://."""
     url = _text(value)
-    return url if url and len(url) <= 500 else None
+    if url and _BARE_DOMAIN_RE.match(url):
+        url = f"https://{url}"
+    if not url or len(url) > 500 or urlparse(url).scheme not in ("http", "https"):
+        return None
+    return url
 
 
 def _show_extras(event: dict) -> dict:

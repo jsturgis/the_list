@@ -50,11 +50,11 @@ function publish() {
       file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
       Logger.log('Kept private (raw email): %s', name);
     } else if (FORMATTED_RE.test(name) || ENRICHED_RE.test(name)) {
-      const safe = ENRICHED_RE.test(name) ? scrubEnriched_(file) : !PERSONAL_DATA_RE.test(file.getBlob().getDataAsString());
-      if (!safe) {
+      const reason = ENRICHED_RE.test(name) ? scrubEnriched_(file) : formattedReason_(file);
+      if (reason) {
         file.moveTo(privateFolder);
         file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
-        Logger.log('NOT published, contains personal data: %s', name);
+        Logger.log('NOT published (%s): %s', reason, name);
         continue;
       }
       trashSameName_(publicFolder, name);  // a re-generated edition replaces the old copy
@@ -67,26 +67,37 @@ function publish() {
   updatePointer_(publicFolder);
 }
 
+/** Why a formatted edition can't be published, or null when it can. */
+function formattedReason_(file) {
+  const match = file.getBlob().getDataAsString().match(PERSONAL_DATA_RE);
+  return match ? 'contains personal data: "' + match[0] + '"' : null;
+}
+
 /**
- * Drop the enriched export's footer entry (no artists) and return whether the rest is safe to publish:
- * a JSON list with no tracking links, "unsubscribe" or this account's address.
+ * Drop the enriched export's footer entry (no artists), then say why the rest can't be published, or
+ * return null when it can: it must be a JSON list with no tracking links, "unsubscribe" or this
+ * account's address.
  */
 function scrubEnriched_(file) {
   let events;
   try {
     events = JSON.parse(file.getBlob().getDataAsString());
   } catch (e) {
-    return false;
+    return 'not valid JSON: ' + e.message;
   }
-  if (!Array.isArray(events)) return false;
+  if (!Array.isArray(events)) return 'not a JSON list of events';
   const kept = events.filter(e => e && e.artists);
   const text = JSON.stringify(kept, null, 2);
-  if (kept.length !== events.length) {
+  const dropped = events.length - kept.length;
+  if (dropped) {
     file.setContent(text);
-    Logger.log('Dropped %s footer entr(ies) from %s', events.length - kept.length, file.getName());
+    Logger.log('Dropped %s footer %s from %s', String(dropped), dropped === 1 ? 'entry' : 'entries', file.getName());
   }
+  const tracking = text.match(TRACKING_RE);
+  if (tracking) return 'contains tracking text: "' + tracking[0] + '"';
   const me = Session.getEffectiveUser().getEmail();
-  return !TRACKING_RE.test(text) && !(me && text.toLowerCase().includes(me.toLowerCase()));
+  if (me && text.toLowerCase().includes(me.toLowerCase())) return "contains this account's address";
+  return null;
 }
 
 /** Move files with this name in `folder` to the trash. */
