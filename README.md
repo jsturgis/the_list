@@ -5,6 +5,9 @@ Every Friday, a GitHub Action ingests the formatted edition of [Steve List's](ma
 curated list, enriches it, and rebuilds a static site on GitHub Pages. A GraphQL API is available for
 exploring the data locally.
 
+The List itself is also published each week as plain text (the original email, subscriber footer
+removed) in a [public Google Drive folder](https://drive.google.com/drive/folders/1plFG_Zp0lVbYOnzkbmHJ2DFTzYC8q1gH?usp=share_link).
+
 ## What it does
 
 1. **Ingests** the newest formatted edition (structured JSON: shows, venues, artists with genres and links)
@@ -163,7 +166,7 @@ Set these in `backend/.env` for local runs. The Deploy workflow sets its own (se
 | `MUSICBRAINZ_APP_VERSION` | `0.1` | MusicBrainz user-agent |
 | `MUSICBRAINZ_CONTACT` | `https://github.com/jsturgis/the_list` | MusicBrainz user-agent contact |
 
-> **Drive setup**: install `scripts/drive-publisher.gs` as a Google Apps Script with a daily trigger. It moves formatted editions from your Drive root into a public folder (raw email exports into a private one) and keeps `latest.json` pointing at the newest edition. Set `DRIVE_LATEST_FILE_ID` to that file's id. Add `scripts/gmail-exporter.gs` to the same project to also save the newest List email (footer stripped) to the public folder as `.txt`.
+> **Drive setup**: install `scripts/drive-publisher.gs` as a Google Apps Script with a daily trigger. It moves formatted editions from your Drive root into a public folder (raw email exports into a private one) and keeps `latest.json` pointing at the newest edition. Set `DRIVE_LATEST_FILE_ID` to that file's id. Add `scripts/gmail-exporter.gs` to the same project to also save the newest List email (footer stripped) to the [public folder](https://drive.google.com/drive/folders/1plFG_Zp0lVbYOnzkbmHJ2DFTzYC8q1gH?usp=share_link) as `.txt`.
 
 ## Project structure
 
@@ -189,6 +192,7 @@ frontend/
 samples/             # sample edition JSON and the (redacted) email it came from
 scripts/
   drive-publisher.gs # Google Apps Script that publishes editions to the public Drive folder
+  gmail-exporter.gs  # Google Apps Script that saves the newest List email to that folder as .txt
 docs/
   adr/               # Architecture decision records
   agents/            # Agent skill docs (issue tracker, triage labels, domain)
