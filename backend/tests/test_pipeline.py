@@ -344,3 +344,32 @@ async def test_pipeline_saves_only_images_that_load(mock_batch, mock_images, moc
     assert db.query(Band).filter(Band.name == "Deafheaven").one().image_url == "https://example.com/real-path.jpg"
     assert db.query(Venue).filter(Venue.name == "Bottom of the Hill").one().image_url is None
     assert sorted(mock_images.call_args.args[0]) == ["https://example.com/made-up-venue.jpg", "https://example.com/wrong-path.jpg"]
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_skips_broken_links(mock_batch, mock_venue, mock_fetch, db, no_link_checks):
+    broken = {"https://bottomofthehill.com/", "https://deafheaven.bandcamp.com/"}
+    no_link_checks.side_effect = lambda urls: {url: url not in broken for url in urls}
+
+    await _run_ingestion_async(db=db)
+
+    assert db.query(Venue).filter(Venue.name == "Bottom of the Hill").one().website_url is None
+    assert db.query(Venue).filter(Venue.name == "The Chapel").one().website_url == "https://thechapel.com/"
+    assert db.query(Band).filter(Band.name == "Deafheaven").one().bandcamp_url is None
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_checks_only_links_it_would_save(mock_batch, mock_venue, mock_fetch, db, no_link_checks):
+    await _run_ingestion_async(db=db)
+    assert sorted(no_link_checks.call_args.args[0]) == [
+        "https://bottomofthehill.com/", "https://deafheaven.bandcamp.com/", "https://thechapel.com/"]
+    no_link_checks.reset_mock()
+
+    await _run_ingestion_async(db=db)
+
+    # Every link is saved now, so nothing is checked again.
+    no_link_checks.assert_not_called()

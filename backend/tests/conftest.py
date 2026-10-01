@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -16,6 +18,13 @@ def setup_db():
     Base.metadata.create_all(bind=_engine)
     yield
     Base.metadata.drop_all(bind=_engine)
+
+
+@pytest.fixture(autouse=True)
+def no_link_checks():
+    """Ingestion checks edition links over the network; tests treat every link as working unless they say otherwise."""
+    with patch("app.scheduler.check_links", side_effect=lambda urls: {url: True for url in urls}) as check:
+        yield check
 
 
 @pytest.fixture

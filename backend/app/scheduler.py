@@ -17,6 +17,7 @@ from app.database import SessionLocal
 from app.ingestion.drive import fetch_latest_edition
 from app.ingestion.edition import edition_meta, edition_shows
 from app.ingestion.images import check_image_urls
+from app.ingestion.links import check_links
 from app.ingestion.upsert import find_venue, known_region, upsert_shows
 from app.models.act import Act
 from app.models.band import Band
@@ -25,6 +26,28 @@ from app.models.show import Show, ShowStatus
 from app.models.venue import Venue
 from app.pipeline.embed import batch_embed_and_index
 from app.pipeline.enrichment import _clean_venue_name, _enrich_band, _enrich_venue
+
+
+_BAND_LINK_FIELDS = ("spotify_url", "soundcloud_url", "bandcamp_url", "website_url")
+
+
+def _unsaved_links(db: Session, shows_data: list[dict]) -> set[str]:
+    """Edition links for fields the database doesn't have yet: the only ones upsert would save."""
+    links: set[str] = set()
+    for data in shows_data:
+        if data.get("venue_website"):
+            venue = find_venue(db, data["venue_name"], None, (data["city"],)) if data["venue_name"] else None
+            if not (venue and venue.website_url):
+                links.add(data["venue_website"])
+        for name, enrichment in data["band_enrichment"]:
+            band = None
+            for field in _BAND_LINK_FIELDS:
+                if not enrichment.get(field):
+                    continue
+                band = band or db.query(Band).filter(Band.name == name).first()
+                if not (band and getattr(band, field)):
+                    links.add(enrichment[field])
+    return links
 
 
 def _apply_venue_data(data: dict, venue_data: dict) -> None:
@@ -115,6 +138,19 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                 for _, enrichment in data["band_enrichment"]:
                     if enrichment.get("image_url"):
                         enrichment["image_url"] = checked.get(enrichment["image_url"])
+
+        # Skip links that don't work: domains that don't exist, missing pages, unclaimed Bandcamp pages.
+        links = _unsaved_links(db, shows_data)
+        if links:
+            works = await loop.run_in_executor(None, check_links, sorted(links))
+            broken = {url for url, ok in works.items() if not ok}
+            for data in shows_data:
+                if data.get("venue_website") in broken:
+                    data["venue_website"] = None
+                for _, enrichment in data["band_enrichment"]:
+                    for field in _BAND_LINK_FIELDS:
+                        if enrichment.get(field) in broken:
+                            enrichment[field] = None
 
         shows_before = db.query(Show).count()
         shows = upsert_shows(db, shows_data)
