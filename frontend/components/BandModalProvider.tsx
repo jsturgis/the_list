@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import BandDetail from './BandDetail'
 import Modal from './Modal'
+import { withBasePath } from '@/lib/basePath'
 import { bandShows, loadSiteData, similarBands } from '@/lib/data'
 import type { SiteData } from '@/lib/types'
 
@@ -37,7 +38,7 @@ export default function BandModalProvider({ children }: { children: ReactNode })
   }, [])
 
   const open = useCallback<BandModal['open']>((id, { replace = false } = {}) => {
-    const url = `/bands/${id}`
+    const url = withBasePath(`/bands/${id}/`)  // history entries are full URLs, so add the base path
     if (replace) window.history.replaceState({ bandModal: id }, '', url)
     else window.history.pushState({ bandModal: id }, '', url)
     show(id)
@@ -57,7 +58,7 @@ export default function BandModalProvider({ children }: { children: ReactNode })
   const [prevPathname, setPrevPathname] = useState(pathname)
   if (pathname !== prevPathname) {
     setPrevPathname(pathname)
-    if (bandId !== null && pathname !== `/bands/${bandId}`) setBandId(null)
+    if (bandId !== null && pathname.replace(/\/$/, '') !== `/bands/${bandId}`) setBandId(null)
   }
 
   const context = useMemo(() => ({ open }), [open])

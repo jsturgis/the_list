@@ -41,8 +41,10 @@ const META: ExportMeta = {
 }
 
 let files: Record<string, JsonBodyType>
+let requested: string[]
 const server = setupServer(
-  http.get('*/data/:name', ({ params }) => {
+  http.get('*/data/:name', ({ params, request }) => {
+    requested.push(new URL(request.url).pathname)
     const name = String(params.name).replace(/\.json$/, '')
     return name in files ? HttpResponse.json(files[name]) : new HttpResponse(null, { status: 404 })
   }),
@@ -50,9 +52,10 @@ const server = setupServer(
 
 beforeAll(() => server.listen())
 afterAll(() => server.close())
-afterEach(() => server.resetHandlers())
+afterEach(() => { server.resetHandlers(); vi.unstubAllEnvs() })
 beforeEach(() => {
   currentParams = new URLSearchParams()
+  requested = []
   resetSiteData()
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-10-01T19:00:00Z'))  // noon Pacific, Oct 1
@@ -103,6 +106,14 @@ describe('HomeShows', () => {
   it('reports how many Shows are listed', async () => {
     render(<HomeShows />)
     expect(await screen.findByText('Showing 3 of 3 shows')).toBeInTheDocument()
+  })
+
+  it('loads the data files from under the base path', async () => {
+    vi.stubEnv('NEXT_PUBLIC_BASE_PATH', '/the_list')
+    render(<HomeShows />)
+    await screen.findByText('Tonight Band')
+    expect(requested.sort()).toEqual(['/the_list/data/bands.json', '/the_list/data/meta.json',
+                                      '/the_list/data/shows.json', '/the_list/data/venues.json'])
   })
 
   it('shows an error when the data files are missing', async () => {

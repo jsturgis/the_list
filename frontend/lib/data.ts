@@ -1,3 +1,4 @@
+import { withBasePath } from './basePath'
 import type { ExportBand, ExportMeta, ExportShow, ExportVenue, Show, SiteData } from './types'
 
 /** Today's date (YYYY-MM-DD) in the Bay Area, where Shows are listed by local calendar date. */
@@ -34,7 +35,7 @@ export function similarBands(band: ExportBand, bandById: Map<number, ExportBand>
 }
 
 async function getJson<T>(name: string): Promise<T> {
-  const url = new URL(`/data/${name}.json`, window.location.href)
+  const url = new URL(withBasePath(`/data/${name}.json`), window.location.href)
   const res = await fetch(url)
   if (!res.ok) throw new Error(`Couldn't load ${name}.json (${res.status})`)
   return res.json() as Promise<T>
