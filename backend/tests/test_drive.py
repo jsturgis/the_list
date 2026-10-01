@@ -46,7 +46,35 @@ def test_follows_the_pointer_to_the_newest_edition(settings):
         doc, meta = fetch_latest_edition()
 
     assert doc == EDITION
-    assert meta == {"file_id": "edition456", "file_name": "Concert Events - September 25, 2026.json"}
+    assert meta == {"file_id": "edition456", "file_name": "Concert Events - September 25, 2026.json",
+                    "enriched_events": [], "enriched_file_name": None}
+
+
+def test_downloads_the_enriched_export_the_pointer_names(settings):
+    pointer = {"latest": {"id": "edition456", "name": "Concert Events - September 25, 2026.json"},
+               "enriched": {"id": "enriched789", "name": "Music List for Friday, September 25th, 2026.enriched.json"}}
+    events = [{"event_id": "a"}, {"event_id": "b"}]
+    with _serve({POINTER_ID: _response(pointer), "edition456": _response(EDITION), "enriched789": _response(events)}):
+        doc, meta = fetch_latest_edition()
+
+    assert doc == EDITION
+    assert meta["enriched_events"] == events
+    assert meta["enriched_file_name"] == "Music List for Friday, September 25th, 2026.enriched.json"
+
+
+@pytest.mark.parametrize("enriched", [
+    _response("<html>Sign in</html>", content_type="text/html"),  # not shared publicly
+    _response("{not json"),
+    _response({"events": []}),  # not the export's top-level list
+    _response("", status=404),
+])
+def test_an_unusable_enriched_export_is_skipped(settings, enriched):
+    pointer = {"latest": {"id": "edition456", "name": "edition.json"}, "enriched": {"id": "enriched789"}}
+    with _serve({POINTER_ID: _response(pointer), "edition456": _response(EDITION), "enriched789": enriched}):
+        doc, meta = fetch_latest_edition()
+
+    assert doc == EDITION
+    assert meta["enriched_events"] == []
 
 
 def test_empty_pointer_means_no_edition(settings):

@@ -152,6 +152,12 @@ def _text(value) -> str | None:
     return value.strip() or None
 
 
+def _url(value) -> str | None:
+    """A link that fits its column (500 characters), or None."""
+    url = _text(value)
+    return url if url and len(url) <= 500 else None
+
+
 def _show_extras(event: dict) -> dict:
     ticketing = event.get("ticketing") or {}
     context = event.get("event_context") or {}
@@ -159,6 +165,7 @@ def _show_extras(event: dict) -> dict:
         "is_matinee": bool(event.get("is_matinee")),
         "is_sold_out": bool(ticketing.get("sold_out")),
         "ticket_provider": _text(ticketing.get("provider")),
+        "ticket_url": _url(ticketing.get("ticket_url")),
         "is_benefit": bool(context.get("is_benefit")),
         "benefit_cause": _text(context.get("benefit_cause")),
         "special_event": _text(context.get("special_event")),

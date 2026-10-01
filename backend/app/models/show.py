@@ -59,6 +59,7 @@ class Show(Base):
     is_matinee: Mapped[bool] = mapped_column(Boolean, default=False)
     is_sold_out: Mapped[bool] = mapped_column(Boolean, default=False)
     ticket_provider: Mapped[Optional[str]] = mapped_column(String(100))
+    ticket_url: Mapped[Optional[str]] = mapped_column(String(500))
     is_benefit: Mapped[bool] = mapped_column(Boolean, default=False)
     benefit_cause: Mapped[Optional[str]] = mapped_column(String(255))
     special_event: Mapped[Optional[str]] = mapped_column(String(255))

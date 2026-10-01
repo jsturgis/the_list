@@ -26,7 +26,7 @@ const band = (id: number, name: string, similar: number[], extra: Partial<Export
 const show = (id: number, date: string, bandId: number): ExportShow => ({
   id, date, doorTime: '20:00:00', setTime: null, priceMin: null, priceMax: null, isFree: false, ageRestriction: 'a/a',
   status: 'upcoming', isRecommended: false, willSellOut: false, isPit: false, isDrinkTickets: false, isNoReentry: false,
-  notes: null, isMatinee: false, isSoldOut: false, ticketProvider: null, isBenefit: false, benefitCause: null,
+  notes: null, isMatinee: false, isSoldOut: false, ticketProvider: null, ticketUrl: null, isBenefit: false, benefitCause: null,
   specialEvent: null, venueId: 1, acts: [[bandId, 0]],
 })
 const bands = [band(10, 'Headliner', [11], { isLocal: true }), band(11, 'Similar One', [10])]
