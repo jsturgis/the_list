@@ -24,17 +24,13 @@ def _client(requests: list[str] | None = None) -> httpx.Client:
             raise httpx.ConnectError("[Errno 8] nodename nor servname provided, or not known", request=request)
         if host == "slow.example":
             raise httpx.ReadTimeout("timed out", request=request)
-        if host == "nosuchband.bandcamp.com":
-            return httpx.Response(302, headers={"Location": "https://bandcamp.com/signup?new_domain=nosuchband"})
-        if host == "bandcamp.com" and path == "/signup":
-            return httpx.Response(200)
         return httpx.Response({"/missing": 404, "/gone": 410, "/blocked": 403, "/down": 503}.get(path, 200))
     return httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True)
 
 
 def test_links_that_load_are_kept():
-    assert check_links(["https://venue.example/", "https://chatpile.bandcamp.com/"], client=_client()) == {
-        "https://venue.example/": True, "https://chatpile.bandcamp.com/": True}
+    assert check_links(["https://venue.example/", "https://band.example/"], client=_client()) == {
+        "https://venue.example/": True, "https://band.example/": True}
 
 
 def test_missing_pages_and_domains_are_broken():
@@ -42,9 +38,12 @@ def test_missing_pages_and_domains_are_broken():
     assert check_links(urls, client=_client()) == {url: False for url in urls}
 
 
-def test_bandcamp_pages_with_no_artist_are_broken():
-    # Bandcamp sends unclaimed subdomains to its signup page, with a 200.
-    assert check_links(["https://nosuchband.bandcamp.com/"], client=_client()) == {"https://nosuchband.bandcamp.com/": False}
+def test_bandcamp_links_are_kept_without_a_request():
+    requests: list[str] = []
+    urls = ["https://nosuchband.bandcamp.com/", "https://venue.example/missing"]
+    assert check_links(urls, client=_client(requests)) == {
+        "https://nosuchband.bandcamp.com/": True, "https://venue.example/missing": False}
+    assert requests == ["https://venue.example/missing"]
 
 
 def test_bot_blocks_server_errors_and_timeouts_are_kept():
@@ -79,27 +78,27 @@ def test_rate_limited_links_are_retried_after_the_wait(monkeypatch):
     waits: list[float] = []
     monkeypatch.setattr("app.ingestion.links._sleep", waits.append)
     requests: list[str] = []
-    client = _rate_limited_client({"https://a.bandcamp.com/": [429, 429, 404], "https://b.bandcamp.com/": [429, 200]}, requests)
+    client = _rate_limited_client({"https://a.ratelimit.example/": [429, 429, 404], "https://b.ratelimit.example/": [429, 200]}, requests)
 
-    assert check_links(["https://a.bandcamp.com/", "https://b.bandcamp.com/"], client=client) == {
-        "https://a.bandcamp.com/": False, "https://b.bandcamp.com/": True}
+    assert check_links(["https://a.ratelimit.example/", "https://b.ratelimit.example/"], client=client) == {
+        "https://a.ratelimit.example/": False, "https://b.ratelimit.example/": True}
     assert waits.count(3.0) == 3
-    assert requests.count("https://a.bandcamp.com/") == 3
+    assert requests.count("https://a.ratelimit.example/") == 3
 
 
 def test_links_still_rate_limited_after_the_retries_are_kept(monkeypatch):
     monkeypatch.setattr("app.ingestion.links._sleep", lambda seconds: None)
     requests: list[str] = []
-    client = _rate_limited_client({"https://a.bandcamp.com/": [429]}, requests)
+    client = _rate_limited_client({"https://a.ratelimit.example/": [429]}, requests)
 
-    assert check_links(["https://a.bandcamp.com/"], client=client) == {"https://a.bandcamp.com/": True}
+    assert check_links(["https://a.ratelimit.example/"], client=client) == {"https://a.ratelimit.example/": True}
     assert len(requests) == 5  # the first try plus 4 retries
 
 
 def test_subdomains_of_one_site_share_a_rate_limit_slot():
     from app.ingestion.links import _slot
-    assert _slot("https://a.bandcamp.com/") is _slot("https://b.bandcamp.com/")
-    assert _slot("https://a.bandcamp.com/") is not _slot("https://soundcloud.com/x")
+    assert _slot("https://a.ratelimit.example/") is _slot("https://b.ratelimit.example/")
+    assert _slot("https://a.ratelimit.example/") is not _slot("https://soundcloud.com/x")
 
 
 def test_requests_to_one_site_are_spaced_out(monkeypatch):

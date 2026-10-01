@@ -138,7 +138,7 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                     if enrichment.get("image_url"):
                         enrichment["image_url"] = checked.get(enrichment["image_url"])
 
-        # Skip links that don't work: domains that don't exist, missing pages, unclaimed Bandcamp pages.
+        # Skip links that don't work: domains that don't exist, missing pages (Bandcamp links aren't checked).
         links = _unsaved_links(db, shows_data)
         if links:
             works = await loop.run_in_executor(None, check_links, sorted(links))
