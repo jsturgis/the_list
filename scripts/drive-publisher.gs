@@ -7,6 +7,7 @@
  *   "Bay Area & Santa Cruz Concert Events - <date>.json"  -> PUBLIC folder (anyone with the link)
  *   "... (Raw Email).json"                                -> PRIVATE folder (contains the recipient address)
  *   PUBLIC folder / latest.json                           -> {"latest": {id, name, edition_date, updated}}
+ *   Newest List email from Gmail, footer stripped         -> PUBLIC folder as .txt (see gmail-exporter.gs)
  *
  * A formatted file that still contains personal data (EmailOctopus links, "unsubscribe", a Gmail
  * address) is moved to the PRIVATE folder instead of being published. A re-generated edition with the
@@ -24,6 +25,12 @@ const RAW_RE = /\(Raw Email\)\.json$/;
 const PERSONAL_DATA_RE = /eocampaign1\.com|unsubscribe|[A-Za-z0-9._%+-]+@gmail\.com/i;
 
 function publish() {
+  try {
+    exportListEmail();  // gmail-exporter.gs: newest List email -> PUBLIC folder as .txt
+  } catch (e) {
+    Logger.log('Email export failed: %s', e);
+  }
+
   const publicFolder = folder_(PUBLIC_FOLDER, true);
   const privateFolder = folder_(PRIVATE_FOLDER, false);
 
