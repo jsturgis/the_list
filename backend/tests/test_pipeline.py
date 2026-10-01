@@ -320,3 +320,27 @@ async def test_venue_enrichment_keeps_region_when_google_returns_a_neighbourhood
     refreshed = db.get(Venue, venue_id)
     assert refreshed.city == "Temescal"
     assert refreshed.region == Region.east_bay  # not moved to the "sf" default
+
+
+_IMAGE_EDITION = {
+    **_EDITION,
+    "events": [{**_EDITION["events"][0],
+                "venue": {**_EDITION["events"][0]["venue"], "image_url": "https://example.com/made-up-venue.jpg"},
+                "artists": [{**_EDITION["events"][0]["artists"][0], "image_url": "https://example.com/wrong-path.jpg"},
+                            _EDITION["events"][0]["artists"][1]]}],
+}
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.check_image_urls", return_value={
+    "https://example.com/made-up-venue.jpg": None,
+    "https://example.com/wrong-path.jpg": "https://example.com/real-path.jpg",
+})
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_saves_only_images_that_load(mock_batch, mock_images, mock_venue, mock_fetch, db):
+    await _run_ingestion_async(db=db)
+
+    assert db.query(Band).filter(Band.name == "Deafheaven").one().image_url == "https://example.com/real-path.jpg"
+    assert db.query(Venue).filter(Venue.name == "Bottom of the Hill").one().image_url is None
+    assert sorted(mock_images.call_args.args[0]) == ["https://example.com/made-up-venue.jpg", "https://example.com/wrong-path.jpg"]

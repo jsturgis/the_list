@@ -43,6 +43,12 @@ The API starts at `http://localhost:8000/graphql`. Tables are created automatica
 docker compose exec ollama ollama pull nomic-embed-text
 ```
 
+**Run an ingest by hand** (maintenance, then the newest edition from Drive; the API server doesn't
+schedule anything, the weekly run is a GitHub Action):
+```bash
+docker compose exec api python -m app.cli ingest
+```
+
 **Seed from the sample email** (bypasses enrichment):
 ```bash
 docker compose exec api python -c "
@@ -138,7 +144,7 @@ Required env vars:
 | `MUSICBRAINZ_APP_VERSION` | `0.1` | MusicBrainz rate-limit user-agent |
 | `MUSICBRAINZ_CONTACT` | `https://github.com/jsturgis/the_list` | MusicBrainz rate-limit contact |
 
-> **Drive setup**: install `scripts/drive-publisher.gs` as a Google Apps Script with a weekly trigger. It moves formatted editions from your Drive root into a public folder (raw email exports into a private one) and keeps `latest.json` pointing at the newest edition. Set `DRIVE_LATEST_FILE_ID` to that file's id.
+> **Drive setup**: install `scripts/drive-publisher.gs` as a Google Apps Script with a daily trigger. It moves formatted editions from your Drive root into a public folder (raw email exports into a private one) and keeps `latest.json` pointing at the newest edition. Set `DRIVE_LATEST_FILE_ID` to that file's id.
 
 Run the tests:
 
@@ -165,7 +171,7 @@ backend/
     graphql/         # Strawberry types, queries, mutations
     embeddings/      # Ollama client + FAISS index
     pipeline/        # End-to-end wiring
-    scheduler.py     # APScheduler weekly job
+    scheduler.py     # ingestion pipeline and daily maintenance (python -m app.cli ingest)
   tests/
     fixtures/        # Real .eml sample for parser tests
     test_parser.py   # 22 tests (parse_email_body seam)
@@ -211,13 +217,25 @@ The site is published at **https://jsturgis.github.io/the_list/** as a static si
 
 - **The `data` branch** is an orphan branch holding the SQLite database (`the_list.db`) and the FAISS
   index (`faiss/`). `main` never contains data files.
-- **The Deploy workflow** (`.github/workflows/deploy.yml`) checks out `main` and the `data` branch,
-  runs `python -m app.cli export`, builds the static site and deploys it to Pages. It runs on pushes to
-  `main` that touch `frontend/` or `backend/app/`, and by hand from the Actions tab
-  (**Deploy → Run workflow**, or `gh workflow run deploy.yml`). Only one deploy runs at a time.
-- **Settings**: Pages source must be **GitHub Actions** (Settings → Pages). The deploy needs no
-  secrets; the weekly ingest uses the `GOOGLE_MAPS_API_KEY` secret and the `DRIVE_LATEST_FILE_ID`
-  repository variable.
+- **The Deploy workflow** (`.github/workflows/deploy.yml`) has two jobs:
+  1. **Ingest**: runs `python -m app.cli ingest` against the `data` branch's database (with an Ollama
+     service container for embeddings) and commits the changed database and index back to `data`.
+  2. **Build and deploy**: checks out `main` and the `data` branch, runs `python -m app.cli export`,
+     builds the static site and deploys it to Pages.
+- **When it runs**:
+  - **Every Friday night**, cron `0 4 * * 6` (Saturday 04:00 UTC = Friday 9pm PDT / 8pm PST), after
+    the Drive publisher updates `latest.json` between 6 and 7pm Pacific. Ingest, then deploy.
+  - **By hand** from the Actions tab (**Deploy → Run workflow**) or `gh workflow run deploy.yml`.
+    Tick **Skip ingestion** (`gh workflow run deploy.yml -f skip_ingest=true`) to rebuild from the
+    existing data.
+  - **On pushes to `main`** that touch `frontend/` or `backend/app/`: deploy only, no ingest.
+  - Only one run at a time.
+- **A week with no new edition** still succeeds and redeploys (the run is recorded as `no_email`).
+- **A failed ingest** fails the run: the `data` branch is left untouched and nothing is deployed.
+  GitHub emails you about failed scheduled runs (Settings → Notifications → Actions).
+- **Settings**: Pages source must be **GitHub Actions** (Settings → Pages). The ingest uses the
+  `GOOGLE_MAPS_API_KEY` secret and the `DRIVE_LATEST_FILE_ID` repository variable (Settings → Secrets
+  and variables → Actions). No Anthropic key: ingestion makes no LLM calls.
 - **Updating the data by hand**: commit a new `the_list.db` and `faiss/` to the `data` branch, then run
   the workflow.
 - **Rolling back**: revert the bad commit on the `data` branch (`git revert <sha>` on a checkout of

@@ -1,8 +1,17 @@
 name: Deploy
 
-# Export the data branch's database to JSON, build the static site and publish it to GitHub Pages.
+# Weekly: ingest the newest edition into the data branch's database, then export it to JSON, build the
+# static site and publish it to GitHub Pages. Pushes to main and manual runs can skip the ingest.
 on:
+  schedule:
+    # Saturday 04:00 UTC = Friday 9pm PDT / 8pm PST, after the Drive publisher's 6-7pm Pacific update.
+    - cron: '0 4 * * 6'
   workflow_dispatch:
+    inputs:
+      skip_ingest:
+        description: Skip ingestion (rebuild from the existing data)
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths:
@@ -12,16 +21,94 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
-# One deploy at a time; a newer run waits rather than cancelling one mid-publish.
+# One run at a time; a newer run waits rather than cancelling one mid-ingest or mid-publish.
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
+  ingest:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !inputs.skip_ingest)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # commit the new database to the data branch
+
+    services:
+      ollama:
+        image: ollama/ollama
+        ports:
+          - 11434:11434
+        volumes:
+          - /home/runner/.ollama:/root/.ollama   # models, cached between runs
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out the data branch
+        uses: actions/checkout@v4
+        with:
+          ref: data
+          path: data
+
+      - name: Restore the Ollama model cache
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.ollama
+          key: ollama-nomic-embed-text-v1
+
+      - name: Pull the embedding model
+        run: |
+          until curl -sf http://localhost:11434/api/version > /dev/null; do sleep 2; done
+          curl -sf http://localhost:11434/api/pull -d '{"model": "nomic-embed-text", "stream": false}'
+          # The container writes as root; let the cache step read the files.
+          sudo chown -R "$USER" /home/runner/.ollama
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Ingest
+        working-directory: backend
+        env:
+          DATABASE_URL: sqlite:///${{ github.workspace }}/data/the_list.db
+          FAISS_INDEX_PATH: ${{ github.workspace }}/data/faiss
+          OLLAMA_BASE_URL: http://localhost:11434
+          DRIVE_LATEST_FILE_ID: ${{ vars.DRIVE_LATEST_FILE_ID }}
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+        run: |
+          alembic upgrade head
+          python -m app.cli ingest
+
+      - name: Commit the data
+        working-directory: data
+        run: |
+          # Fold the write-ahead log into the database so the committed file is complete.
+          python -c "
+          import sqlite3
+          db = sqlite3.connect('the_list.db')
+          db.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+          db.execute('PRAGMA journal_mode=DELETE')
+          run = db.execute('SELECT id, status, email_subject FROM ingestion_runs ORDER BY id DESC LIMIT 1').fetchone()
+          db.close()
+          open('$RUNNER_TEMP/message', 'w').write(f'Ingest run {run[0]} ({run[1]}): {run[2] or \"no new edition\"}')
+          "
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add the_list.db faiss
+          git diff --cached --quiet || { git commit -q -F "$RUNNER_TEMP/message" && git push -q; }
+          git log -1 --format='%h %s'
+
   build:
+    needs: ingest
+    # Runs after a successful ingest, or when the ingest was skipped; never after a failed one.
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
 
     steps:
@@ -71,7 +158,11 @@ jobs:
 
   deploy:
     needs: build
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
