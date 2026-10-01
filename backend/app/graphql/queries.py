@@ -92,6 +92,7 @@ def _show(s: Show) -> ShowType:
         is_matinee=bool(s.is_matinee),
         is_sold_out=bool(s.is_sold_out),
         ticket_provider=s.ticket_provider,
+        ticket_url=s.ticket_url,
         is_benefit=bool(s.is_benefit),
         benefit_cause=s.benefit_cause,
         special_event=s.special_event,

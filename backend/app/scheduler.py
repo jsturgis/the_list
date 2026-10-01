@@ -16,6 +16,7 @@ from app.config import settings
 from app.database import SessionLocal
 from app.ingestion.drive import fetch_latest_edition
 from app.ingestion.edition import edition_meta, edition_shows
+from app.ingestion.enriched import merge_enriched
 from app.ingestion.images import check_image_urls
 from app.ingestion.links import check_links
 from app.ingestion.upsert import find_venue, known_region, upsert_shows
@@ -92,6 +93,9 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
         run.email_message_id = file_meta["file_id"]
         run.shows_parsed = len(shows_data)
         logger.info("ingestion: %d shows in %s", len(shows_data), file_meta.get("file_name"))
+        if file_meta.get("enriched_events"):
+            matched = merge_enriched(shows_data, file_meta["enriched_events"])
+            logger.info("ingestion: filled gaps in %d shows from %s", matched, file_meta.get("enriched_file_name"))
 
         # Bands arrive with genres and links; only Venues we haven't seen need Google Places.
         loop = asyncio.get_event_loop()

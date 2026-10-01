@@ -212,6 +212,7 @@ def _upsert_show(db: Session, venue: Venue, data: dict) -> Show:
     show.is_matinee = bool(data.get("is_matinee"))
     show.is_sold_out = bool(data.get("is_sold_out"))
     show.ticket_provider = data.get("ticket_provider")
+    show.ticket_url = data.get("ticket_url") or show.ticket_url  # kept when a later export has none
     show.is_benefit = bool(data.get("is_benefit"))
     show.benefit_cause = data.get("benefit_cause")
     show.special_event = data.get("special_event")

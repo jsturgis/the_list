@@ -72,6 +72,7 @@ class ShowType:
     is_matinee: bool
     is_sold_out: bool
     ticket_provider: str | None
+    ticket_url: str | None
     is_benefit: bool
     benefit_cause: str | None
     special_event: str | None
