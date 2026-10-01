@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ClockIcon, MapPinIcon, StarIcon, TicketIcon, UserIcon } from '@heroicons/react/16/solid'
+import { BuildingOffice2Icon, ClockIcon, StarIcon, TicketIcon, UserIcon } from '@heroicons/react/16/solid'
 import { Flags, StatusBadge } from './ShowBadges'
 import type { Show } from '@/lib/types'
 import { formatTime, formatPrice } from '@/lib/format'
@@ -117,7 +117,7 @@ export default function ShowCard({ show, filterQs = '', layout = 'card', showVen
 
       {showVenue && (
         <div className="flex items-start gap-1 text-sm text-zinc-600 dark:text-zinc-300">
-          <MapPinIcon className="size-3.5 mt-0.5 shrink-0 text-zinc-400 dark:text-zinc-500" />
+          <BuildingOffice2Icon className="size-3.5 mt-0.5 shrink-0 text-zinc-400 dark:text-zinc-500" />
           <span>
             {show.venue.name}
             {' · '}

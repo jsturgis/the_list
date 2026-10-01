@@ -1,6 +1,6 @@
 import type { ComponentType, SVGProps } from 'react'
 import {
-  BanknotesIcon, BookOpenIcon, CameraIcon, GlobeAltIcon, IdentificationIcon, MapIcon, MapPinIcon, PhoneIcon, StarIcon, UserIcon,
+  BanknotesIcon, BookOpenIcon, BuildingOffice2Icon, CameraIcon, GlobeAltIcon, IdentificationIcon, MapIcon, MapPinIcon, PhoneIcon, StarIcon, UserIcon,
 } from '@heroicons/react/20/solid'
 import type { Show, Venue } from '@/lib/types'
 import ExternalLink from './ExternalLink'
@@ -49,7 +49,10 @@ export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) 
         <img src={venue.imageUrl} alt={venue.name} className="w-full max-h-72 object-cover rounded-lg" />
       )}
       <header>
-        <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">{venue.name}</h1>
+        <h1 className="flex items-center gap-2 text-3xl font-bold text-zinc-900 dark:text-zinc-50">
+          <BuildingOffice2Icon className="size-7 shrink-0 text-zinc-400 dark:text-zinc-500" />
+          {venue.name}
+        </h1>
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
           {venue.neighborhood ? `${venue.neighborhood} · ` : ''}
           {venue.city}

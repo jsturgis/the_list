@@ -1,6 +1,6 @@
 import type { Show } from '@/lib/types'
 import { formatTime, formatPrice, formatDateLongYear, mapsHref } from '@/lib/format'
-import { CalendarIcon, ClockIcon, GlobeAltIcon, MapPinIcon, ShoppingCartIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
+import { BuildingOffice2Icon, CalendarIcon, ClockIcon, GlobeAltIcon, MapPinIcon, ShoppingCartIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
 import BandLink from './BandLink'
 import ExternalLink from './ExternalLink'
 import { Flags, StatusBadge } from './ShowBadges'
@@ -36,8 +36,9 @@ export default function ShowDetail({ show }: ShowDetailProps) {
         <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
           {show.acts[0]?.band.name ?? 'Unknown'}
         </h1>
-        <p className="text-lg text-zinc-600 dark:text-zinc-300 mt-1">
-          at <VenueLink venueId={show.venue.id} className="hover:underline">{show.venue.name}</VenueLink> · {show.venue.city}
+        <p className="flex items-center gap-1.5 text-lg text-zinc-600 dark:text-zinc-300 mt-1">
+          <BuildingOffice2Icon className="size-5 shrink-0 text-zinc-400 dark:text-zinc-500" />
+          <span>at <VenueLink venueId={show.venue.id} className="hover:underline">{show.venue.name}</VenueLink> · {show.venue.city}</span>
         </p>
       </header>
 
@@ -92,7 +93,10 @@ export default function ShowDetail({ show }: ShowDetailProps) {
       <section>
         <h2 className="text-base font-semibold mb-3 text-zinc-900 dark:text-zinc-100">Venue</h2>
         <div className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-300">
-          <VenueLink venueId={show.venue.id} className="font-medium text-zinc-900 dark:text-zinc-100 hover:underline">{show.venue.name}</VenueLink>
+          <span className="flex items-center gap-1.5">
+            <BuildingOffice2Icon className="size-4 shrink-0 text-zinc-400 dark:text-zinc-500" />
+            <VenueLink venueId={show.venue.id} className="font-medium text-zinc-900 dark:text-zinc-100 hover:underline">{show.venue.name}</VenueLink>
+          </span>
           {show.venue.address && (
             <a
               href={mapsHref(show.venue)}
