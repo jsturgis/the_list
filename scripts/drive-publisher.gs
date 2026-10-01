@@ -9,7 +9,8 @@
  *   PUBLIC folder / latest.json                           -> {"latest": {id, name, edition_date, updated}}
  *
  * A formatted file that still contains personal data (EmailOctopus links, "unsubscribe", a Gmail
- * address) is moved to the PRIVATE folder instead of being published.
+ * address) is moved to the PRIVATE folder instead of being published. A re-generated edition with the
+ * same name replaces the published one (the old copy goes to the trash).
  *
  * Setup: paste into a new project at https://script.google.com, run `publish` once (grant Drive access),
  * copy the logged latest.json file id into DRIVE_LATEST_FILE_ID, then run `installTrigger`.
@@ -41,6 +42,7 @@ function publish() {
         Logger.log('NOT published, contains personal data: %s', name);
         continue;
       }
+      trashSameName_(publicFolder, name);  // a re-generated edition replaces the old copy
       file.moveTo(publicFolder);
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
       Logger.log('Published: %s', name);
@@ -50,7 +52,17 @@ function publish() {
   updatePointer_(publicFolder);
 }
 
-/** Point latest.json at the formatted edition with the newest edition_date. */
+/** Move files with this name in `folder` to the trash. */
+function trashSameName_(folder, name) {
+  const existing = folder.getFilesByName(name);
+  while (existing.hasNext()) {
+    const old = existing.next();
+    old.setTrashed(true);
+    Logger.log('Replaced older copy of %s (id %s)', name, old.getId());
+  }
+}
+
+/** Point latest.json at the formatted edition with the newest edition_date (latest update wins ties). */
 function updatePointer_(publicFolder) {
   let newest = null;
   const files = publicFolder.getFiles();
@@ -64,12 +76,16 @@ function updatePointer_(publicFolder) {
       Logger.log('Skipping unreadable JSON: %s', file.getName());
       continue;
     }
-    if (editionDate && (!newest || editionDate > newest.edition_date)) {
-      newest = {id: file.getId(), name: file.getName(), edition_date: editionDate};
+    const updated = file.getLastUpdated().getTime();
+    if (editionDate && (!newest || editionDate > newest.edition_date ||
+                        (editionDate === newest.edition_date && updated > newest.lastUpdated))) {
+      newest = {id: file.getId(), name: file.getName(), edition_date: editionDate, lastUpdated: updated};
     }
   }
 
-  const content = JSON.stringify({latest: newest && Object.assign(newest, {updated: new Date().toISOString()})}, null, 2);
+  const latest = newest && {id: newest.id, name: newest.name, edition_date: newest.edition_date,
+                            updated: new Date().toISOString()};
+  const content = JSON.stringify({latest: latest}, null, 2);
   const existing = publicFolder.getFilesByName(POINTER_NAME);
   const pointer = existing.hasNext() ? existing.next() : publicFolder.createFile(POINTER_NAME, content, 'application/json');
   pointer.setContent(content);  // same file id every week, so DRIVE_LATEST_FILE_ID never changes
