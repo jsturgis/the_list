@@ -1,5 +1,5 @@
-import { render, screen, fireEvent } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { act, render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import FilterBar from '@/components/FilterBar'
 
 let params = new URLSearchParams()
@@ -50,7 +50,7 @@ describe('FilterBar clear filters', () => {
   beforeEach(() => { params = new URLSearchParams(); replace.mockClear() })
 
   it('resets every filter, including the genre combobox', () => {
-    params = new URLSearchParams('genre=punk&region=sf&band=rose&free=1')
+    params = new URLSearchParams('genre=punk&region=sf&q=rose&free=1')
     const { rerender } = render(<FilterBar {...props} />)
     expect(screen.getByRole('combobox', { name: 'Genre' })).toHaveValue('punk')
 
@@ -61,8 +61,28 @@ describe('FilterBar clear filters', () => {
     params = new URLSearchParams()
     rerender(<FilterBar {...props} />)
     expect(screen.getByRole('combobox', { name: 'Genre' })).toHaveValue('')
-    expect(screen.getByLabelText(/^band/i)).toHaveValue('')
+    expect(screen.getByLabelText('Search')).toHaveValue('')
     expect(screen.getByLabelText(/free only/i)).not.toBeChecked()
     expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument()
+  })
+})
+
+describe('FilterBar search', () => {
+  beforeEach(() => { params = new URLSearchParams(); replace.mockClear(); vi.useFakeTimers() })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('applies the typed text to the URL as q', () => {
+    render(<FilterBar {...props} />)
+    fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'chapel' } })
+    act(() => { vi.advanceTimersByTime(300) })
+    expect(replace).toHaveBeenLastCalledWith('/?q=chapel', { scroll: false })
+  })
+
+  it('carries old band= and venue= links into the box and over to q', () => {
+    params = new URLSearchParams('band=rose&venue=chapel&region=sf')
+    render(<FilterBar {...props} />)
+    expect(screen.getByLabelText('Search')).toHaveValue('rose chapel')
+    act(() => { vi.advanceTimersByTime(300) })
+    expect(replace).toHaveBeenLastCalledWith('/?region=sf&q=rose+chapel', { scroll: false })
   })
 })

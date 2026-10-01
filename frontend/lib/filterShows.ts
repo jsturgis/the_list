@@ -1,4 +1,5 @@
 import { bayAreaToday } from './data'
+import { matchesSearch } from './fuzzySearch'
 import type { Show, ShowFilters } from './types'
 
 const contains = (text: string, needle: string) => text.toLowerCase().includes(needle.toLowerCase())
@@ -16,8 +17,7 @@ export function filterShows(shows: Show[], filters: ShowFilters | null, today: s
       if (f.fromDate && s.date < f.fromDate) return false
       if (f.toDate && s.date > f.toDate) return false
       if (f.region && s.venue.region !== f.region) return false
-      if (f.venueName && !contains(s.venue.name, f.venueName)) return false
-      if (f.bandName && !s.acts.some(a => contains(a.band.name, f.bandName!))) return false
+      if (f.search && !matchesSearch(f.search, [s.venue.name, ...s.acts.map(a => a.band.name)])) return false
       // Any genre of any Act; Shows with no genre data can't match.
       if (f.genre && !s.acts.some(a => a.band.genres.some(g => contains(g, f.genre!)))) return false
       // Compared with the minimum price; an unknown price never matches (as with SQL NULL).

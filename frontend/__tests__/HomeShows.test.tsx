@@ -185,7 +185,7 @@ describe('HomeShows', () => {
     })
 
     it('shows the empty state when nothing matches', async () => {
-      currentParams = new URLSearchParams('band=nobody')
+      currentParams = new URLSearchParams('q=nobody')
       render(<HomeShows />)
       expect(await screen.findByText('No shows match your filters.')).toBeInTheDocument()
     })

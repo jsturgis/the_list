@@ -11,6 +11,7 @@ from strawberry.types import Info
 from app import catalog
 from app.clock import local_today
 from app.embeddings.search import find_similar_shows
+from app.fuzzy_search import matches_search
 from app.graphql.types import (
     ActType, BandType, FilterOptionsType, IngestionRunType, ShowFilters, ShowType, VenueType,
 )
@@ -189,7 +190,15 @@ def _query_shows(
     if f.is_recommended is not None:
         q = q.filter(Show.is_recommended == f.is_recommended)
 
-    return q.order_by(Show.date).limit(limit).offset(offset).all()
+    q = q.order_by(Show.date)
+    if f.search and f.search.strip():
+        # SQLite can't do typo-tolerant matching, so filter in Python before paginating.
+        matched = [
+            s for s in q.all()
+            if matches_search(f.search, [s.venue.name, *(a.band.name for a in s.acts)])
+        ]
+        return matched[offset:offset + limit]
+    return q.limit(limit).offset(offset).all()
 
 
 # ── resolver ──────────────────────────────────────────────────────────────────
