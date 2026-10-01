@@ -50,6 +50,7 @@ jobs:
         with:
           ref: data
           path: data
+          fetch-depth: 5   # enough to tell whether there's history to prune
 
       - name: Restore the Ollama model cache
         uses: actions/cache@v4
@@ -104,6 +105,17 @@ jobs:
           git add the_list.db faiss
           git diff --cached --quiet || { git commit -q -F "$RUNNER_TEMP/message" && git push -q; }
           git log -1 --format='%h %s'
+
+      - name: Keep the data branch short
+        working-directory: data
+        run: |
+          # The current data plus 3 commits to roll back to; older databases are squashed out.
+          before=$(git rev-parse HEAD)
+          after=$("$GITHUB_WORKSPACE/.github/scripts/prune-history.sh" 4)
+          if [ "$after" != "$before" ]; then
+            git push -q --force-with-lease="data:$before" origin HEAD:data
+          fi
+          git log --format='%h %s'
 
   build:
     needs: ingest
