@@ -1,6 +1,8 @@
 'use client'
 
 import Link from 'next/link'
+import { GlobeAltIcon, MapPinIcon, MusicalNoteIcon } from '@heroicons/react/20/solid'
+import ExternalLink from './ExternalLink'
 import type { Band, Show } from '@/lib/types'
 import SimilarBands from './SimilarBands'
 import { formatDateShort } from '@/lib/format'
@@ -28,7 +30,8 @@ export default function BandDetail({ band, upcomingShows, similarBands }: BandDe
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">{band.name}</h1>
           {band.isLocal && (
-            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+              <MapPinIcon className="size-3.5 shrink-0" />
               Local
             </span>
           )}
@@ -50,44 +53,40 @@ export default function BandDetail({ band, upcomingShows, similarBands }: BandDe
       {(band.spotifyUrl || band.soundcloudUrl || band.bandcampUrl || band.websiteUrl) && (
         <section className="flex flex-wrap gap-3">
           {band.spotifyUrl && (
-            <a
+            <ExternalLink
               href={band.spotifyUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+              icon={MusicalNoteIcon}
               className="text-sm px-3 py-1.5 rounded bg-green-600 text-white hover:bg-green-700"
             >
-              Spotify ↗
-            </a>
+              Spotify
+            </ExternalLink>
           )}
           {!band.spotifyUrl && band.soundcloudUrl && (
-            <a
+            <ExternalLink
               href={band.soundcloudUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+              icon={MusicalNoteIcon}
               className="text-sm px-3 py-1.5 rounded bg-orange-500 text-white hover:bg-orange-600"
             >
-              SoundCloud ↗
-            </a>
+              SoundCloud
+            </ExternalLink>
           )}
           {band.bandcampUrl && (
-            <a
+            <ExternalLink
               href={band.bandcampUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+              icon={MusicalNoteIcon}
               className="text-sm px-3 py-1.5 rounded bg-teal-600 text-white hover:bg-teal-700"
             >
-              Bandcamp ↗
-            </a>
+              Bandcamp
+            </ExternalLink>
           )}
           {band.websiteUrl && (
-            <a
+            <ExternalLink
               href={band.websiteUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+              icon={GlobeAltIcon}
               className="text-sm px-3 py-1.5 rounded bg-zinc-800 text-white hover:bg-zinc-700 dark:bg-zinc-700 dark:hover:bg-zinc-600"
             >
-              Website ↗
-            </a>
+              Website
+            </ExternalLink>
           )}
         </section>
       )}

@@ -1,6 +1,8 @@
 'use client'
 
 import Link from 'next/link'
+import { ClockIcon, MapPinIcon, StarIcon, TicketIcon, UserIcon } from '@heroicons/react/16/solid'
+import { Flags, StatusBadge } from './ShowBadges'
 import type { Show } from '@/lib/types'
 import { formatTime, formatPrice } from '@/lib/format'
 
@@ -18,57 +20,6 @@ interface ShowCardProps {
   layout?: ShowCardLayout
   /** Hide venue name/city, e.g. when already on that Venue's page. */
   showVenue?: boolean
-}
-
-function StatusBadge({ status, compact }: { status: Show['status']; compact?: boolean }) {
-  if (status !== 'cancelled' && status !== 'postponed') return null
-  const isCancelled = status === 'cancelled'
-  return (
-    <span
-      className={`${compact ? 'text-[10px] px-1.5' : 'text-xs px-2'} font-bold uppercase tracking-wide py-0.5 rounded w-fit shrink-0 ${
-        isCancelled
-          ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'
-          : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400'
-      }`}
-    >
-      {isCancelled ? 'Cancelled' : 'Postponed'}
-    </span>
-  )
-}
-
-function Flags({ show, compact }: { show: Show; compact?: boolean }) {
-  if (!(show.isSoldOut || show.isBenefit || show.isMatinee || show.willSellOut || show.isPit ||
-        show.isDrinkTickets || show.isNoReentry)) return null
-  const size = compact ? 'text-[11px] px-1 py-px' : 'px-1.5 py-0.5'
-  const neutral = 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'
-  return (
-    <div className={`flex flex-wrap gap-1 ${compact ? 'sm:flex-nowrap' : 'text-xs'}`}>
-      {show.isSoldOut && (
-        <span className={`${size} rounded font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400`}>
-          Sold out
-        </span>
-      )}
-      {show.isBenefit && (
-        <span
-          className={`${size} rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400`}
-          title={show.benefitCause ?? undefined}
-        >
-          Benefit
-        </span>
-      )}
-      {show.isMatinee && (
-        <span className={`${size} rounded bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400`}>Matinee</span>
-      )}
-      {show.willSellOut && (
-        <span className={`${size} rounded bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400`}>
-          Will Sell Out
-        </span>
-      )}
-      {show.isPit && <span className={`${size} rounded ${neutral}`}>Pit Warning</span>}
-      {show.isDrinkTickets && <span className={`${size} rounded ${neutral}`}>Drink Tickets</span>}
-      {show.isNoReentry && <span className={`${size} rounded ${neutral}`}>No Re-entry</span>}
-    </div>
-  )
 }
 
 /** "Western Addition, San Francisco" when the neighborhood is known, else the city. */
@@ -99,8 +50,9 @@ export default function ShowCard({ show, filterQs = '', layout = 'card', showVen
         data-layout="row"
       >
         <div className="flex items-center gap-2 min-w-0 sm:flex-1">
-          <StatusBadge status={show.status} compact />
+          <StatusBadge status={show.status} size="compact" />
           <p className="truncate text-sm">
+            {show.isRecommended && <span className="sr-only">Steve&apos;s pick</span>}
             {headliner && (
               <span className="font-semibold text-zinc-900 dark:text-zinc-50">{headliner.name}</span>
             )}
@@ -123,7 +75,7 @@ export default function ShowCard({ show, filterQs = '', layout = 'card', showVen
 
         <div className="flex flex-wrap sm:flex-nowrap items-center gap-x-2 gap-y-1 whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400 sm:shrink-0">
           {meta && <span>{meta}</span>}
-          <Flags show={show} compact />
+          <Flags show={show} size="compact" />
         </div>
       </Link>
     )
@@ -141,10 +93,20 @@ export default function ShowCard({ show, filterQs = '', layout = 'card', showVen
     >
       <StatusBadge status={show.status} />
 
-      {headliner && (
-        <h3 className="font-semibold text-base leading-tight text-zinc-900 dark:text-zinc-50">
-          {headliner.name}
-        </h3>
+      {(headliner || show.isRecommended) && (
+        <div className="flex items-start gap-1.5">
+          {show.isRecommended && (
+            <>
+              <StarIcon className="size-4 mt-0.5 shrink-0 text-amber-500 dark:text-amber-400" />
+              <span className="sr-only">Steve&apos;s pick</span>
+            </>
+          )}
+          {headliner && (
+            <h3 className="font-semibold text-base leading-tight text-zinc-900 dark:text-zinc-50">
+              {headliner.name}
+            </h3>
+          )}
+        </div>
       )}
 
       {supports.length > 0 && (
@@ -154,20 +116,23 @@ export default function ShowCard({ show, filterQs = '', layout = 'card', showVen
       )}
 
       {showVenue && (
-        <div className="text-sm text-zinc-600 dark:text-zinc-300">
-          {show.venue.name}
-          {' · '}
-          {venueLocation(show)}
+        <div className="flex items-start gap-1 text-sm text-zinc-600 dark:text-zinc-300">
+          <MapPinIcon className="size-3.5 mt-0.5 shrink-0 text-zinc-400 dark:text-zinc-500" />
+          <span>
+            {show.venue.name}
+            {' · '}
+            {venueLocation(show)}
+          </span>
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-        {door && <span>{door}</span>}
-        {price && <span>{price}</span>}
-        {age && <span>{age}</span>}
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+        {door && <span className="inline-flex items-center gap-1"><ClockIcon className="size-3.5 shrink-0" />{door}</span>}
+        {price && <span className="inline-flex items-center gap-1"><TicketIcon className="size-3.5 shrink-0" />{price}</span>}
+        {age && <span className="inline-flex items-center gap-1"><UserIcon className="size-3.5 shrink-0" />{age}</span>}
       </div>
 
-      <Flags show={show} />
+      <Flags show={show} size="card" />
     </Link>
   )
 }

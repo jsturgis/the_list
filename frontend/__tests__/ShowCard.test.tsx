@@ -69,6 +69,11 @@ describe.each<ShowCardLayout>(['card', 'row'])('ShowCard (%s layout)', layout =>
     expect(container.querySelector('[data-recommended]')).toBeInTheDocument()
   })
 
+  it('tells screen readers a recommended show is Steve\'s pick', () => {
+    render(<ShowCard layout={layout} show={makeShow({ isRecommended: true })} />)
+    expect(screen.getByText("Steve's pick")).toBeInTheDocument()
+  })
+
   it('does not render Steve\'s Pick indicator for non-recommended shows', () => {
     const { container } = render(<ShowCard layout={layout} show={makeShow({ isRecommended: false })} />)
     expect(container.querySelector('[data-recommended]')).not.toBeInTheDocument()

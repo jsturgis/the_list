@@ -1,4 +1,9 @@
+import type { ComponentType, SVGProps } from 'react'
+import {
+  BanknotesIcon, BookOpenIcon, CameraIcon, GlobeAltIcon, IdentificationIcon, MapIcon, MapPinIcon, PhoneIcon, StarIcon, UserIcon,
+} from '@heroicons/react/20/solid'
 import type { Show, Venue } from '@/lib/types'
+import ExternalLink from './ExternalLink'
 import VenueShowRows from './VenueShowRows'
 import { mapsHref, telHref } from '@/lib/format'
 
@@ -17,17 +22,21 @@ function instagramUrl(handle: string): string {
   return `https://www.instagram.com/${handle.replace(/^@/, '')}/`
 }
 
+interface Rule {
+  label: string
+  icon?: ComponentType<SVGProps<SVGSVGElement>>
+}
+
 interface VenueDetailProps {
   venue: Venue
   upcomingShows: Show[]
 }
 
 export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) {
-  const rules = [
-    venue.isSoberSpace && 'Sober space',
-    venue.isCashOnly && 'Cash only',
-    venue.membershipRequired && 'Membership required',
-  ].filter((r): r is string => Boolean(r))
+  const rules: Rule[] = []
+  if (venue.isSoberSpace) rules.push({ label: 'Sober space' })
+  if (venue.isCashOnly) rules.push({ label: 'Cash only', icon: BanknotesIcon })
+  if (venue.membershipRequired) rules.push({ label: 'Membership required', icon: IdentificationIcon })
   const agePolicy = venue.defaultAgeRestriction
     ? AGE_POLICY[venue.defaultAgeRestriction] ?? venue.defaultAgeRestriction
     : null
@@ -48,9 +57,10 @@ export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) 
         </p>
         {rules.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
-            {rules.map(rule => (
-              <span key={rule} className="text-xs px-2 py-0.5 rounded bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                {rule}
+            {rules.map(({ label, icon: Icon }) => (
+              <span key={label} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                {Icon && <Icon className="size-3.5 shrink-0" />}
+                {label}
               </span>
             ))}
           </div>
@@ -59,10 +69,13 @@ export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) 
 
       {(venue.nearestTransit || venue.instagram || agePolicy) && (
         <section className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-300">
-          {agePolicy && <p>Usual ages: {agePolicy}</p>}
-          {venue.nearestTransit && <p>Transit: {venue.nearestTransit}</p>}
+          {agePolicy && <p className="flex items-center gap-1.5"><UserIcon className="size-4 shrink-0 text-zinc-400 dark:text-zinc-500" />Usual ages: {agePolicy}</p>}
+          {venue.nearestTransit && (
+            <p className="flex items-start gap-1.5"><MapIcon className="size-4 mt-0.5 shrink-0 text-zinc-400 dark:text-zinc-500" />Transit: {venue.nearestTransit}</p>
+          )}
           {venue.instagram && (
-            <a href={instagramUrl(venue.instagram)} target="_blank" rel="noopener noreferrer" className="w-fit hover:underline">
+            <a href={instagramUrl(venue.instagram)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 w-fit hover:underline">
+              <CameraIcon className="size-4 shrink-0 text-zinc-400 dark:text-zinc-500" />
               {venue.instagram}
             </a>
           )}
@@ -76,39 +89,42 @@ export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) 
               href={mapsHref(venue)}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-fit hover:underline"
+              className="flex items-start gap-1.5 w-fit hover:underline"
             >
+              <MapPinIcon className="size-4 mt-0.5 shrink-0 text-zinc-400 dark:text-zinc-500" />
               {venue.address}
             </a>
           )}
           {venue.phone && (
-            <a href={telHref(venue.phone)} className="w-fit hover:underline">
+            <a href={telHref(venue.phone)} className="flex items-center gap-1.5 w-fit hover:underline">
+              <PhoneIcon className="size-4 shrink-0 text-zinc-400 dark:text-zinc-500" />
               {venue.phone}
             </a>
           )}
           {venue.googleRating && (
-            <p>Google rating: {venue.googleRating.toFixed(1)} ★</p>
+            <p className="flex items-center gap-1.5">
+              <StarIcon className="size-4 shrink-0 text-amber-500 dark:text-amber-400" />
+              Google rating: {venue.googleRating.toFixed(1)}
+            </p>
           )}
           <div className="flex flex-wrap gap-3 mt-1">
             {venue.websiteUrl && (
-              <a
+              <ExternalLink
                 href={venue.websiteUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+                icon={GlobeAltIcon}
                 className="text-sm px-3 py-1.5 rounded bg-zinc-800 text-white hover:bg-zinc-700 dark:bg-zinc-700 dark:hover:bg-zinc-600"
               >
-                Website ↗
-              </a>
+                Website
+              </ExternalLink>
             )}
             {venue.wikipediaUrl && (
-              <a
+              <ExternalLink
                 href={venue.wikipediaUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+                icon={BookOpenIcon}
                 className="text-sm px-3 py-1.5 rounded bg-zinc-100 text-zinc-800 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
               >
-                Wikipedia ↗
-              </a>
+                Wikipedia
+              </ExternalLink>
             )}
           </div>
         </section>
