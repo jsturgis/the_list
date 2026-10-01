@@ -1,4 +1,4 @@
-"""Pipeline jobs: weekly ingestion and daily maintenance."""
+"""Pipeline jobs: weekly ingestion and daily maintenance, run by `python -m app.cli ingest`."""
 from __future__ import annotations
 
 import asyncio
@@ -6,12 +6,9 @@ import logging
 import traceback
 from datetime import datetime, timedelta
 from typing import Optional
-from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy.orm import Session, joinedload
 
 from app.clock import local_today
@@ -19,6 +16,7 @@ from app.config import settings
 from app.database import SessionLocal
 from app.ingestion.drive import fetch_latest_edition
 from app.ingestion.edition import edition_meta, edition_shows
+from app.ingestion.images import check_image_urls
 from app.ingestion.upsert import find_venue, known_region, upsert_shows
 from app.models.act import Act
 from app.models.band import Band
@@ -105,6 +103,18 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                 if found:
                     filled = {k: v for k, v in found.items() if v and not enrichment.get(k)}
                     data["band_enrichment"][i] = (name, {**enrichment, **filled})
+
+        # The edition's image URLs are often broken: keep (or repair) only those that load.
+        image_urls = [d["venue_image_url"] for d in shows_data if d.get("venue_image_url")] + [
+            e["image_url"] for d in shows_data for _, e in d["band_enrichment"] if e.get("image_url")]
+        if image_urls:
+            checked = await loop.run_in_executor(None, check_image_urls, image_urls)
+            for data in shows_data:
+                if data.get("venue_image_url"):
+                    data["venue_image_url"] = checked.get(data["venue_image_url"])
+                for _, enrichment in data["band_enrichment"]:
+                    if enrichment.get("image_url"):
+                        enrichment["image_url"] = checked.get(enrichment["image_url"])
 
         shows_before = db.query(Show).count()
         shows = upsert_shows(db, shows_data)
@@ -193,11 +203,6 @@ async def _run_venue_enrichment_async(venue_id: Optional[int] = None) -> None:
         db.close()
 
 
-def run_ingestion_pipeline() -> None:
-    """Sync entry point for APScheduler."""
-    asyncio.run(_run_ingestion_async())
-
-
 def run_daily_maintenance(db: Optional[Session] = None) -> None:
     """Mark past shows and hard-delete shows older than DATA_RETENTION_DAYS."""
     _own_db = db is None
@@ -222,24 +227,3 @@ def run_daily_maintenance(db: Optional[Session] = None) -> None:
     finally:
         if _own_db:
             db.close()
-
-
-# Schedules are in Bay Area time; the server runs in UTC.
-_TZ = ZoneInfo(settings.timezone)
-scheduler = BackgroundScheduler(timezone=_TZ)
-
-# Steve's email arrives Friday ~5:20pm Pacific and the Drive publisher updates latest.json between
-# 6pm and 7pm, so ingest after that.
-scheduler.add_job(
-    run_ingestion_pipeline,
-    CronTrigger(day_of_week="fri", hour=20, minute=0, timezone=_TZ),
-    id="weekly_ingestion",
-    replace_existing=True,
-)
-
-scheduler.add_job(
-    run_daily_maintenance,
-    CronTrigger(hour=0, minute=0, timezone=_TZ),
-    id="daily_maintenance",
-    replace_existing=True,
-)

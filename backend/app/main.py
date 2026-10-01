@@ -9,15 +9,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
 from app.graphql.schema import graphql_router
-from app.scheduler import scheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
-    scheduler.start()
     yield
-    scheduler.shutdown()
 
 
 app = FastAPI(title="The List API", version="0.1.0", lifespan=lifespan)
