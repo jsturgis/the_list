@@ -12,7 +12,7 @@ exploring the data locally.
 2. **Parses** each show's details (prices, age restrictions, times, and flags: `*` recommended, `$` will
    sell out, etc.)
 3. **Enriches** new venues with Google Maps Places (address, lat/lng, place ID), looks up genres on
-   MusicBrainz for bands the edition has none for, and keeps only image URLs that actually load
+   MusicBrainz for new bands the edition has none for, and keeps only image URLs and links that work
 4. **Stores** shows, bands, venues, and acts in SQLite (Alembic-managed schema)
 5. **Indexes** band and show embeddings in FAISS for Similar Bands (Ollama `nomic-embed-text`)
 6. **Exports** the data to static JSON and builds a Next.js static site with region, band, venue, genre,
@@ -261,7 +261,7 @@ Google Drive (public folder)
   └─ latest.json → newest formatted edition JSON
        └─ edition_shows()        → upsert-ready dict per show (details parsed, bands with genres/links)
             └─ Google Places     → only for venues not yet in the DB
-            └─ MusicBrainz       → genres for bands the edition has none for and the DB doesn't know
+            └─ MusicBrainz       → genres for new bands (not yet in the DB) the edition has none for
             └─ image URL check   → keep, repair (Wikimedia paths) or drop each image URL
                  └─ upsert_shows()   → Show, Venue, Band and Act rows
                       └─ embed + index in FAISS

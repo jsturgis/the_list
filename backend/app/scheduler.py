@@ -108,16 +108,15 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                 venue_cache[key] = await loop.run_in_executor(None, _enrich_venue, name, city or "", street, False)
             _apply_venue_data(data, venue_cache[key])
 
-        # Bands the edition has no genre for: look them up on MusicBrainz (no LLM), once per name,
-        # unless the database already has genres for them.
+        # New Bands the edition has no genre for: look them up on MusicBrainz (no LLM), once per name.
+        # A Band already in the database was looked up when it was new, so it isn't tried again.
         band_cache: dict[str, dict | None] = {}
         for data in shows_data:
             for i, (name, enrichment) in enumerate(data["band_enrichment"]):
                 if enrichment["genres"]:
                     continue
                 if name not in band_cache:
-                    known = db.query(Band).filter(Band.name == name).first()
-                    if known and known.genres:
+                    if db.query(Band.id).filter(Band.name == name).first():
                         band_cache[name] = None
                     else:
                         logger.info("ingestion: looking up genres for %s", name)
