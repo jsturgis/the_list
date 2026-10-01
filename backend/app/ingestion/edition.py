@@ -33,6 +33,8 @@ _FLAG_FIELDS = {"*": "is_recommended", "$": "will_sell_out", "@": "is_pit", "^":
 _REGION_CITY = {"San Francisco Venues": "San Francisco"}
 # The producer's placeholder when it couldn't split a listing; never a real address.
 _PLACEHOLDER_ADDRESS = "san francisco bay area"
+# "Black Flag (Greg Ginn, Max Zanelly)" -> band "Black Flag", note "Greg Ginn, Max Zanelly"; the ")" may be missing.
+_PARENTHETICAL_RE = re.compile(r"^(.*?)\s*\((.*?)\)?\s*$", re.DOTALL)
 
 
 def edition_meta(doc: dict) -> dict:
@@ -49,6 +51,32 @@ def edition_shows(doc: dict) -> list[dict]:
     return [_show(event) for event in doc.get("events", [])]
 
 
+def _acts(artists: list[dict]) -> list[tuple[str, str | None, dict]]:
+    """(band name, act note, artist) per act.
+
+    The producer splits a lineup at every comma, even inside parentheses: "Black Flag (Greg Ginn,
+    Max Zanelly)" arrives as "Black Flag (Greg Ginn" and "Max Zanelly)". Fragments are rejoined until
+    the parentheses balance; the act is then the name before "(" with the parenthetical as its note.
+    The first fragment's details (genre, link) stand for the act. Names that were never split, like
+    "Mdou Moctar (solo)", are left alone.
+    """
+    acts = []
+    i = 0
+    while i < len(artists):
+        first = artists[i]
+        name = first["name"].strip()
+        i += 1
+        if name.count("(") <= name.count(")"):
+            acts.append((name, None, first))
+            continue
+        while i < len(artists) and name.count("(") > name.count(")"):
+            name += ", " + artists[i]["name"].strip()
+            i += 1
+        band, note = _PARENTHETICAL_RE.match(name).groups()
+        acts.append((band.strip() or name, note.strip() or None, first))
+    return acts
+
+
 def _show(event: dict) -> dict:
     details = _LEGEND_RE.sub("", event.get("raw_details") or "").strip()
     parsed = _parse_venue_part(details)  # age, price, times, flags, "(...)" notes; leftovers as name/city
@@ -56,18 +84,20 @@ def _show(event: dict) -> dict:
 
     artists = [a for a in event.get("artists", []) if (a.get("name") or "").strip()]
     artists.sort(key=lambda a: a.get("role") != "headliner")  # stable: headliner first, order kept
+    acts = _acts(artists)
     venue_name, city, address, listing = _venue(event)
     venue = event.get("venue") or {}
     coordinates = venue.get("coordinates") or {}
 
     notes = [n for n in (parsed["notes"], leftovers, listing.get("notes")) if n]
-    notes += [f"{a['name'].strip()}: {a['note'].strip()}" for a in artists if (a.get("note") or "").strip()]
+    notes += [f"{name}: {a['note'].strip()}" for name, _, a in acts if (a.get("note") or "").strip()]
 
     age = event.get("age_restriction")
     show = {
         "date": datetime.strptime(event["date"], "%b %d, %Y").date(),
-        "bands": [a["name"].strip() for a in artists],
-        "band_enrichment": [(a["name"].strip(), _band_enrichment(a)) for a in artists],
+        "bands": [name for name, _, _ in acts],
+        "act_notes": [note for _, note, _ in acts],
+        "band_enrichment": [(name, _band_enrichment(a)) for name, _, a in acts],
         "venue_name": venue_name,
         "city": city or _REGION_CITY.get(venue.get("region", "")),
         "address": address,

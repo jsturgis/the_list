@@ -47,6 +47,7 @@ class BandType:
 class ActType:
     position: int
     band: BandType
+    note: str | None = None
 
 
 @strawberry.type

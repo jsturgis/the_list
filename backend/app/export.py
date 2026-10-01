@@ -2,7 +2,7 @@
 
 Writes four files to a directory:
   shows.json   Shows from today (Bay Area time) that aren't Past, each with `venueId` and
-               `acts` as [bandId, position]
+               `acts` as [bandId, position] (plus the act's note, when it has one)
   venues.json  Venues referenced by those Shows
   bands.json   Bands referenced by those Shows, each with up to six `similar` Band ids (exported only)
   meta.json    generation time, latest email subject, filter options, count of Upcoming Shows
@@ -60,7 +60,7 @@ def export(db: Session, out_dir: str | Path) -> dict[str, int]:
         row = dataclasses.asdict(_show(s))
         del row["venue"], row["acts"]
         row["venue_id"] = s.venue_id
-        row["acts"] = [[a.band_id, a.position] for a in s.acts]
+        row["acts"] = [[a.band_id, a.position] + ([a.note] if a.note else []) for a in s.acts]
         show_rows.append(row)
 
     band_rows = []

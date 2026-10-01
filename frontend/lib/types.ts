@@ -41,6 +41,8 @@ export interface Band {
 export interface Act {
   position: number
   band: Band
+  /** What Steve put in parentheses after the name, e.g. the members. */
+  note?: string
 }
 
 export interface Show {
@@ -81,8 +83,8 @@ export interface ExportBand extends Required<Band> {
 
 export interface ExportShow extends Required<Omit<Show, 'venue' | 'acts'>> {
   venueId: number
-  /** [bandId, position] pairs. */
-  acts: [number, number][]
+  /** [bandId, position], plus the act's note when it has one. */
+  acts: ([number, number] | [number, number, string])[]
 }
 
 export interface ExportMeta {

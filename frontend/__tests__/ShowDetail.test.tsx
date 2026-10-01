@@ -123,6 +123,14 @@ describe('ShowDetail', () => {
     expect(screen.getByText(/Benefit: canned food drive/)).toBeInTheDocument()
   })
 
+  it('shows an act note next to the band in the lineup', () => {
+    render(<ShowDetail show={makeShow({ acts: [{ position: 0, band: makeBand({ id: 1, name: 'Black Flag' }), note: 'Greg Ginn, Max Zanelly' }] })} />)
+    const act = screen.getByTestId('act-name').closest('li')!
+    expect(act).toHaveTextContent('Black Flag')
+    expect(act).toHaveTextContent('(Greg Ginn, Max Zanelly)')
+    expect(screen.getByRole('link', { name: 'Black Flag' })).toBeInTheDocument()  // the note isn't part of the link
+  })
+
   it('offers the show as a calendar file and as a Google Calendar event', () => {
     render(<ShowDetail show={makeShow({ id: 7, date: '2026-10-03' })} />)
     const ics = screen.getByRole('link', { name: 'Add to calendar' })

@@ -108,6 +108,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
                 >
                   <span data-testid="act-name">{act.band.name}</span>
                 </BandLink>
+                {act.note && <span className="text-zinc-500 dark:text-zinc-400"> ({act.note})</span>}
               </li>
             ))}
         </ol>

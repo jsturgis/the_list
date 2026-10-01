@@ -217,6 +217,15 @@ def test_acts_positions(db):
     assert acts[0].position == 0
 
 
+def test_act_notes_follow_their_band(db):
+    # The DJ is dropped, so notes must be matched by name rather than position.
+    upsert_shows(db, [_show(bands=["dj Opener", "Black Flag", "Starcrawler"],
+                            act_notes=[None, "Greg Ginn, Max Zanelly", None])])
+    acts = {a.band.name: a for a in db.query(Act)}
+    assert acts["Black Flag"].note == "Greg Ginn, Max Zanelly"
+    assert acts["Starcrawler"].note is None
+
+
 def test_dj_filtered(db):
     upsert_shows(db, [_show(bands=["Real Band", "dj Aaron Axelsen", "Support"])])
     names = [b.name for b in db.query(Band).all()]
