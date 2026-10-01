@@ -72,20 +72,42 @@ describe('filterShows: venue (test_region_filter)', () => {
     expect(ids(run([sf, oak], { region: 'east_bay' }))).toEqual([oak.id])
   })
 
-  it('venue name is a case-insensitive contains', () => {
-    const fox = show({ venue: makeVenue({ name: 'The Fox Theater' }) }), chapel = show({ venue: makeVenue({ name: 'The Chapel' }) })
-    expect(ids(run([fox, chapel], { venue: 'fox th' }))).toEqual([fox.id])
-  })
 })
 
-describe('filterShows: band (test_band_name_partial_match)', () => {
-  it('band name is a case-insensitive contains on any Act', () => {
-    const rose = show({ bandName: 'Rose City Band' }), motrik = show({ bandName: 'Motrik' })
-    const support = show({ acts: [
-      { position: 0, band: makeBand({ id: 900, name: 'Headliner' }) },
-      { position: 1, band: makeBand({ id: 901, name: 'rose garden' }) },
-    ] })
-    expect(ids(run([rose, motrik, support], { band: 'ROSE' }))).toEqual([rose.id, support.id])
+describe('filterShows: band-or-venue search (test_search_*)', () => {
+  const rose = show({ bandName: 'Rose City Band', venue: makeVenue({ name: 'The Chapel' }) })
+  const fox = show({ bandName: 'Motrik', venue: makeVenue({ name: 'The Fox Theater' }) })
+  const cafe = show({ bandName: 'Headliner', venue: makeVenue({ name: 'Café Du Nord' }) })
+  const support = show({ acts: [
+    { position: 0, band: makeBand({ id: 900, name: 'Headliner' }) },
+    { position: 1, band: makeBand({ id: 901, name: 'rose garden' }) },
+  ] })
+  const all = [rose, fox, cafe, support]
+
+  it('matches a band name on any Act, case-insensitively', () => {
+    expect(ids(run(all, { q: 'ROSE' }))).toEqual([rose.id, support.id])
+  })
+
+  it('matches a venue name', () => {
+    expect(ids(run(all, { q: 'fox th' }))).toEqual([fox.id])
+  })
+
+  it('tolerates a typo', () => {
+    expect(ids(run(all, { q: 'chapl' }))).toEqual([rose.id])
+    expect(ids(run(all, { q: 'mortik' }))).toEqual([fox.id])
+  })
+
+  it('ignores accents', () => {
+    expect(ids(run(all, { q: 'cafe du nord' }))).toEqual([cafe.id])
+  })
+
+  it('needs every word, each matching a band or the venue', () => {
+    expect(ids(run(all, { q: 'rose chapel' }))).toEqual([rose.id])
+  })
+
+  it('reads old band= and venue= links', () => {
+    expect(ids(run(all, { band: 'rose' }))).toEqual([rose.id, support.id])
+    expect(ids(run(all, { band: 'rose', venue: 'chapel' }))).toEqual([rose.id])
   })
 })
 

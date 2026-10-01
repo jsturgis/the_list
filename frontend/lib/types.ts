@@ -104,8 +104,8 @@ export interface ShowFilters {
   fromDate?: string
   toDate?: string
   region?: string
-  bandName?: string
-  venueName?: string
+  /** Fuzzy band-or-venue search (see lib/fuzzySearch.ts). */
+  search?: string
   genre?: string
   priceMax?: number
   isFree?: boolean

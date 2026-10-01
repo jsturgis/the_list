@@ -109,6 +109,8 @@ class ShowFilters:
     band_id: int | None = None
     band_name: str | None = None
     venue_name: str | None = None
+    # Fuzzy band-or-venue search (see app/fuzzy_search.py).
+    search: str | None = None
     genre: str | None = None
     price_max: float | None = None
     is_free: bool | None = None

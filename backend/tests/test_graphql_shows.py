@@ -152,6 +152,59 @@ def test_band_name_partial_match(db, client):
     assert data["shows"][0]["acts"][0]["band"]["name"] == "Rose City Band"
 
 
+# ── shows: band-or-venue search (mirrored in frontend/__tests__/filterShows.test.ts) ──
+
+def _search_shows(db):
+    """Rose City Band at The Chapel, Motrik at The Fox Theater, a support Act named rose garden
+    at Café Du Nord."""
+    rose = _show(db, _venue(db, name="The Chapel"), show_date=date(2026, 10, 1))
+    fox = _show(db, _venue(db, name="The Fox Theater"), show_date=date(2026, 10, 2))
+    cafe = _show(db, _venue(db, name="Café Du Nord"), show_date=date(2026, 10, 3))
+    _act(db, rose, _band(db, "Rose City Band"))
+    _act(db, fox, _band(db, "Motrik"))
+    _act(db, cafe, _band(db, "Headliner"))
+    _act(db, cafe, _band(db, "rose garden"), position=1)
+    return rose.id, fox.id, cafe.id
+
+
+def _search(client, query, extra=""):
+    data = _gql(client, f'{{ shows(filters: {{ search: "{query}" }}{extra}) {{ id }} }}')
+    return [s["id"] for s in data["shows"]]
+
+
+def test_search_matches_band_on_any_act(db, client):
+    rose, _, cafe = _search_shows(db)
+    assert _search(client, "ROSE") == [rose, cafe]
+
+
+def test_search_matches_venue(db, client):
+    _, fox, _ = _search_shows(db)
+    assert _search(client, "fox th") == [fox]
+
+
+def test_search_tolerates_typo(db, client):
+    rose, fox, _ = _search_shows(db)
+    assert _search(client, "chapl") == [rose]
+    assert _search(client, "mortik") == [fox]
+
+
+def test_search_ignores_accents(db, client):
+    _, _, cafe = _search_shows(db)
+    assert _search(client, "cafe du nord") == [cafe]
+
+
+def test_search_needs_every_word_across_names(db, client):
+    rose, _, _ = _search_shows(db)
+    assert _search(client, "rose chapel") == [rose]
+    assert _search(client, "rose fox") == []
+
+
+def test_search_paginates_after_matching(db, client):
+    _, _, cafe = _search_shows(db)
+    assert _search(client, "rose", ", offset: 1") == [cafe]
+    assert len(_search(client, "rose", ", limit: 1")) == 1
+
+
 # ── shows: price filters ──────────────────────────────────────────────────────
 
 def test_price_max_filter(db, client):
