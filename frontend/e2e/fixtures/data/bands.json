@@ -1,0 +1,107 @@
+[
+  {
+    "id": 1,
+    "name": "Neon Harbor",
+    "genres": [
+      "indie rock"
+    ],
+    "spotifyUrl": "https://open.spotify.com/artist/neonharbor",
+    "soundcloudUrl": null,
+    "bandcampUrl": null,
+    "websiteUrl": null,
+    "imageUrl": null,
+    "isLocal": null,
+    "similar": [
+      2,
+      3
+    ]
+  },
+  {
+    "id": 2,
+    "name": "Fog City Ramblers",
+    "genres": [
+      "americana"
+    ],
+    "spotifyUrl": null,
+    "soundcloudUrl": null,
+    "bandcampUrl": null,
+    "websiteUrl": null,
+    "imageUrl": null,
+    "isLocal": null,
+    "similar": [
+      1
+    ]
+  },
+  {
+    "id": 3,
+    "name": "Static Bloom",
+    "genres": [
+      "shoegaze"
+    ],
+    "spotifyUrl": null,
+    "soundcloudUrl": null,
+    "bandcampUrl": null,
+    "websiteUrl": null,
+    "imageUrl": null,
+    "isLocal": null,
+    "similar": [
+      1
+    ]
+  },
+  {
+    "id": 4,
+    "name": "Gilman Youth",
+    "genres": [
+      "hardcore punk"
+    ],
+    "spotifyUrl": null,
+    "soundcloudUrl": null,
+    "bandcampUrl": null,
+    "websiteUrl": null,
+    "imageUrl": null,
+    "isLocal": null,
+    "similar": []
+  },
+  {
+    "id": 5,
+    "name": "Tidepool Choir",
+    "genres": [
+      "folk"
+    ],
+    "spotifyUrl": null,
+    "soundcloudUrl": null,
+    "bandcampUrl": null,
+    "websiteUrl": null,
+    "imageUrl": null,
+    "isLocal": null,
+    "similar": []
+  },
+  {
+    "id": 6,
+    "name": "Ghost of Yesterday",
+    "genres": [
+      "rock"
+    ],
+    "spotifyUrl": null,
+    "soundcloudUrl": null,
+    "bandcampUrl": null,
+    "websiteUrl": null,
+    "imageUrl": null,
+    "isLocal": null,
+    "similar": []
+  },
+  {
+    "id": 7,
+    "name": "Redwood Sirens",
+    "genres": [
+      "surf rock"
+    ],
+    "spotifyUrl": null,
+    "soundcloudUrl": null,
+    "bandcampUrl": null,
+    "websiteUrl": null,
+    "imageUrl": null,
+    "isLocal": null,
+    "similar": []
+  }
+]

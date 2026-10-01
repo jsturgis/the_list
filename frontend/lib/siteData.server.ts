@@ -3,7 +3,7 @@
  * Used by server components and generateStaticParams; the browser uses lib/data.ts instead.
  */
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { bandShows, hydrateShows, similarBands } from './data'
 import type { ExportBand, ExportMeta, ExportShow, ExportVenue, Show } from './types'
 
@@ -22,7 +22,10 @@ export interface ExportData {
   bandIds(): string[]
 }
 
-export const DEFAULT_DATA_DIR = join(process.cwd(), 'public', 'data')
+// SITE_DATA_DIR builds the site from another export (the e2e tests use e2e/fixtures/data).
+export const DEFAULT_DATA_DIR = process.env.SITE_DATA_DIR
+  ? resolve(process.env.SITE_DATA_DIR)
+  : join(process.cwd(), 'public', 'data')
 
 function readJson<T>(dir: string, name: string): T {
   try {
