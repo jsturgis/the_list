@@ -229,7 +229,9 @@ The site is published at **https://jsturgis.github.io/the_list/** as a static si
 [ADR 0002](docs/adr/0002-static-site-on-github-pages.md)).
 
 - **The `data` branch** is an orphan branch holding the SQLite database (`the_list.db`) and the FAISS
-  index (`faiss/`). `main` never contains data files.
+  index (`faiss/`). `main` never contains data files. It keeps only its newest 4 commits (the current
+  data plus 3 to roll back to): after each ingest, older history is squashed into the oldest kept
+  commit and the branch is force-pushed (`.github/scripts/prune-history.sh`).
 - **The Deploy workflow** (`.github/workflows/deploy.yml`) has two jobs:
   1. **Ingest**: runs `python -m app.cli ingest` against the `data` branch's database (with an Ollama
      service container for embeddings) and commits the changed database and index back to `data`.
@@ -250,9 +252,11 @@ The site is published at **https://jsturgis.github.io/the_list/** as a static si
   `GOOGLE_MAPS_API_KEY` secret and the `DRIVE_LATEST_FILE_ID` repository variable (Settings → Secrets
   and variables → Actions). No Anthropic key: ingestion makes no LLM calls.
 - **Updating the data by hand**: commit a new `the_list.db` and `faiss/` to the `data` branch, then run
-  the workflow.
+  the workflow with **Skip ingestion**.
 - **Rolling back**: revert the bad commit on the `data` branch (`git revert <sha>` on a checkout of
-  `data`, then push) and run the workflow.
+  `data`, then push) and run the workflow with **Skip ingestion**. Only the last 3 changes can be rolled
+  back this way. The branch is rewritten when it's pruned, so fetch it fresh
+  (`git fetch origin data && git reset --hard origin/data`) before committing to it by hand.
 
 ## How ingestion works
 
