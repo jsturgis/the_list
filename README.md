@@ -1,16 +1,23 @@
 # The List
 
-A weekly SF Bay Area music discovery app. Ingests the formatted edition of [Steve List's](mailto:skoepke@stevelist.com) curated Friday list, enriches new venues, and serves them through a GraphQL API and Next.js frontend.
+A weekly SF Bay Area music discovery site, published at **https://jsturgis.github.io/the_list/**.
+Every Friday, a GitHub Action ingests the formatted edition of [Steve List's](mailto:skoepke@stevelist.com)
+curated list, enriches it, and rebuilds a static site on GitHub Pages. A GraphQL API is available for
+exploring the data locally.
 
 ## What it does
 
-1. **Ingests** the newest formatted edition (structured JSON: shows, venues, artists with genres and links) from a public Google Drive folder each Friday
-2. **Parses** each show's details (prices, age restrictions, times, and flags: `*` recommended, `$` will sell out, etc.)
-3. **Enriches** new venues via Google Maps Places API (address, lat/lng, place ID)
+1. **Ingests** the newest formatted edition (structured JSON: shows, venues, artists with genres and links)
+   from a public Google Drive folder each Friday
+2. **Parses** each show's details (prices, age restrictions, times, and flags: `*` recommended, `$` will
+   sell out, etc.)
+3. **Enriches** new venues with Google Maps Places (address, lat/lng, place ID), looks up genres on
+   MusicBrainz for bands the edition has none for, and keeps only image URLs that actually load
 4. **Stores** shows, bands, venues, and acts in SQLite (Alembic-managed schema)
-5. **Indexes** show embeddings in FAISS for similarity search (Ollama nomic-embed-text)
-6. **Serves** a Strawberry GraphQL API over FastAPI
-7. **Renders** a Next.js SSG frontend with region/date/genre filters
+5. **Indexes** band and show embeddings in FAISS for Similar Bands (Ollama `nomic-embed-text`)
+6. **Exports** the data to static JSON and builds a Next.js static site with region, band, venue, genre,
+   date and free-only filters, all running in the browser
+7. **Serves** a Strawberry GraphQL API over FastAPI, for local development only
 
 ## Stack
 
@@ -18,12 +25,13 @@ A weekly SF Bay Area music discovery app. Ingests the formatted edition of [Stev
 |---|---|
 | Backend | Python 3.12, FastAPI, Strawberry GraphQL |
 | ORM / migrations | SQLAlchemy 2, Alembic |
-| Database | SQLite (development), PostgreSQL (production) |
-| Enrichment | MusicBrainz API, Google Maps Places API, Claude Haiku 4.5 |
+| Database | SQLite (kept on the `data` branch in production) |
+| Enrichment | Google Maps Places API, MusicBrainz API; Claude Haiku 4.5 only for the manual venue re-enrichment job |
 | Embeddings | Ollama `nomic-embed-text` (dim=768) |
 | Vector search | FAISS `IndexIDMap(IndexFlatL2)` |
 | Source | Formatted edition JSON on Google Drive (public link, `latest.json` pointer) |
-| Frontend | Next.js (SSG), React Testing Library, MSW |
+| Frontend | Next.js static export, Tailwind; Vitest, React Testing Library, MSW |
+| Hosting | GitHub Pages, built and deployed by GitHub Actions |
 
 ## Local setup
 
@@ -31,7 +39,7 @@ A weekly SF Bay Area music discovery app. Ingests the formatted edition of [Stev
 
 ```bash
 cp backend/.env.example backend/.env
-# edit backend/.env — set GOOGLE_MAPS_API_KEY and DRIVE_LATEST_FILE_ID
+# edit backend/.env: set GOOGLE_MAPS_API_KEY and DRIVE_LATEST_FILE_ID
 
 docker compose up --build
 ```
@@ -49,22 +57,18 @@ schedule anything, the weekly run is a GitHub Action):
 docker compose exec api python -m app.cli ingest
 ```
 
-**Seed from the sample email** (bypasses enrichment):
+**Seed from the sample edition** (no network calls: no Drive, Google Places, MusicBrainz or embeddings):
 ```bash
 docker compose exec api python -c "
-import email as e, sys
-sys.path.insert(0, '.')
+import json
 from app.database import Base, SessionLocal, engine
-from app.ingestion.parser import parse_email_body
+from app.ingestion.edition import edition_shows
 from app.ingestion.upsert import upsert_shows
 
-msg = e.message_from_bytes(open('/samples/San Francisco Area Music List for Friday, September 25th, 2026.eml','rb').read())
-plain = next(p.get_payload(decode=True).decode('utf-8') for p in msg.walk() if p.get_content_type()=='text/plain')
-raw = parse_email_body(plain)
-enriched = [{**vars(r), 'genres':[], 'spotify_url':None, 'soundcloud_url':None, 'venue_website':None, 'address':None, 'latitude':None, 'longitude':None, 'google_place_id':None, 'ticket_url':None} for r in raw]
+doc = json.load(open('/samples/Bay Area & Santa Cruz Concert Events - September 25, 2026 (v2.0.0 Final).json'))
 Base.metadata.create_all(bind=engine)
 db = SessionLocal()
-shows = upsert_shows(db, enriched)
+shows = upsert_shows(db, edition_shows(doc))
 db.commit()
 print(f'Upserted {len(shows)} shows')
 db.close()
@@ -94,6 +98,12 @@ mkdir -p /tmp/site && ln -sfn "$PWD/out" /tmp/site/the_list && python3 -m http.s
 # http://localhost:8080/the_list/
 ```
 
+Frontend checks (the same ones CI runs):
+
+```bash
+cd frontend && npm test && npm run typecheck && npm run lint
+```
+
 ---
 
 ### Without Docker
@@ -104,47 +114,8 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-dev.txt
 cp .env.example .env
-# edit .env
+# edit .env: see the environment variables reference below
 ```
-
-Required env vars:
-
-| Variable | Description |
-|---|---|
-| `DRIVE_LATEST_FILE_ID` | Drive file id of the public `latest.json` pointer |
-| `GOOGLE_MAPS_API_KEY` | Google Maps Places API key (venue enrichment) |
-| `DATABASE_URL` | SQLite or PostgreSQL URL (default: `sqlite:///./the_list.db`) |
-| `OLLAMA_BASE_URL` | Ollama server URL (default: `http://localhost:11434`) |
-
-## Environment variables reference
-
-### Required (no working default)
-
-| Variable | Description |
-|---|---|
-| `GOOGLE_MAPS_API_KEY` | Venue enrichment (address, lat/lng, place ID) |
-| `DRIVE_LATEST_FILE_ID` | Drive file id of the public `latest.json` pointer (see below) |
-
-### Required for production (defaults are dev-only)
-
-| Variable | Default | Notes |
-|---|---|---|
-| `DATABASE_URL` | `sqlite:///./the_list.db` | Use a PostgreSQL URL in production |
-| `FAISS_INDEX_PATH` | `./data/faiss` | Point to a persistent volume path (e.g. `/app/data/faiss`) |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | URL of your Ollama instance |
-
-### Optional
-
-| Variable | Default | Notes |
-|---|---|---|
-| `ANTHROPIC_API_KEY` | — | Only for the manual venue re-enrichment job (LLM name clean-up and Wikipedia descriptions); weekly ingestion makes no LLM calls |
-| `OLLAMA_EMBEDDING_MODEL` | `nomic-embed-text` | Change only if swapping embedding models |
-| `DATA_RETENTION_DAYS` | `90` | Shows older than this are hard-deleted |
-| `MUSICBRAINZ_APP_NAME` | `the-list` | MusicBrainz rate-limit user-agent |
-| `MUSICBRAINZ_APP_VERSION` | `0.1` | MusicBrainz rate-limit user-agent |
-| `MUSICBRAINZ_CONTACT` | `https://github.com/jsturgis/the_list` | MusicBrainz rate-limit contact |
-
-> **Drive setup**: install `scripts/drive-publisher.gs` as a Google Apps Script with a daily trigger. It moves formatted editions from your Drive root into a public folder (raw email exports into a private one) and keeps `latest.json` pointing at the newest edition. Set `DRIVE_LATEST_FILE_ID` to that file's id.
 
 Run the tests:
 
@@ -158,28 +129,70 @@ Start the API server (creates tables automatically on first boot):
 uvicorn app.main:app --reload
 ```
 
-GraphQL playground: http://localhost:8000/graphql
+GraphQL playground: http://localhost:8000/graphql. You also need Ollama running locally with
+`nomic-embed-text` pulled for a full ingest.
+
+## Environment variables reference
+
+Set these in `backend/.env` for local runs. The Deploy workflow sets its own (see [Deployment](#deployment)).
+
+### Required (no working default)
+
+| Variable | Description |
+|---|---|
+| `DRIVE_LATEST_FILE_ID` | Drive file id of the public `latest.json` pointer (see Drive setup below) |
+| `GOOGLE_MAPS_API_KEY` | Venue enrichment (address, lat/lng, place ID) |
+
+### Paths and services
+
+| Variable | Default | Notes |
+|---|---|---|
+| `DATABASE_URL` | `sqlite:///./the_list.db` | SQLite URL; Docker Compose sets `sqlite:////app/data/the_list.db` |
+| `FAISS_INDEX_PATH` | `./data/faiss` | Docker Compose sets `/app/data/faiss` |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | URL of your Ollama instance |
+
+### Optional
+
+| Variable | Default | Notes |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | (none) | Only for the manual venue re-enrichment job (LLM name clean-up and Wikipedia descriptions); ingestion makes no LLM calls |
+| `OLLAMA_EMBEDDING_MODEL` | `nomic-embed-text` | Change only if swapping embedding models (requires re-embedding everything) |
+| `DATA_RETENTION_DAYS` | `90` | Shows older than this are hard-deleted |
+| `TIMEZONE` | `America/Los_Angeles` | Timezone for "today" and Upcoming vs Past |
+| `MUSICBRAINZ_APP_NAME` | `the-list` | MusicBrainz user-agent |
+| `MUSICBRAINZ_APP_VERSION` | `0.1` | MusicBrainz user-agent |
+| `MUSICBRAINZ_CONTACT` | `https://github.com/jsturgis/the_list` | MusicBrainz user-agent contact |
+
+> **Drive setup**: install `scripts/drive-publisher.gs` as a Google Apps Script with a daily trigger. It moves formatted editions from your Drive root into a public folder (raw email exports into a private one) and keeps `latest.json` pointing at the newest edition. Set `DRIVE_LATEST_FILE_ID` to that file's id.
 
 ## Project structure
 
 ```
 backend/
   app/
-    ingestion/       # Email parser (T1) and upsert layer (T2)
-    enrichment/      # MusicBrainz + Google Maps + LLM chain (T5)
-    models/          # SQLAlchemy ORM models (Show, Band, Venue, Act)
+    cli.py           # python -m app.cli ingest | export
+    scheduler.py     # ingestion pipeline and daily maintenance (run by `cli ingest`)
+    export.py        # static JSON export for the frontend
+    catalog.py       # filter options, Similar Bands, latest subject (shared by API and export)
+    ingestion/       # Drive fetch, edition mapping, upsert, image URL checks, venue clean-up scripts
+    pipeline/        # Google Places + MusicBrainz enrichment, embedding
+    embeddings/      # Ollama client + FAISS indices
+    models/          # SQLAlchemy ORM models (Show, Band, Venue, Act, IngestionRun)
     graphql/         # Strawberry types, queries, mutations
-    embeddings/      # Ollama client + FAISS index
-    pipeline/        # End-to-end wiring
-    scheduler.py     # ingestion pipeline and daily maintenance (python -m app.cli ingest)
   tests/
-    fixtures/        # Real .eml sample for parser tests
-    test_parser.py   # 22 tests (parse_email_body seam)
-    test_upsert.py   # 29 tests (upsert_shows seam)
   alembic/           # Database migrations
+frontend/
+  app/               # Next.js pages: home, Show, Band and Venue pages, not-found
+  components/        # UI, including the client-side Band modal
+  lib/               # data loading, browser filtering, base path helper
+  __tests__/
+samples/             # sample edition JSON and the (redacted) email it came from
+scripts/
+  drive-publisher.gs # Google Apps Script that publishes editions to the public Drive folder
 docs/
   adr/               # Architecture decision records
   agents/            # Agent skill docs (issue tracker, triage labels, domain)
+.github/workflows/   # backend and frontend tests, Deploy (weekly ingest + Pages)
 ```
 
 ## Database migrations
@@ -246,25 +259,25 @@ The site is published at **https://jsturgis.github.io/the_list/** as a static si
 ```
 Google Drive (public folder)
   └─ latest.json → newest formatted edition JSON
-       └─ edition_shows()      → upsert-ready dict per show (details parsed, bands with genres/links)
-            └─ Google Places   → only for venues not yet in the DB
-                 └─ upsert_shows()  → Show rows in DB
+       └─ edition_shows()        → upsert-ready dict per show (details parsed, bands with genres/links)
+            └─ Google Places     → only for venues not yet in the DB
+            └─ MusicBrainz       → genres for bands the edition has none for and the DB doesn't know
+            └─ image URL check   → keep, repair (Wikimedia paths) or drop each image URL
+                 └─ upsert_shows()   → Show, Venue, Band and Act rows
                       └─ embed + index in FAISS
 ```
 
-**Show identity** (upsert key): `(date, venue_id, door_time)` — re-running ingestion on the same email is idempotent.
+**Show identity** (upsert key): `(date, venue_id, door_time)`. Re-running ingestion on the same edition
+is idempotent.
 
-**Bands**: DJs (`dj …`) and back-to-back sets (`… b2b …`) are excluded. The headliner (position 0) receives MusicBrainz enrichment; support acts get empty enrichment and are enriched when they headline.
+**Bands**: DJs (`dj …`) and back-to-back sets (`… b2b …`) are excluded. Band details from the edition
+only fill empty fields, so corrections made in the database aren't overwritten.
 
-**Data retention**: shows older than 90 days are hard-deleted.
+**Data retention**: shows older than `DATA_RETENTION_DAYS` (90) are hard-deleted by the daily maintenance
+that runs before each ingest.
 
 ## Issues / specs
 
-- [#1 Backend MVP spec](https://github.com/jsturgis/the_list/issues/1)
-- [#2 T1: Email parser](https://github.com/jsturgis/the_list/issues/2) ✅
-- [#3 T3: GraphQL Show queries](https://github.com/jsturgis/the_list/issues/3) ✅
-- [#4 T4: GraphQL Band + similarity](https://github.com/jsturgis/the_list/issues/4) ✅
-- [#5 T2: Upsert layer](https://github.com/jsturgis/the_list/issues/5) ✅
-- [#6 T5: Enrichment chain](https://github.com/jsturgis/the_list/issues/6) ✅
-- [#7 T6: Gmail fetch + full pipeline](https://github.com/jsturgis/the_list/issues/7) ✅
-- [#8 Frontend spec](https://github.com/jsturgis/the_list/issues/8)
+- [#1 Backend MVP spec](https://github.com/jsturgis/the_list/issues/1) (tickets #2–#7)
+- [#8 Frontend MVP spec](https://github.com/jsturgis/the_list/issues/8)
+- [#10 Static site on GitHub Pages, rebuilt weekly](https://github.com/jsturgis/the_list/issues/10) (tickets #11–#19)
