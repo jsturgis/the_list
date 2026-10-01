@@ -211,14 +211,15 @@ async def test_pipeline_looks_up_genres_for_bands_without_one(mock_batch, mock_b
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler._enrich_band", side_effect=_musicbrainz)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
-async def test_pipeline_skips_lookup_for_bands_already_known_with_genres(mock_batch, mock_band, mock_venue, mock_fetch, db):
+async def test_pipeline_looks_up_only_bands_new_to_the_database(mock_batch, mock_band, mock_venue, mock_fetch, db):
     await _run_ingestion_async(db=db)
     mock_band.reset_mock()
 
     await _run_ingestion_async(db=db)
 
-    # Chat Pile now has genres; only the still-unknown Bands are tried again.
-    assert [call.args[0] for call in mock_band.call_args_list] == ["Mystery Act"]
+    # Both Bands are saved now: Mystery Act still has no genre, but it was looked up once already.
+    mock_band.assert_not_called()
+    assert db.query(Band).filter(Band.name == "Mystery Act").one().genres == []
 
 
 @patch("app.scheduler.fetch_latest_edition", return_value=(None, None))
