@@ -16,7 +16,7 @@ export function hydrateShows(shows: ExportShow[], venues: ExportVenue[], bands: 
     ...show,
     venue: venueById.get(venueId)!,
     acts: acts
-      .map(([bandId, position]) => ({ position, band: bandById.get(bandId)! }))
+      .map(([bandId, position, note]) => ({ position, band: bandById.get(bandId)!, ...(note ? { note } : {}) }))
       .sort((a, b) => a.position - b.position),
   }))
 }

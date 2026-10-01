@@ -126,3 +126,13 @@ def test_meta_matches_the_graphql_api(exported, client):
     assert meta["totalUpcoming"] == api["showCount"] == 1
     assert meta["emailSubject"] == api["ingestionRuns"][0]["emailSubject"]
     assert datetime.fromisoformat(meta["generatedAt"]).tzinfo is not None
+
+
+def test_an_act_note_is_exported_as_a_third_element(db, data, tmp_path):
+    act = db.query(Act).filter(Act.show_id == data["tonight"].id, Act.band_id == data["support"].id).one()
+    act.note = "Greg Ginn, Max Zanelly"
+    db.commit()
+    with patch("app.catalog.find_similar_bands", return_value=[]):
+        export(db, tmp_path)
+    shows = {s["id"]: s for s in json.loads((tmp_path / "shows.json").read_text())}
+    assert shows[data["tonight"].id]["acts"] == [[data["headliner"].id, 0], [data["support"].id, 1, "Greg Ginn, Max Zanelly"]]

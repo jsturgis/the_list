@@ -66,7 +66,7 @@ def _band(b: Band) -> BandType:
 
 
 def _act(a: Act) -> ActType:
-    return ActType(position=a.position, band=_band(a.band))
+    return ActType(position=a.position, band=_band(a.band), note=a.note)
 
 
 def _show(s: Show) -> ShowType:

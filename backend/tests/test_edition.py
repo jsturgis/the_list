@@ -256,3 +256,35 @@ def test_band_extras_image_local_and_website():
         "https://thirdmanrecords.com/pages/sleep", "https://example.com/sleep.jpg", False)
     assert (e["Locals"]["website_url"], e["Locals"]["bandcamp_url"], e["Locals"]["is_local"]) == (
         None, "https://locals.bandcamp.com/", True)
+
+
+def test_a_lineup_split_inside_parentheses_is_rejoined_into_one_act():
+    # "Black Flag (Greg Ginn, Max Zanelly, David Rodriquez, Bryce Weston), Starcrawler", split at every comma.
+    artists = [
+        {"name": "Black Flag (Greg Ginn", "role": "headliner", "genre": "Hardcore Punk", "url": "https://blackflag.example/"},
+        {"name": "Max Zanelly", "role": "support", "genre": None, "url": "https://maxzanelly.bandcamp.com/"},
+        {"name": "David Rodriquez", "role": "support", "genre": None, "url": None},
+        {"name": "Bryce Weston)", "role": "support", "genre": None, "url": None},
+        {"name": "Starcrawler", "role": "support", "genre": "Glam Punk", "url": None},
+    ]
+    [s] = edition_shows(_doc(_event(artists=artists)))
+    assert s["bands"] == ["Black Flag", "Starcrawler"]
+    assert s["act_notes"] == ["Greg Ginn, Max Zanelly, David Rodriquez, Bryce Weston", None]
+    enrichment = dict(s["band_enrichment"])
+    assert enrichment["Black Flag"]["genres"] == ["hardcore punk"]  # the first fragment's details
+    assert enrichment["Black Flag"]["website_url"] == "https://blackflag.example/"
+    assert enrichment["Starcrawler"]["genres"] == ["glam punk"]
+
+
+def test_a_parenthesis_left_open_at_the_end_still_becomes_a_note():
+    artists = [{"name": "Scribe", "role": "headliner"}, {"name": "R50 (tribute", "role": "support"}]
+    [s] = edition_shows(_doc(_event(artists=artists)))
+    assert s["bands"] == ["Scribe", "R50"]
+    assert s["act_notes"] == [None, "tribute"]
+
+
+def test_names_with_balanced_parentheses_are_left_alone():
+    artists = [{"name": "Mdou Moctar (solo)", "role": "headliner"}, {"name": "Uniform", "role": "support"}]
+    [s] = edition_shows(_doc(_event(artists=artists)))
+    assert s["bands"] == ["Mdou Moctar (solo)", "Uniform"]
+    assert s["act_notes"] == [None, None]

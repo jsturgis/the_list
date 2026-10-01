@@ -227,6 +227,8 @@ def _upsert_acts(db: Session, show: Show, data: dict) -> None:
     ]
     # Steve sometimes repeats a name in the comma-separated lineup
     band_names = list(dict.fromkeys(band_names))
+    # Notes are matched by name, since filtering above can shift positions.
+    act_notes = dict(zip(data.get("bands") or [], data.get("act_notes") or []))
 
     # Delete-then-insert keeps position ordering correct on lineup changes
     db.query(Act).filter(Act.show_id == show.id).delete()
@@ -268,7 +270,7 @@ def _upsert_acts(db: Session, show: Show, data: dict) -> None:
         if enrichment.get("is_local") is not None and band.is_local is None:
             band.is_local = enrichment["is_local"]
 
-        db.add(Act(show_id=show.id, band_id=band.id, position=position))
+        db.add(Act(show_id=show.id, band_id=band.id, position=position, note=act_notes.get(name)))
 
     db.flush()
 
