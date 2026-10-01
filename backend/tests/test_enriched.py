@@ -61,6 +61,16 @@ def test_matched_show_gets_a_ticket_link_and_special_event():
     assert show["special_event"] == "Psyched! Fest 2026"
 
 
+def test_ticket_links_are_absolute_web_links():
+    def ticket_url(url):
+        return _merge(_event(), _event(ticketing={"ticket_url": url}))["ticket_url"]
+
+    assert ticket_url("palmtreemusicfestival.com") == "https://palmtreemusicfestival.com"
+    assert ticket_url("http://crybaby.live/tm-event/x/") == "http://crybaby.live/tm-event/x/"
+    assert ticket_url("mailto:box@venue.example") is None
+    assert ticket_url("TBA") is None
+
+
 def test_fields_the_formatted_edition_has_are_kept():
     show = _merge(
         _event(venue={"coordinates": {"lat": 1.0, "lng": 2.0}}, context={"special_event": "Fat Wreck 35"}),

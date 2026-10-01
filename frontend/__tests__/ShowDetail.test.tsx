@@ -152,6 +152,20 @@ describe('ShowDetail', () => {
     expect(screen.getByText(/Tickets via ticketweb/i)).toBeInTheDocument()
   })
 
+  it('names the provider on a ticket link only when the link goes to that provider', () => {
+    const { unmount } = render(<ShowDetail show={makeShow({
+      ticketProvider: 'ticketweb', ticketUrl: 'https://www.ticketweb.com/event/sleep-tickets/123' })} />)
+    expect(screen.getByRole('link', { name: /Tickets via ticketweb/i }))
+      .toHaveAttribute('href', 'https://www.ticketweb.com/event/sleep-tickets/123')
+    unmount()
+
+    render(<ShowDetail show={makeShow({
+      ticketProvider: 'ticketweb', ticketUrl: 'https://tickets.venuepilot.com/e/sleep-ivy-room' })} />)
+    expect(screen.getByRole('link', { name: /^Tickets$/ }))
+      .toHaveAttribute('href', 'https://tickets.venuepilot.com/e/sleep-ivy-room')
+    expect(screen.queryByText(/ticketweb/i)).not.toBeInTheDocument()
+  })
+
   it('leaves the new details out when unknown', () => {
     render(<ShowDetail show={show} />)
     expect(screen.queryByText('Sold out')).not.toBeInTheDocument()

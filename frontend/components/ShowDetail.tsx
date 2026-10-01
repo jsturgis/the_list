@@ -12,6 +12,21 @@ function formatAge(age: string): string {
   return age
 }
 
+/**
+ * Whether to name the ticket provider. The provider and the link can come from different exports, so a
+ * link names its provider only when it goes to that provider's site ("ticketweb" → www.ticketweb.com).
+ */
+function ticketProviderMatches(show: Show): boolean {
+  if (!show.ticketProvider) return false
+  if (!show.ticketUrl) return true
+  const provider = show.ticketProvider.toLowerCase().replace(/[^a-z0-9]/g, '')
+  try {
+    return new URL(show.ticketUrl).hostname.replace(/\./g, '').includes(provider)
+  } catch {
+    return false
+  }
+}
+
 interface ShowDetailProps {
   show: Show
 }
@@ -21,7 +36,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
   const set = formatTime(show.setTime)
   const price = formatPrice(show.priceMin, show.priceMax, show.isFree) ?? 'TBA'
   const age = formatAge(show.ageRestriction)
-  const ticketsLabel = show.ticketProvider ? `Tickets via ${show.ticketProvider}` : 'Tickets'
+  const ticketsLabel = ticketProviderMatches(show) ? `Tickets via ${show.ticketProvider}` : 'Tickets'
 
   return (
     <article className="max-w-2xl mx-auto flex flex-col gap-6">
