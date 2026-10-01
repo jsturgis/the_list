@@ -36,9 +36,8 @@ export default function ShowDetail({ show }: ShowDetailProps) {
         <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
           {show.acts[0]?.band.name ?? 'Unknown'}
         </h1>
-        <p className="flex items-center gap-1.5 text-lg text-zinc-600 dark:text-zinc-300 mt-1">
-          <BuildingOffice2Icon className="size-5 shrink-0 text-zinc-400 dark:text-zinc-500" />
-          <span>at <VenueLink venueId={show.venue.id} className="hover:underline">{show.venue.name}</VenueLink> · {show.venue.city}</span>
+        <p className="text-lg text-zinc-600 dark:text-zinc-300 mt-1">
+          at <VenueLink venueId={show.venue.id} className="hover:underline">{show.venue.name}</VenueLink> · {show.venue.city}
         </p>
       </header>
 

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { BuildingOffice2Icon, GlobeAltIcon, MapPinIcon, MusicalNoteIcon } from '@heroicons/react/20/solid'
+import { GlobeAltIcon, MapPinIcon, MusicalNoteIcon } from '@heroicons/react/20/solid'
 import ExternalLink from './ExternalLink'
 import type { Band, Show } from '@/lib/types'
 import SimilarBands from './SimilarBands'
@@ -103,11 +103,10 @@ export default function BandDetail({ band, upcomingShows, similarBands }: BandDe
                   href={`/shows/${show.id}`}
                   className="flex items-center justify-between gap-4 text-sm -mx-2 px-2 py-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800"
                 >
-                  <span className="flex items-center gap-1.5 font-medium text-zinc-900 dark:text-zinc-50 min-w-0">
-                    <BuildingOffice2Icon className="size-4 shrink-0 text-zinc-400 dark:text-zinc-500" />
-                    <span className="truncate">{show.venue.name}
+                  <span className="font-medium text-zinc-900 dark:text-zinc-50 min-w-0 truncate">
+                    {show.venue.name}
                     {' · '}
-                    {show.venue.city}</span>
+                    {show.venue.city}
                   </span>
                   <span className="text-zinc-500 dark:text-zinc-400 shrink-0">
                     {formatDateShort(show.date)}
