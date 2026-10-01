@@ -5,11 +5,12 @@
  * formatted edition, so the ingest can download it without Google credentials.
  *
  *   "Bay Area & Santa Cruz Concert Events - <date>.json"  -> PUBLIC folder (anyone with the link)
+ *   "San Francisco Area Music List for <date>.enriched.json" -> PUBLIC folder
  *   "... (Raw Email).json"                                -> PRIVATE folder (contains the recipient address)
  *   PUBLIC folder / latest.json                           -> {"latest": {id, name, edition_date, updated}}
  *   Newest List email from Gmail, footer stripped         -> PUBLIC folder as .txt (see gmail-exporter.gs)
  *
- * A formatted file that still contains personal data (EmailOctopus links, "unsubscribe", a Gmail
+ * A formatted or enriched file that still contains personal data (EmailOctopus links, "unsubscribe", a Gmail
  * address) is moved to the PRIVATE folder instead of being published. A re-generated edition with the
  * same name replaces the published one (the old copy goes to the trash).
  *
@@ -21,6 +22,7 @@ const PUBLIC_FOLDER = 'The List (public)';
 const PRIVATE_FOLDER = 'The List (raw, private)';
 const POINTER_NAME = 'latest.json';
 const FORMATTED_RE = /^Bay Area & Santa Cruz Concert Events - .+\.json$/;
+const ENRICHED_RE = /^San Francisco Area Music List for .+\.enriched\.json$/;
 const RAW_RE = /\(Raw Email\)\.json$/;
 const PERSONAL_DATA_RE = /eocampaign1\.com|unsubscribe|[A-Za-z0-9._%+-]+@gmail\.com/i;
 
@@ -42,7 +44,7 @@ function publish() {
       file.moveTo(privateFolder);
       file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
       Logger.log('Kept private (raw email): %s', name);
-    } else if (FORMATTED_RE.test(name)) {
+    } else if (FORMATTED_RE.test(name) || ENRICHED_RE.test(name)) {
       if (PERSONAL_DATA_RE.test(file.getBlob().getDataAsString())) {
         file.moveTo(privateFolder);
         file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
