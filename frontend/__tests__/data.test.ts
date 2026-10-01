@@ -16,7 +16,7 @@ const band = (id: number, name: string): ExportBand => ({
 const show = (id: number, date: string, status = 'upcoming', acts: ExportShow['acts'] = [[10, 0], [11, 1]]): ExportShow => ({
   id, date, doorTime: '20:00:00', setTime: null, priceMin: 15, priceMax: 20, isFree: false, ageRestriction: '21+',
   status, isRecommended: false, willSellOut: false, isPit: false, isDrinkTickets: false, isNoReentry: false,
-  notes: null, isMatinee: false, isSoldOut: false, ticketProvider: null, isBenefit: false, benefitCause: null,
+  notes: null, isMatinee: false, isSoldOut: false, ticketProvider: null, ticketUrl: null, isBenefit: false, benefitCause: null,
   specialEvent: null, venueId: 1, acts,
 })
 

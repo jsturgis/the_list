@@ -21,6 +21,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
   const set = formatTime(show.setTime)
   const price = formatPrice(show.priceMin, show.priceMax, show.isFree) ?? 'TBA'
   const age = formatAge(show.ageRestriction)
+  const ticketsLabel = show.ticketProvider ? `Tickets via ${show.ticketProvider}` : 'Tickets'
 
   return (
     <article className="max-w-2xl mx-auto flex flex-col gap-6">
@@ -84,10 +85,14 @@ export default function ShowDetail({ show }: ShowDetailProps) {
           <span className="font-medium">Ages: </span>
           {age}
         </div>
-        {show.ticketProvider && (
+        {(show.ticketUrl || show.ticketProvider) && (
           <div className="flex items-center gap-1.5">
             <ShoppingCartIcon className="size-4 shrink-0 text-zinc-400 dark:text-zinc-500" />
-            Tickets via {show.ticketProvider}
+            {show.ticketUrl ? (
+              <ExternalLink href={show.ticketUrl} className="text-amber-600 hover:underline dark:text-amber-400">
+                {ticketsLabel}
+              </ExternalLink>
+            ) : ticketsLabel}
           </div>
         )}
       </section>

@@ -166,7 +166,7 @@ Set these in `backend/.env` for local runs. The Deploy workflow sets its own (se
 | `MUSICBRAINZ_APP_VERSION` | `0.1` | MusicBrainz user-agent |
 | `MUSICBRAINZ_CONTACT` | `https://github.com/jsturgis/the_list` | MusicBrainz user-agent contact |
 
-> **Drive setup**: install `scripts/drive-publisher.gs` as a Google Apps Script with a daily trigger. It moves formatted editions from your Drive root into a public folder (raw email exports into a private one) and keeps `latest.json` pointing at the newest edition. Set `DRIVE_LATEST_FILE_ID` to that file's id. Add `scripts/gmail-exporter.gs` to the same project to also save the newest List email (footer stripped) to the [public folder](https://drive.google.com/drive/folders/1plFG_Zp0lVbYOnzkbmHJ2DFTzYC8q1gH?usp=share_link) as `.txt`.
+> **Drive setup**: install `scripts/drive-publisher.gs` as a Google Apps Script with a daily trigger. It moves formatted editions from your Drive root into a public folder (raw email exports into a private one) and keeps `latest.json` pointing at the newest edition and, when there is one, its enriched export (`San Francisco Area Music List for <date>.enriched.json`), which the ingest uses to fill in missing venue details, ticket links and artist images. Set `DRIVE_LATEST_FILE_ID` to that file's id. Add `scripts/gmail-exporter.gs` to the same project to also save the newest List email (footer stripped) to the [public folder](https://drive.google.com/drive/folders/1plFG_Zp0lVbYOnzkbmHJ2DFTzYC8q1gH?usp=share_link) as `.txt`.
 
 ## Project structure
 

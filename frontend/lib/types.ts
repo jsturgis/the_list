@@ -67,6 +67,7 @@ export interface Show {
   isMatinee?: boolean
   isSoldOut?: boolean
   ticketProvider?: string | null
+  ticketUrl?: string | null
   isBenefit?: boolean
   benefitCause?: string | null
   specialEvent?: string | null

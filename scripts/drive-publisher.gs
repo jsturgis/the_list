@@ -7,7 +7,8 @@
  *   "Bay Area & Santa Cruz Concert Events - <date>.json"  -> PUBLIC folder (anyone with the link)
  *   "San Francisco Area Music List for <date>.enriched.json" -> PUBLIC folder
  *   "... (Raw Email).json"                                -> PRIVATE folder (contains the recipient address)
- *   PUBLIC folder / latest.json                           -> {"latest": {id, name, edition_date, updated}}
+ *   PUBLIC folder / latest.json                           -> {"latest": {id, name, edition_date, updated},
+ *                                                            "enriched": {id, name} of the same edition, or null}
  *   Newest List email from Gmail, footer stripped         -> PUBLIC folder as .txt (see gmail-exporter.gs)
  *
  * A formatted or enriched file that still contains personal data (EmailOctopus links, "unsubscribe", a Gmail
@@ -71,12 +72,22 @@ function trashSameName_(folder, name) {
   }
 }
 
-/** Point latest.json at the formatted edition with the newest edition_date (latest update wins ties). */
+/**
+ * Point latest.json at the formatted edition with the newest edition_date (latest update wins ties),
+ * and at the enriched export for the same date, when there is one.
+ */
 function updatePointer_(publicFolder) {
   let newest = null;
+  const enrichedByDate = {};
   const files = publicFolder.getFiles();
   while (files.hasNext()) {
     const file = files.next();
+    if (ENRICHED_RE.test(file.getName())) {
+      const date = enrichedDate_(file.getName());
+      const known = enrichedByDate[date];
+      if (date && (!known || file.getLastUpdated() > known.getLastUpdated())) enrichedByDate[date] = file;
+      continue;
+    }
     if (!FORMATTED_RE.test(file.getName())) continue;
     let editionDate;
     try {
@@ -94,12 +105,26 @@ function updatePointer_(publicFolder) {
 
   const latest = newest && {id: newest.id, name: newest.name, edition_date: newest.edition_date,
                             updated: new Date().toISOString()};
-  const content = JSON.stringify({latest: latest}, null, 2);
+  const enrichedFile = newest && enrichedByDate[newest.edition_date];
+  const enriched = enrichedFile ? {id: enrichedFile.getId(), name: enrichedFile.getName()} : null;
+  const content = JSON.stringify({latest: latest, enriched: enriched}, null, 2);
   const existing = publicFolder.getFilesByName(POINTER_NAME);
   const pointer = existing.hasNext() ? existing.next() : publicFolder.createFile(POINTER_NAME, content, 'application/json');
   pointer.setContent(content);  // same file id every week, so DRIVE_LATEST_FILE_ID never changes
   pointer.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  Logger.log('%s (id %s) -> %s', POINTER_NAME, pointer.getId(), newest ? newest.name : 'no edition yet');
+  Logger.log('%s (id %s) -> %s (enriched: %s)', POINTER_NAME, pointer.getId(),
+             newest ? newest.name : 'no edition yet', enriched ? enriched.name : 'none');
+}
+
+const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september',
+                'october', 'november', 'december'];
+
+/** "San Francisco Area Music List for Friday, September 25th, 2026.enriched.json" -> "2026-09-25". */
+function enrichedDate_(name) {
+  const m = name.match(/ for \w+, (\w+) (\d+)\w*, (\d{4})\.enriched\.json$/);
+  const month = m && MONTHS.indexOf(m[1].toLowerCase()) + 1;
+  if (!month) return null;
+  return m[3] + '-' + String(month).padStart(2, '0') + '-' + m[2].padStart(2, '0');
 }
 
 function folder_(name, isPublic) {
