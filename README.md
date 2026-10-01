@@ -204,6 +204,25 @@ models created it:
 
 Check with `docker compose exec api alembic current`: it should print the head revision.
 
+## Deployment
+
+The site is published at **https://jsturgis.github.io/the_list/** as a static site on GitHub Pages (see
+[ADR 0002](docs/adr/0002-static-site-on-github-pages.md)).
+
+- **The `data` branch** is an orphan branch holding the SQLite database (`the_list.db`) and the FAISS
+  index (`faiss/`). `main` never contains data files.
+- **The Deploy workflow** (`.github/workflows/deploy.yml`) checks out `main` and the `data` branch,
+  runs `python -m app.cli export`, builds the static site and deploys it to Pages. It runs on pushes to
+  `main` that touch `frontend/` or `backend/app/`, and by hand from the Actions tab
+  (**Deploy → Run workflow**, or `gh workflow run deploy.yml`). Only one deploy runs at a time.
+- **Settings**: Pages source must be **GitHub Actions** (Settings → Pages). The deploy needs no
+  secrets; the weekly ingest uses the `GOOGLE_MAPS_API_KEY` secret and the `DRIVE_LATEST_FILE_ID`
+  repository variable.
+- **Updating the data by hand**: commit a new `the_list.db` and `faiss/` to the `data` branch, then run
+  the workflow.
+- **Rolling back**: revert the bad commit on the `data` branch (`git revert <sha>` on a checkout of
+  `data`, then push) and run the workflow.
+
 ## How ingestion works
 
 ```

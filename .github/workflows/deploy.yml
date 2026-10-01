@@ -1,0 +1,80 @@
+name: Deploy
+
+# Export the data branch's database to JSON, build the static site and publish it to GitHub Pages.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'backend/app/**'   # the export lives in the backend
+      - '.github/workflows/deploy.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; a newer run waits rather than cancelling one mid-publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out the data branch
+        uses: actions/checkout@v4
+        with:
+          ref: data
+          path: data
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Export the data
+        working-directory: backend
+        env:
+          DATABASE_URL: sqlite:///${{ github.workspace }}/data/the_list.db
+          FAISS_INDEX_PATH: ${{ github.workspace }}/data/faiss
+        run: python -m app.cli export --out ../frontend/public/data
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build the site
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
