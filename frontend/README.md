@@ -20,6 +20,12 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Smoke tests
+
+`npm run e2e` runs the Playwright smoke tests in `e2e/` (`npm run e2e:ui` for the interactive runner). The first time, install the browser with `npx playwright install chromium`.
+
+The tests don't use your local export in `public/data`. `e2e/serve.sh` builds the static site from the small fixture dataset in `e2e/fixtures/data` (setting `SITE_DATA_DIR`), then serves it under `/the_list/` the way GitHub Pages does. The browser clock is frozen at 2026-10-01 (`e2e/fixtures.ts`), so the fixture Shows never go out of date. If you change the fixtures, update the counts and names in `e2e/smoke.spec.ts`.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

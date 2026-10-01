@@ -1,0 +1,31 @@
+{
+  "generatedAt": "2026-10-01T06:00:00+00:00",
+  "emailSubject": "Bay Area & Santa Cruz Concert Events — Sep 25, 2026",
+  "filterOptions": {
+    "regions": [
+      "east_bay",
+      "santa_cruz",
+      "sf"
+    ],
+    "ages": [
+      "a/a",
+      "21+"
+    ],
+    "genres": [
+      "americana",
+      "folk",
+      "hardcore punk",
+      "indie rock",
+      "rock",
+      "shoegaze",
+      "surf rock"
+    ],
+    "dates": [
+      "2026-10-03",
+      "2026-10-04",
+      "2026-10-05",
+      "2026-10-10"
+    ]
+  },
+  "totalUpcoming": 5
+}
