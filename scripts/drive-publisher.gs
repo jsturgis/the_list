@@ -11,8 +11,11 @@
  *                                                            "enriched": {id, name} of the same edition, or null}
  *   Newest List email from Gmail, footer stripped         -> PUBLIC folder as .txt (see gmail-exporter.gs)
  *
- * A formatted or enriched file that still contains personal data (EmailOctopus links, "unsubscribe", a Gmail
- * address) is moved to the PRIVATE folder instead of being published. A re-generated edition with the
+ * A formatted file that still contains personal data (EmailOctopus links, "unsubscribe", a Gmail
+ * address) is moved to the PRIVATE folder instead of being published. The enriched export ends with the
+ * email footer as an entry with no artists; that entry is dropped first, and the rest is checked for
+ * tracking links, "unsubscribe" and this account's address (a band's Gmail address inside a public image
+ * URL isn't personal data). A re-generated edition with the
  * same name replaces the published one (the old copy goes to the trash).
  *
  * Setup: paste into a new project at https://script.google.com, run `publish` once (grant Drive access),
@@ -26,6 +29,7 @@ const FORMATTED_RE = /^Bay Area & Santa Cruz Concert Events - .+\.json$/;
 const ENRICHED_RE = /^San Francisco Area Music List for .+\.enriched\.json$/;
 const RAW_RE = /\(Raw Email\)\.json$/;
 const PERSONAL_DATA_RE = /eocampaign1\.com|unsubscribe|[A-Za-z0-9._%+-]+@gmail\.com/i;
+const TRACKING_RE = /eocampaign1\.com|unsubscribe/i;
 
 function publish() {
   try {
@@ -46,7 +50,8 @@ function publish() {
       file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
       Logger.log('Kept private (raw email): %s', name);
     } else if (FORMATTED_RE.test(name) || ENRICHED_RE.test(name)) {
-      if (PERSONAL_DATA_RE.test(file.getBlob().getDataAsString())) {
+      const safe = ENRICHED_RE.test(name) ? scrubEnriched_(file) : !PERSONAL_DATA_RE.test(file.getBlob().getDataAsString());
+      if (!safe) {
         file.moveTo(privateFolder);
         file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
         Logger.log('NOT published, contains personal data: %s', name);
@@ -60,6 +65,28 @@ function publish() {
   }
 
   updatePointer_(publicFolder);
+}
+
+/**
+ * Drop the enriched export's footer entry (no artists) and return whether the rest is safe to publish:
+ * a JSON list with no tracking links, "unsubscribe" or this account's address.
+ */
+function scrubEnriched_(file) {
+  let events;
+  try {
+    events = JSON.parse(file.getBlob().getDataAsString());
+  } catch (e) {
+    return false;
+  }
+  if (!Array.isArray(events)) return false;
+  const kept = events.filter(e => e && e.artists);
+  const text = JSON.stringify(kept, null, 2);
+  if (kept.length !== events.length) {
+    file.setContent(text);
+    Logger.log('Dropped %s footer entr(ies) from %s', events.length - kept.length, file.getName());
+  }
+  const me = Session.getEffectiveUser().getEmail();
+  return !TRACKING_RE.test(text) && !(me && text.toLowerCase().includes(me.toLowerCase()));
 }
 
 /** Move files with this name in `folder` to the trash. */
