@@ -13,6 +13,9 @@ const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 export const supabase: SupabaseClient | null =
   url && key && typeof window !== 'undefined' ? createClient(url, key, { auth: { flowType: 'implicit' } }) : null
 
+/** The most Saved Filters (alerts) one person can have; the database enforces it (see the saved_filters trigger). */
+export const MAX_ALERTS = 20
+
 export interface SavedFilter {
   id: string
   name: string

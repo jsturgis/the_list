@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { BellIcon } from '@heroicons/react/16/solid'
 import { describeFilters } from '@/lib/filters'
-import { alertsPageUrl, supabase } from '@/lib/supabase'
+import { MAX_ALERTS, alertsPageUrl, supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/useSession'
 import Toast from './Toast'
 
@@ -25,6 +25,8 @@ export default function SaveFilterButton({ query }: { query: string }) {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<Done | null>(null)
+  // How many alerts a signed-in visitor has, counted when the form opens.
+  const [used, setUsed] = useState<number | null>(null)
   const container = useRef<HTMLDivElement>(null)
   const dismissToast = useCallback(() => setDone(null), [])
 
@@ -46,10 +48,20 @@ export default function SaveFilterButton({ query }: { query: string }) {
   if (session.status === 'unavailable') return null
 
   const toggle = () => {
-    if (!open) setName(describeFilters(new URLSearchParams(query)))
+    if (!open) {
+      setName(describeFilters(new URLSearchParams(query)))
+      setUsed(null)
+      if (session.status === 'signedIn' && supabase) {
+        supabase
+          .from('saved_filters')
+          .select('id', { count: 'exact', head: true })
+          .then(({ count }) => setUsed(count ?? null))
+      }
+    }
     setOpen(!open)
     setError(null)
   }
+  const atLimit = used !== null && used >= MAX_ALERTS
 
   const finish = (result: Done) => {
     setOpen(false)
@@ -112,9 +124,26 @@ export default function SaveFilterButton({ query }: { query: string }) {
             />
           </div>
           {session.status === 'signedIn' ? (
-            <button type="submit" disabled={sending} className={BUTTON}>
-              Save
-            </button>
+            <>
+              {atLimit ? (
+                <p className="text-xs text-danger">
+                  You have {MAX_ALERTS} alerts, the most allowed.{' '}
+                  <Link href="/alerts/" className="underline">
+                    Delete one
+                  </Link>{' '}
+                  to set up another.
+                </p>
+              ) : (
+                used !== null && (
+                  <p className="text-xs text-ink-muted">
+                    {used} of {MAX_ALERTS} alerts used
+                  </p>
+                )
+              )}
+              <button type="submit" disabled={sending || atLimit} className={BUTTON}>
+                Save
+              </button>
+            </>
           ) : (
             <>
               <div className="flex flex-col gap-1">

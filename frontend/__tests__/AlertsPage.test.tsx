@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import AlertsPage from '@/components/AlertsPage'
 import { fakeSupabase } from './fakeSupabase'
@@ -71,5 +71,65 @@ describe('Header link to the Alerts page', () => {
     const { default: AlertsLink } = await import('@/components/AlertsLink')
     const { container } = render(<AlertsLink />)
     expect(container).toBeEmptyDOMElement()
+  })
+})
+
+describe('Managing alerts', () => {
+  beforeEach(() => {
+    fake.current!.state.email = 'fan@example.com'
+    fake.current!.state.savedFilters = [savedFilter('East Bay punk', 'genre=punk&region=east_bay'), savedFilter('Free', 'free=1')]
+    fake.current!.state.subscription = { enabled: true }
+  })
+
+  it('shows how many of the 20 alerts are used', async () => {
+    render(<AlertsPage />)
+    expect(await screen.findByText('2 of 20 alerts')).toBeInTheDocument()
+  })
+
+  it('deletes an alert', async () => {
+    render(<AlertsPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete East Bay punk' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Deleted “East Bay punk”')
+    expect(screen.queryByRole('link', { name: 'East Bay punk' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Free' })).toBeInTheDocument()
+    expect(fake.current!.state.savedFilters.map(f => f.name)).toEqual(['Free'])
+    expect(screen.getByText('1 of 20 alerts')).toBeInTheDocument()
+  })
+
+  it('turns the weekly email off and on without deleting alerts', async () => {
+    render(<AlertsPage />)
+    const toggle = await screen.findByRole('checkbox', { name: /email me these alerts each week/i })
+    expect(toggle).toBeChecked()
+
+    fireEvent.click(toggle)
+    await waitFor(() => expect(fake.current!.state.subscription).toEqual({ enabled: false }))
+    expect(toggle).not.toBeChecked()
+    expect(screen.getByText(/weekly emails are off/i)).toBeInTheDocument()
+    expect(fake.current!.state.savedFilters).toHaveLength(2)
+
+    fireEvent.click(toggle)
+    await waitFor(() => expect(fake.current!.state.subscription).toEqual({ enabled: true }))
+  })
+
+  it('shows the weekly email setting as it was saved', async () => {
+    fake.current!.state.subscription = { enabled: false }
+    render(<AlertsPage />)
+    expect(await screen.findByRole('checkbox', { name: /email me these alerts each week/i })).not.toBeChecked()
+  })
+
+  it('has no weekly email setting before the first alert', async () => {
+    fake.current!.state.savedFilters = []
+    fake.current!.state.subscription = null
+    render(<AlertsPage />)
+    expect(await screen.findByText(/no alerts yet/i)).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+  })
+
+  it('signs out', async () => {
+    render(<AlertsPage />)
+    fireEvent.click(await screen.findByRole('button', { name: /sign out/i }))
+    expect(await screen.findByLabelText('Email')).toBeInTheDocument()
+    expect(fake.current!.client.auth.signOut).toHaveBeenCalled()
   })
 })

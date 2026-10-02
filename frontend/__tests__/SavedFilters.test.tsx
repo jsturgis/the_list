@@ -94,6 +94,32 @@ describe('Save control', () => {
   })
 })
 
+describe('Setup Alert limit', () => {
+  const savedFilters = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({ id: `f${i}`, name: `Alert ${i}`, query: 'genre=punk', created_at: '2026-10-01T00:00:00Z' }))
+
+  it('shows how many alerts a signed-in visitor has used', async () => {
+    fake.current!.state.email = 'fan@example.com'
+    fake.current!.state.savedFilters = savedFilters(2)
+    params = new URLSearchParams('genre=punk')
+    render(<FilterBar {...props} />)
+    fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
+    expect(await screen.findByText('2 of 20 alerts used')).toBeInTheDocument()
+  })
+
+  it('explains the limit instead of offering to save at 20', async () => {
+    fake.current!.state.email = 'fan@example.com'
+    fake.current!.state.savedFilters = savedFilters(20)
+    params = new URLSearchParams('genre=punk')
+    render(<FilterBar {...props} />)
+    fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
+
+    expect(await screen.findByText(/you have 20 alerts, the most allowed/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled()
+    expect(screen.getByRole('link', { name: /delete one/i })).toHaveAttribute('href', expect.stringMatching(/^\/alerts\/?$/))
+  })
+})
+
 describe('Save control dismissing', () => {
   const openSaved = async () => {
     fake.current!.state.email = 'fan@example.com'
