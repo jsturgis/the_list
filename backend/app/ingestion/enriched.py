@@ -2,7 +2,7 @@
 
 The enriched export ("San Francisco Area Music List for <date>.enriched.json") is a top-level list
 of schema v2.0.0 events, like the formatted edition's `events`. It is more complete for Venue data
-(coordinates, images, Instagram, transit), ticket links, Show notes and artist images and notes,
+(coordinates, images, Instagram, transit), ticket links, Show notes and artist images and descriptions,
 but weaker on artist links and genres, so only those fields are taken, and only where the formatted
 edition has none. The formatted edition stays the source of which Shows exist.
 """
@@ -15,6 +15,8 @@ from app.ingestion.upsert import venue_key
 
 _PUNCTUATION_RE = re.compile(r"[^\w\s]")
 _ARTIST_NOTE_RE = re.compile(r"\s*\(.*?\)\s*$")
+# What the tool that makes the enriched export says about its own work, not about the Band.
+_TOOL_REMARKS = {"added during enrichment"}
 _SHOW_FIELDS = ("latitude", "longitude", "venue_image_url", "venue_instagram", "venue_nearest_transit",
                 "ticket_url")
 
@@ -91,10 +93,13 @@ def _starts_with(a: tuple[str, ...], b: tuple[str, ...]) -> bool:
 
 
 def _merge_artists(data: dict, artists: list[dict]) -> None:
-    """Artist images and act notes, matched by name (see _artist_words). Links and genres aren't taken."""
+    """Artist images and descriptions, matched by name (see _artist_words). Links and genres aren't taken.
+
+    An artist's note describes the Band ("Bilingual metal band from Fairfield ..."), so it becomes the
+    Band's description, not an act note on the Show.
+    """
     by_name = {_artist_words(a.get("name")): a for a in artists}
-    notes = data["act_notes"]
-    for i, (name, enrichment) in enumerate(data["band_enrichment"]):
+    for name, enrichment in data["band_enrichment"]:
         artist = by_name.get(_artist_words(name))
         if not artist:
             continue
@@ -102,5 +107,5 @@ def _merge_artists(data: dict, artists: list[dict]) -> None:
         if image_url and not enrichment.get("image_url"):
             enrichment["image_url"] = image_url
         note = _text(artist.get("note"))
-        if note and not notes[i]:
-            notes[i] = note
+        if note and note.lower() not in _TOOL_REMARKS and not enrichment.get("description"):
+            enrichment["description"] = note

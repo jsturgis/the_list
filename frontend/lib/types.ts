@@ -36,6 +36,8 @@ export interface Band {
   websiteUrl?: string | null
   imageUrl?: string | null
   isLocal?: boolean | null
+  // From the enriched export
+  description?: string | null
 }
 
 export interface Act {

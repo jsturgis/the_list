@@ -12,6 +12,16 @@ from app.models.show import AgeRestriction, Show, ShowStatus
 from app.models.venue import Region, Venue
 
 
+# The Shows below are dated Sept 30 – Oct 3, 2026, and `shows` hides dates before today: pin today to
+# the first of them so these tests don't start failing as the calendar moves on.
+TODAY = date(2026, 9, 30)
+
+
+@pytest.fixture(autouse=True)
+def _pinned_today(monkeypatch):
+    monkeypatch.setattr("app.graphql.queries.local_today", lambda: TODAY)
+
+
 # ── seeding helpers ───────────────────────────────────────────────────────────
 
 def _venue(db, *, name="The Fillmore", city="San Francisco", region=Region.sf):

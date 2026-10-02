@@ -21,7 +21,7 @@ const venue: ExportVenue = {
 }
 const band = (id: number, name: string, similar: number[], extra: Partial<ExportBand> = {}): ExportBand => ({
   id, name, genres: ['punk'], spotifyUrl: null, soundcloudUrl: null, bandcampUrl: null, websiteUrl: null, imageUrl: null,
-  isLocal: null, similar, ...extra,
+  isLocal: null, description: null, similar, ...extra,
 })
 const show = (id: number, date: string, bandId: number): ExportShow => ({
   id, date, doorTime: '20:00:00', setTime: null, priceMin: null, priceMax: null, isFree: false, ageRestriction: 'a/a',

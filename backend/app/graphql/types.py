@@ -41,6 +41,7 @@ class BandType:
     website_url: str | None
     image_url: str | None
     is_local: bool | None
+    description: str | None
 
 
 @strawberry.type

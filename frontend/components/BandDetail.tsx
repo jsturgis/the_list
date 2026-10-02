@@ -48,6 +48,9 @@ export default function BandDetail({ band, upcomingShows, similarBands }: BandDe
             ))}
           </div>
         )}
+        {band.description && (
+          <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">{band.description}</p>
+        )}
       </header>
 
       {(band.spotifyUrl || band.soundcloudUrl || band.bandcampUrl || band.websiteUrl) && (

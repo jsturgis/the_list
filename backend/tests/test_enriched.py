@@ -91,7 +91,7 @@ def test_fields_the_formatted_edition_has_are_kept():
     assert (show["latitude"], show["longitude"], show["special_event"]) == (1.0, 2.0, "Fat Wreck 35")
 
 
-def test_artists_get_images_and_notes_by_name_but_not_links_or_genres():
+def test_artists_get_images_and_descriptions_by_name_but_not_links_or_genres():
     show = _merge(_event(), _event(artists=[
         {"name": "opener", "role": "support", "genre": "Pop", "url": "https://wrong.example/",
          "image_url": "https://img.example/opener.jpg", "note": "solo acoustic set"},
@@ -105,7 +105,16 @@ def test_artists_get_images_and_notes_by_name_but_not_links_or_genres():
     assert enrichment["Sleep"]["genres"] == ["doom"]
     assert enrichment["Sleep"]["bandcamp_url"] == "https://sleep.bandcamp.com/"
     assert enrichment["Opener"]["genres"] == ["folk"] and enrichment["Opener"]["website_url"] is None
-    assert dict(zip(show["bands"], show["act_notes"])) == {"Sleep": None, "Opener": "solo acoustic set"}
+    # The enriched note describes the Band (genre, hometown, links), so it isn't an act note on the Show.
+    assert enrichment["Opener"]["description"] == "solo acoustic set"
+    assert enrichment["Sleep"].get("description") is None
+    assert show["act_notes"] == [None, None]
+
+
+def test_the_enrichment_tools_own_remark_is_not_a_band_description():
+    show = _merge(_event(), _event(artists=[{"name": "Sleep", "note": "added during enrichment"}]))
+
+    assert dict(show["band_enrichment"])["Sleep"].get("description") is None
 
 
 def test_entries_in_another_schema_are_skipped():
