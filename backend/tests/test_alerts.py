@@ -210,6 +210,14 @@ def test_saved_filters_and_people_with_no_matches_are_left_out(db, shows, supaba
     assert "other@example.com" not in printed
 
 
+def test_alerts_with_the_same_filters_are_merged_under_the_first_name(db, shows, supabase):
+    supabase.person("fan@example.com", ("East Bay punk", "genre=punk&region=east_bay"), ("Free", "free=1"),
+                    ("punk · East Bay", "region=east_bay&genre=PUNK"))
+    [email], _ = _run(db)
+    assert [s.name for s in email.sections] == ["East Bay punk", "Free"]
+    assert email.text.count("Counterparts") == 1
+
+
 def test_people_who_turned_alerts_off_are_skipped(db, shows, supabase):
     supabase.person("off@example.com", ("Free", "free=1"), enabled=False)
     supabase.person("on@example.com", ("Free", "free=1"))

@@ -157,6 +157,22 @@ def filters_from_query(query: str) -> ShowFilters:
     )
 
 
+# Every URL param the Shows filter reads (frontend lib/filters FILTER_PARAMS).
+_FILTER_PARAMS = ("q", *_LEGACY_SEARCH_PARAMS, "region", "fromDate", "toDate", "priceMax", "free", "age", "genre")
+
+
+def canonical_query(query: str) -> str:
+    """A Saved Filter's query in one form, so two selecting the same Shows compare equal; the twin of frontend
+    canonicalQuery: params sorted, old band/venue read as the search, search and genre lower case."""
+    params = {k: v[0].strip() for k, v in parse_qs(query).items() if v and v[0].strip()}
+    search = (params.get("q") or " ".join(params[k] for k in _LEGACY_SEARCH_PARAMS if k in params)).lower()
+    out = {"q": " ".join(search.split())} if search.strip() else {}
+    for key in _FILTER_PARAMS:
+        if key not in ("q", *_LEGACY_SEARCH_PARAMS) and key in params:
+            out[key] = params[key].lower() if key == "genre" else params[key]
+    return "&".join(f"{k}={v}" for k, v in sorted(out.items()))
+
+
 def _matching_shows(db: Session, query: str) -> list[Show]:
     shows = query_shows(db, filters_from_query(query), limit=100_000, offset=0)
     # The site lists a day's Shows by door time (frontend filterShows); unknown door times first.
@@ -326,7 +342,13 @@ def build_alerts(db: Session, subscribers: list[Subscriber], site: str) -> list[
     cache: dict[str, list[Show]] = {}  # people often save the same filters
     for person in subscribers:
         sections = []
+        seen: set[str] = set()
         for saved in person.saved_filters:
+            # Alerts on the same filters (saved before the site stopped duplicates) appear once, under the first.
+            same = canonical_query(saved.query)
+            if same in seen:
+                continue
+            seen.add(same)
             if saved.query not in cache:
                 cache[saved.query] = _matching_shows(db, saved.query)
             matches = cache[saved.query]
