@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import AlertsLink from '@/components/AlertsLink'
 import BandModalProvider from '@/components/BandModalProvider'
 import React from 'react'
 import { Geist, Geist_Mono } from 'next/font/google'
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <span className="text-zinc-400 dark:text-zinc-500 text-sm">
               SF Bay Area Music
             </span>
+            <AlertsLink />
           </div>
         </header>
         <BandModalProvider>

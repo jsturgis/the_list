@@ -169,6 +169,9 @@ jobs:
           # Where Pages serves the site: "" and the custom domain's URL when one is set (Settings -> Pages).
           PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
           PAGES_SITE_URL: ${{ steps.pages.outputs.base_url }}
+          # Sign-in and Saved Filters (ADR 0003). Public by design; without them the Alerts features are hidden.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
         run: |
           npm ci
           npm run build

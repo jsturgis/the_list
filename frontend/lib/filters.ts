@@ -8,6 +8,18 @@ export function searchParam(params: URLSearchParams): string {
   return params.get('q') ?? LEGACY_SEARCH_PARAMS.map(k => params.get(k)).filter(Boolean).join(' ')
 }
 
+/** Every URL param the Shows filter reads (see buildFilters). */
+export const FILTER_PARAMS = ['q', ...LEGACY_SEARCH_PARAMS, 'region', 'fromDate', 'toDate', 'priceMax', 'free', 'age', 'genre']
+
+/** The filter part of a Shows list URL's query string, as a Saved Filter stores it: other params are dropped. */
+export function filterQuery(params: URLSearchParams): string {
+  const kept = new URLSearchParams()
+  for (const [key, value] of params) {
+    if (FILTER_PARAMS.includes(key) && value.trim()) kept.append(key, value)
+  }
+  return kept.toString()
+}
+
 export function buildFilters(params: URLSearchParams): ShowFilters | null {
   const f: ShowFilters = {}
   const search = searchParam(params); if (search.trim()) f.search = search
