@@ -20,13 +20,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50">
-        <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+      <body className="min-h-full bg-page text-ink">
+        <header className="border-b border-line-subtle bg-surface">
           <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-2">
             <Link href="/" className="font-bold text-lg tracking-tight">
               The List
             </Link>
-            <span className="text-zinc-400 dark:text-zinc-500 text-sm">
+            <span className="text-ink-faint text-sm">
               SF Bay Area Music
             </span>
             <AlertsLink />

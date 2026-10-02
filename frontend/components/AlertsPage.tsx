@@ -44,41 +44,41 @@ export default function AlertsPage() {
   return (
     <article className="max-w-2xl mx-auto flex flex-col gap-6">
       <header>
-        <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">Your alerts</h1>
-        <p className="mt-1 text-zinc-600 dark:text-zinc-300">
+        <h1 className="text-3xl font-bold text-ink">Your alerts</h1>
+        <p className="mt-1 text-ink-soft">
           Each week, after the new edition is published, you get one email listing the upcoming shows that match your
           alerts.
         </p>
       </header>
 
-      {session.status === 'loading' && <p className="text-sm text-zinc-500">Loading…</p>}
+      {session.status === 'loading' && <p className="text-sm text-ink-muted">Loading…</p>}
       {session.status === 'unavailable' && (
-        <p className="text-sm text-zinc-500">Alerts aren&apos;t available on this copy of the site.</p>
+        <p className="text-sm text-ink-muted">Alerts aren&apos;t available on this copy of the site.</p>
       )}
       {session.status === 'signedOut' && <SignInByEmail />}
       {session.status === 'signedIn' && (
         <section className="flex flex-col gap-3">
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">Signed in as {session.email}</p>
+          <p className="text-sm text-ink-muted">Signed in as {session.email}</p>
           {error && (
-            <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+            <p role="alert" className="text-sm text-danger">
               {error}
             </p>
           )}
           {savedFilters === null ? (
-            <p className="text-sm text-zinc-500">Loading your alerts…</p>
+            <p className="text-sm text-ink-muted">Loading your alerts…</p>
           ) : savedFilters.length === 0 ? (
-            <p className="text-sm text-zinc-600 dark:text-zinc-300">
+            <p className="text-sm text-ink-soft">
               No alerts yet. Set some filters on the{' '}
-              <Link href="/" className="text-amber-600 underline dark:text-amber-400">
+              <Link href="/" className="text-link underline">
                 Shows list
               </Link>{' '}
               and choose Setup Alert.
             </p>
           ) : (
-            <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
+            <ul className="flex flex-col divide-y divide-line-subtle">
               {savedFilters.map(f => (
                 <li key={f.id} className="py-2">
-                  <Link href={`/?${f.query}`} className="font-medium text-zinc-900 hover:underline dark:text-zinc-50">
+                  <Link href={`/?${f.query}`} className="font-medium text-ink hover:underline">
                     {f.name}
                   </Link>
                 </li>
@@ -119,9 +119,9 @@ function SignInByEmail() {
   return (
     <>
       <form onSubmit={submit} className="flex flex-col gap-3 max-w-sm">
-        <p className="text-sm text-zinc-600 dark:text-zinc-300">Sign in to see and manage your alerts.</p>
+        <p className="text-sm text-ink-soft">Sign in to see and manage your alerts.</p>
         <div className="flex flex-col gap-1">
-          <label htmlFor="alerts-email" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+          <label htmlFor="alerts-email" className="text-xs font-medium text-ink-soft">
             Email
           </label>
           <input
@@ -131,18 +131,18 @@ function SignInByEmail() {
             autoComplete="email"
             value={email}
             onChange={e => setEmail(e.target.value)}
-            className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 text-zinc-900 dark:text-zinc-100"
+            className="h-9 rounded border border-line-strong bg-field text-sm px-2 text-ink"
           />
         </div>
         <button
           type="submit"
           disabled={sending}
-          className="h-9 rounded bg-amber-500 px-3 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
+          className="h-9 rounded bg-accent px-3 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50"
         >
           Email me a sign-in link
         </button>
         {error && (
-          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+          <p role="alert" className="text-xs text-danger">
             {error}
           </p>
         )}

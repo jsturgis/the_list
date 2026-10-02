@@ -74,7 +74,7 @@ export default function BandModalProvider({ children }: { children: ReactNode })
             {band && data ? (
               <BandDetail band={band} upcomingShows={bandShows(data.shows, band.id)} similarBands={similarBands(band, data.bands)} />
             ) : (
-              <p className="flex items-center justify-center gap-1.5 text-zinc-500 dark:text-zinc-400 py-8">
+              <p className="flex items-center justify-center gap-1.5 text-ink-muted py-8">
                 {!data && <ArrowPathIcon className="size-4 shrink-0 animate-spin" />}
                 {data ? 'Band not found.' : 'Loading…'}
               </p>

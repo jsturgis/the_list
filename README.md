@@ -36,6 +36,11 @@ removed) in a [public Google Drive folder](https://drive.google.com/drive/folder
 | Frontend | Next.js static export, Tailwind; Vitest, React Testing Library, MSW |
 | Hosting | GitHub Pages, built and deployed by GitHub Actions |
 
+**Colours** come from the theme in `frontend/app/globals.css`: semantic tokens (`bg-surface`, `text-ink-muted`,
+`border-line`, `bg-accent`, `text-link`, `bg-danger-soft`, …) that switch with the system's light/dark setting.
+Use them instead of palette classes like `text-zinc-500`, and don't add `dark:` colour variants; to change a colour,
+change its token there. The streaming-service buttons (Spotify, SoundCloud, Bandcamp) keep their brand colours.
+
 ## Local setup
 
 ### Docker (recommended)

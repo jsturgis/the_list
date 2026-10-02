@@ -5,7 +5,7 @@ import { ArrowLeftIcon } from '@heroicons/react/20/solid'
 import { Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-const className = 'inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+const className = 'inline-flex items-center gap-1 text-sm text-ink-muted hover:text-ink-soft'
 
 // Navigation API isn't in TypeScript's DOM lib yet.
 declare global {

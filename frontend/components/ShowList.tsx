@@ -83,8 +83,8 @@ export default function ShowList({ shows, dbTotal = 0, filterOptions = EMPTY_FIL
       />
 
       {shows.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 py-12 text-zinc-500">
-          <MagnifyingGlassIcon className="size-6 text-zinc-400 dark:text-zinc-500" />
+        <div className="flex flex-col items-center gap-2 py-12 text-ink-muted">
+          <MagnifyingGlassIcon className="size-6 text-ink-faint" />
           <p>No shows match your filters.</p>
         </div>
       ) : (
@@ -93,7 +93,7 @@ export default function ShowList({ shows, dbTotal = 0, filterOptions = EMPTY_FIL
             <div className="flex flex-col gap-6">
               {sortedDates.map(date => (
                 <div key={date}>
-                  <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2">
+                  <h3 className="text-sm font-semibold text-ink-muted uppercase tracking-wide mb-2">
                     {formatDateLong(date)}
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

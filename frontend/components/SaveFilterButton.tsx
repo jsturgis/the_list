@@ -8,8 +8,8 @@ import { alertsPageUrl, supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/useSession'
 import Toast from './Toast'
 
-const INPUT = 'h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400'
-const BUTTON = 'h-9 rounded bg-amber-500 px-3 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50'
+const INPUT = 'h-9 rounded border border-line-strong bg-field text-sm px-2 text-ink placeholder:text-ink-faint'
+const BUTTON = 'h-9 rounded bg-accent px-3 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50'
 
 type Done = 'linkSent' | 'saved'
 
@@ -81,7 +81,7 @@ export default function SaveFilterButton({ query }: { query: string }) {
         onClick={toggle}
         disabled={!query || session.status === 'loading'}
         aria-expanded={open}
-        className="inline-flex items-center gap-1 rounded border border-amber-500 bg-white px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-transparent dark:text-amber-400 dark:hover:bg-amber-900/20"
+        className="inline-flex items-center gap-1 rounded border border-accent bg-surface px-2.5 py-1 text-xs font-medium text-link hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50"
         title={query ? 'Get a weekly email with the shows matching these filters' : 'Set a filter to get alerts for it'}
       >
         <BellIcon className="size-3.5 shrink-0" />
@@ -91,13 +91,13 @@ export default function SaveFilterButton({ query }: { query: string }) {
       {open && query && (
         <form
           onSubmit={submit}
-          className="absolute right-0 top-full z-20 mt-2 flex w-80 flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+          className="absolute right-0 top-full z-20 mt-2 flex w-80 flex-col gap-3 rounded-lg border border-line bg-surface p-4 shadow-lg"
         >
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          <p className="text-xs text-ink-muted">
             Get an email each week with the upcoming shows matching these filters.
           </p>
           <div className="flex flex-col gap-1">
-            <label htmlFor="save-filter-name" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            <label htmlFor="save-filter-name" className="text-xs font-medium text-ink-soft">
               Name
             </label>
             <input
@@ -118,7 +118,7 @@ export default function SaveFilterButton({ query }: { query: string }) {
           ) : (
             <>
               <div className="flex flex-col gap-1">
-                <label htmlFor="save-filter-email" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                <label htmlFor="save-filter-email" className="text-xs font-medium text-ink-soft">
                   Email
                 </label>
                 <input
@@ -137,7 +137,7 @@ export default function SaveFilterButton({ query }: { query: string }) {
             </>
           )}
           {error && (
-            <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+            <p role="alert" className="text-xs text-danger">
               {error}
             </p>
           )}

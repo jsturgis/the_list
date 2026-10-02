@@ -31,19 +31,19 @@ export default function HomeShows() {
 
   return (
     <div className="flex flex-col gap-6">
-      <p className="text-sm text-zinc-500 dark:text-zinc-400 -mt-5">
+      <p className="text-sm text-ink-muted -mt-5">
         {data?.meta.emailSubject ?? 'Upcoming Bay Area music'} — curated by{' '}
-        <a href="mailto:skoepke@stevelist.com" className="underline hover:text-zinc-700 dark:hover:text-zinc-300">
+        <a href="mailto:skoepke@stevelist.com" className="underline hover:text-ink-soft">
           Steve List
         </a>.
       </p>
       {error ? (
-        <p role="alert" className="flex items-center justify-center gap-1.5 text-red-600 dark:text-red-400 py-12">
+        <p role="alert" className="flex items-center justify-center gap-1.5 text-danger py-12">
           <ExclamationTriangleIcon className="size-5 shrink-0" />
           Couldn&apos;t load the list of shows. Please try again later.
         </p>
       ) : !data ? (
-        <p className="flex items-center justify-center gap-1.5 text-zinc-400 dark:text-zinc-500 py-12">
+        <p className="flex items-center justify-center gap-1.5 text-ink-faint py-12">
           <ArrowPathIcon className="size-4 shrink-0 animate-spin" />
           Loading…
         </p>

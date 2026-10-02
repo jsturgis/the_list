@@ -14,7 +14,7 @@ interface ComboboxProps {
 }
 
 const inputClass =
-  'w-full h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400'
+  'w-full h-9 rounded border border-line-strong bg-field text-sm px-2 py-1.5 text-ink placeholder:text-ink-faint'
 
 /**
  * Text input with a filterable suggestion list rendered at the input's width (ARIA combobox pattern).
@@ -121,10 +121,10 @@ export default function Combobox({ id, options, value, onChange, placeholder, ..
           ref={listRef}
           id={listId}
           role="listbox"
-          className="absolute z-20 mt-1 w-full max-h-60 overflow-y-auto rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 py-1 text-sm shadow-lg"
+          className="absolute z-20 mt-1 w-full max-h-60 overflow-y-auto rounded border border-line bg-field py-1 text-sm shadow-lg"
         >
           {matches.length === 0 ? (
-            <li className="px-2 py-1.5 text-zinc-500 dark:text-zinc-400">No matches</li>
+            <li className="px-2 py-1.5 text-ink-muted">No matches</li>
           ) : (
             matches.map((option, i) => (
               <li
@@ -137,8 +137,8 @@ export default function Combobox({ id, options, value, onChange, placeholder, ..
                 onClick={() => choose(option)}
                 onMouseEnter={() => setActive(i)}
                 className={`px-2 py-1.5 cursor-pointer break-words ${
-                  i === active ? 'bg-zinc-100 dark:bg-zinc-700' : ''
-                } ${option === value ? 'font-medium text-amber-700 dark:text-amber-400' : 'text-zinc-900 dark:text-zinc-100'}`}
+                  i === active ? 'bg-field-active' : ''
+                } ${option === value ? 'font-medium text-link' : 'text-ink'}`}
               >
                 {option}
               </li>

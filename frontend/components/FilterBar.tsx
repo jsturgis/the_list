@@ -91,9 +91,9 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
     searchParams.has('genre')
 
   return (
-    <div className="flex flex-col gap-3 p-4 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700">
+    <div className="flex flex-col gap-3 p-4 bg-panel rounded-lg border border-line">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+        <p className="text-sm font-medium text-ink">
           Showing {showCount} of {dbTotal} shows
         </p>
         <div className="flex items-center gap-4">
@@ -101,7 +101,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
           {hasFilters && (
             <button
               onClick={clearAll}
-              className="inline-flex items-center gap-0.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 underline"
+              className="inline-flex items-center gap-0.5 text-xs text-ink-muted hover:text-ink-soft underline"
             >
               <XMarkIcon className="size-3.5 shrink-0" />
               Clear filters
@@ -112,14 +112,14 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_1.5fr_1fr_auto] gap-3">
         <div className="flex flex-col gap-1">
-          <label htmlFor="filter-region" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+          <label htmlFor="filter-region" className="text-xs font-medium text-ink-soft">
             Region
           </label>
           <select
             id="filter-region"
             value={searchParams.get('region') ?? ''}
             onChange={e => update('region', e.target.value)}
-            className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
+            className="h-9 rounded border border-line-strong bg-field text-sm px-2 py-1.5 text-ink"
           >
             <option value="">All Regions</option>
             {regions.map(r => (
@@ -131,24 +131,24 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="filter-search" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+          <label htmlFor="filter-search" className="text-xs font-medium text-ink-soft">
             Search
           </label>
           <div className="relative">
-            <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-zinc-400" />
+            <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-ink-faint" />
             <input
               id="filter-search"
               type="text"
               placeholder="Search bands & venues…"
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
-              className="h-9 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm pl-8 pr-2 py-1.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+              className="h-9 w-full rounded border border-line-strong bg-field text-sm pl-8 pr-2 py-1.5 text-ink placeholder:text-ink-faint"
             />
           </div>
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="filter-genre" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+          <label htmlFor="filter-genre" className="text-xs font-medium text-ink-soft">
             Genre
           </label>
           <Combobox
@@ -160,7 +160,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
             aria-describedby={searchParams.get('genre') ? 'filter-genre-note' : undefined}
           />
           {searchParams.get('genre') && (
-            <p id="filter-genre-note" role="note" className="flex items-start gap-1 text-xs text-amber-700 dark:text-amber-400">
+            <p id="filter-genre-note" role="note" className="flex items-start gap-1 text-xs text-link">
               <InformationCircleIcon className="size-3.5 mt-px shrink-0" />
               Not every artist has genre info yet, so shows where no artist has a known genre are hidden.
             </p>
@@ -173,9 +173,9 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
             type="checkbox"
             checked={searchParams.get('free') === '1'}
             onChange={e => update('free', e.target.checked ? '1' : '')}
-            className="rounded border-zinc-300 text-amber-500"
+            className="rounded border-line-strong text-accent"
           />
-          <label htmlFor="filter-free" className="text-sm text-zinc-700 dark:text-zinc-300">
+          <label htmlFor="filter-free" className="text-sm text-ink-soft">
             Free only
           </label>
         </div>
@@ -184,19 +184,19 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
       <div>
         <button
           onClick={() => setShowAdvanced(v => !v)}
-          className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+          className="flex items-center gap-1 text-xs text-ink-muted hover:text-ink-soft"
         >
           <ChevronRightIcon className={`size-3.5 transition-transform ${showAdvanced ? 'rotate-90' : ''}`} />
           Advanced filters
           {hasAdvancedFilters && !showAdvanced && (
-            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 text-[10px] font-medium">active</span>
+            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-accent-chip text-link text-[10px] font-medium">active</span>
           )}
         </button>
 
         {showAdvanced && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3">
             <div className="flex flex-col gap-1">
-              <label htmlFor="filter-from-date" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              <label htmlFor="filter-from-date" className="text-xs font-medium text-ink-soft">
                 From date
               </label>
               <input
@@ -206,12 +206,12 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
                 min={availableDates[0] ?? ''}
                 max={searchParams.get('toDate') || availableDates[availableDates.length - 1] || ''}
                 onChange={e => update('fromDate', e.target.value)}
-                className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
+                className="h-9 rounded border border-line-strong bg-field text-sm px-2 py-1.5 text-ink"
               />
             </div>
 
             <div className="flex flex-col gap-1">
-              <label htmlFor="filter-to-date" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              <label htmlFor="filter-to-date" className="text-xs font-medium text-ink-soft">
                 To date
               </label>
               <input
@@ -221,19 +221,19 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
                 min={searchParams.get('fromDate') || availableDates[0] || ''}
                 max={availableDates[availableDates.length - 1] ?? ''}
                 onChange={e => update('toDate', e.target.value)}
-                className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
+                className="h-9 rounded border border-line-strong bg-field text-sm px-2 py-1.5 text-ink"
               />
             </div>
 
             <div className="flex flex-col gap-1">
-              <label htmlFor="filter-age" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              <label htmlFor="filter-age" className="text-xs font-medium text-ink-soft">
                 Age restriction
               </label>
               <select
                 id="filter-age"
                 value={searchParams.get('age') ?? ''}
                 onChange={e => update('age', e.target.value)}
-                className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
+                className="h-9 rounded border border-line-strong bg-field text-sm px-2 py-1.5 text-ink"
               >
                 <option value="">Any Age</option>
                 {ages.map(a => (
@@ -245,7 +245,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
             </div>
 
             <div className="flex flex-col gap-1">
-              <label htmlFor="filter-price" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              <label htmlFor="filter-price" className="text-xs font-medium text-ink-soft">
                 Max price ($)
               </label>
               <input
@@ -255,7 +255,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
                 placeholder="e.g. 20"
                 value={searchParams.get('priceMax') ?? ''}
                 onChange={e => update('priceMax', e.target.value)}
-                className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 py-1.5 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+                className="h-9 rounded border border-line-strong bg-field text-sm px-2 py-1.5 text-ink placeholder:text-ink-faint"
               />
             </div>
           </div>

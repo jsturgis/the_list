@@ -7,9 +7,9 @@ export type BadgeSize = 'compact' | 'card' | 'detail'
 
 type Icon = ComponentType<SVGProps<SVGSVGElement>>
 
-const RED = 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'
-const YELLOW = 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400'
-const NEUTRAL = 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'
+const RED = 'bg-danger-soft text-danger'
+const YELLOW = 'bg-warning-soft text-warning'
+const NEUTRAL = 'bg-muted text-ink-soft'
 
 function Badge({ icon: Icon, size, className, title, children }: {
   icon?: Icon; size: BadgeSize; className: string; title?: string; children: ReactNode
@@ -45,16 +45,16 @@ export function Flags({ show, size, showBenefitCause = false }: { show: Show; si
     <div className={`flex flex-wrap ${layout}`}>
       {show.isSoldOut && <Badge icon={NoSymbolIcon} size={size} className={`font-semibold ${RED}`}>Sold out</Badge>}
       {show.isBenefit && (
-        <Badge icon={HeartIcon} size={size} className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
+        <Badge icon={HeartIcon} size={size} className="bg-success-soft text-success"
                title={showBenefitCause ? undefined : show.benefitCause ?? undefined}>
           {showBenefitCause && show.benefitCause ? `Benefit: ${show.benefitCause}` : 'Benefit'}
         </Badge>
       )}
       {show.isMatinee && (
-        <Badge icon={SunIcon} size={size} className="bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400">Matinee</Badge>
+        <Badge icon={SunIcon} size={size} className="bg-info-soft text-info">Matinee</Badge>
       )}
       {show.willSellOut && (
-        <Badge icon={FireIcon} size={size} className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400">
+        <Badge icon={FireIcon} size={size} className="bg-hot-soft text-hot">
           Will Sell Out
         </Badge>
       )}
