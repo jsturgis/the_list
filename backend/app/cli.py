@@ -2,6 +2,7 @@
 
     python -m app.cli ingest                              # maintenance, then import the newest edition
     python -m app.cli export --out ../frontend/public/data
+    python -m app.cli alerts --dry-run                    # print this week's Alert emails
 """
 from __future__ import annotations
 
@@ -10,6 +11,7 @@ import asyncio
 import logging
 import sys
 
+from app.alerts import SupabaseError, run_alerts
 from app.database import SessionLocal
 from app.export import export
 from app.scheduler import _run_ingestion_async, run_daily_maintenance
@@ -31,12 +33,26 @@ def ingest() -> None:
         sys.exit(1)
 
 
+def alerts(dry_run: bool) -> None:
+    """Build the weekly Alerts against the database; exits 1 when Supabase can't be read."""
+    db = SessionLocal()
+    try:
+        run_alerts(db, dry_run=dry_run, out=sys.stdout)
+    except (SupabaseError, NotImplementedError) as exc:
+        logger.error("alerts failed: %s", exc)
+        sys.exit(1)
+    finally:
+        db.close()
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("ingest", help="run daily maintenance, then ingest the newest edition")
     export_cmd = commands.add_parser("export", help="write the static JSON data files")
     export_cmd.add_argument("--out", required=True, help="directory to write shows/venues/bands/meta.json into")
+    alerts_cmd = commands.add_parser("alerts", help="build this week's Alert emails from everyone's Saved Filters")
+    alerts_cmd.add_argument("--dry-run", action="store_true", help="print the emails instead of sending them")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -50,6 +66,8 @@ def main(argv: list[str] | None = None) -> None:
         finally:
             db.close()
         print(f"exported to {args.out}: " + ", ".join(f"{n} {name}" for name, n in counts.items()))
+    elif args.command == "alerts":
+        alerts(dry_run=args.dry_run)
 
 
 if __name__ == "__main__":
