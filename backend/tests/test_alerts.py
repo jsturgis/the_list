@@ -154,7 +154,7 @@ def test_one_email_per_person_grouped_by_saved_filter(db, shows, supabase):
     assert [s.headliner for s in free.shows] == ["Snarky Puppy"]
     assert "To: fan@example.com" in printed and "East Bay punk" in printed
     # The plain-text version follows the HTML's layout: header, intro, a heading per Saved Filter, footer.
-    assert email.text.startswith("THE LIST · SF Bay Area Music\n\n3 upcoming shows match your alerts. Here they are, by alert.\n")
+    assert email.text.startswith("THE LIST · SF Bay Area Music\n\n3 upcoming shows matched your saved search.\n")
     heading = "East Bay punk · 2 shows"
     assert f"\n{heading}\n{'=' * len(heading)}\n" in email.text
     assert email.text.endswith(f"You set up these alerts on The List.\nManage your alerts: {SITE}/alerts/\n"
@@ -223,7 +223,7 @@ def test_at_most_25_shows_per_saved_filter_then_a_see_all_link(db, supabase):
     assert f"See all 30 on The List: {SITE}/?region=sf" in email.text
     # The headline counts every match, not only the 25 listed.
     assert email.subject == "30 upcoming shows matched your saved search"
-    assert "30 upcoming shows match your alerts" in email.html
+    assert "30 upcoming shows matched your saved search.<" in email.html
 
 
 def test_the_headline_counts_each_matching_show_once_across_alerts(db, shows, supabase):

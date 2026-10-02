@@ -253,6 +253,11 @@ def _subject(sections: list[Section]) -> str:
     return f"{_shows(_match_count(sections))} matched your saved search"
 
 
+def _intro(sections: list[Section]) -> str:
+    """The email's opening line, in the subject's words."""
+    return f"{_subject(sections)}."
+
+
 def _details(line: ShowLine) -> str:
     """ "Doors 8 PM · $15 · 21+" from whatever's known."""
     return " · ".join(x for x in (f"Doors {line.doors}" if line.doors else None, line.price, line.age) if x)
@@ -266,7 +271,7 @@ def _marks(line: ShowLine) -> list[str]:
 def _text(sections: list[Section], site: str, unsubscribe_url: str) -> str:
     """The plain-text version, laid out like the HTML: header, intro, a heading per Saved Filter, footer."""
     lines = ["THE LIST · SF Bay Area Music", "",
-             f"{_shows(_match_count(sections)).capitalize()} match your alerts. Here they are, by alert."]
+             _intro(sections)]
     for s in sections:
         heading = f"{s.name} · {s.total} {'show' if s.total == 1 else 'shows'}"
         lines += ["", heading, "=" * len(heading)]
@@ -352,8 +357,7 @@ def _html(sections: list[Section], site: str, unsubscribe_url: str) -> str:
         f'<tr><td style="background:{_HEADER}; padding:20px 24px; border-bottom:4px solid #f59e0b">'
         f'<a href="{e(site)}/" style="color:#ffffff; text-decoration:none; font-size:22px; font-weight:800">The List</a>'
         f'<span style="color:#e4e4e7; font-size:14px; margin-left:8px">SF Bay Area Music</span></td></tr>'
-        f'<tr><td style="padding:24px 24px 0; font-size:15px; color:{_SOFT}">{_shows(_match_count(sections)).capitalize()} '
-        f'match your alerts. Here they are, by alert.</td></tr>'
+        f'<tr><td style="padding:24px 24px 0; font-size:15px; color:{_SOFT}">{e(_intro(sections))}</td></tr>'
         + "".join(body)
         + f'<tr><td style="padding:32px 24px 24px; font-size:12px; color:{_MUTED}; border-top:1px solid {_LINE}">'
         f'You set up these alerts on The List. <a href="{e(site)}/alerts/" style="color:{_MUTED}">Manage your alerts</a>'
