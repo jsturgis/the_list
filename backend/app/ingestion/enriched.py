@@ -2,9 +2,9 @@
 
 The enriched export ("San Francisco Area Music List for <date>.enriched.json") is a top-level list
 of schema v2.0.0 events, like the formatted edition's `events`. It is more complete for Venue data
-(coordinates, images, Instagram, transit), ticket links, Show notes and artist images and descriptions,
-but weaker on artist links and genres, so only those fields are taken, and only where the formatted
-edition has none. The formatted edition stays the source of which Shows exist.
+(website, coordinates, images, Instagram, transit), ticket links, Show notes and artist images and
+descriptions, but weaker on artist links and genres, so only those fields are taken, and only where the
+formatted edition has none. The formatted edition stays the source of which Shows exist.
 """
 from __future__ import annotations
 
@@ -17,8 +17,8 @@ _PUNCTUATION_RE = re.compile(r"[^\w\s]")
 _ARTIST_NOTE_RE = re.compile(r"\s*\(.*?\)\s*$")
 # What the tool that makes the enriched export says about its own work, not about the Band.
 _TOOL_REMARKS = {"added during enrichment"}
-_SHOW_FIELDS = ("latitude", "longitude", "venue_image_url", "venue_instagram", "venue_nearest_transit",
-                "ticket_url")
+_SHOW_FIELDS = ("latitude", "longitude", "venue_website", "venue_image_url", "venue_instagram",
+                "venue_nearest_transit", "ticket_url")
 
 
 def merge_enriched(shows_data: list[dict], enriched_events: list[dict]) -> int:

@@ -188,6 +188,12 @@ def test_structured_times_and_ticketing_fill_gaps_in_details():
     assert free["price_raw"] == "free"
 
 
+def test_the_lists_own_site_is_not_a_venue_website():
+    # The producer fills in Steve's site when it doesn't know the Venue's.
+    [s] = edition_shows(_doc(_event(venue={"url": "https://stevelist.com/"})))
+    assert s["venue_website"] is None
+
+
 def test_venue_coordinates_are_kept():
     [s] = edition_shows(_doc(_event()))
     assert (s["latitude"], s["longitude"]) == (36.9715, -122.0255)
