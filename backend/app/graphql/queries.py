@@ -118,12 +118,16 @@ def _ingestion_run(r: IngestionRun) -> IngestionRunType:
     )
 
 
-def _query_shows(
+def query_shows(
     db: Session,
     filters: Optional[ShowFilters],
     limit: int,
     offset: int,
 ) -> list[Show]:
+    """Shows matching `filters`, by date: the `shows` query, and the weekly Alerts (app/alerts.py).
+
+    The site's browser filtering (frontend filterShows) mirrors this, so all three agree.
+    """
     f = filters or ShowFilters()
 
     q = db.query(Show).options(
@@ -216,7 +220,7 @@ class Query:
         offset: int = 0,
     ) -> list[ShowType]:
         db: Session = info.context["db"]
-        return [_show(s) for s in _query_shows(db, filters, limit, offset)]
+        return [_show(s) for s in query_shows(db, filters, limit, offset)]
 
     @strawberry.field
     def filter_options(self, info: Info) -> FilterOptionsType:

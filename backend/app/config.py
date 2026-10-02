@@ -26,5 +26,12 @@ class Settings(BaseSettings):
     # Calendar dates ("today", upcoming vs past) are evaluated in this timezone.
     timezone: str = "America/Los_Angeles"
 
+    # Weekly Alerts (ADR 0003): people and their Saved Filters live in Supabase. The key is the project's
+    # secret key (sb_secret_...), which reads every row; it's only ever a GitHub secret or a local .env value.
+    supabase_url: str = ""
+    supabase_service_role_key: str = ""
+    # Where links in the Alert emails point.
+    site_url: str = "https://list.sturgis.me"
+
 
 settings = Settings()
