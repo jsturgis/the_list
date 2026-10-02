@@ -52,13 +52,25 @@ def test_matched_show_gets_the_venue_fields_it_lacks():
     assert show["venue_nearest_transit"] == "22 Fillmore"
 
 
-def test_matched_show_gets_a_ticket_link_and_special_event():
+def test_matched_show_gets_a_ticket_link_and_its_special_event_as_a_note():
     show = _merge(_event(), _event(
         ticketing={"price_advance": 20, "ticket_url": "https://www.ticketweb.com/event/sleep-tickets/123"},
         context={"special_event": "Psyched! Fest 2026"}))
 
     assert show["ticket_url"] == "https://www.ticketweb.com/event/sleep-tickets/123"
-    assert show["special_event"] == "Psyched! Fest 2026"
+    # The enriched "special event" is often a remark ("show not independently confirmed ..."), not an
+    # event name, so it goes into the Show's notes rather than its special event.
+    assert show["special_event"] is None
+    assert show["notes"] == "Psyched! Fest 2026"
+
+
+def test_an_enriched_special_event_is_added_to_existing_notes_once():
+    show = _merge(_event(details="21+ $20 8pm/9pm (Gilman Benefit)"),
+                  _event(context={"special_event": "PURR presents: a punk clown takeover; mutual aid benefit"}))
+    assert show["notes"] == "Gilman Benefit; PURR presents: a punk clown takeover; mutual aid benefit"
+
+    show = _merge(_event(details="21+ $20 8pm/9pm (Gilman Benefit)"), _event(context={"special_event": "gilman benefit"}))
+    assert show["notes"] == "Gilman Benefit"
 
 
 def test_ticket_links_are_absolute_web_links():
@@ -204,5 +216,7 @@ def test_sample_pair_overwrites_nothing(sample_pair):
             elif field == "band_enrichment":
                 for (_, e_old), (_, e_new) in zip(value, new[field]):
                     assert all(e_new[k] == v for k, v in e_old.items() if v is not None)
+            elif field == "notes" and value is not None:
+                assert new[field].startswith(value)  # enriched special events are appended
             elif value is not None:
                 assert new[field] == value, field
