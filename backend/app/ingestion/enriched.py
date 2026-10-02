@@ -2,7 +2,7 @@
 
 The enriched export ("San Francisco Area Music List for <date>.enriched.json") is a top-level list
 of schema v2.0.0 events, like the formatted edition's `events`. It is more complete for Venue data
-(coordinates, images, Instagram, transit), ticket links, special events and artist images and notes,
+(coordinates, images, Instagram, transit), ticket links, Show notes and artist images and notes,
 but weaker on artist links and genres, so only those fields are taken, and only where the formatted
 edition has none. The formatted edition stays the source of which Shows exist.
 """
@@ -16,7 +16,7 @@ from app.ingestion.upsert import venue_key
 _PUNCTUATION_RE = re.compile(r"[^\w\s]")
 _ARTIST_NOTE_RE = re.compile(r"\s*\(.*?\)\s*$")
 _SHOW_FIELDS = ("latitude", "longitude", "venue_image_url", "venue_instagram", "venue_nearest_transit",
-                "ticket_url", "special_event")
+                "ticket_url")
 
 
 def merge_enriched(shows_data: list[dict], enriched_events: list[dict]) -> int:
@@ -35,8 +35,23 @@ def merge_enriched(shows_data: list[dict], enriched_events: list[dict]) -> int:
         for field in _SHOW_FIELDS:
             if data.get(field) is None and enriched_show.get(field) is not None:
                 data[field] = enriched_show[field]
+        _add_note(data, enriched_show.get("special_event"))
         _merge_artists(data, event.get("artists") or [])
     return matched
+
+
+def _add_note(data: dict, note: str | None) -> None:
+    """Append the enriched "special event" to the Show's notes, unless they already say it.
+
+    It's often a remark rather than an event name ("show itself not independently confirmed"; "6pm-midnight;
+    $10-$50 sliding scale"), so it isn't used as the Show's special event.
+    """
+    if not note:
+        return
+    notes = data.get("notes")
+    if notes and note.lower() in notes.lower():
+        return
+    data["notes"] = f"{notes}; {note}" if notes else note
 
 
 def _match(data: dict, candidates: list[tuple[dict, dict]]) -> tuple[dict, dict] | None:
