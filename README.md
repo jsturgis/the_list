@@ -1,6 +1,6 @@
 # The List
 
-A weekly SF Bay Area music discovery site, published at **https://jsturgis.github.io/the_list/**.
+A weekly SF Bay Area music discovery site, published at **https://list.sturgis.me/**.
 Every Friday, a GitHub Action ingests the formatted edition of [Steve List's](mailto:skoepke@stevelist.com)
 curated list, enriches it, and rebuilds a static site on GitHub Pages. A GraphQL API is available for
 exploring the data locally.
@@ -229,8 +229,14 @@ Check with `docker compose exec api alembic current`: it should print the head r
 
 ## Deployment
 
-The site is published at **https://jsturgis.github.io/the_list/** as a static site on GitHub Pages (see
-[ADR 0002](docs/adr/0002-static-site-on-github-pages.md)).
+The site is published at **https://list.sturgis.me/** as a static site on GitHub Pages (see
+[ADR 0002](docs/adr/0002-static-site-on-github-pages.md)). The old address, https://jsturgis.github.io/the_list/,
+redirects there.
+
+- **Custom domain**: set in Settings → Pages, with a `CNAME` record `list` → `jsturgis.github.io` in the
+  `sturgis.me` DNS. The build takes its base path and site URL from `actions/configure-pages`
+  (`PAGES_BASE_PATH`, `PAGES_SITE_URL`): `""` and `https://list.sturgis.me` with the domain, `/the_list` and
+  `https://jsturgis.github.io/the_list` without it. Local builds default to `/the_list`.
 
 - **The `data` branch** is an orphan branch holding the SQLite database (`the_list.db`) and the FAISS
   index (`faiss/`). `main` never contains data files. It keeps only its newest 4 commits (the current

@@ -160,13 +160,18 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
+      - id: pages
+        uses: actions/configure-pages@v5
+
       - name: Build the site
         working-directory: frontend
+        env:
+          # Where Pages serves the site: "" and the custom domain's URL when one is set (Settings -> Pages).
+          PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          PAGES_SITE_URL: ${{ steps.pages.outputs.base_url }}
         run: |
           npm ci
           npm run build
-
-      - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
