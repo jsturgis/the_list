@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = ""
     # Where links in the Alert emails point.
     site_url: str = "https://list.sturgis.me"
+    # Alert emails are sent through Resend, from a domain verified there (list.sturgis.me).
+    resend_api_key: str = ""
+    alerts_from: str = "The List <alerts@list.sturgis.me>"
 
 
 settings = Settings()

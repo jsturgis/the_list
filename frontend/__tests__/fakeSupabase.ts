@@ -61,6 +61,14 @@ export function fakeSupabase() {
       }),
     },
     insert: savedFilters.insert,
+    // unsubscribe(token): turns Alerts off for the subscription with that token; reports whether there was one.
+    unsubscribeTokens: new Set<string>(['good-token']),
+    rpc: vi.fn(async (fn: string, args: { token: string }) => {
+      if (fn !== 'unsubscribe') throw new Error(`unexpected function ${fn}`)
+      const found = client.unsubscribeTokens.has(args.token)
+      if (found && state.subscription) state.subscription.enabled = false
+      return { data: found, error: null }
+    }),
     from: vi.fn((table: string) => {
       if (table === 'saved_filters') return savedFilters
       if (table === 'alert_subscriptions') return subscriptions

@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.alerts import SupabaseError, run_alerts
+from app.alerts import SendError, SupabaseError, run_alerts
 from app.clock import local_today
 from app.models.act import Act
 from app.models.band import Band
@@ -102,11 +102,34 @@ class FakeSupabase:
         raise AssertionError(f"unexpected request {url}")
 
 
+class FakeResend:
+    """Resend's send-email endpoint: records each email, and fails for the recipients in `fail_for`."""
+
+    def __init__(self):
+        self.sent: list[tuple[dict, dict]] = []  # (json body, headers)
+        self.fail_for: set[str] = set()
+
+    def post(self, url, json=None, headers=None, **kwargs):
+        assert url == "https://api.resend.com/emails"
+        assert headers["Authorization"] == "Bearer re_test"
+        if json["to"][0] in self.fail_for:
+            return _response({"message": "rejected"}, status=422)
+        self.sent.append((json, headers))
+        return _response({"id": f"email-{len(self.sent)}"})
+
+
 @pytest.fixture
-def supabase():
+def resend():
+    return FakeResend()
+
+
+@pytest.fixture
+def supabase(resend):
     fake = FakeSupabase()
-    with patch("app.alerts.settings") as s, patch("app.alerts.httpx.get", side_effect=fake.get):
+    with patch("app.alerts.settings") as s, patch("app.alerts.httpx.get", side_effect=fake.get), \
+            patch("app.alerts.httpx.post", side_effect=resend.post), patch("app.alerts.time.sleep"):
         s.supabase_url, s.supabase_service_role_key, s.site_url = SUPABASE, "sb_secret_test", SITE
+        s.resend_api_key, s.alerts_from = "re_test", "The List <alerts@list.example>"
         yield fake
 
 
@@ -134,7 +157,8 @@ def test_one_email_per_person_grouped_by_saved_filter(db, shows, supabase):
     assert email.text.startswith("THE LIST · SF Bay Area Music\n\n3 upcoming shows match your alerts. Here they are, by alert.\n")
     heading = "East Bay punk · 2 shows"
     assert f"\n{heading}\n{'=' * len(heading)}\n" in email.text
-    assert email.text.endswith(f"You set up these alerts on The List.\nManage your alerts: {SITE}/alerts/\n")
+    assert email.text.endswith(f"You set up these alerts on The List.\nManage your alerts: {SITE}/alerts/\n"
+                               f"Unsubscribe from these emails: {SITE}/alerts/unsubscribe/?token=token-user-1\n")
 
 
 def test_each_show_gives_date_headliner_venue_city_and_link(db, shows, supabase):
@@ -266,9 +290,54 @@ def test_missing_supabase_settings_fail_clearly(db):
             run_alerts(db, dry_run=True, out=io.StringIO())
 
 
-def test_sending_is_not_available_yet(db, shows, supabase):
-    with pytest.raises(NotImplementedError):
+# ── sending ───────────────────────────────────────────────────────────────────
+
+def test_sends_each_alert_through_resend_with_both_versions_and_an_unsubscribe_link(db, shows, supabase, resend):
+    supabase.person("fan@example.com", ("Free", "free=1"))
+    supabase.person("other@example.com", ("East Bay punk", "genre=punk&region=east_bay"))
+    emails = run_alerts(db, dry_run=False, out=io.StringIO())
+
+    assert [body["to"] for body, _ in resend.sent] == [["fan@example.com"], ["other@example.com"]]
+    body, headers = resend.sent[0]
+    email = emails[0]
+    unsubscribe = f"{SITE}/alerts/unsubscribe/?token=token-user-1"
+    assert body["from"] == "The List <alerts@list.example>"
+    assert (body["subject"], body["html"], body["text"]) == (email.subject, email.html, email.text)
+    assert body["headers"] == {"List-Unsubscribe": f"<{unsubscribe}>"}
+    assert unsubscribe in email.text and f'href="{unsubscribe}"' in email.html
+    # The same person, the same day: Resend drops a repeat, so re-running doesn't email anyone twice.
+    assert headers["Idempotency-Key"] == f"alert-{local_today().isoformat()}-token-user-1"
+
+
+def test_a_dry_run_sends_nothing(db, shows, supabase, resend):
+    supabase.person("fan@example.com", ("Free", "free=1"))
+    _run(db)
+    assert resend.sent == []
+
+
+def test_a_failed_send_doesnt_stop_the_others_but_fails_the_run(db, shows, supabase, resend, caplog):
+    supabase.person("bounce@example.com", ("Free", "free=1"))
+    supabase.person("fan@example.com", ("Free", "free=1"))
+    resend.fail_for = {"bounce@example.com"}
+
+    with caplog.at_level(logging.INFO), pytest.raises(SendError, match="1 of 2"):
         run_alerts(db, dry_run=False, out=io.StringIO())
+    assert [body["to"] for body, _ in resend.sent] == [["fan@example.com"]]
+    assert "example.com" not in caplog.text
+
+
+def test_only_sends_to_the_one_recipient_asked_for(db, shows, supabase, resend):
+    supabase.person("fan@example.com", ("Free", "free=1"))
+    supabase.person("me@example.com", ("Free", "free=1"))
+    run_alerts(db, dry_run=False, out=io.StringIO(), only="ME@example.com")
+    assert [body["to"] for body, _ in resend.sent] == [["me@example.com"]]
+
+
+def test_sending_without_a_resend_key_fails_before_sending_anything(db, shows, supabase, resend):
+    supabase.person("fan@example.com", ("Free", "free=1"))
+    with patch("app.alerts.settings.resend_api_key", ""), pytest.raises(SendError, match="RESEND_API_KEY"):
+        run_alerts(db, dry_run=False, out=io.StringIO())
+    assert resend.sent == []
 
 
 def test_cli_dry_run_prints_and_exits_non_zero_on_supabase_errors(db, shows, supabase, capsys):
@@ -282,4 +351,20 @@ def test_cli_dry_run_prints_and_exits_non_zero_on_supabase_errors(db, shows, sup
     supabase.fail = True
     with patch("app.cli.SessionLocal", return_value=db), pytest.raises(SystemExit) as exit:
         main(["alerts", "--dry-run"])
+    assert exit.value.code == 1
+
+
+def test_cli_sends_and_can_send_to_one_recipient(db, shows, supabase, resend):
+    from app.cli import main
+
+    supabase.person("fan@example.com", ("Free", "free=1"))
+    supabase.person("me@example.com", ("Free", "free=1"))
+    db.commit()  # the CLI closes its session, which would roll back uncommitted test data
+    with patch("app.cli.SessionLocal", return_value=db):
+        main(["alerts", "--only", "me@example.com"])
+    assert [body["to"] for body, _ in resend.sent] == [["me@example.com"]]
+
+    resend.fail_for = {"fan@example.com"}
+    with patch("app.cli.SessionLocal", return_value=db), pytest.raises(SystemExit) as exit:
+        main(["alerts"])
     assert exit.value.code == 1
