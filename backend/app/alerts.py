@@ -252,18 +252,23 @@ def _marks(line: ShowLine) -> list[str]:
 
 
 def _text(sections: list[Section], site: str) -> str:
-    lines = ["Upcoming shows for your alerts on The List", ""]
+    """The plain-text version, laid out like the HTML: header, intro, a heading per Saved Filter, footer."""
+    lines = ["THE LIST · SF Bay Area Music", "",
+             f"{_shows(_match_count(sections)).capitalize()} match your alerts. Here they are, by alert."]
     for s in sections:
-        lines.append(f"{s.name} — {s.total} {'show' if s.total == 1 else 'shows'}")
+        heading = f"{s.name} · {s.total} {'show' if s.total == 1 else 'shows'}"
+        lines += ["", heading, "=" * len(heading)]
         for line in s.shows:
-            acts = ", ".join([line.headliner, *line.support]) + (f" + {line.more_acts} more" if line.more_acts else "")
-            extra = " · ".join(filter(None, [_details(line), ", ".join(_marks(line))]))
-            lines += [f"  {line.date_label} · {acts} at {line.venue}, {line.city}",
-                      *([f"    {extra}"] if extra else []), f"    {line.url}"]
+            support = ", ".join(line.support) + (f" + {line.more_acts} more" if line.more_acts else "")
+            lines += ["", f"{line.date_label} · {line.headliner}",
+                      *([f"  with {support}"] if support else []),
+                      f"  {line.venue} · {line.city}",
+                      *([f"  {_details(line)}"] if _details(line) else []),
+                      *([f"  {' · '.join(_marks(line))}"] if _marks(line) else []),
+                      f"  {line.url}"]
         if s.total > len(s.shows):
-            lines.append(f"  See all {s.total} on The List: {s.see_all_url}")
-        lines.append("")
-    lines.append(f"Manage your alerts: {site}/alerts/")
+            lines += ["", f"See all {s.total} on The List: {s.see_all_url}"]
+    lines += ["", "—", "You set up these alerts on The List.", f"Manage your alerts: {site}/alerts/"]
     return "\n".join(lines) + "\n"
 
 
