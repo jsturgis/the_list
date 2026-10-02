@@ -4,12 +4,14 @@ People, their Saved Filters and whether their Alerts are on live in Supabase (AD
 the project's secret key. Each Saved Filter stores the Shows list's URL query string, which becomes the same
 filters the GraphQL `shows` query takes, so an Alert lists exactly what the site shows for that filter.
 
-Only a dry run exists so far: the emails are printed. Sending comes with #61.
+Each email goes out through Resend with an HTML and a plain-text version, and an unsubscribe link (in the
+footer and the List-Unsubscribe header) to the site's Unsubscribe page. A dry run prints them instead.
 """
 from __future__ import annotations
 
 import html
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import TextIO
 from urllib.parse import parse_qs
@@ -17,6 +19,7 @@ from urllib.parse import parse_qs
 import httpx
 from sqlalchemy.orm import Session
 
+from app.clock import local_today
 from app.config import settings
 from app.graphql.queries import query_shows
 from app.graphql.types import ShowFilters
@@ -33,6 +36,15 @@ _LEGACY_SEARCH_PARAMS = ("band", "venue")
 
 class SupabaseError(RuntimeError):
     pass
+
+
+class SendError(RuntimeError):
+    pass
+
+
+_RESEND_URL = "https://api.resend.com/emails"
+# Resend allows a couple of requests a second; space the sends out under that.
+_SEND_INTERVAL = 0.6
 
 
 @dataclass
@@ -238,7 +250,12 @@ def _shows(count: int) -> str:
 
 
 def _subject(sections: list[Section]) -> str:
-    return f"{_shows(_match_count(sections))} for your alerts"
+    return f"{_shows(_match_count(sections))} matched your saved search"
+
+
+def _intro(sections: list[Section]) -> str:
+    """The email's opening line, in the subject's words."""
+    return f"{_subject(sections)}."
 
 
 def _details(line: ShowLine) -> str:
@@ -251,10 +268,10 @@ def _marks(line: ShowLine) -> list[str]:
                             ("Will sell out", line.will_sell_out)) if on]
 
 
-def _text(sections: list[Section], site: str) -> str:
+def _text(sections: list[Section], site: str, unsubscribe_url: str) -> str:
     """The plain-text version, laid out like the HTML: header, intro, a heading per Saved Filter, footer."""
     lines = ["THE LIST · SF Bay Area Music", "",
-             f"{_shows(_match_count(sections)).capitalize()} match your alerts. Here they are, by alert."]
+             _intro(sections)]
     for s in sections:
         heading = f"{s.name} · {s.total} {'show' if s.total == 1 else 'shows'}"
         lines += ["", heading, "=" * len(heading)]
@@ -268,7 +285,8 @@ def _text(sections: list[Section], site: str) -> str:
                       f"  {line.url}"]
         if s.total > len(s.shows):
             lines += ["", f"See all {s.total} on The List: {s.see_all_url}"]
-    lines += ["", "—", "You set up these alerts on The List.", f"Manage your alerts: {site}/alerts/"]
+    lines += ["", "—", "You set up these alerts on The List.", f"Manage your alerts: {site}/alerts/",
+              f"Unsubscribe from these emails: {unsubscribe_url}"]
     return "\n".join(lines) + "\n"
 
 
@@ -305,7 +323,7 @@ def _html_show(line: ShowLine) -> str:
     )
 
 
-def _html(sections: list[Section], site: str) -> str:
+def _html(sections: list[Section], site: str, unsubscribe_url: str) -> str:
     e = html.escape
     preview = ", ".join(dict.fromkeys(line.headliner for s in sections for line in s.shows))[:140]
     body = []
@@ -339,13 +357,18 @@ def _html(sections: list[Section], site: str) -> str:
         f'<tr><td style="background:{_HEADER}; padding:20px 24px; border-bottom:4px solid #f59e0b">'
         f'<a href="{e(site)}/" style="color:#ffffff; text-decoration:none; font-size:22px; font-weight:800">The List</a>'
         f'<span style="color:#e4e4e7; font-size:14px; margin-left:8px">SF Bay Area Music</span></td></tr>'
-        f'<tr><td style="padding:24px 24px 0; font-size:15px; color:{_SOFT}">{_shows(_match_count(sections)).capitalize()} '
-        f'match your alerts. Here they are, by alert.</td></tr>'
+        f'<tr><td style="padding:24px 24px 0; font-size:15px; color:{_SOFT}">{e(_intro(sections))}</td></tr>'
         + "".join(body)
         + f'<tr><td style="padding:32px 24px 24px; font-size:12px; color:{_MUTED}; border-top:1px solid {_LINE}">'
         f'You set up these alerts on The List. <a href="{e(site)}/alerts/" style="color:{_MUTED}">Manage your alerts</a>'
+        f' · <a href="{e(unsubscribe_url)}" style="color:{_MUTED}">Unsubscribe</a>'
         f'</td></tr></table></td></tr></table></body></html>'
     )
+
+
+def unsubscribe_url(site: str, token: str) -> str:
+    """The site's Unsubscribe page for one person: it turns their Alerts off without signing in."""
+    return f"{site}/alerts/unsubscribe/?token={token}"
 
 
 def build_alerts(db: Session, subscribers: list[Subscriber], site: str) -> list[AlertEmail]:
@@ -368,20 +391,66 @@ def build_alerts(db: Session, subscribers: list[Subscriber], site: str) -> list[
                 sections.append(Section(saved.name, [_show_line(s, site) for s in matches[:SHOWS_PER_FILTER]],
                                         len(matches), f"{site}/?{saved.query}", frozenset(s.id for s in matches)))
         if sections:
+            unsubscribe = unsubscribe_url(site, person.unsubscribe_token)
             emails.append(AlertEmail(person.email, person.unsubscribe_token, _subject(sections), sections,
-                                     _text(sections, site), _html(sections, site)))
+                                     _text(sections, site, unsubscribe), _html(sections, site, unsubscribe)))
     return emails
 
 
-def run_alerts(db: Session, *, dry_run: bool, out: TextIO) -> list[AlertEmail]:
-    """Build this week's Alerts. A dry run prints them to `out`; sending isn't built yet (#61)."""
-    if not dry_run:
-        raise NotImplementedError("Sending Alerts isn't available yet; use --dry-run")
+def send_email(email: AlertEmail, site: str) -> None:
+    """Send one Alert through Resend, with both versions and a List-Unsubscribe header."""
+    response = httpx.post(
+        _RESEND_URL,
+        json={
+            "from": settings.alerts_from,
+            "to": [email.to],
+            "subject": email.subject,
+            "html": email.html,
+            "text": email.text,
+            "headers": {"List-Unsubscribe": f"<{unsubscribe_url(site, email.unsubscribe_token)}>"},
+        },
+        headers={
+            "Authorization": f"Bearer {settings.resend_api_key}",
+            # Resend drops a repeat of the same key, so re-running the job on the same day emails nobody twice.
+            "Idempotency-Key": f"alert-{local_today().isoformat()}-{email.unsubscribe_token}",
+        },
+        timeout=30.0,
+    )
+    response.raise_for_status()
+
+
+def run_alerts(db: Session, *, dry_run: bool, out: TextIO, only: str | None = None) -> list[AlertEmail]:
+    """Build this week's Alerts and send them; a dry run prints them to `out` instead.
+
+    `only` limits the run to one recipient (by email address), for a test send. A failed send doesn't stop
+    the others, but the run raises SendError at the end.
+    """
+    if not dry_run and not settings.resend_api_key:
+        raise SendError("RESEND_API_KEY must be set to send Alerts")
     subscribers = fetch_subscribers()
+    if only:
+        subscribers = [p for p in subscribers if p.email.lower() == only.strip().lower()]
+        logger.info("alerts: limited to one recipient (--only)")
     site = settings.site_url.rstrip("/")
     emails = build_alerts(db, subscribers, site)
     logger.info("alerts: %d alert emails for %d people with Alerts on (%d Saved Filters)",
                 len(emails), len(subscribers), sum(len(p.saved_filters) for p in subscribers))
-    for email in emails:
-        out.write(f"To: {email.to}\nSubject: {email.subject}\n\n{email.text}\n{'─' * 72}\n")
+    if dry_run:
+        for email in emails:
+            out.write(f"To: {email.to}\nSubject: {email.subject}\n\n{email.text}\n{'─' * 72}\n")
+        return emails
+
+    failed = 0
+    for i, email in enumerate(emails):
+        if i:
+            time.sleep(_SEND_INTERVAL)
+        try:
+            send_email(email, site)
+        except Exception as exc:
+            failed += 1
+            # The error comes from Resend's response, not the address; log the kind of failure only.
+            logger.error("alerts: a send failed: %s", type(exc).__name__)
+    logger.info("alerts: sent %d of %d alert emails", len(emails) - failed, len(emails))
+    if failed:
+        raise SendError(f"{failed} of {len(emails)} alert emails failed to send")
     return emails
