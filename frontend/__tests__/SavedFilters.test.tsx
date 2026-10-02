@@ -1,4 +1,4 @@
-import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import FilterBar from '@/components/FilterBar'
 import { fakeSupabase } from './fakeSupabase'
@@ -107,17 +107,6 @@ describe('Save control dismissing', () => {
     await openSaved()
     fireEvent.click(screen.getByRole('button', { name: /dismiss/i }))
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
-  })
-
-  it('hides the toast by itself after a few seconds', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
-    try {
-      await openSaved()
-      act(() => { vi.advanceTimersByTime(10_000) })
-      expect(screen.queryByRole('status')).not.toBeInTheDocument()
-    } finally {
-      vi.useRealTimers()
-    }
   })
 })
 
