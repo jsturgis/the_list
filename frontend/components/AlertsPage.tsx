@@ -1,9 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { alertsPageUrl, supabase, type SavedFilter } from '@/lib/supabase'
 import { useSession } from '@/lib/useSession'
+import Toast from './Toast'
 
 /** The Saved Filter a sign-in link carries (?save=<query>&name=<name>), removed from the address bar. */
 function takePendingFilter(): { name: string; query: string } | null {
@@ -94,6 +95,7 @@ function SignInByEmail() {
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
   const [sending, setSending] = useState(false)
+  const dismissToast = useCallback(() => setSent(false), [])
   const [error, setError] = useState<string | null>(null)
 
   const submit = async (e: FormEvent) => {
@@ -106,41 +108,46 @@ function SignInByEmail() {
       options: { emailRedirectTo: alertsPageUrl() },
     })
     setSending(false)
-    if (error) setError(error.message)
-    else setSent(true)
+    if (error) {
+      setError(error.message)
+    } else {
+      setEmail('')
+      setSent(true)
+    }
   }
 
-  if (sent) return <p className="text-sm text-zinc-700 dark:text-zinc-300">Check your email for a sign-in link.</p>
-
   return (
-    <form onSubmit={submit} className="flex flex-col gap-3 max-w-sm">
-      <p className="text-sm text-zinc-600 dark:text-zinc-300">Sign in to see and manage your saved searches.</p>
-      <div className="flex flex-col gap-1">
-        <label htmlFor="alerts-email" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-          Email
-        </label>
-        <input
-          id="alerts-email"
-          type="email"
-          required
-          autoComplete="email"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 text-zinc-900 dark:text-zinc-100"
-        />
-      </div>
-      <button
-        type="submit"
-        disabled={sending}
-        className="h-9 rounded bg-amber-500 px-3 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
-      >
-        Email me a sign-in link
-      </button>
-      {error && (
-        <p role="alert" className="text-xs text-red-600 dark:text-red-400">
-          {error}
-        </p>
-      )}
-    </form>
+    <>
+      <form onSubmit={submit} className="flex flex-col gap-3 max-w-sm">
+        <p className="text-sm text-zinc-600 dark:text-zinc-300">Sign in to see and manage your saved searches.</p>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="alerts-email" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Email
+          </label>
+          <input
+            id="alerts-email"
+            type="email"
+            required
+            autoComplete="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            className="h-9 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm px-2 text-zinc-900 dark:text-zinc-100"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={sending}
+          className="h-9 rounded bg-amber-500 px-3 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
+        >
+          Email me a sign-in link
+        </button>
+        {error && (
+          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+            {error}
+          </p>
+        )}
+      </form>
+      {sent && <Toast onDismiss={dismissToast}>Check your email for a sign-in link.</Toast>}
+    </>
   )
 }

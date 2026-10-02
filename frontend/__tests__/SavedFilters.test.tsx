@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import FilterBar from '@/components/FilterBar'
 import { fakeSupabase } from './fakeSupabase'
@@ -38,7 +38,9 @@ describe('Save control', () => {
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'fan@example.com' } })
     fireEvent.click(screen.getByRole('button', { name: /email me a sign-in link/i }))
 
-    expect(await screen.findByText(/check your email/i)).toBeInTheDocument()
+    // The form closes and a toast confirms.
+    expect(await screen.findByRole('status')).toHaveTextContent(/check your email for a sign-in link/i)
+    expect(screen.queryByLabelText('Email')).not.toBeInTheDocument()
     const [{ email, options }] = fake.current!.client.auth.signInWithOtp.mock.calls[0]
     expect(email).toBe('fan@example.com')
     const redirect = new URL(options!.emailRedirectTo!)
@@ -58,9 +60,11 @@ describe('Save control', () => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'East Bay punk' } })
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }))
 
-    expect(await screen.findByText(/saved/i)).toBeInTheDocument()
+    const toast = await screen.findByRole('status')
+    expect(toast).toHaveTextContent(/saved/i)
+    expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
     expect(fake.current!.state.savedFilters).toMatchObject([{ name: 'East Bay punk', query: 'genre=punk&region=east_bay' }])
-    expect(screen.getByRole('link', { name: /alerts/i })).toHaveAttribute('href', expect.stringMatching(/^\/alerts\/?$/))
+    expect(within(toast).getByRole('link', { name: /alerts/i })).toHaveAttribute('href', expect.stringMatching(/^\/alerts\/?$/))
   })
 
   it('shows why a save failed', async () => {
@@ -73,6 +77,47 @@ describe('Save control', () => {
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('You can save up to 20 filters')
+  })
+})
+
+describe('Save control dismissing', () => {
+  const openSaved = async () => {
+    fake.current!.state.email = 'fan@example.com'
+    params = new URLSearchParams('genre=punk')
+    render(<FilterBar {...props} />)
+    fireEvent.click(await screen.findByRole('button', { name: /save search/i }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Punk' } })
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }))
+    return screen.findByRole('status')
+  }
+
+  it('closes the form with Escape or a click outside it', async () => {
+    params = new URLSearchParams('genre=punk')
+    render(<FilterBar {...props} />)
+    fireEvent.click(await screen.findByRole('button', { name: /save search/i }))
+    fireEvent.keyDown(screen.getByLabelText('Name'), { key: 'Escape' })
+    expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /save search/i }))
+    fireEvent.mouseDown(screen.getByText(/showing 10 of 100/i))
+    expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
+  })
+
+  it('lets the toast be dismissed', async () => {
+    await openSaved()
+    fireEvent.click(screen.getByRole('button', { name: /dismiss/i }))
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('hides the toast by itself after a few seconds', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      await openSaved()
+      act(() => { vi.advanceTimersByTime(10_000) })
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

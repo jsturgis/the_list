@@ -22,7 +22,8 @@ describe('Alerts page, signed out', () => {
     fireEvent.change(await screen.findByLabelText('Email'), { target: { value: 'fan@example.com' } })
     fireEvent.click(screen.getByRole('button', { name: /email me a sign-in link/i }))
 
-    expect(await screen.findByText(/check your email/i)).toBeInTheDocument()
+    expect(await screen.findByRole('status')).toHaveTextContent(/check your email for a sign-in link/i)
+    expect(screen.getByLabelText('Email')).toHaveValue('')
     const [{ email, options }] = fake.current!.client.auth.signInWithOtp.mock.calls[0]
     expect(email).toBe('fan@example.com')
     expect(new URL(options!.emailRedirectTo!).pathname).toBe('/alerts/')
