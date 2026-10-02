@@ -130,6 +130,11 @@ def test_one_email_per_person_grouped_by_saved_filter(db, shows, supabase):
     assert [s.headliner for s in punk.shows] == ["Counterparts", "Sundale"]  # date order; past and cancelled left out
     assert [s.headliner for s in free.shows] == ["Snarky Puppy"]
     assert "To: fan@example.com" in printed and "East Bay punk" in printed
+    # The plain-text version follows the HTML's layout: header, intro, a heading per Saved Filter, footer.
+    assert email.text.startswith("THE LIST · SF Bay Area Music\n\n3 upcoming shows match your alerts. Here they are, by alert.\n")
+    heading = "East Bay punk · 2 shows"
+    assert f"\n{heading}\n{'=' * len(heading)}\n" in email.text
+    assert email.text.endswith(f"You set up these alerts on The List.\nManage your alerts: {SITE}/alerts/\n")
 
 
 def test_each_show_gives_date_headliner_venue_city_and_link(db, shows, supabase):
@@ -138,10 +143,32 @@ def test_each_show_gives_date_headliner_venue_city_and_link(db, shows, supabase)
 
     jazz = shows["jazz"]
     day = jazz.date
-    line = f"{day:%a, %b} {day.day} · Snarky Puppy at The Chapel, San Francisco"
-    assert f"{line}\n    {SITE}/shows/{jazz.id}/" in email.text
+    assert f"{day:%a, %b} {day.day} · Snarky Puppy\n  The Chapel · San Francisco\n  Free\n  {SITE}/shows/{jazz.id}/\n" in email.text
     assert f'href="{SITE}/shows/{jazz.id}/"' in email.html
-    assert f"{SITE}/alerts/" in email.text  # manage your alerts
+    assert f"{SITE}/alerts/" in email.text and f'href="{SITE}/alerts/"' in email.html  # manage your alerts
+    assert email.html.startswith("<!doctype html>") and "</html>" in email.html  # a whole document, ready to send
+
+
+def test_each_show_gives_support_acts_doors_price_age_and_marks(db, supabase):
+    from datetime import time
+
+    venue = _venue(db, "The Independent", city="San Francisco", region=Region.sf)
+    show = _show(db, venue, 5, "Headliner", "Two", "Three", "Four", "Five", "Six", door_time=time(19, 30),
+                 price_min=15, price_max=20, age_restriction=AgeRestriction.plus_21,
+                 is_recommended=True, is_sold_out=True, will_sell_out=True)
+    supabase.person("fan@example.com", ("SF", "region=sf"))
+    [email], _ = _run(db)
+
+    day = show.date
+    assert (f"{day:%a, %b} {day.day} · Headliner\n"
+            f"  with Two, Three, Four + 2 more\n"
+            f"  The Independent · San Francisco\n"
+            f"  Doors 7:30 PM · $15–$20 · 21+\n"
+            f"  Steve's Pick · Sold out · Will sell out\n"
+            f"  {SITE}/shows/{show.id}/\n") in email.text
+    for part in ("Headliner</a>", "with Two, Three, Four + 2 more", "Doors 7:30 PM · $15–$20 · 21+",
+                 "Steve&#x27;s Pick", "Sold out", "Will sell out", f">{day:%a}<", f">{day:%b} {day.day}<"):
+        assert part in email.html, part
 
 
 def test_matches_agree_with_the_graphql_show_query(db, client, shows, supabase):
@@ -170,6 +197,17 @@ def test_at_most_25_shows_per_saved_filter_then_a_see_all_link(db, supabase):
     [section] = email.sections
     assert len(section.shows) == 25 and section.total == 30
     assert f"See all 30 on The List: {SITE}/?region=sf" in email.text
+    # The headline counts every match, not only the 25 listed.
+    assert email.subject == "30 upcoming shows for your alerts"
+    assert "30 upcoming shows match your alerts" in email.html
+
+
+def test_the_headline_counts_each_matching_show_once_across_alerts(db, shows, supabase):
+    supabase.person("fan@example.com", ("East Bay punk", "genre=punk&region=east_bay"), ("Punk", "genre=punk"),
+                    ("Counterparts", "q=counterparts"))
+    [email], _ = _run(db)
+    assert [s.total for s in email.sections] == [2, 2, 1]
+    assert email.subject == "2 upcoming shows for your alerts"
 
 
 def test_saved_filters_and_people_with_no_matches_are_left_out(db, shows, supabase):
@@ -180,6 +218,14 @@ def test_saved_filters_and_people_with_no_matches_are_left_out(db, shows, supaba
     assert [e.to for e in emails] == ["fan@example.com"]
     assert [s.name for s in emails[0].sections] == ["Free"]
     assert "other@example.com" not in printed
+
+
+def test_alerts_with_the_same_filters_are_merged_under_the_first_name(db, shows, supabase):
+    supabase.person("fan@example.com", ("East Bay punk", "genre=punk&region=east_bay"), ("Free", "free=1"),
+                    ("punk · East Bay", "region=east_bay&genre=PUNK"))
+    [email], _ = _run(db)
+    assert [s.name for s in email.sections] == ["East Bay punk", "Free"]
+    assert email.text.count("Counterparts") == 1
 
 
 def test_people_who_turned_alerts_off_are_skipped(db, shows, supabase):
