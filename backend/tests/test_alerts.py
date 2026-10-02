@@ -147,7 +147,7 @@ def test_one_email_per_person_grouped_by_saved_filter(db, shows, supabase):
 
     [email] = emails
     assert email.to == "fan@example.com"
-    assert email.subject == "3 upcoming shows for your alerts"
+    assert email.subject == "3 upcoming shows for your saved search"
     assert [section.name for section in email.sections] == ["East Bay punk", "Free"]
     punk, free = email.sections
     assert [s.headliner for s in punk.shows] == ["Counterparts", "Sundale"]  # date order; past and cancelled left out
@@ -222,7 +222,7 @@ def test_at_most_25_shows_per_saved_filter_then_a_see_all_link(db, supabase):
     assert len(section.shows) == 25 and section.total == 30
     assert f"See all 30 on The List: {SITE}/?region=sf" in email.text
     # The headline counts every match, not only the 25 listed.
-    assert email.subject == "30 upcoming shows for your alerts"
+    assert email.subject == "30 upcoming shows for your saved search"
     assert "30 upcoming shows match your alerts" in email.html
 
 
@@ -231,7 +231,7 @@ def test_the_headline_counts_each_matching_show_once_across_alerts(db, shows, su
                     ("Counterparts", "q=counterparts"))
     [email], _ = _run(db)
     assert [s.total for s in email.sections] == [2, 2, 1]
-    assert email.subject == "2 upcoming shows for your alerts"
+    assert email.subject == "2 upcoming shows for your saved search"
 
 
 def test_saved_filters_and_people_with_no_matches_are_left_out(db, shows, supabase):
