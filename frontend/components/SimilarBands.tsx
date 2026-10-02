@@ -13,7 +13,7 @@ export default function SimilarBands({ bands }: SimilarBandsProps) {
 
   return (
     <section data-testid="similar-bands">
-      <h2 className="text-base font-semibold mb-3 text-zinc-900 dark:text-zinc-100">
+      <h2 className="text-base font-semibold mb-3 text-ink">
         Similar Bands
       </h2>
       <ul className="flex flex-col gap-1">
@@ -21,11 +21,11 @@ export default function SimilarBands({ bands }: SimilarBandsProps) {
           <li key={b.id}>
             <BandLink
               bandId={b.id}
-              className="flex items-center gap-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 -mx-2 px-2 py-1 rounded"
+              className="flex items-center gap-2 text-sm hover:bg-muted -mx-2 px-2 py-1 rounded"
             >
-              <span className="font-medium text-zinc-900 dark:text-zinc-50">{b.name}</span>
+              <span className="font-medium text-ink">{b.name}</span>
               {b.genres.length > 0 && (
-                <span className="text-zinc-400 dark:text-zinc-500 text-xs">
+                <span className="text-ink-faint text-xs">
                   {b.genres.slice(0, 2).join(', ')}
                 </span>
               )}

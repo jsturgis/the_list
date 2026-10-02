@@ -11,7 +11,7 @@ export default function AlertsLink() {
   return (
     <Link
       href="/alerts/"
-      className="ml-auto inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700 hover:underline dark:text-zinc-400 dark:hover:text-zinc-200"
+      className="ml-auto inline-flex items-center gap-1 text-sm text-ink-muted hover:text-ink-soft hover:underline"
     >
       <BellIcon className="size-4 shrink-0" aria-hidden="true" />
       Your alerts

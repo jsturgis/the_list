@@ -22,13 +22,13 @@ export default function Modal({ onClose, children }: ModalProps) {
       ref={ref}
       onClose={onClose}
       onClick={e => { if (e.target === ref.current) ref.current?.close() }}
-      className="m-auto w-[calc(100%-2rem)] max-w-2xl max-h-[85vh] overflow-y-auto rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-50 p-6 backdrop:bg-black/50"
+      className="m-auto w-[calc(100%-2rem)] max-w-2xl max-h-[85vh] overflow-y-auto rounded-lg bg-surface text-ink p-6 backdrop:bg-black/50"
     >
       <button
         type="button"
         aria-label="Close"
         onClick={() => ref.current?.close()}
-        className="absolute top-3 right-3 p-1.5 rounded text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 dark:hover:text-zinc-300 dark:hover:bg-zinc-800"
+        className="absolute top-3 right-3 p-1.5 rounded text-ink-muted hover:text-ink-soft hover:bg-muted"
       >
         <XMarkIcon className="size-5" />
       </button>

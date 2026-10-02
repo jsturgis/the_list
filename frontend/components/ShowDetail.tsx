@@ -47,13 +47,13 @@ export default function ShowDetail({ show }: ShowDetailProps) {
           <div
             role="note"
             aria-label="Special event"
-            className="flex items-center gap-2 mb-4 px-4 py-2.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200"
+            className="flex items-center gap-2 mb-4 px-4 py-2.5 rounded-lg border border-accent-soft-line bg-accent-soft text-accent-soft-ink"
           >
-            <SparklesIcon className="size-5 shrink-0 text-amber-500 dark:text-amber-400" />
+            <SparklesIcon className="size-5 shrink-0 text-link" />
             <span className="font-semibold">{show.specialEvent}</span>
           </div>
         )}
-        <div className="flex items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400 mb-1">
+        <div className="flex items-center gap-1.5 text-sm text-ink-muted mb-1">
           <CalendarIcon className="size-4 shrink-0" />
           <span>{formatDateLongYear(show.date)}</span>
           {show.status === 'upcoming' && (
@@ -63,7 +63,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
                 download={icsFilename(show)}
                 aria-label="Add to calendar"
                 title="Add to calendar (.ics)"
-                className="p-1 rounded hover:text-amber-600 hover:bg-zinc-100 dark:hover:text-amber-400 dark:hover:bg-zinc-800"
+                className="p-1 rounded hover:text-link hover:bg-muted"
               >
                 <ArrowDownTrayIcon className="size-4" />
               </a>
@@ -73,45 +73,45 @@ export default function ShowDetail({ show }: ShowDetailProps) {
                 rel="noopener noreferrer"
                 aria-label="Add to Google Calendar"
                 title="Add to Google Calendar"
-                className="p-1 rounded hover:text-amber-600 hover:bg-zinc-100 dark:hover:text-amber-400 dark:hover:bg-zinc-800"
+                className="p-1 rounded hover:text-link hover:bg-muted"
               >
                 <CalendarDaysIcon className="size-4" />
               </a>
             </span>
           )}
         </div>
-        <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
+        <h1 className="text-3xl font-bold text-ink">
           {show.acts[0]?.band.name ?? 'Unknown'}
         </h1>
-        <p className="text-lg text-zinc-600 dark:text-zinc-300 mt-1">
+        <p className="text-lg text-ink-soft mt-1">
           at <VenueLink venueId={show.venue.id} className="hover:underline">{show.venue.name}</VenueLink> · {show.venue.city}
         </p>
       </header>
 
-      <section className="flex flex-wrap gap-4 text-sm text-zinc-600 dark:text-zinc-300">
+      <section className="flex flex-wrap gap-4 text-sm text-ink-soft">
         {door && (
           <div className="flex items-center gap-1.5">
-            <ClockIcon className="size-4 shrink-0 text-zinc-400 dark:text-zinc-500" />
+            <ClockIcon className="size-4 shrink-0 text-ink-faint" />
             <span className="font-medium">Doors: </span>
             {door}
             {set && <> / Set: {set}</>}
           </div>
         )}
         <div className="flex items-center gap-1.5">
-          <TicketIcon className="size-4 shrink-0 text-zinc-400 dark:text-zinc-500" />
+          <TicketIcon className="size-4 shrink-0 text-ink-faint" />
           <span className="font-medium">Price: </span>
           {price}
         </div>
         <div className="flex items-center gap-1.5">
-          <UserIcon className="size-4 shrink-0 text-zinc-400 dark:text-zinc-500" />
+          <UserIcon className="size-4 shrink-0 text-ink-faint" />
           <span className="font-medium">Ages: </span>
           {age}
         </div>
         {(show.ticketUrl || show.ticketProvider) && (
           <div className="flex items-center gap-1.5">
-            <ShoppingCartIcon className="size-4 shrink-0 text-zinc-400 dark:text-zinc-500" />
+            <ShoppingCartIcon className="size-4 shrink-0 text-ink-faint" />
             {show.ticketUrl ? (
-              <ExternalLink href={show.ticketUrl} className="text-amber-600 hover:underline dark:text-amber-400">
+              <ExternalLink href={show.ticketUrl} className="text-link hover:underline">
                 {ticketsLabel}
               </ExternalLink>
             ) : ticketsLabel}
@@ -122,7 +122,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
       <Flags show={show} size="detail" showBenefitCause />
 
       <section>
-        <h2 className="text-base font-semibold mb-3 text-zinc-900 dark:text-zinc-100">Lineup</h2>
+        <h2 className="text-base font-semibold mb-3 text-ink">Lineup</h2>
         <ol className="flex flex-col gap-2">
           {show.acts
             .slice()
@@ -131,22 +131,22 @@ export default function ShowDetail({ show }: ShowDetailProps) {
               <li key={act.band.id}>
                 <BandLink
                   bandId={act.band.id}
-                  className={`${act.position === 0 ? 'font-bold' : 'font-normal'} hover:underline text-zinc-900 dark:text-zinc-50`}
+                  className={`${act.position === 0 ? 'font-bold' : 'font-normal'} hover:underline text-ink`}
                 >
                   <span data-testid="act-name">{act.band.name}</span>
                 </BandLink>
-                {act.note && <span className="text-zinc-500 dark:text-zinc-400"> ({act.note})</span>}
+                {act.note && <span className="text-ink-muted"> ({act.note})</span>}
               </li>
             ))}
         </ol>
       </section>
 
       <section>
-        <h2 className="text-base font-semibold mb-3 text-zinc-900 dark:text-zinc-100">Venue</h2>
-        <div className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-300">
+        <h2 className="text-base font-semibold mb-3 text-ink">Venue</h2>
+        <div className="flex flex-col gap-1 text-sm text-ink-soft">
           <span className="flex items-center gap-1.5">
-            <BuildingOffice2Icon className="size-4 shrink-0 text-zinc-400 dark:text-zinc-500" />
-            <VenueLink venueId={show.venue.id} className="font-medium text-zinc-900 dark:text-zinc-100 hover:underline">{show.venue.name}</VenueLink>
+            <BuildingOffice2Icon className="size-4 shrink-0 text-ink-faint" />
+            <VenueLink venueId={show.venue.id} className="font-medium text-ink hover:underline">{show.venue.name}</VenueLink>
           </span>
           {show.venue.address && (
             <a
@@ -155,7 +155,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
               rel="noopener noreferrer"
               className="flex items-start gap-1.5 w-fit hover:underline"
             >
-              <MapPinIcon className="size-4 mt-0.5 shrink-0 text-zinc-400 dark:text-zinc-500" />
+              <MapPinIcon className="size-4 mt-0.5 shrink-0 text-ink-faint" />
               {show.venue.address}
             </a>
           )}
@@ -163,21 +163,21 @@ export default function ShowDetail({ show }: ShowDetailProps) {
             <ExternalLink
               href={show.venue.websiteUrl}
               icon={GlobeAltIcon}
-              className="w-fit text-amber-600 hover:underline dark:text-amber-400"
+              className="w-fit text-link hover:underline"
             >
               Venue website
             </ExternalLink>
           )}
           {show.venue.description && (
-            <p className="mt-2 text-zinc-500 dark:text-zinc-400 italic">{show.venue.description}</p>
+            <p className="mt-2 text-ink-muted italic">{show.venue.description}</p>
           )}
         </div>
       </section>
 
       {show.notes && (
         <section>
-          <h2 className="text-base font-semibold mb-1 text-zinc-900 dark:text-zinc-100">Notes</h2>
-          <p className="text-sm text-zinc-600 dark:text-zinc-300">{show.notes}</p>
+          <h2 className="text-base font-semibold mb-1 text-ink">Notes</h2>
+          <p className="text-sm text-ink-soft">{show.notes}</p>
         </section>
       )}
     </article>

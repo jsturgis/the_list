@@ -14,7 +14,7 @@ export default function VenueShowRows({ shows }: { shows: Show[] }) {
 
   const visible = today ? shows.filter(s => s.date >= today) : shows
   if (visible.length === 0) {
-    return <p className="text-sm text-zinc-500 dark:text-zinc-400">No upcoming shows.</p>
+    return <p className="text-sm text-ink-muted">No upcoming shows.</p>
   }
 
   const byDate = new Map<string, Show[]>()
@@ -22,16 +22,16 @@ export default function VenueShowRows({ shows }: { shows: Show[] }) {
 
   return (
     <section aria-labelledby="venue-upcoming-shows">
-      <h2 id="venue-upcoming-shows" className="text-base font-semibold mb-3 text-zinc-900 dark:text-zinc-100">
+      <h2 id="venue-upcoming-shows" className="text-base font-semibold mb-3 text-ink">
         Upcoming Shows
       </h2>
       <div className="flex flex-col gap-6">
         {Array.from(byDate.keys()).sort().map(date => (
           <div key={date}>
-            <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2">
+            <h3 className="text-sm font-semibold text-ink-muted uppercase tracking-wide mb-2">
               {formatDateLong(date)}
             </h3>
-            <div className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
+            <div className="flex flex-col divide-y divide-line-subtle rounded-lg border border-line-subtle bg-surface overflow-hidden">
               {(byDate.get(date) ?? [])
                 .slice()
                 .sort((a, b) => (a.doorTime ?? '').localeCompare(b.doorTime ?? ''))

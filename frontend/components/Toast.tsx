@@ -20,14 +20,14 @@ export default function Toast({ children, onDismiss }: { children: ReactNode; on
     <div
       role="status"
       aria-live="polite"
-      className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-md items-start gap-3 rounded-lg bg-zinc-900 px-4 py-3 text-sm text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900"
+      className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-md items-start gap-3 rounded-lg bg-inverse px-4 py-3 text-sm text-on-inverse shadow-lg"
     >
       <div className="flex-1">{children}</div>
       <button
         type="button"
         onClick={onDismiss}
         aria-label="Dismiss"
-        className="-m-1 rounded p-1 text-zinc-400 hover:text-white dark:text-zinc-500 dark:hover:text-zinc-900"
+        className="-m-1 rounded p-1 text-inverse-muted hover:text-on-inverse"
       >
         <XMarkIcon className="size-4" />
       </button>

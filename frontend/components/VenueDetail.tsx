@@ -41,8 +41,8 @@ export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) 
         <img src={venue.imageUrl} alt={venue.name} className="w-full max-h-72 object-cover rounded-lg" />
       )}
       <header>
-        <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">{venue.name}</h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+        <h1 className="text-3xl font-bold text-ink">{venue.name}</h1>
+        <p className="text-sm text-ink-muted mt-1">
           {venue.neighborhood ? `${venue.neighborhood} · ` : ''}
           {venue.city}
           {venue.region && REGION_LABELS[venue.region] ? ` · ${REGION_LABELS[venue.region]}` : ''}
@@ -50,7 +50,7 @@ export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) 
         {rules.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
             {rules.map(({ label, icon: Icon }) => (
-              <span key={label} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+              <span key={label} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-muted text-ink-soft">
                 {Icon && <Icon className="size-3.5 shrink-0" />}
                 {label}
               </span>
@@ -60,14 +60,14 @@ export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) 
       </header>
 
       {(venue.nearestTransit || venue.instagram || agePolicy) && (
-        <section className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-300">
-          {agePolicy && <p className="flex items-center gap-1.5"><UserIcon className="size-4 shrink-0 text-zinc-400 dark:text-zinc-500" />Usual ages: {agePolicy}</p>}
+        <section className="flex flex-col gap-1 text-sm text-ink-soft">
+          {agePolicy && <p className="flex items-center gap-1.5"><UserIcon className="size-4 shrink-0 text-ink-faint" />Usual ages: {agePolicy}</p>}
           {venue.nearestTransit && (
-            <p className="flex items-start gap-1.5"><MapIcon className="size-4 mt-0.5 shrink-0 text-zinc-400 dark:text-zinc-500" />Transit: {venue.nearestTransit}</p>
+            <p className="flex items-start gap-1.5"><MapIcon className="size-4 mt-0.5 shrink-0 text-ink-faint" />Transit: {venue.nearestTransit}</p>
           )}
           {venue.instagram && (
             <a href={instagramUrl(venue.instagram)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 w-fit hover:underline">
-              <CameraIcon className="size-4 shrink-0 text-zinc-400 dark:text-zinc-500" />
+              <CameraIcon className="size-4 shrink-0 text-ink-faint" />
               {venue.instagram}
             </a>
           )}
@@ -75,7 +75,7 @@ export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) 
       )}
 
       {(venue.websiteUrl || venue.wikipediaUrl || venue.phone || venue.googleRating || venue.address) && (
-        <section className="flex flex-col gap-2 text-sm text-zinc-600 dark:text-zinc-300">
+        <section className="flex flex-col gap-2 text-sm text-ink-soft">
           {venue.address && (
             <a
               href={mapsHref(venue)}
@@ -83,19 +83,19 @@ export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) 
               rel="noopener noreferrer"
               className="flex items-start gap-1.5 w-fit hover:underline"
             >
-              <MapPinIcon className="size-4 mt-0.5 shrink-0 text-zinc-400 dark:text-zinc-500" />
+              <MapPinIcon className="size-4 mt-0.5 shrink-0 text-ink-faint" />
               {venue.address}
             </a>
           )}
           {venue.phone && (
             <a href={telHref(venue.phone)} className="flex items-center gap-1.5 w-fit hover:underline">
-              <PhoneIcon className="size-4 shrink-0 text-zinc-400 dark:text-zinc-500" />
+              <PhoneIcon className="size-4 shrink-0 text-ink-faint" />
               {venue.phone}
             </a>
           )}
           {venue.googleRating && (
             <p className="flex items-center gap-1.5">
-              <StarIcon className="size-4 shrink-0 text-amber-500 dark:text-amber-400" />
+              <StarIcon className="size-4 shrink-0 text-link" />
               Google rating: {venue.googleRating.toFixed(1)}
             </p>
           )}
@@ -104,7 +104,7 @@ export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) 
               <ExternalLink
                 href={venue.websiteUrl}
                 icon={GlobeAltIcon}
-                className="text-sm px-3 py-1.5 rounded bg-zinc-800 text-white hover:bg-zinc-700 dark:bg-zinc-700 dark:hover:bg-zinc-600"
+                className="text-sm px-3 py-1.5 rounded bg-strong text-white hover:bg-strong-hover"
               >
                 Website
               </ExternalLink>
@@ -113,7 +113,7 @@ export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) 
               <ExternalLink
                 href={venue.wikipediaUrl}
                 icon={BookOpenIcon}
-                className="text-sm px-3 py-1.5 rounded bg-zinc-100 text-zinc-800 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+                className="text-sm px-3 py-1.5 rounded bg-muted text-ink hover:bg-muted-hover"
               >
                 Wikipedia
               </ExternalLink>
@@ -123,7 +123,7 @@ export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) 
       )}
 
       {venue.description && (
-        <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">
+        <p className="text-sm text-ink-soft leading-relaxed">
           {venue.description}
         </p>
       )}

@@ -28,9 +28,9 @@ export default function BandDetail({ band, upcomingShows, similarBands }: BandDe
       )}
       <header>
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">{band.name}</h1>
+          <h1 className="text-3xl font-bold text-ink">{band.name}</h1>
           {band.isLocal && (
-            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded bg-accent-chip text-accent-chip-ink">
               <MapPinIcon className="size-3.5 shrink-0" />
               Local
             </span>
@@ -41,7 +41,7 @@ export default function BandDetail({ band, upcomingShows, similarBands }: BandDe
             {band.genres.map(g => (
               <span
                 key={g}
-                className="text-xs px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+                className="text-xs px-2 py-0.5 rounded-full bg-muted text-ink-soft"
               >
                 {g}
               </span>
@@ -49,7 +49,7 @@ export default function BandDetail({ band, upcomingShows, similarBands }: BandDe
           </div>
         )}
         {band.description && (
-          <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">{band.description}</p>
+          <p className="mt-3 text-sm text-ink-soft">{band.description}</p>
         )}
       </header>
 
@@ -86,7 +86,7 @@ export default function BandDetail({ band, upcomingShows, similarBands }: BandDe
             <ExternalLink
               href={band.websiteUrl}
               icon={GlobeAltIcon}
-              className="text-sm px-3 py-1.5 rounded bg-zinc-800 text-white hover:bg-zinc-700 dark:bg-zinc-700 dark:hover:bg-zinc-600"
+              className="text-sm px-3 py-1.5 rounded bg-strong text-white hover:bg-strong-hover"
             >
               Website
             </ExternalLink>
@@ -96,7 +96,7 @@ export default function BandDetail({ band, upcomingShows, similarBands }: BandDe
 
       {shows.length > 0 && (
         <section>
-          <h2 className="text-base font-semibold mb-3 text-zinc-900 dark:text-zinc-100">
+          <h2 className="text-base font-semibold mb-3 text-ink">
             Upcoming Shows
           </h2>
           <ul className="flex flex-col gap-2">
@@ -104,14 +104,14 @@ export default function BandDetail({ band, upcomingShows, similarBands }: BandDe
               <li key={show.id}>
                 <Link
                   href={`/shows/${show.id}`}
-                  className="flex items-center justify-between gap-4 text-sm -mx-2 px-2 py-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                  className="flex items-center justify-between gap-4 text-sm -mx-2 px-2 py-1 rounded hover:bg-muted"
                 >
-                  <span className="font-medium text-zinc-900 dark:text-zinc-50 min-w-0 truncate">
+                  <span className="font-medium text-ink min-w-0 truncate">
                     {show.venue.name}
                     {' · '}
                     {show.venue.city}
                   </span>
-                  <span className="text-zinc-500 dark:text-zinc-400 shrink-0">
+                  <span className="text-ink-muted shrink-0">
                     {formatDateShort(show.date)}
                   </span>
                 </Link>
