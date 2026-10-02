@@ -25,8 +25,7 @@ export default function AlertsPage() {
       <header>
         <h1 className="text-3xl font-bold text-ink">Your alerts</h1>
         <p className="mt-1 text-ink-soft">
-          Each week, after the new edition is published, you get one email listing the upcoming shows that match your
-          alerts.
+          You&apos;ll receive an email once a week if your saved search filter matches any upcoming shows.
         </p>
       </header>
 
