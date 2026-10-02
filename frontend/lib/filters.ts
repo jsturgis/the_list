@@ -54,3 +54,27 @@ export function describeFilters(params: URLSearchParams): string {
   const name = parts.join(' · ')
   return name.length <= 80 ? name : `${name.slice(0, 79)}…`
 }
+
+/**
+ * A Saved Filter's query in one canonical form, so two that select the same Shows compare equal: params in a
+ * fixed order, old band/venue links read as the search they became, and search and genre in lower case (the
+ * Shows filter ignores their case).
+ */
+export function canonicalQuery(query: string): string {
+  const params = new URLSearchParams(query)
+  const out: [string, string][] = []
+  const search = searchParam(params).trim().toLowerCase().replace(/\s+/g, ' ')
+  if (search) out.push(['q', search])
+  for (const key of FILTER_PARAMS) {
+    if (key === 'q' || LEGACY_SEARCH_PARAMS.includes(key)) continue
+    const value = params.get(key)?.trim()
+    if (value) out.push([key, key === 'genre' ? value.toLowerCase() : value])
+  }
+  return new URLSearchParams(out.sort(([a], [b]) => a.localeCompare(b))).toString()
+}
+
+/** The Saved Filter among `saved` that selects the same Shows as `query`, if any. */
+export function findSameFilter<T extends { query: string }>(saved: T[], query: string): T | undefined {
+  const target = canonicalQuery(query)
+  return saved.find(f => canonicalQuery(f.query) === target)
+}

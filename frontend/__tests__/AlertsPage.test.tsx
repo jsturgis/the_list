@@ -53,6 +53,18 @@ describe('Alerts page, signed in', () => {
     expect(window.location.search).toBe('')
   })
 
+  it('doesn\'t save the filter a sign-in link carried when the person already has it', async () => {
+    fake.current!.state.savedFilters = [savedFilter('East Bay punk', 'genre=punk&region=east_bay')]
+    window.history.replaceState({}, '', '/alerts/?save=region%3Deast_bay%26genre%3Dpunk&name=Again')
+    render(<AlertsPage />)
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/already have an alert for these filters: “East Bay punk”/i)
+    expect(fake.current!.client.insert).not.toHaveBeenCalled()
+    expect(screen.getAllByRole('link', { name: 'East Bay punk' })).toHaveLength(1)
+    expect(screen.queryByRole('link', { name: 'Again' })).not.toBeInTheDocument()
+    expect(window.location.search).toBe('')
+  })
+
   it('says so when there are no Saved Filters yet', async () => {
     render(<AlertsPage />)
     expect(await screen.findByText(/no alerts yet/i)).toBeInTheDocument()

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { BellIcon } from '@heroicons/react/16/solid'
-import { describeFilters } from '@/lib/filters'
+import { describeFilters, findSameFilter } from '@/lib/filters'
 import { MAX_ALERTS, alertsPageUrl, supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/useSession'
 import Toast from './Toast'
@@ -25,8 +25,8 @@ export default function SaveFilterButton({ query }: { query: string }) {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<Done | null>(null)
-  // How many alerts a signed-in visitor has, counted when the form opens.
-  const [used, setUsed] = useState<number | null>(null)
+  // A signed-in visitor's alerts, read when the form opens: how many, and whether these filters are one.
+  const [existing, setExisting] = useState<{ name: string; query: string }[] | null>(null)
   const container = useRef<HTMLDivElement>(null)
   const dismissToast = useCallback(() => setDone(null), [])
 
@@ -50,18 +50,21 @@ export default function SaveFilterButton({ query }: { query: string }) {
   const toggle = () => {
     if (!open) {
       setName(describeFilters(new URLSearchParams(query)))
-      setUsed(null)
+      setExisting(null)
       if (session.status === 'signedIn' && supabase) {
         supabase
           .from('saved_filters')
-          .select('id', { count: 'exact', head: true })
-          .then(({ count }) => setUsed(count ?? null))
+          .select('name, query')
+          .order('created_at')
+          .then(({ data }) => setExisting(data ?? null))
       }
     }
     setOpen(!open)
     setError(null)
   }
+  const used = existing?.length ?? null
   const atLimit = used !== null && used >= MAX_ALERTS
+  const duplicate = existing ? findSameFilter(existing, query) : undefined
 
   const finish = (result: Done) => {
     setOpen(false)
@@ -125,7 +128,14 @@ export default function SaveFilterButton({ query }: { query: string }) {
           </div>
           {session.status === 'signedIn' ? (
             <>
-              {atLimit ? (
+              {duplicate ? (
+                <p className="text-xs text-ink-soft">
+                  You already have an alert for these filters: “{duplicate.name}”.{' '}
+                  <Link href="/alerts/" className="text-link underline">
+                    Manage your alerts
+                  </Link>
+                </p>
+              ) : atLimit ? (
                 <p className="text-xs text-danger">
                   You have {MAX_ALERTS} alerts, the most allowed.{' '}
                   <Link href="/alerts/" className="underline">
@@ -140,7 +150,7 @@ export default function SaveFilterButton({ query }: { query: string }) {
                   </p>
                 )
               )}
-              <button type="submit" disabled={sending || atLimit} className={BUTTON}>
+              <button type="submit" disabled={sending || atLimit || !!duplicate} className={BUTTON}>
                 Save
               </button>
             </>

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { TrashIcon } from '@heroicons/react/16/solid'
 import { MAX_ALERTS, alertsPageUrl, supabase, type SavedFilter } from '@/lib/supabase'
+import { findSameFilter } from '@/lib/filters'
 import { useSession } from '@/lib/useSession'
 import Toast from './Toast'
 
@@ -52,16 +53,25 @@ function YourAlerts({ email, userId }: { email: string; userId: string }) {
     const client = supabase
     if (!client) return
     let cancelled = false
-    ;(async () => {
-      const pending = takePendingFilter()
-      if (pending) {
-        const { error } = await client.from('saved_filters').insert(pending)
-        if (error && !cancelled) setError(error.message)
-      }
-      const [filters, subscription] = await Promise.all([
+    const load = () =>
+      Promise.all([
         client.from('saved_filters').select('id, name, query, created_at').order('created_at'),
         client.from('alert_subscriptions').select('enabled').maybeSingle(),
       ])
+    ;(async () => {
+      const pending = takePendingFilter()
+      let [filters, subscription] = await load()
+      // Save the filter the sign-in link carried, unless the person already has an alert for it.
+      if (pending && !filters.error) {
+        const same = findSameFilter((filters.data ?? []) as SavedFilter[], pending.query)
+        if (same) {
+          if (!cancelled) setToast(`You already have an alert for these filters: “${same.name}”`)
+        } else {
+          const { error } = await client.from('saved_filters').insert(pending)
+          if (error && !cancelled) setError(error.message)
+          ;[filters, subscription] = await load()
+        }
+      }
       if (cancelled) return
       if (filters.error) setError(filters.error.message)
       else setSavedFilters(filters.data as SavedFilter[])
