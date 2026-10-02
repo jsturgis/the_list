@@ -173,7 +173,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
             type="checkbox"
             checked={searchParams.get('free') === '1'}
             onChange={e => update('free', e.target.checked ? '1' : '')}
-            className="rounded border-line-strong text-accent"
+            className="rounded border-line-strong accent-accent"
           />
           <label htmlFor="filter-free" className="text-sm text-ink-soft">
             Free only

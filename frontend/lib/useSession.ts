@@ -7,7 +7,7 @@ export type SessionState =
   | { status: 'loading' }
   | { status: 'unavailable' } // the build has no Supabase settings: the Alerts features stay hidden
   | { status: 'signedOut' }
-  | { status: 'signedIn'; email: string }
+  | { status: 'signedIn'; email: string; userId: string }
 
 const noSubscription = () => () => {}
 
@@ -23,8 +23,10 @@ export function useSession(): SessionState {
     const client = supabase
     if (!client) return
     let active = true
-    const apply = (session: { user: { email?: string } } | null) => {
-      if (active) setSignedIn(session ? { status: 'signedIn', email: session.user.email ?? '' } : { status: 'signedOut' })
+    const apply = (session: { user: { id: string; email?: string } } | null) => {
+      if (active) {
+        setSignedIn(session ? { status: 'signedIn', email: session.user.email ?? '', userId: session.user.id } : { status: 'signedOut' })
+      }
     }
     client.auth.getSession().then(({ data }) => apply(data.session))
     const { data } = client.auth.onAuthStateChange((_event, session) => apply(session))
