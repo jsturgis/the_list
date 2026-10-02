@@ -141,6 +141,7 @@ def test_each_show_gives_date_headliner_venue_city_and_link(db, shows, supabase)
     assert f"{day:%a, %b} {day.day} · Snarky Puppy at The Chapel, San Francisco\n    Free\n    {SITE}/shows/{jazz.id}/" in email.text
     assert f'href="{SITE}/shows/{jazz.id}/"' in email.html
     assert f"{SITE}/alerts/" in email.text and f'href="{SITE}/alerts/"' in email.html  # manage your alerts
+    assert email.html.startswith("<!doctype html>") and "</html>" in email.html  # a whole document, ready to send
 
 
 def test_each_show_gives_support_acts_doors_price_age_and_marks(db, supabase):

@@ -270,6 +270,7 @@ def _text(sections: list[Section], site: str) -> str:
 # Email clients ignore stylesheets and many CSS features, so the HTML is tables with inline styles, in the
 # site's colours (zinc greys, amber-700 accent).
 _INK, _SOFT, _MUTED, _LINE, _ACCENT, _BG = "#18181b", "#52525b", "#71717a", "#e4e4e7", "#b45309", "#f4f4f5"
+_HEADER = "#52525b"  # zinc-600: white on it is about 7.7:1
 _FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
 _MARK_STYLES = {
     "Steve's Pick": "background:#fef3c7; color:#92400e",
@@ -319,20 +320,26 @@ def _html(sections: list[Section], site: str) -> str:
                 f'font-weight:600; text-decoration:none">See all {s.total} on The List &rarr;</a></td></tr>'
             )
     return (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        # On phones the card fills the screen: no margin around it, no rounded corners.
+        '<style>@media (max-width: 620px) { .alert-outer { padding: 0 !important; } '
+        '.alert-card { border-radius: 0 !important; } }</style></head>'
+        f'<body style="margin:0; padding:0; background:{_BG}">'
         f'<div style="display:none; max-height:0; overflow:hidden">{e(preview)}</div>'
         f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{_BG}">'
-        f'<tr><td align="center" style="padding:24px 12px">'
-        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px; '
-        f'background:#ffffff; border-radius:12px; overflow:hidden; font-family:{_FONT}">'
-        f'<tr><td style="background:{_INK}; padding:20px 24px; border-bottom:4px solid #f59e0b">'
+        f'<tr><td class="alert-outer" align="center" style="padding:24px 12px">'
+        f'<table class="alert-card" role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        f'style="max-width:600px; background:#ffffff; border-radius:12px; overflow:hidden; font-family:{_FONT}">'
+        f'<tr><td style="background:{_HEADER}; padding:20px 24px; border-bottom:4px solid #f59e0b">'
         f'<a href="{e(site)}/" style="color:#ffffff; text-decoration:none; font-size:22px; font-weight:800">The List</a>'
-        f'<span style="color:#a1a1aa; font-size:14px; margin-left:8px">SF Bay Area Music</span></td></tr>'
+        f'<span style="color:#e4e4e7; font-size:14px; margin-left:8px">SF Bay Area Music</span></td></tr>'
         f'<tr><td style="padding:24px 24px 0; font-size:15px; color:{_SOFT}">{_shows(_match_count(sections)).capitalize()} '
         f'match your alerts. Here they are, by alert.</td></tr>'
         + "".join(body)
         + f'<tr><td style="padding:32px 24px 24px; font-size:12px; color:{_MUTED}; border-top:1px solid {_LINE}">'
         f'You set up these alerts on The List. <a href="{e(site)}/alerts/" style="color:{_MUTED}">Manage your alerts</a>'
-        f'</td></tr></table></td></tr></table>'
+        f'</td></tr></table></td></tr></table></body></html>'
     )
 
 
