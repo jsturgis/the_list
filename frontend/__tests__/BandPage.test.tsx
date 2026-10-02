@@ -85,6 +85,11 @@ describe('BandDetail', () => {
     expect(screen.queryByRole('link', { name: /website/i })).not.toBeInTheDocument()
   })
 
+  it('shows the description when known', () => {
+    renderBand(makeBand({ id: 7, name: 'B.F.H.', description: 'Bilingual metal band from Fairfield, CA' }), [])
+    expect(screen.getByText('Bilingual metal band from Fairfield, CA')).toBeInTheDocument()
+  })
+
   it('lists the precomputed Similar Bands', () => {
     renderBand()
     expect(screen.getByRole('link', { name: /LCD Soundsystem/ })).toHaveAttribute('href', '/bands/10')
