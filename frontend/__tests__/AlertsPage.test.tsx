@@ -55,7 +55,7 @@ describe('Alerts page, signed in', () => {
 
   it('says so when there are no Saved Filters yet', async () => {
     render(<AlertsPage />)
-    expect(await screen.findByText(/no saved searches yet/i)).toBeInTheDocument()
+    expect(await screen.findByText(/no alerts yet/i)).toBeInTheDocument()
   })
 })
 

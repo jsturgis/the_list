@@ -5,20 +5,8 @@ import { ChevronRightIcon, InformationCircleIcon, MagnifyingGlassIcon, XMarkIcon
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Combobox from './Combobox'
 import { LEGACY_SEARCH_PARAMS, filterQuery, searchParam } from '@/lib/filters'
+import { REGION_LABELS, ageLabel } from '@/lib/format'
 import SaveFilterButton from './SaveFilterButton'
-
-const REGION_LABELS: Record<string, string> = {
-  sf: 'SF',
-  east_bay: 'East Bay',
-  north_bay: 'North Bay',
-  south_bay: 'South Bay',
-  santa_cruz: 'Santa Cruz',
-}
-
-function ageLabel(age: string): string {
-  return age === 'a/a' ? 'All Ages' : age
-}
-
 
 interface FilterBarProps {
   showCount: number

@@ -15,6 +15,20 @@ const USD = new Intl.NumberFormat('en-US', {
   minimumFractionDigits: 0, maximumFractionDigits: 0,
 })
 
+/** Display names for Region keys. */
+export const REGION_LABELS: Record<string, string> = {
+  sf: 'SF',
+  east_bay: 'East Bay',
+  north_bay: 'North Bay',
+  south_bay: 'South Bay',
+  santa_cruz: 'Santa Cruz',
+}
+
+/** "a/a" -> "All Ages"; other age restrictions ("21+") as they are. */
+export function ageLabel(age: string): string {
+  return age === 'a/a' ? 'All Ages' : age
+}
+
 function parseDate(s: string): Date {
   // Use midday to avoid DST boundary issues when converting date strings.
   return new Date(s + 'T12:00:00')

@@ -47,7 +47,7 @@ export default function AlertsPage() {
         <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">Your alerts</h1>
         <p className="mt-1 text-zinc-600 dark:text-zinc-300">
           Each week, after the new edition is published, you get one email listing the upcoming shows that match your
-          saved searches.
+          alerts.
         </p>
       </header>
 
@@ -65,14 +65,14 @@ export default function AlertsPage() {
             </p>
           )}
           {savedFilters === null ? (
-            <p className="text-sm text-zinc-500">Loading your saved searches…</p>
+            <p className="text-sm text-zinc-500">Loading your alerts…</p>
           ) : savedFilters.length === 0 ? (
             <p className="text-sm text-zinc-600 dark:text-zinc-300">
-              No saved searches yet. Set some filters on the{' '}
+              No alerts yet. Set some filters on the{' '}
               <Link href="/" className="text-amber-600 underline dark:text-amber-400">
                 Shows list
               </Link>{' '}
-              and choose Save search.
+              and choose Setup Alert.
             </p>
           ) : (
             <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -119,7 +119,7 @@ function SignInByEmail() {
   return (
     <>
       <form onSubmit={submit} className="flex flex-col gap-3 max-w-sm">
-        <p className="text-sm text-zinc-600 dark:text-zinc-300">Sign in to see and manage your saved searches.</p>
+        <p className="text-sm text-zinc-600 dark:text-zinc-300">Sign in to see and manage your alerts.</p>
         <div className="flex flex-col gap-1">
           <label htmlFor="alerts-email" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
             Email
