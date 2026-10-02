@@ -34,6 +34,8 @@ class Band(Base):
     website_url: Mapped[Optional[str]] = mapped_column(String(500))
     image_url: Mapped[Optional[str]] = mapped_column(String(500))
     is_local: Mapped[Optional[bool]] = mapped_column(Boolean)
+    # From the enriched export: what the Band is ("Bilingual metal band from Fairfield ...")
+    description: Mapped[Optional[str]] = mapped_column(Text)
     embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())

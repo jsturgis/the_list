@@ -63,6 +63,7 @@ def _band(b: Band) -> BandType:
         website_url=b.website_url,
         image_url=b.image_url,
         is_local=b.is_local,
+        description=b.description,
     )
 
 

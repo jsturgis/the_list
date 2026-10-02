@@ -11,6 +11,7 @@
     "websiteUrl": null,
     "imageUrl": null,
     "isLocal": null,
+    "description": null,
     "similar": [
       2,
       3
@@ -28,6 +29,7 @@
     "websiteUrl": null,
     "imageUrl": null,
     "isLocal": null,
+    "description": null,
     "similar": [
       1
     ]
@@ -44,6 +46,7 @@
     "websiteUrl": null,
     "imageUrl": null,
     "isLocal": null,
+    "description": null,
     "similar": [
       1
     ]
@@ -60,6 +63,7 @@
     "websiteUrl": null,
     "imageUrl": null,
     "isLocal": null,
+    "description": null,
     "similar": []
   },
   {
@@ -74,6 +78,7 @@
     "websiteUrl": null,
     "imageUrl": null,
     "isLocal": null,
+    "description": null,
     "similar": []
   },
   {
@@ -88,6 +93,7 @@
     "websiteUrl": null,
     "imageUrl": null,
     "isLocal": null,
+    "description": null,
     "similar": []
   },
   {
@@ -102,6 +108,7 @@
     "websiteUrl": null,
     "imageUrl": null,
     "isLocal": null,
+    "description": null,
     "similar": []
   }
 ]
