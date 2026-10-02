@@ -22,6 +22,6 @@ This amends ADR 0002 only for accounts and Saved Filters: Show data still comes 
 - **Keys:**
   - The site's build needs `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (the publishable key). Without them the Alerts features are hidden.
   - The Alerts job needs the secret key and the Resend key as GitHub secrets.
-- Sign-in uses the implicit flow, so an emailed link works on a different device from the one that asked for it.
+- Sign-in uses the implicit flow, so an emailed link works on a different device from the one that asked for it. The link returns to the Alerts page with the filter to save in its query string, so Supabase's redirect allow-list needs wildcards: `https://list.sturgis.me/alerts/**` (and `http://localhost:3000/the_list/alerts/**` for local testing). Without them Supabase falls back to the Site URL.
 - Email addresses and Saved Filters never enter the repository or the `data` branch. The Alerts job reads them at run time and logs counts only.
 - Supabase's own sign-in emails go through Resend's SMTP, because the built-in sender allows only a few an hour.
