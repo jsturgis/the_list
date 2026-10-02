@@ -71,6 +71,14 @@ def test_ticket_links_are_absolute_web_links():
     assert ticket_url("TBA") is None
 
 
+def test_a_missing_venue_website_comes_from_the_enriched_export():
+    show = _merge(_event(venue={"url": "https://stevelist.com/"}), _event(venue={"url": "https://grayarea.org/"}))
+    assert show["venue_website"] == "https://grayarea.org/"
+
+    show = _merge(_event(), _event(venue={"url": "https://other.example/"}))
+    assert show["venue_website"] == "https://bottomofthehill.com/"
+
+
 def test_fields_the_formatted_edition_has_are_kept():
     show = _merge(
         _event(venue={"coordinates": {"lat": 1.0, "lng": 2.0}}, context={"special_event": "Fat Wreck 35"}),

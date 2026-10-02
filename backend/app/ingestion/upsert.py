@@ -7,6 +7,7 @@ from datetime import datetime, time
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.ingestion.edition import is_placeholder_website
 from app.models.act import Act
 from app.models.band import Band
 from app.models.show import AgeRestriction, Show, ShowStatus
@@ -148,6 +149,10 @@ def _upsert_venue(db: Session, data: dict) -> Venue:
     elif place_city and not venue.city:
         venue.city = place_city
         venue.region = known_region(place_city) or venue.region
+
+    # A placeholder stored by an earlier edition counts as no website, so it's replaced or cleared.
+    if is_placeholder_website(venue.website_url):
+        venue.website_url = None
 
     # Apply enrichment fields only when not already set
     for attr, key in [

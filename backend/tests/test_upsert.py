@@ -119,6 +119,25 @@ def test_venue_website_persisted(db):
     assert db.query(Venue).one().website_url == "https://thefillmore.com"
 
 
+def test_a_stored_placeholder_website_is_replaced_or_cleared(db):
+    # Earlier editions stored Steve's own site for Venues whose site the producer didn't know.
+    upsert_shows(db, [_show(venue_website="https://thefillmore.com")])
+    venue = db.query(Venue).one()
+    venue.website_url = "https://stevelist.com/"
+    upsert_shows(db, [_show(venue_website="https://www.thefillmore.com/")])
+    assert venue.website_url == "https://www.thefillmore.com/"
+
+    venue.website_url = "https://stevelist.com/"
+    upsert_shows(db, [_show(venue_website=None)])
+    assert venue.website_url is None
+
+
+def test_a_venue_website_is_kept_once_set(db):
+    upsert_shows(db, [_show(venue_website="https://thefillmore.com")])
+    upsert_shows(db, [_show(venue_website="https://other.example")])
+    assert db.query(Venue).one().website_url == "https://thefillmore.com"
+
+
 def test_venue_google_maps_fields_persisted(db):
     upsert_shows(db, [_show(
         address="1805 Geary Blvd, San Francisco, CA",

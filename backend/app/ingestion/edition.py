@@ -33,6 +33,8 @@ _FLAG_FIELDS = {"*": "is_recommended", "$": "will_sell_out", "@": "is_pit", "^":
 _REGION_CITY = {"San Francisco Venues": "San Francisco"}
 # The producer's placeholder when it couldn't split a listing; never a real address.
 _PLACEHOLDER_ADDRESS = "san francisco bay area"
+# The producer's placeholder when it doesn't know a Venue's site: Steve's own.
+_PLACEHOLDER_WEBSITE_HOST = "stevelist.com"
 # "Black Flag (Greg Ginn, Max Zanelly)" -> band "Black Flag", note "Greg Ginn, Max Zanelly"; the ")" may be missing.
 _PARENTHETICAL_RE = re.compile(r"^(.*?)\s*\((.*?)\)?\s*$", re.DOTALL)
 
@@ -101,7 +103,7 @@ def _show(event: dict) -> dict:
         "venue_name": venue_name,
         "city": city or _REGION_CITY.get(venue.get("region", "")),
         "address": address,
-        "venue_website": (venue.get("url") or "").strip() or None,
+        "venue_website": _venue_website(venue.get("url")),
         # Optional in the schema (added after v2.0.0); stored only when the Venue has no description yet.
         "venue_description": (venue.get("description") or "").strip() or None,
         **_venue_extras(venue),
@@ -154,6 +156,17 @@ def _text(value) -> str | None:
 
 # "palmtreemusicfestival.com": a bare domain, with an optional path.
 _BARE_DOMAIN_RE = re.compile(r"^[\w-]+(\.[\w-]+)+(/\S*)?$")
+
+
+def is_placeholder_website(url: str | None) -> bool:
+    """Whether a Venue website is the producer's stand-in (Steve's own site) rather than the Venue's."""
+    host = urlparse(url).netloc.lower() if url else ""
+    return host == _PLACEHOLDER_WEBSITE_HOST or host.endswith("." + _PLACEHOLDER_WEBSITE_HOST)
+
+
+def _venue_website(value) -> str | None:
+    url = _text(value)
+    return None if is_placeholder_website(url) else url
 
 
 def _url(value) -> str | None:
