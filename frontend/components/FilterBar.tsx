@@ -4,20 +4,9 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { ChevronRightIcon, InformationCircleIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Combobox from './Combobox'
-import { LEGACY_SEARCH_PARAMS, searchParam } from '@/lib/filters'
-
-const REGION_LABELS: Record<string, string> = {
-  sf: 'SF',
-  east_bay: 'East Bay',
-  north_bay: 'North Bay',
-  south_bay: 'South Bay',
-  santa_cruz: 'Santa Cruz',
-}
-
-function ageLabel(age: string): string {
-  return age === 'a/a' ? 'All Ages' : age
-}
-
+import { LEGACY_SEARCH_PARAMS, filterQuery, searchParam } from '@/lib/filters'
+import { REGION_LABELS, ageLabel } from '@/lib/format'
+import SaveFilterButton from './SaveFilterButton'
 
 interface FilterBarProps {
   showCount: number
@@ -107,15 +96,18 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
         <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
           Showing {showCount} of {dbTotal} shows
         </p>
-        {hasFilters && (
-          <button
-            onClick={clearAll}
-            className="inline-flex items-center gap-0.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 underline"
-          >
-            <XMarkIcon className="size-3.5 shrink-0" />
-            Clear filters
-          </button>
-        )}
+        <div className="flex items-center gap-4">
+          <SaveFilterButton query={filterQuery(searchParams)} />
+          {hasFilters && (
+            <button
+              onClick={clearAll}
+              className="inline-flex items-center gap-0.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 underline"
+            >
+              <XMarkIcon className="size-3.5 shrink-0" />
+              Clear filters
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_1.5fr_1fr_auto] gap-3">

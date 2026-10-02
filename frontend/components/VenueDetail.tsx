@@ -5,15 +5,7 @@ import {
 import type { Show, Venue } from '@/lib/types'
 import ExternalLink from './ExternalLink'
 import VenueShowRows from './VenueShowRows'
-import { mapsHref, telHref } from '@/lib/format'
-
-const REGION_LABELS: Record<string, string> = {
-  sf: 'SF',
-  east_bay: 'East Bay',
-  north_bay: 'North Bay',
-  south_bay: 'South Bay',
-  santa_cruz: 'Santa Cruz',
-}
+import { REGION_LABELS, mapsHref, telHref } from '@/lib/format'
 
 const AGE_POLICY: Record<string, string> = { all_ages: 'All ages', varies: 'Varies by show' }
 

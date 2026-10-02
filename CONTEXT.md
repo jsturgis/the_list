@@ -58,3 +58,13 @@ _Avoid_: Under-21 surcharge
 
 **No Re-entry** (`#`):
 A Show with a no ins/outs policy — attendees cannot leave and re-enter.
+
+### Alerts
+
+**Saved Filter**:
+A named set of Show filters belonging to one person, identified by their email address. Stored as the Shows list's URL query string (e.g. `genre=punk&region=east_bay`), so opening it shows the same Shows the site does. At most 20 per person.
+_Avoid_: Saved search (fine in UI copy, not in code), subscription, watch
+
+**Alert**:
+The weekly email a person gets after each new edition, listing the Upcoming Shows that match each of their Saved Filters. People can turn Alerts off without deleting their Saved Filters.
+_Avoid_: Notification, digest, newsletter
