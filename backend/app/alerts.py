@@ -250,7 +250,7 @@ def _shows(count: int) -> str:
 
 
 def _subject(sections: list[Section]) -> str:
-    return f"{_shows(_match_count(sections))} for your saved search"
+    return f"{_shows(_match_count(sections))} matched your saved search"
 
 
 def _details(line: ShowLine) -> str:
