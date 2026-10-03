@@ -305,8 +305,18 @@ def test_sends_each_alert_through_resend_with_both_versions_and_an_unsubscribe_l
     assert (body["subject"], body["html"], body["text"]) == (email.subject, email.html, email.text)
     assert body["headers"] == {"List-Unsubscribe": f"<{unsubscribe}>"}
     assert unsubscribe in email.text and f'href="{unsubscribe}"' in email.html
-    # The same person, the same day: Resend drops a repeat, so re-running doesn't email anyone twice.
-    assert headers["Idempotency-Key"] == f"alert-{local_today().isoformat()}-token-user-1"
+    # The same person, the same day, the same email: Resend drops a repeat, so re-running doesn't email
+    # anyone twice. The content is part of the key, so a key is never reused for a different email (Resend
+    # would refuse it).
+    key = headers["Idempotency-Key"]
+    assert key.startswith(f"alert-{local_today().isoformat()}-token-user-1-")
+    resend.sent.clear()
+    run_alerts(db, dry_run=False, out=io.StringIO())
+    assert resend.sent[0][1]["Idempotency-Key"] == key
+    _show(db, _venue(db, "The Fillmore", city="San Francisco"), 6, "New Show", is_free=True)
+    resend.sent.clear()
+    run_alerts(db, dry_run=False, out=io.StringIO())
+    assert resend.sent[0][1]["Idempotency-Key"] != key
 
 
 def test_a_dry_run_sends_nothing(db, shows, supabase, resend):

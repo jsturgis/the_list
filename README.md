@@ -254,17 +254,21 @@ redirects there.
   index (`faiss/`). `main` never contains data files. It keeps only its newest 4 commits (the current
   data plus 3 to roll back to): after each ingest, older history is squashed into the oldest kept
   commit and the branch is force-pushed (`.github/scripts/prune-history.sh`).
-- **The Deploy workflow** (`.github/workflows/deploy.yml`) has two jobs:
+- **The Deploy workflow** (`.github/workflows/deploy.yml`) has three stages:
   1. **Ingest**: runs `python -m app.cli ingest` against the `data` branch's database (with an Ollama
      service container for embeddings) and commits the changed database and index back to `data`.
   2. **Build and deploy**: checks out `main` and the `data` branch, runs `python -m app.cli export`,
      builds the static site and deploys it to Pages.
+  3. **Alerts**: after a successful ingest and deploy only, runs `python -m app.cli alerts`. That emails
+     each person whose Saved Filters match Upcoming Shows (see [Weekly Alerts](#weekly-alerts)). It never
+     runs on deploy-only runs. If it fails, the site stays deployed and the run shows red.
 - **When it runs**:
   - **Every Friday night**, cron `0 4 * * 6` (Saturday 04:00 UTC = Friday 9pm PDT / 8pm PST), after
     the Drive publisher updates `latest.json` between 6 and 7pm Pacific. Ingest, then deploy.
   - **By hand** from the Actions tab (**Deploy → Run workflow**) or `gh workflow run deploy.yml`.
+    A manual run with ingest also sends Alerts (re-running the same day sends no one a second email).
     Tick **Skip ingestion** (`gh workflow run deploy.yml -f skip_ingest=true`) to rebuild from the
-    existing data.
+    existing data without sending Alerts.
   - **On pushes to `main`** that touch `frontend/` or `backend/app/`: deploy only, no ingest.
   - Only one run at a time.
 - **A week with no new edition** still succeeds and redeploys (the run is recorded as `no_email`).
@@ -279,6 +283,35 @@ redirects there.
   `data`, then push) and run the workflow with **Skip ingestion**. Only the last 3 changes can be rolled
   back this way. The branch is rewritten when it's pruned, so fetch it fresh
   (`git fetch origin data && git reset --hard origin/data`) before committing to it by hand.
+
+## Weekly Alerts
+
+People save the Shows list's filters as **Saved Filters** ("Setup Alert"), signing in with an emailed link.
+After each Friday ingest they get one **Alert** email listing the Upcoming Shows that match (see
+[ADR 0003](docs/adr/0003-saved-filter-alerts-on-supabase.md)). Accounts and Saved Filters live in Supabase;
+emails go through Resend from `alerts@list.sturgis.me`.
+
+- **Commands:**
+  - `python -m app.cli alerts` sends this week's Alerts.
+  - `--dry-run` prints them instead.
+  - `--only you@example.com` sends just one person's, as a test.
+- **One-time setup:**
+  1. **Supabase project:** email sign-in on. Site URL `https://list.sturgis.me`. Redirect URLs
+     `https://list.sturgis.me/alerts/**` and `http://localhost:3000/the_list/alerts/**`; the wildcards are
+     needed because the sign-in link carries the filter to save. Run `supabase/migrations/*.sql` in
+     order in the SQL editor.
+  2. **Resend:** verify `list.sturgis.me` (its DKIM, SPF and DMARC records are in the `sturgis.me` DNS),
+     and create sending-only API keys.
+  3. **Supabase SMTP:** send through Resend (`smtp.resend.com`, port 465, user `resend`), from
+     `alerts@list.sturgis.me`.
+  4. **GitHub:**
+     - secrets `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (the `sb_secret_…` key) and `RESEND_API_KEY`
+     - variables `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (the publishable key) and
+       `ALERTS_FROM`
+- **Unsubscribe:** every Alert links to `/alerts/unsubscribe/?token=…`, which turns that person's
+  Alerts off without signing in. People can also turn them off and on, or delete alerts, on `/alerts/`.
+- **Privacy:** email addresses never enter the repository, the `data` branch or the logs. The job logs
+  counts only.
 
 ## How ingestion works
 
