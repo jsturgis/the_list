@@ -331,6 +331,8 @@ def test_only_sends_to_the_one_recipient_asked_for(db, shows, supabase, resend):
     supabase.person("me@example.com", ("Free", "free=1"))
     run_alerts(db, dry_run=False, out=io.StringIO(), only="ME@example.com")
     assert [body["to"] for body, _ in resend.sent] == [["me@example.com"]]
+    # A test send can be repeated the same day (the weekly run's idempotency key would make Resend refuse it).
+    assert "Idempotency-Key" not in resend.sent[0][1]
 
 
 def test_sending_without_a_resend_key_fails_before_sending_anything(db, shows, supabase, resend):

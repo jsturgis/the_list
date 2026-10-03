@@ -397,8 +397,15 @@ def build_alerts(db: Session, subscribers: list[Subscriber], site: str) -> list[
     return emails
 
 
-def send_email(email: AlertEmail, site: str) -> None:
-    """Send one Alert through Resend, with both versions and a List-Unsubscribe header."""
+def send_email(email: AlertEmail, site: str, *, once_a_day: bool = True) -> None:
+    """Send one Alert through Resend, with both versions and a List-Unsubscribe header.
+
+    `once_a_day` adds an idempotency key for this person and day: Resend drops a repeat, so re-running the
+    weekly job emails nobody twice. A test send (--only) goes without it, so it can be repeated.
+    """
+    headers = {"Authorization": f"Bearer {settings.resend_api_key}"}
+    if once_a_day:
+        headers["Idempotency-Key"] = f"alert-{local_today().isoformat()}-{email.unsubscribe_token}"
     response = httpx.post(
         _RESEND_URL,
         json={
@@ -409,11 +416,7 @@ def send_email(email: AlertEmail, site: str) -> None:
             "text": email.text,
             "headers": {"List-Unsubscribe": f"<{unsubscribe_url(site, email.unsubscribe_token)}>"},
         },
-        headers={
-            "Authorization": f"Bearer {settings.resend_api_key}",
-            # Resend drops a repeat of the same key, so re-running the job on the same day emails nobody twice.
-            "Idempotency-Key": f"alert-{local_today().isoformat()}-{email.unsubscribe_token}",
-        },
+        headers=headers,
         timeout=30.0,
     )
     response.raise_for_status()
@@ -445,7 +448,7 @@ def run_alerts(db: Session, *, dry_run: bool, out: TextIO, only: str | None = No
         if i:
             time.sleep(_SEND_INTERVAL)
         try:
-            send_email(email, site)
+            send_email(email, site, once_a_day=not only)
         except Exception as exc:
             failed += 1
             # The error comes from Resend's response, not the address; log the kind of failure only.
