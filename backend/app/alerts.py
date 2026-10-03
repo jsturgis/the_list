@@ -9,6 +9,7 @@ footer and the List-Unsubscribe header) to the site's Unsubscribe page. A dry ru
 """
 from __future__ import annotations
 
+import hashlib
 import html
 import logging
 import time
@@ -400,12 +401,14 @@ def build_alerts(db: Session, subscribers: list[Subscriber], site: str) -> list[
 def send_email(email: AlertEmail, site: str, *, once_a_day: bool = True) -> None:
     """Send one Alert through Resend, with both versions and a List-Unsubscribe header.
 
-    `once_a_day` adds an idempotency key for this person and day: Resend drops a repeat, so re-running the
-    weekly job emails nobody twice. A test send (--only) goes without it, so it can be repeated.
+    `once_a_day` adds an idempotency key for this person, day and email: Resend drops a repeat, so re-running
+    the weekly job emails nobody twice. The content is in the key because Resend refuses a key reused for a
+    different email (within 24 hours). A test send (--only) goes without it, so it can be repeated.
     """
     headers = {"Authorization": f"Bearer {settings.resend_api_key}"}
     if once_a_day:
-        headers["Idempotency-Key"] = f"alert-{local_today().isoformat()}-{email.unsubscribe_token}"
+        content = hashlib.sha256(f"{email.subject}\n{email.html}\n{email.text}".encode()).hexdigest()[:16]
+        headers["Idempotency-Key"] = f"alert-{local_today().isoformat()}-{email.unsubscribe_token}-{content}"
     response = httpx.post(
         _RESEND_URL,
         json={
