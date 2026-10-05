@@ -7,7 +7,8 @@ import { replaceQuery, useQuery } from '@/lib/navigation'
 import SaveFilterButton from './SaveFilterButton'
 
 interface FilterBarProps {
-  showCount: number
+  /** Null while the Shows load. */
+  showCount: number | null
   dbTotal: number
   genres: string[]
   regions: string[]
@@ -88,7 +89,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
     <div className="flex flex-col gap-3 p-4 bg-panel rounded-lg border border-line">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-ink">
-          Showing {showCount} of {dbTotal} shows
+          {showCount === null ? `Loading ${dbTotal} shows…` : `Showing ${showCount} of ${dbTotal} shows`}
         </p>
         <div className="flex items-center gap-4">
           <SaveFilterButton query={filterQuery(searchParams)} />

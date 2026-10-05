@@ -3,6 +3,7 @@ import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { getContainerRenderer } from '@astrojs/react/container-renderer'
 import { loadRenderers } from 'astro:container'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import HomePage from '@/pages/index.astro'
 import NotFoundPage from '@/pages/404.astro'
 import AlertsPage from '@/pages/alerts/index.astro'
 import UnsubscribePage from '@/pages/alerts/unsubscribe.astro'
@@ -101,5 +102,26 @@ describe('detail pages ship no React', () => {
     expect(islands(html)).toEqual([])
     expect(html).toContain('data-upcoming-shows')
     expect(html).toContain('data-show-date="2026-10-03"')
+  })
+})
+
+describe('the home page', () => {
+  // Built from the e2e fixture export (SITE_DATA_DIR): five Upcoming Shows from Oct 3, exported Oct 1.
+  it('has the edition and the first page of Shows in its HTML', async () => {
+    const html = await render(HomePage)
+    expect(html).toContain('Bay Area &amp; Santa Cruz Concert Events — Sep 25, 2026 — curated by')
+    for (const name of ['Neon Harbor', 'Gilman Youth', 'Tidepool Choir', 'Fog City Ramblers']) expect(html).toContain(name)
+    expect(html).toContain('Showing 5 of 5 shows')
+    expect(html).toContain('data-home-first-page')
+    expect(html).toContain('data-show-date="2026-10-03"')
+  })
+
+  it('hydrates one island, the Shows list', async () => {
+    expect(islands(await render(HomePage)).map(i => i.component)).toEqual(['HomeShows'])
+  })
+
+  it('marks the page when the URL has a query, so the unfiltered first page can wait', async () => {
+    const html = await render(HomePage)
+    expect(html).toMatch(/<head>.*if \(location\.search\.length > 1\) document\.documentElement\.dataset\.query = ''.*<\/head>/s)
   })
 })

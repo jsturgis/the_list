@@ -1,5 +1,5 @@
 import { href } from './basePath'
-import type { ExportBand, ExportMeta, ExportShow, ExportVenue, Show, SiteData } from './types'
+import type { ExportBand, ExportMeta, ExportShow, ExportVenue, HomePage, HomeShow, Show } from './types'
 
 /** Today's date (YYYY-MM-DD) in the Bay Area, where Shows are listed by local calendar date. */
 export function bayAreaToday(now: Date = new Date()): string {
@@ -34,33 +34,50 @@ export function similarBands(band: ExportBand, bandById: Map<number, ExportBand>
   return band.similar.map(id => bandById.get(id)).filter((b): b is ExportBand => b !== undefined)
 }
 
-async function getJson<T>(name: string): Promise<T> {
-  const url = new URL(href(`/data/${name}.json`), window.location.href)
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`Couldn't load ${name}.json (${res.status})`)
-  return res.json() as Promise<T>
+/** A Show trimmed to what the home page lists, filters and searches (HomeShow). */
+export function toHomeShow({ venue, acts, ...show }: Show): HomeShow {
+  return {
+    ...show,
+    venue: { id: venue.id, name: venue.name, city: venue.city, neighborhood: venue.neighborhood, region: venue.region },
+    acts: acts.map(({ band, ...act }) => ({ ...act, band: { id: band.id, name: band.name, genres: band.genres } })),
+  }
 }
 
-let cached: Promise<SiteData> | null = null
+/**
+ * The home page's Shows (home-shows.json): Upcoming Shows dated on or after the export's day (Bay Area time),
+ * trimmed, in date then door-time order. Earlier ones have passed for good; the browser drops any that have
+ * passed since.
+ */
+export function homeShows(shows: Show[], meta: Pick<ExportMeta, 'generatedAt'>): HomeShow[] {
+  const exportDay = bayAreaToday(new Date(meta.generatedAt))
+  return shows.filter(s => s.status === 'upcoming' && s.date >= exportDay).sort(byDateThenDoor).map(toHomeShow)
+}
 
-/** Load and join the exported data files once per page load. */
-export function loadSiteData(): Promise<SiteData> {
-  cached ??= Promise.all([
-    getJson<ExportShow[]>('shows'),
-    getJson<ExportVenue[]>('venues'),
-    getJson<ExportBand[]>('bands'),
-    getJson<ExportMeta>('meta'),
-  ]).then(([shows, venues, bands, meta]) => ({
-    shows: hydrateShows(shows, venues, bands),
-    venues: new Map(venues.map(v => [v.id, v])),
-    bands: new Map(bands.map(b => [b.id, b])),
-    meta,
-  }))
+/** What the home page renders at build time: the edition, the filter options and the first `pageSize` Shows. */
+export function homePage(shows: Show[], meta: ExportMeta, pageSize: number): HomePage {
+  const listed = homeShows(shows, meta)
+  return {
+    emailSubject: meta.emailSubject,
+    filterOptions: meta.filterOptions,
+    totalUpcoming: meta.totalUpcoming,
+    listedCount: listed.length,
+    firstShows: listed.slice(0, pageSize),
+  }
+}
+
+let cached: Promise<HomeShow[]> | null = null
+
+/** Load the home page's Shows once per page load. */
+export function loadHomeShows(): Promise<HomeShow[]> {
+  cached ??= fetch(new URL(href('/home-shows.json'), window.location.href)).then(res => {
+    if (!res.ok) throw new Error(`Couldn't load home-shows.json (${res.status})`)
+    return res.json() as Promise<HomeShow[]>
+  })
   cached.catch(() => { cached = null })  // let a later render retry after a failed load
   return cached
 }
 
-/** Test helper: forget the cached data. */
-export function resetSiteData(): void {
+/** Test helper: forget the loaded Shows. */
+export function resetHomeShows(): void {
   cached = null
 }

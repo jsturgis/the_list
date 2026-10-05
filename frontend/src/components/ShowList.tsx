@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Show } from '@/lib/types'
-import { MagnifyingGlassIcon } from '@heroicons/react/20/solid'
+import type { HomeShow } from '@/lib/types'
+import { ArrowPathIcon, MagnifyingGlassIcon } from '@heroicons/react/20/solid'
 import ShowCard from './ShowCard'
 import FilterBar from './FilterBar'
 import { formatDateLong } from '@/lib/format'
 import { useQuery } from '@/lib/navigation'
 
-const PAGE_SIZE = 50
+/** Shows rendered at a time; more appear as the list scrolls. The home page's HTML has the first page. */
+export const PAGE_SIZE = 50
 
 interface FilterOptions {
   regions: string[]
@@ -18,15 +19,22 @@ interface FilterOptions {
 const EMPTY_FILTER_OPTIONS: FilterOptions = { regions: [], ages: [], genres: [], dates: [] }
 
 interface ShowListProps {
-  /** Shows to list, already in date order. */
-  shows: Show[]
+  /** Shows to list, already in date order; null while they load. */
+  shows: HomeShow[] | null
+  /** "Showing N": defaults to the number of Shows. */
+  showCount?: number
   dbTotal?: number
   filterOptions?: FilterOptions
+  /**
+   * The list is the page's build-time first page: its dates are marked for lib/upcomingShows to drop any that
+   * have passed, and it's held back while the URL has a query (the layout's <head> script), as it's unfiltered.
+   */
+  firstPage?: boolean
 }
 
 /** Groups shows by date, with Steve's Picks first within each date. */
-function groupByDate(shows: Show[]): Map<string, Show[]> {
-  const map = new Map<string, Show[]>()
+function groupByDate(shows: HomeShow[]): Map<string, HomeShow[]> {
+  const map = new Map<string, HomeShow[]>()
   for (const show of shows) {
     const existing = map.get(show.date) ?? []
     existing.push(show)
@@ -38,8 +46,11 @@ function groupByDate(shows: Show[]): Map<string, Show[]> {
   return map
 }
 
-export default function ShowList({ shows, dbTotal = 0, filterOptions = EMPTY_FILTER_OPTIONS }: ShowListProps) {
+const NO_SHOWS: HomeShow[] = []
+
+export default function ShowList({ shows: listed, showCount, dbTotal = 0, filterOptions = EMPTY_FILTER_OPTIONS, firstPage = false }: ShowListProps) {
   const filtersKey = useQuery().toString()
+  const shows = listed ?? NO_SHOWS
   const [visible, setVisible] = useState(PAGE_SIZE)
   const sentinelRef = useRef<HTMLDivElement>(null)
 
@@ -72,7 +83,7 @@ export default function ShowList({ shows, dbTotal = 0, filterOptions = EMPTY_FIL
   return (
     <div className="flex flex-col gap-6">
       <FilterBar
-        showCount={shows.length}
+        showCount={listed ? (showCount ?? shows.length) : null}
         dbTotal={dbTotal}
         genres={genres}
         regions={regions}
@@ -80,17 +91,26 @@ export default function ShowList({ shows, dbTotal = 0, filterOptions = EMPTY_FIL
         availableDates={availableDates}
       />
 
-      {shows.length === 0 ? (
+      {!listed ? (
+        <p className="flex items-center justify-center gap-1.5 text-ink-faint py-12">
+          <ArrowPathIcon className="size-4 shrink-0 animate-spin" />
+          Loading…
+        </p>
+      ) : shows.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-12 text-ink-muted">
           <MagnifyingGlassIcon className="size-6 text-ink-faint" />
           <p>No shows match your filters.</p>
         </div>
       ) : (
         <>
-          <section>
+          <section
+            data-upcoming-shows={firstPage ? '' : undefined}
+            data-home-first-page={firstPage ? '' : undefined}
+            suppressHydrationWarning  // lib/upcomingShows marks it ready before or after hydration
+          >
             <div className="flex flex-col gap-6">
               {sortedDates.map(date => (
-                <div key={date}>
+                <div key={date} data-show-date={firstPage ? date : undefined} suppressHydrationWarning>
                   <h3 className="text-sm font-semibold text-ink-muted uppercase tracking-wide mb-2">
                     {formatDateLong(date)}
                   </h3>

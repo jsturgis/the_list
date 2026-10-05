@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { bayAreaToday, hydrateShows } from '@/lib/data'
+import { bayAreaToday, homeShows, hydrateShows } from '@/lib/data'
 import type { ExportBand, ExportShow, ExportVenue } from '@/lib/types'
 
 const venue: ExportVenue = {
@@ -42,5 +42,26 @@ describe('bayAreaToday', () => {
 
   it('matches UTC in the morning', () => {
     expect(bayAreaToday(new Date('2026-09-29T16:00:00Z'))).toBe('2026-09-29')
+  })
+})
+
+describe('homeShows', () => {
+  const shows = hydrateShows([
+    show(1, '2026-09-29'),
+    { ...show(2, '2026-10-02'), doorTime: '21:00:00' },
+    show(3, '2026-09-30'),
+    { ...show(4, '2026-10-02'), doorTime: '19:00:00' },
+    show(5, '2026-10-05', 'cancelled'),
+  ], [venue], [band(10, 'Headliner'), band(11, 'Support')])
+  // Exported at 8pm Pacific on Sep 30.
+  const listed = homeShows(shows, { generatedAt: '2026-10-01T03:00:00Z' })
+
+  it("keeps Upcoming Shows from the export's day (Bay Area time), in date then door-time order", () => {
+    expect(listed.map(s => s.id)).toEqual([3, 4, 2])
+  })
+
+  it('keeps only what the home page uses of the Venue and Bands', () => {
+    expect(listed[0].venue).toEqual({ id: 1, name: 'The Fillmore', city: 'San Francisco', neighborhood: 'Western Addition', region: 'sf' })
+    expect(Object.keys(listed[0].acts[0].band).sort()).toEqual(['genres', 'id', 'name'])
   })
 })

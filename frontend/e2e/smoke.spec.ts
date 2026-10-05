@@ -125,7 +125,7 @@ test('an unknown page shows the 404 page', async ({ page }) => {
 })
 
 test('a failed data load shows an error', async ({ page }) => {
-  await page.route('**/data/shows.json', route => route.fulfill({ status: 500 }))
+  await page.route('**/home-shows.json', route => route.fulfill({ status: 500 }))
   await page.goto('./')
 
   await expect(page.getByRole('main').getByRole('alert')).toContainText("Couldn't load the list of shows")
@@ -146,4 +146,44 @@ test("a Band's Upcoming Shows still show if the page script throws", async ({ pa
   await page.goto('bands/1/')
 
   await expect(page.getByRole('heading', { name: 'Upcoming Shows' })).toBeVisible()
+})
+
+test("the home page's first Shows are on screen before the list's data loads", async ({ page }) => {
+  await page.route('**/home-shows.json', () => {})  // never answered
+  await page.goto('./')
+
+  await expect(page.getByText('Showing 5 of 5 shows')).toBeVisible()
+  await expect(showCards(page)).toHaveCount(5)
+  await expect(showCards(page).first()).toBeVisible()
+  await expect(showCards(page).first()).toContainText('Neon Harbor')
+})
+
+test('a filtered home page never shows the unfiltered first page', async ({ page }) => {
+  // Hold the list's own code and data: the built (unfiltered) first page is in the HTML, and the page's
+  // other script has run and dropped past dates, but the list must stay hidden until the filters apply.
+  let release = () => {}
+  const held = new Promise<void>(resolve => { release = resolve })
+  for (const url of ['**/_astro/HomeShows*.js', '**/home-shows.json'])
+    await page.route(url, async route => { await held; await route.continue() })
+  await page.goto('./?region=east_bay')
+
+  const firstPage = page.locator('[data-home-first-page]')
+  await expect(firstPage).toHaveAttribute('data-upcoming-shows-ready')
+  await expect(headliner(page, 'Tidepool Choir')).toBeHidden()
+
+  release()
+  await expect(page.locator('[data-home-first-page]')).toHaveCount(0)
+  await expect(showCards(page)).toHaveCount(2)
+  await expect(headliner(page, 'Tidepool Choir')).toHaveCount(0)
+})
+
+test.describe('without JavaScript', () => {
+  test.use({ javaScriptEnabled: false })
+
+  test('the home page lists the first page of Shows, with the edition', async ({ page }) => {
+    await page.goto('./')
+    await expect(page.getByText('Bay Area & Santa Cruz Concert Events — Sep 25, 2026')).toBeVisible()
+    await expect(showCards(page)).toHaveCount(5)
+    await expect(showCards(page).first()).toBeVisible()
+  })
 })

@@ -4,8 +4,8 @@
  */
 import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { bandShows, hydrateShows, similarBands } from './data'
-import type { ExportBand, ExportMeta, ExportShow, ExportVenue, Show } from './types'
+import { bandShows, homePage, homeShows, hydrateShows, similarBands } from './data'
+import type { ExportBand, ExportMeta, ExportShow, ExportVenue, HomePage, HomeShow, Show } from './types'
 
 export interface ExportData {
   meta: ExportMeta
@@ -17,6 +17,10 @@ export interface ExportData {
   /** A Band's Upcoming Shows, in date then door-time order (past dates are hidden in the browser). */
   bandShows(bandId: number): Show[]
   similarBands(bandId: number): ExportBand[]
+  /** Every Upcoming Show, trimmed for the home page, in list order (home-shows.json). */
+  homeShows(): HomeShow[]
+  /** What the home page renders at build time, with its first `pageSize` Shows. */
+  homePage(pageSize: number): HomePage
   showIds(): string[]
   venueIds(): string[]
   bandIds(): string[]
@@ -69,6 +73,8 @@ export function readExport(dir: string = DEFAULT_DATA_DIR): ExportData {
       const band = bandById.get(bandId)
       return band ? similarBands(band, bandById) : []
     },
+    homeShows: () => homeShows(shows, meta),
+    homePage: pageSize => homePage(shows, meta, pageSize),
     showIds: () => shows.map(s => String(s.id)).sort(byNumber),
     venueIds: () => venues.map(v => String(v.id)).sort(byNumber),
     bandIds: () => bands.map(b => String(b.id)).sort(byNumber),

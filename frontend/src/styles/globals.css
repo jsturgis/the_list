@@ -188,3 +188,8 @@ body {
 [data-js] [data-upcoming-shows]:not([data-upcoming-shows-ready]) {
   visibility: hidden;
 }
+
+/* The home page's built first page is unfiltered, so it waits for HomeShows when the URL has a query. */
+[data-js][data-query] [data-home-first-page] {
+  visibility: hidden;
+}
