@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import AlertsLink from '@/components/AlertsLink'
-import BandModalProvider from '@/components/BandModalProvider'
 import React from 'react'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
@@ -32,9 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <AlertsLink />
           </div>
         </header>
-        <BandModalProvider>
-          <main className="max-w-5xl mx-auto px-4 py-6">{children}</main>
-        </BandModalProvider>
+        <main className="max-w-5xl mx-auto px-4 py-6">{children}</main>
       </body>
     </html>
   )

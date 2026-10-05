@@ -198,7 +198,7 @@ backend/
   alembic/           # Database migrations
 frontend/
   app/               # Next.js pages: home, Show, Band and Venue pages, not-found
-  components/        # UI, including the client-side Band modal
+  components/        # UI
   lib/               # data loading, browser filtering, base path helper
   __tests__/
 samples/             # sample edition JSON and the (redacted) email it came from
