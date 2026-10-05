@@ -13,11 +13,12 @@ Node 22.12 or newer (Astro 7's minimum). From this directory:
 npm ci
 ```
 
-The site is built from the database export in `public/data/` (gitignored). Export it from the repository root
-whenever the data changes (see the root README for the backend):
+The site is built from the database export in `export/` (gitignored). The build reads it; it isn't published
+with the site. Export it from the repository root whenever the data changes (see the root README for the
+backend):
 
 ```bash
-docker compose run --rm -v "$PWD/frontend/public:/public" api python -m app.cli export --out /public/data
+docker compose run --rm -v "$PWD/frontend/export:/export" api python -m app.cli export --out /export
 ```
 
 ## Develop
@@ -77,7 +78,7 @@ npm run e2e       # Playwright smoke tests
 `npm run e2e` runs the Playwright smoke tests in `e2e/` (`npm run e2e:ui` for the interactive runner). The first
 time, install the browser with `npx playwright install chromium`.
 
-The tests don't use your local export in `public/data`. `e2e/serve.sh` builds the site from the small fixture
+The tests don't use your local export in `export/`. `e2e/serve.sh` builds the site from the small fixture
 dataset in `e2e/fixtures/data` (setting `SITE_DATA_DIR`), then serves it under `/the_list/` the way GitHub Pages
 does. The browser clock is frozen at 2026-10-01 (`e2e/fixtures.ts`), so the fixture Shows never go out of date.
 If you change the fixtures, update the counts and names in `e2e/smoke.spec.ts`.

@@ -154,7 +154,7 @@ jobs:
         # export's queries match the code. The data branch is migrated for good at the next ingest.
         run: |
           alembic upgrade head
-          python -m app.cli export --out ../frontend/public/data
+          python -m app.cli export --out ../frontend/export
 
       - name: Set up Node 22
         uses: actions/setup-node@v4

@@ -220,3 +220,10 @@ test.describe('Shows whose date has passed since the build', () => {
     await expect(page.getByTestId('similar-bands')).toBeVisible()
   })
 })
+
+test("the database export isn't published with the site", async ({ page }) => {
+  for (const name of ['shows', 'venues', 'bands', 'meta']) {
+    expect((await page.request.get(`data/${name}.json`)).status()).toBe(404)
+  }
+  expect((await page.request.get('home-shows.json')).ok()).toBe(true)
+})

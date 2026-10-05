@@ -1,5 +1,6 @@
 /**
- * Build-time access to the exported JSON (python -m app.cli export --out frontend/public/data).
+ * Build-time access to the exported JSON (python -m app.cli export --out frontend/export). It's read only at build
+ * time and isn't published with the site.
  * Used by server components and generateStaticParams; the browser uses lib/data.ts instead.
  */
 import { readFileSync } from 'node:fs'
@@ -34,14 +35,14 @@ export interface ExportData {
 // SITE_DATA_DIR builds the site from another export (the e2e tests use e2e/fixtures/data).
 export const DEFAULT_DATA_DIR = process.env.SITE_DATA_DIR
   ? resolve(process.env.SITE_DATA_DIR)
-  : join(process.cwd(), 'public', 'data')
+  : join(process.cwd(), 'export')
 
 function readJson<T>(dir: string, name: string): T {
   try {
     return JSON.parse(readFileSync(join(dir, `${name}.json`), 'utf8')) as T
   } catch (e) {
     throw new Error(
-      `Missing ${name}.json in ${dir}. Export it first: python -m app.cli export --out frontend/public/data ` +
+      `Missing ${name}.json in ${dir}. Export it first: python -m app.cli export --out frontend/export ` +
       `(${e instanceof Error ? e.message : e})`,
       { cause: e },
     )
@@ -90,7 +91,7 @@ export function readExport(dir: string = DEFAULT_DATA_DIR): ExportData {
 
 let cached: ExportData | null = null
 
-/** The export in public/data, read once per build. */
+/** The export in export/ (or SITE_DATA_DIR), read once per build. */
 export function siteData(): ExportData {
   cached ??= readExport()
   return cached

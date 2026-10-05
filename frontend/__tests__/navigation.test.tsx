@@ -57,7 +57,7 @@ describe('useQuery', () => {
 describe('href', () => {
   it('prefixes the configured base path', () => {
     vi.stubEnv('BASE_URL', '/the_list/')
-    expect(href('/data/shows.json')).toBe('/the_list/data/shows.json')
+    expect(href('/home-shows.json')).toBe('/the_list/home-shows.json')
     expect(href('/')).toBe('/the_list/')
   })
 

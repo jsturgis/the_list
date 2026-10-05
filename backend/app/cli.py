@@ -1,7 +1,7 @@
 """Command-line entry point.
 
     python -m app.cli ingest                              # maintenance, then import the newest edition
-    python -m app.cli export --out ../frontend/public/data
+    python -m app.cli export --out ../frontend/export
     python -m app.cli alerts                              # send this week's Alert emails
     python -m app.cli alerts --dry-run                    # print them instead
     python -m app.cli alerts --only me@example.com        # send only to one person (a test)
