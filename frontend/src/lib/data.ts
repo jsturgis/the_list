@@ -1,5 +1,5 @@
 import { href } from './basePath'
-import type { ExportBand, ExportMeta, ExportShow, ExportVenue, Show, SiteData } from './types'
+import type { ExportBand, ExportMeta, ExportShow, ExportVenue, Show, ShowSummary, SiteData } from './types'
 
 /** Today's date (YYYY-MM-DD) in the Bay Area, where Shows are listed by local calendar date. */
 export function bayAreaToday(now: Date = new Date()): string {
@@ -19,6 +19,15 @@ export function hydrateShows(shows: ExportShow[], venues: ExportVenue[], bands: 
       .map(([bandId, position, note]) => ({ position, band: bandById.get(bandId)!, ...(note ? { note } : {}) }))
       .sort((a, b) => a.position - b.position),
   }))
+}
+
+/** A Show trimmed to what a Show card or row shows (ShowSummary), for passing to an island. */
+export function summarizeShow({ venue, acts, ...show }: Show): ShowSummary {
+  return {
+    ...show,
+    venue: { id: venue.id, name: venue.name, city: venue.city, neighborhood: venue.neighborhood },
+    acts: acts.map(({ band, ...act }) => ({ ...act, band: { id: band.id, name: band.name } })),
+  }
 }
 
 const byDateThenDoor = (a: Show, b: Show) =>

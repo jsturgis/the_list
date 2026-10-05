@@ -1,6 +1,6 @@
 import { ClockIcon, MapPinIcon, StarIcon, TicketIcon, UserIcon } from '@heroicons/react/16/solid'
 import { Flags, StatusBadge } from './ShowBadges'
-import type { Show } from '@/lib/types'
+import type { ShowSummary } from '@/lib/types'
 import { formatTime, formatPrice } from '@/lib/format'
 import { href } from '@/lib/basePath'
 
@@ -12,7 +12,7 @@ function formatAge(age: string): string {
 export type ShowCardLayout = 'card' | 'row'
 
 interface ShowCardProps {
-  show: Show
+  show: ShowSummary
   filterQs?: string
   /** 'card' for the grid (default); 'row' for a compact single-line list item. */
   layout?: ShowCardLayout
@@ -21,7 +21,7 @@ interface ShowCardProps {
 }
 
 /** "Western Addition, San Francisco" when the neighborhood is known, else the city. */
-function venueLocation(show: Show): string {
+function venueLocation(show: ShowSummary): string {
   return show.venue.neighborhood ? `${show.venue.neighborhood}, ${show.venue.city}` : show.venue.city
 }
 

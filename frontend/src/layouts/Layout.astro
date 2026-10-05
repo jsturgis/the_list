@@ -2,6 +2,7 @@
 import '@/styles/globals.css'
 import AlertsLink from '@/components/AlertsLink'
 import { href } from '@/lib/basePath'
+import { alertsAvailable } from '@/lib/supabase'
 
 interface Props {
   title?: string
@@ -32,7 +33,7 @@ const {
       <div class="max-w-5xl mx-auto px-4 py-4 flex items-center gap-2">
         <a href={href('/')} class="font-bold text-lg tracking-tight">The List</a>
         <span class="text-ink-faint text-sm">SF Bay Area Music</span>
-        <AlertsLink client:load />
+        {alertsAvailable() && <AlertsLink />}
       </div>
     </header>
     <main class="max-w-5xl mx-auto px-4 py-6">

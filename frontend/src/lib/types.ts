@@ -75,6 +75,15 @@ export interface Show {
   specialEvent?: string | null
 }
 
+/**
+ * A Show as a Show card or row lists it: the Show's own fields, with just enough of its Venue and Bands to name
+ * them. Islands get these rather than full Shows, so a page doesn't serialise every Venue and Band description.
+ */
+export type ShowSummary = Omit<Show, 'venue' | 'acts'> & {
+  venue: Pick<Venue, 'id' | 'name' | 'city' | 'neighborhood'>
+  acts: (Omit<Act, 'band'> & { band: Pick<Band, 'id' | 'name'> })[]
+}
+
 // ── Static JSON export (python -m app.cli export) ────────────────────────────
 
 export type ExportVenue = Required<Venue>
