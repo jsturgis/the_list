@@ -2,22 +2,19 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { rawTokens } from './theme'
 
 // DESIGN.md (repository root) describes every colour token of the theme in frontend/src/styles/globals.css.
 // This keeps the two from drifting: the same token names, with the same light and dark values.
 
 const design = readFileSync(join(process.cwd(), '..', 'DESIGN.md'), 'utf8')
-const css = readFileSync(join(process.cwd(), 'src', 'styles', 'globals.css'), 'utf8')
 
 /** `--theme(--color-red-600 inline)` is written `red-600` in DESIGN.md. */
 const normalise = (value: string) => value.trim().replace(/--theme\(--color-([a-z0-9-]+) inline\)/g, '$1')
+const normalised = (tokens: Map<string, string>) => new Map([...tokens].map(([name, value]) => [name, normalise(value)]))
 
-function tokens(block: string): Map<string, string> {
-  return new Map([...block.matchAll(/--([a-z-]+):\s*([^;]+);/g)].map(([, name, value]) => [name, normalise(value)]))
-}
-
-const light = tokens(css.slice(css.indexOf(':root {'), css.indexOf('@media (prefers-color-scheme: dark)')))
-const dark = tokens(css.slice(css.indexOf('@media (prefers-color-scheme: dark)'), css.indexOf('@theme inline')))
+const light = normalised(rawTokens.light)
+const dark = normalised(rawTokens.dark)
 
 const palette = design.slice(design.indexOf('## 2. Colour Palette'), design.indexOf('## 3.'))
 const documented = new Map(
