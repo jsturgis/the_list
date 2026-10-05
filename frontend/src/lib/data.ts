@@ -46,7 +46,7 @@ export function similarBands(band: ExportBand, bandById: Map<number, ExportBand>
 export function toHomeShow({ venue, acts, ...show }: Show): HomeShow {
   return {
     ...show,
-    venue: { id: venue.id, name: venue.name, city: venue.city, neighborhood: venue.neighborhood, region: venue.region },
+    venue: { id: venue.id, name: venue.name, city: venue.city, neighborhood: venue.neighborhood, region: venue.region, address: venue.address },
     acts: acts.map(({ band, ...act }) => ({ ...act, band: { id: band.id, name: band.name, genres: band.genres } })),
   }
 }

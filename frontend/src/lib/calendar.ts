@@ -1,10 +1,18 @@
 /**
- * "Add to calendar" links for a Show: a Google Calendar URL and an .ics file (as a data: URI, so it
- * works on the static site). Shows start at the door time (or set time) in Bay Area time and are
- * assumed to last 3 hours; a Show with no times becomes an all-day event.
+ * "Add to calendar" links for a Show: a Google Calendar URL and an .ics file. The .ics files are built as static
+ * files, one per Upcoming Show (pages/calendar/[id].ics.ts), so links to them work without JavaScript and pages
+ * don't embed them. Shows start at the door time (or set time) in Bay Area time and are assumed to last 3 hours;
+ * a Show with no times becomes an all-day event.
  */
+import { href } from './basePath'
 import { formatPrice, formatTime } from './format'
-import type { Show } from './types'
+import type { Show, Venue } from './types'
+
+/** What a calendar event needs of a Show: a full Show, or the home page's trimmed one. */
+export type CalendarShow = Pick<Show, 'id' | 'date' | 'doorTime' | 'setTime' | 'priceMin' | 'priceMax' | 'isFree' | 'ageRestriction'> & {
+  venue: Pick<Venue, 'name' | 'city' | 'address'>
+  acts: { position: number; band: { name: string } }[]
+}
 
 const TIMEZONE = 'America/Los_Angeles'
 const DURATION_MS = 3 * 60 * 60 * 1000
@@ -49,7 +57,7 @@ interface CalendarEvent {
   allDay: boolean
 }
 
-function showEvent(show: Show, siteUrl: string): CalendarEvent {
+function showEvent(show: CalendarShow, siteUrl: string): CalendarEvent {
   const acts = show.acts.slice().sort((a, b) => a.position - b.position).map(a => a.band.name)
   const url = `${siteUrl}/shows/${show.id}/`
   const times = [show.doorTime && `Doors ${formatTime(show.doorTime)}`, show.setTime && `Set ${formatTime(show.setTime)}`]
@@ -71,7 +79,7 @@ function showEvent(show: Show, siteUrl: string): CalendarEvent {
   }
 }
 
-export function googleCalendarUrl(show: Show, siteUrl: string = SITE_URL): string {
+export function googleCalendarUrl(show: CalendarShow, siteUrl: string = SITE_URL): string {
   const e = showEvent(show, siteUrl)
   const params = new URLSearchParams({
     action: 'TEMPLATE', text: e.title, dates: `${e.start}/${e.end}`, details: e.details, location: e.location,
@@ -102,7 +110,8 @@ function fold(line: string): string {
   return parts.join('\r\n')
 }
 
-export function icsDataUri(show: Show, siteUrl: string = SITE_URL, now: Date = new Date()): string {
+/** The Show as an iCalendar (.ics) file. */
+export function icsText(show: CalendarShow, siteUrl: string = SITE_URL, now: Date = new Date()): string {
   const e = showEvent(show, siteUrl)
   const when = e.allDay
     ? [`DTSTART;VALUE=DATE:${e.start}`, `DTEND;VALUE=DATE:${e.end}`]
@@ -113,11 +122,16 @@ export function icsDataUri(show: Show, siteUrl: string = SITE_URL, now: Date = n
     `SUMMARY:${escapeText(e.title)}`, `LOCATION:${escapeText(e.location)}`, `DESCRIPTION:${escapeText(e.details)}`,
     `URL:${e.url}`, 'END:VEVENT', 'END:VCALENDAR',
   ]
-  return 'data:text/calendar;charset=utf-8,' + encodeURIComponent(lines.map(fold).join('\r\n') + '\r\n')
+  return lines.map(fold).join('\r\n') + '\r\n'
+}
+
+/** Where a Show's .ics file is published (for Upcoming Shows only). */
+export function icsHref(showId: number): string {
+  return href(`/calendar/${showId}.ics`)
 }
 
 /** "deafheaven-2026-10-01.ics" */
-export function icsFilename(show: Show): string {
+export function icsFilename(show: Pick<CalendarShow, 'date' | 'acts'>): string {
   const headliner = show.acts.slice().sort((a, b) => a.position - b.position)[0]?.band.name ?? 'show'
   const slug = headliner.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'show'
   return `${slug}-${show.date}.ics`

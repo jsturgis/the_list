@@ -1,4 +1,4 @@
-import ShowCard from './ShowCard'
+import ShowRow from './ShowRow'
 import { formatDateLong } from '@/lib/format'
 import type { Show } from '@/lib/types'
 
@@ -23,11 +23,11 @@ export default function VenueShowRows({ shows }: { shows: Show[] }) {
                 <h3 className="text-sm font-semibold text-ink-muted uppercase tracking-wide mb-2">
                   {formatDateLong(date)}
                 </h3>
-                <div className="flex flex-col divide-y divide-line-subtle rounded-lg border border-line-subtle bg-surface overflow-hidden">
+                <div className="flex flex-col divide-y divide-line-subtle overflow-hidden rounded-lg bg-surface">
                   {(byDate.get(date) ?? [])
                     .slice()
                     .sort((a, b) => (a.doorTime ?? '').localeCompare(b.doorTime ?? ''))
-                    .map(show => <ShowCard key={show.id} show={show} layout="row" showVenue={false} />)}
+                    .map(show => <ShowRow key={show.id} show={show} showVenue={false} />)}
                 </div>
               </div>
             ))}

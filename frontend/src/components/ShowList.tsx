@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { HomeShow } from '@/lib/types'
 import { ArrowPathIcon, MagnifyingGlassIcon } from '@heroicons/react/20/solid'
-import ShowCard from './ShowCard'
+import ShowRow from './ShowRow'
 import FilterBar from './FilterBar'
 import { formatDateLong } from '@/lib/format'
 import { useQuery } from '@/lib/navigation'
@@ -111,8 +111,8 @@ export default function ShowList({ shows: listed, showCount, dbTotal = 0, filter
                   <h3 className="text-sm font-semibold text-ink-muted uppercase tracking-wide mb-2">
                     {formatDateLong(date)}
                   </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {(byDate.get(date) ?? []).map(show => <ShowCard key={show.id} show={show} filterQs={filtersKey} />)}
+                  <div className="flex flex-col divide-y divide-line-subtle overflow-hidden rounded-lg bg-surface">
+                    {(byDate.get(date) ?? []).map(show => <ShowRow key={show.id} show={show} filterQs={filtersKey} />)}
                   </div>
                 </div>
               ))}

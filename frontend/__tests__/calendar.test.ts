@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { googleCalendarUrl, icsDataUri, icsFilename } from '@/lib/calendar'
+import { googleCalendarUrl, icsFilename, icsHref, icsText } from '@/lib/calendar'
 import { makeBand, makeShow, makeVenue } from './fixtures'
 
 const SITE = 'https://jsturgis.github.io/the_list'
@@ -16,7 +16,7 @@ const show = makeShow({
   ],
 })
 const google = (s = show) => new URL(googleCalendarUrl(s, SITE))
-const ics = (s = show) => decodeURIComponent(icsDataUri(s, SITE, new Date('2026-09-30T12:00:00Z')).split(',')[1])
+const ics = (s = show) => icsText(s, SITE, new Date('2026-09-30T12:00:00Z'))
 
 describe('googleCalendarUrl', () => {
   it('creates an event from the door time, in UTC, lasting 3 hours', () => {
@@ -51,9 +51,8 @@ describe('googleCalendarUrl', () => {
   })
 })
 
-describe('icsDataUri', () => {
+describe('icsText', () => {
   it('is a calendar file with one event at the right UTC times', () => {
-    expect(icsDataUri(show, SITE).startsWith('data:text/calendar;charset=utf-8,')).toBe(true)
     const text = ics()
     expect(text).toMatch(/^BEGIN:VCALENDAR\r\n/)
     expect(text).toContain('\r\nBEGIN:VEVENT\r\n')
@@ -90,5 +89,11 @@ describe('icsDataUri', () => {
 describe('icsFilename', () => {
   it('names the file after the headliner and date', () => {
     expect(icsFilename(show)).toBe('deafheaven-2026-10-01.ics')
+  })
+})
+
+describe('icsHref', () => {
+  it("is the Show's static .ics file, outside the Show pages", () => {
+    expect(icsHref(42)).toBe('/calendar/42.ics')
   })
 })
