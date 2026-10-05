@@ -150,9 +150,9 @@ WCAG AA.
   - Badges are small pills (`rounded-full`) that never wrap inside; a row of them wraps badge by badge.
 - **Page header (`PageHeader`):** every page starts with one: an optional eyebrow (a Show's status and date), the
   h1, an optional subtitle (`text-lg ink-soft`) and an optional row of chips.
-- **Sections (`Section`):** a `<section aria-labelledby>` panel: `surface`, 8px radius, 20px padding, a 24px bold
-  `h2`, 12px between its parts. `plain` drops the panel for content that already sits in panels (date-grouped
-  Show rows).
+- **Sections (`Section`):** a `<section aria-labelledby>`: a 24px bold `h2` on the page, then the content in a
+  panel below it (`surface`, 8px radius, 20px padding), 12px apart. The heading is never inside the panel. `plain`
+  drops the panel for content that already sits in panels (date-grouped Show rows).
 - **Key facts (`FactList`):** a `<dl>` grid, three columns from `sm` and one per line on phones. Each fact has an
   icon and a `text-xs ink-muted` label, over a `text-base font-semibold ink` value (Doors, Price, Ages).
 - **Actions (`ActionLinks`):** a wrapping row of pill links, 14px bold: primary (`bg-accent text-on-accent`, at

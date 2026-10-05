@@ -58,7 +58,24 @@ export default function ShowDetail({ show }: ShowDetailProps) {
       )}
 
       <PageHeader
-        eyebrow={<><StatusBadge status={show.status} size="detail" /><span>{formatDateLongYear(show.date)}</span></>}
+        eyebrow={
+          <>
+            <StatusBadge status={show.status} size="detail" />
+            <span>{formatDateLongYear(show.date)}</span>
+            {upcoming && (
+              <span className="flex items-center">
+                <a href={icsHref(show.id)} download={icsFilename(show)} aria-label="Add to calendar (.ics)" title="Add to calendar (.ics)"
+                   className="rounded-full p-1 hover:bg-muted hover:text-link">
+                  <ArrowDownTrayIcon className="size-4" />
+                </a>
+                <a href={googleCalendarUrl(show)} target="_blank" rel="noopener noreferrer" aria-label="Add to Google Calendar"
+                   title="Add to Google Calendar" className="rounded-full p-1 hover:bg-muted hover:text-link">
+                  <CalendarDaysIcon className="size-4" />
+                </a>
+              </span>
+            )}
+          </>
+        }
         title={acts[0]?.band.name ?? 'Unknown'}
         subtitle={<>at <VenueLink venueId={show.venue.id} className="text-link underline underline-offset-2">{show.venue.name}</VenueLink> · {show.venue.city}</>}
       />
@@ -72,7 +89,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
         <Flags show={show} size="detail" showBenefitCause />
       </div>
 
-      {(show.ticketUrl || show.ticketProvider || upcoming) && (
+      {(show.ticketUrl || show.ticketProvider) && (
         <ActionLinks>
           {show.ticketUrl ? (
             <ActionLink href={show.ticketUrl} kind="primary" icon={TicketIcon} external>{ticketsLabel}</ActionLink>
@@ -82,17 +99,6 @@ export default function ShowDetail({ show }: ShowDetailProps) {
               {ticketsLabel}
             </span>
           ) : null}
-          {upcoming && (
-            <>
-              <ActionLink href={icsHref(show.id)} download={icsFilename(show)} icon={ArrowDownTrayIcon}
-                          aria-label="Add to calendar (.ics)" title="Add to calendar (.ics)">
-                .ics
-              </ActionLink>
-              <ActionLink href={googleCalendarUrl(show)} icon={CalendarDaysIcon} external aria-label="Add to Google Calendar">
-                Google Calendar
-              </ActionLink>
-            </>
-          )}
         </ActionLinks>
       )}
 
