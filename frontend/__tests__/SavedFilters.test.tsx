@@ -11,6 +11,14 @@ vi.mock('@/lib/supabase', async importOriginal => ({
   alertsAvailable: () => fake.current !== null,  // the build has the Supabase settings when there's a client
 }))
 
+/** The toast: the status region that isn't the filter bar's live Shows count. */
+const isToast = (el: HTMLElement) => !/^(Showing|Loading) /.test(el.textContent ?? '')
+const findToast = () => waitFor(() => {
+  const toast = screen.getAllByRole('status').find(isToast)
+  if (!toast) throw new Error('No toast')
+  return toast
+})
+
 const props = { showCount: 10, dbTotal: 100, genres: ['punk'], regions: ['east_bay'], ages: [], availableDates: [] }
 
 beforeEach(() => {
@@ -47,7 +55,7 @@ describe('Save control', () => {
     fireEvent.click(screen.getByRole('button', { name: /email me a sign-in link/i }))
 
     // The form closes and a toast confirms.
-    expect(await screen.findByRole('status')).toHaveTextContent(/check your email for a sign-in link/i)
+    expect(await findToast()).toHaveTextContent(/check your email for a sign-in link/i)
     expect(screen.queryByLabelText('Email')).not.toBeInTheDocument()
     const [{ email, options }] = fake.current!.client.auth.signInWithOtp.mock.calls[0]
     expect(email).toBe('fan@example.com')
@@ -68,7 +76,7 @@ describe('Save control', () => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'East Bay punk' } })
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }))
 
-    const toast = await screen.findByRole('status')
+    const toast = await findToast()
     expect(toast).toHaveTextContent(/alert set up/i)
     expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
     expect(fake.current!.state.savedFilters).toMatchObject([{ name: 'East Bay punk', query: 'genre=punk&region=east_bay' }])
@@ -158,8 +166,37 @@ describe('Save control dismissing', () => {
     fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Punk' } })
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }))
-    return screen.findByRole('status')
+    return findToast()
   }
+
+  it('moves focus into the form, and back to the button on Escape', async () => {
+    replaceQuery('genre=punk')
+    render(<FilterBar {...props} />)
+    const button = await screen.findByRole('button', { name: /setup alert/i })
+    fireEvent.click(button)
+    expect(screen.getByLabelText('Name')).toHaveFocus()
+    fireEvent.keyDown(screen.getByLabelText('Name'), { key: 'Escape' })
+    expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
+    expect(button).toHaveFocus()
+  })
+
+  it('closes when focus leaves the form, so it never stays open behind the keyboard', async () => {
+    replaceQuery('genre=punk')
+    render(<FilterBar {...props} />)
+    fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
+    const outside = screen.getByLabelText('Search')
+    fireEvent.focusOut(screen.getByLabelText('Name'), { relatedTarget: outside })
+    expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
+  })
+
+  it('keeps focus on the Setup Alert button after saving, and after dismissing the toast', async () => {
+    await openSaved()
+    const button = screen.getByRole('button', { name: /setup alert/i })
+    expect(button).toHaveFocus()
+    screen.getByRole('button', { name: /dismiss/i }).focus()
+    fireEvent.click(screen.getByRole('button', { name: /dismiss/i }))
+    expect(button).toHaveFocus()
+  })
 
   it('closes the form with Escape or a click outside it', async () => {
     replaceQuery('genre=punk')
@@ -176,7 +213,7 @@ describe('Save control dismissing', () => {
   it('lets the toast be dismissed', async () => {
     await openSaved()
     fireEvent.click(screen.getByRole('button', { name: /dismiss/i }))
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.queryAllByRole('status').filter(isToast)).toEqual([])
   })
 })
 

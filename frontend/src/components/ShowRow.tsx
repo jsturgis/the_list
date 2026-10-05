@@ -11,6 +11,8 @@ interface ShowRowProps {
   filterQs?: string
   /** Hide the Venue line, e.g. on that Venue's own page. */
   showVenue?: boolean
+  /** The headliner's heading level: one below the list's date headings. */
+  headingLevel?: 3 | 4
 }
 
 const calendarLink =
@@ -23,7 +25,8 @@ const calendarLink =
  * own line; from `sm` the details sit in a right-hand column. The headliner is the link to the Show page, stretched
  * over the whole row; the calendar links sit above it.
  */
-export default function ShowRow({ show, filterQs = '', showVenue = true }: ShowRowProps) {
+export default function ShowRow({ show, filterQs = '', showVenue = true, headingLevel = 3 }: ShowRowProps) {
+  const Heading = `h${headingLevel}` as const
   const headliner = show.acts[0]?.band
   const supports = show.acts.slice(1).map(a => a.band.name)
   const details = [formatTime(show.doorTime), formatPrice(show.priceMin, show.priceMax, show.isFree), ageLabel(show.ageRestriction)]
@@ -40,7 +43,7 @@ export default function ShowRow({ show, filterQs = '', showVenue = true }: ShowR
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <StatusBadge status={show.status} size="compact" />
-          <h3 className="text-base leading-snug text-ink-muted">
+          <Heading className="text-base leading-snug text-ink-muted">
             {show.isRecommended && <StarIcon aria-hidden="true" className="inline size-4 -mt-0.5 mr-1 text-pick-line" />}
             <a
               href={href(filterQs ? `/shows/${show.id}/?${filterQs}` : `/shows/${show.id}/`)}
@@ -51,7 +54,7 @@ export default function ShowRow({ show, filterQs = '', showVenue = true }: ShowR
               {headliner?.name ?? 'Show'}
             </a>
             {supports.length > 0 && <> with {supports.join(', ')}</>}
-          </h3>
+          </Heading>
         </div>
         {showVenue && <p className="mt-0.5 text-sm text-ink-soft">{show.venue.name} · {show.venue.city}</p>}
       </div>

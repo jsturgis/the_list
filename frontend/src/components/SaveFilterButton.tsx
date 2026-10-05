@@ -26,20 +26,37 @@ export default function SaveFilterButton({ query }: { query: string }) {
   // A signed-in visitor's alerts, read when the form opens: how many, and whether these filters are one.
   const [existing, setExisting] = useState<{ name: string; query: string }[] | null>(null)
   const container = useRef<HTMLDivElement>(null)
-  const dismissToast = useCallback(() => setDone(null), [])
+  const button = useRef<HTMLButtonElement>(null)
+  const dismissToast = useCallback(() => {
+    // If the keyboard was on the toast, keep it nearby rather than losing it to the top of the page.
+    if (container.current?.contains(document.activeElement)) button.current?.focus()
+    setDone(null)
+  }, [])
 
-  // The form closes with Escape or a click anywhere outside it.
+  // The form closes with Escape (focus goes back to the button), a click anywhere outside it, or when focus leaves
+  // it (Tab past its last control), so it never stays open behind where the keyboard is.
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setOpen(false)
+      button.current?.focus()
+    }
     const onPointer = (e: MouseEvent) => {
       if (container.current && !container.current.contains(e.target as Node)) setOpen(false)
     }
+    const onFocusOut = (e: FocusEvent) => {
+      const next = e.relatedTarget as Node | null
+      if (next && container.current && !container.current.contains(next)) setOpen(false)
+    }
+    const el = container.current
     document.addEventListener('keydown', onKey)
     document.addEventListener('mousedown', onPointer)
+    el?.addEventListener('focusout', onFocusOut)
     return () => {
       document.removeEventListener('keydown', onKey)
       document.removeEventListener('mousedown', onPointer)
+      el?.removeEventListener('focusout', onFocusOut)
     }
   }, [open])
 
@@ -69,6 +86,7 @@ export default function SaveFilterButton({ query }: { query: string }) {
     setOpen(false)
     setName('')
     setDone(result)
+    button.current?.focus()  // the form is gone: keep the keyboard where it was, not at the top of the page
   }
 
   const submit = async (e: FormEvent) => {
@@ -91,6 +109,7 @@ export default function SaveFilterButton({ query }: { query: string }) {
   return (
     <div ref={container} className="relative">
       <button
+        ref={button}
         type="button"
         onClick={toggle}
         disabled={!query || session.status === 'loading'}

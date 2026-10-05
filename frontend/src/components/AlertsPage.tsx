@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { TrashIcon } from '@heroicons/react/16/solid'
 import { href } from '@/lib/basePath'
 import { MAX_ALERTS, alertsPageUrl, supabase, type SavedFilter } from '@/lib/supabase'
@@ -80,6 +80,17 @@ function YourAlerts({ email, userId }: { email: string; userId: string }) {
     }
   }, [])
 
+  // After a delete, keyboard focus moves to a neighbouring alert (or the empty message), not the top of the page.
+  const list = useRef<HTMLDivElement>(null)
+  const [focusAfterDelete, setFocusAfterDelete] = useState<number | null>(null)
+  useEffect(() => {
+    if (focusAfterDelete === null || !list.current) return
+    const links = list.current.querySelectorAll<HTMLElement>('[data-alert-link]')
+    const target = links[Math.min(focusAfterDelete, links.length - 1)] ?? list.current.querySelector<HTMLElement>('[data-no-alerts]')
+    target?.focus()
+    setFocusAfterDelete(null)
+  }, [focusAfterDelete, savedFilters])
+
   const remove = async (filter: SavedFilter) => {
     if (!supabase) return
     const { error } = await supabase.from('saved_filters').delete().eq('id', filter.id)
@@ -87,6 +98,7 @@ function YourAlerts({ email, userId }: { email: string; userId: string }) {
       setError(error.message)
       return
     }
+    setFocusAfterDelete(savedFilters?.findIndex(f => f.id === filter.id) ?? 0)
     setSavedFilters(fs => fs?.filter(f => f.id !== filter.id) ?? null)
     setToast(`Deleted “${filter.name}”`)
   }
@@ -133,10 +145,11 @@ function YourAlerts({ email, userId }: { email: string; userId: string }) {
         </div>
       )}
 
+      <div ref={list}>
       {savedFilters === null ? (
         <p className="text-sm text-ink-muted">Loading your alerts…</p>
       ) : savedFilters.length === 0 ? (
-        <p className="text-sm text-ink-soft">
+        <p data-no-alerts="" tabIndex={-1} className="text-sm text-ink-soft outline-none">
           No alerts yet. Set some filters on the{' '}
           <a href={href('/')} className="text-link underline">
             Shows list
@@ -151,7 +164,7 @@ function YourAlerts({ email, userId }: { email: string; userId: string }) {
           <ul className="flex flex-col divide-y divide-line-subtle">
             {savedFilters.map(f => (
               <li key={f.id} className="flex items-center justify-between gap-4 py-2">
-                <a href={href(`/?${f.query}`)} className="min-w-0 truncate font-medium text-ink hover:underline">
+                <a href={href(`/?${f.query}`)} data-alert-link="" className="min-w-0 truncate font-medium text-ink hover:underline">
                   {f.name}
                 </a>
                 <button
@@ -168,6 +181,7 @@ function YourAlerts({ email, userId }: { email: string; userId: string }) {
           </ul>
         </div>
       )}
+      </div>
 
       {toast && <Toast onDismiss={dismissToast}>{toast}</Toast>}
     </section>

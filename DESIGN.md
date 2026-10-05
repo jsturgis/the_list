@@ -102,9 +102,9 @@ WCAG AA.
 | Role | Size | Weight | Notes |
 |---|---|---|---|
 | Page title (`h1`) | 24px (`text-2xl`); 30px (`text-3xl`) on detail pages | 800 | tracking −0.02em (global) |
-| Date heading on the Shows list | 18px (`text-lg`) | 700 | sentence case, `ink` |
+| Date heading on Show lists | 18px (`text-lg`) | 700 | sentence case, `ink`; `h2` on the home page, `h3` under a Venue's "Upcoming Shows" |
 | Section heading (Lineup, Venue, Upcoming Shows) | 16px (`text-base`) | 700 | |
-| Headliner in a Show row or card | 16px | 700 | `ink`; supports follow in `ink-muted`, prefixed "with" |
+| Headliner in a Show row | 16px | 700 | `ink`; supports follow in `ink-muted`, prefixed "with"; a heading one level below the date |
 | Body | 16px / 14px (`text-sm`) | 400 | |
 | Meta: time · price · age, captions | 12–14px (`text-xs`/`text-sm`) | 400 | `ink-muted` or `ink-soft` |
 | Badges (flags, statuses) | 12px | 600 | statuses uppercase |

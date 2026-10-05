@@ -83,6 +83,15 @@ describe('Managing alerts', () => {
     expect(await screen.findByText('2 of 20 alerts')).toBeInTheDocument()
   })
 
+  it("moves focus to the next alert after a delete, and to the empty message when none are left", async () => {
+    render(<AlertsPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete East Bay punk' }))
+    await waitFor(() => expect(screen.getByRole('link', { name: 'Free' })).toHaveFocus())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Free' }))
+    await waitFor(() => expect(screen.getByText(/No alerts yet/)).toHaveFocus())
+  })
+
   it('deletes an alert', async () => {
     render(<AlertsPage />)
     fireEvent.click(await screen.findByRole('button', { name: 'Delete East Bay punk' }))
