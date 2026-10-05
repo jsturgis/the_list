@@ -1,8 +1,5 @@
-'use client'
-
 import type { ReactNode } from 'react'
 import { href } from '@/lib/basePath'
-import { useQuery } from '@/lib/navigation'
 
 interface VenueLinkProps {
   venueId: number
@@ -10,8 +7,7 @@ interface VenueLinkProps {
   children: ReactNode
 }
 
-/** Link to a Venue page that keeps the current filters, read in the browser (pages are static). */
+/** Link to a Venue page. It keeps the current filters: lib/keepFilters adds the page's query in the browser. */
 export default function VenueLink({ venueId, className, children }: VenueLinkProps) {
-  const qs = useQuery().toString()
-  return <a href={href(qs ? `/venues/${venueId}/?${qs}` : `/venues/${venueId}/`)} className={className}>{children}</a>
+  return <a href={href(`/venues/${venueId}/`)} data-keep-filters="" className={className}>{children}</a>
 }

@@ -1,7 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { describe, it, expect } from 'vitest'
 import ShowDetail from '@/components/ShowDetail'
-import { replaceQuery } from '@/lib/navigation'
 import { makeShow, makeVenue, makeBand } from './fixtures'
 
 describe('ShowDetail', () => {
@@ -180,11 +179,11 @@ describe('ShowDetail', () => {
     expect(screen.queryByText(/Benefit/)).not.toBeInTheDocument()
   })
 
-  it('links to the venue, keeping the current filters from the URL', () => {
-    replaceQuery('genre=punk&region=sf')
+  it('links to the venue, marked to keep the current filters', () => {
     render(<ShowDetail show={show} />)
     for (const link of screen.getAllByRole('link', { name: 'The Fillmore' })) {
-      expect(link).toHaveAttribute('href', `/venues/${show.venue.id}/?genre=punk&region=sf`)
+      expect(link).toHaveAttribute('href', `/venues/${show.venue.id}/`)
+      expect(link).toHaveAttribute('data-keep-filters')
     }
   })
 })
