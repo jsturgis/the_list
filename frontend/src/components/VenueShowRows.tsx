@@ -1,3 +1,4 @@
+import Section from './Section'
 import ShowRow from './ShowRow'
 import { formatDateLong } from '@/lib/format'
 import type { Show } from '@/lib/types'
@@ -13,14 +14,11 @@ export default function VenueShowRows({ shows }: { shows: Show[] }) {
   return (
     <div data-upcoming-shows="">
       {shows.length > 0 && (
-        <section aria-labelledby="venue-upcoming-shows" data-upcoming-shows-list="">
-          <h2 id="venue-upcoming-shows" className="text-base font-semibold mb-3 text-ink">
-            Upcoming Shows
-          </h2>
+        <Section title="Upcoming Shows" headingId="venue-upcoming-shows" plain data-upcoming-shows-list="">
           <div className="flex flex-col gap-6">
             {Array.from(byDate.keys()).sort().map(date => (
               <div key={date} data-show-date={date}>
-                <h3 className="text-lg font-bold text-ink mb-2">
+                <h3 className="text-xl font-bold text-ink mb-2">
                   {formatDateLong(date)}
                 </h3>
                 <div className="flex flex-col divide-y divide-line-subtle overflow-hidden rounded-lg bg-surface">
@@ -32,7 +30,7 @@ export default function VenueShowRows({ shows }: { shows: Show[] }) {
               </div>
             ))}
           </div>
-        </section>
+        </Section>
       )}
       {/* Shown by the page's CSS too, when every Show listed has passed (lib/pastShows). */}
       <p className="text-sm text-ink-muted" data-upcoming-shows-empty="" style={shows.length > 0 ? { display: 'none' } : undefined}>

@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { href } from '@/lib/basePath'
 import { supabase } from '@/lib/supabase'
+import PageHeader from './PageHeader'
 
 const noSubscription = () => () => {}
 
@@ -30,36 +31,28 @@ export default function UnsubscribePage() {
 
   const state = token === null ? 'loading' : !supabase ? 'unavailable' : !token ? 'invalid' : (result ?? 'working')
 
+  const alertsLink = <a href={href('/alerts/')} className="text-link underline underline-offset-2">Alerts page</a>
+
   return (
-    <article className="max-w-2xl mx-auto flex flex-col gap-4">
-      {(state === 'loading' || state === 'working') && <p className="text-sm text-ink-muted">Unsubscribing…</p>}
+    <article className="flex flex-col gap-6">
+      {(state === 'loading' || state === 'working') && <PageHeader title="Unsubscribe" subtitle="Unsubscribing…" />}
       {state === 'unavailable' && (
-        <p className="text-sm text-ink-muted">Alerts aren&apos;t available on this copy of the site.</p>
+        <PageHeader title="Unsubscribe" subtitle="Alerts aren't available on this copy of the site." />
       )}
       {state === 'done' && (
-        <>
-          <h1 className="text-3xl font-bold text-ink">You&apos;re unsubscribed</h1>
-          <p className="text-ink-soft">
+        <PageHeader
+          title="You're unsubscribed"
+          subtitle={<>
             You won&apos;t get the weekly Alert email any more. Your alerts are kept, so you can turn the email back on
-            any time from the{' '}
-            <a href={href('/alerts/')} className="text-link underline">
-              Alerts page
-            </a>
-            .
-          </p>
-        </>
+            any time from the {alertsLink}.
+          </>}
+        />
       )}
       {state === 'invalid' && (
-        <>
-          <h1 className="text-3xl font-bold text-ink">This unsubscribe link isn&apos;t valid</h1>
-          <p className="text-ink-soft">
-            It may be incomplete or from an old email. You can turn the weekly email off yourself on the{' '}
-            <a href={href('/alerts/')} className="text-link underline">
-              Alerts page
-            </a>{' '}
-            after signing in.
-          </p>
-        </>
+        <PageHeader
+          title="This unsubscribe link isn't valid"
+          subtitle={<>It may be incomplete or from an old email. You can turn the weekly email off yourself on the {alertsLink} after signing in.</>}
+        />
       )}
     </article>
   )

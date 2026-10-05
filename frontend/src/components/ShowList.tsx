@@ -108,7 +108,7 @@ export default function ShowList({ shows: listed, showCount, dbTotal = 0, filter
             <div className="flex flex-col gap-6">
               {sortedDates.map(date => (
                 <div key={date} data-show-date={firstPage ? date : undefined}>
-                  <h2 className="text-lg font-bold text-ink mb-2">
+                  <h2 className="text-2xl font-bold text-ink mb-2">
                     {formatDateLong(date)}
                   </h2>
                   <div className="flex flex-col divide-y divide-line-subtle overflow-hidden rounded-lg bg-surface">

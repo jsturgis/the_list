@@ -1,5 +1,6 @@
 import type { Band } from '@/lib/types'
 import BandLink from './BandLink'
+import Section from './Section'
 
 interface SimilarBandsProps {
   /** Precomputed in the export; never includes the Band itself. */
@@ -10,10 +11,7 @@ export default function SimilarBands({ bands }: SimilarBandsProps) {
   if (bands.length === 0) return null
 
   return (
-    <section data-testid="similar-bands">
-      <h2 className="text-base font-semibold mb-3 text-ink">
-        Similar Bands
-      </h2>
+    <Section title="Similar Bands" data-testid="similar-bands">
       <ul className="flex flex-col gap-1">
         {bands.map(b => (
           <li key={b.id}>
@@ -31,6 +29,6 @@ export default function SimilarBands({ bands }: SimilarBandsProps) {
           </li>
         ))}
       </ul>
-    </section>
+    </Section>
   )
 }

@@ -129,7 +129,7 @@ describe('ShowDetail', () => {
 
   it('offers the show as a calendar file and as a Google Calendar event', () => {
     render(<ShowDetail show={makeShow({ id: 7, date: '2026-10-03' })} />)
-    const ics = screen.getByRole('link', { name: 'Add to calendar' })
+    const ics = screen.getByRole('link', { name: 'Add to calendar (.ics)' })
     expect(ics).toHaveAttribute('href', '/calendar/7.ics')  // a static file, built per Upcoming Show
     expect(ics).toHaveAttribute('download', expect.stringMatching(/2026-10-03\.ics$/))
     const google = screen.getByRole('link', { name: 'Add to Google Calendar' })

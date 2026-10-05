@@ -35,9 +35,11 @@ function hidePast() {
 afterEach(() => document.head.querySelectorAll('style').forEach(s => s.remove()))
 
 describe('VenueDetail', () => {
-  it('shows the neighborhood, transit, Instagram and image', () => {
+  it('shows city and Region, transit, Instagram and image', () => {
     renderVenue()
-    expect(screen.getByText(/Downtown Santa Cruz/)).toBeInTheDocument()
+    // The neighborhood is left out: some hold a street address. The header gives city and Region.
+    expect(screen.queryByText(/Downtown Santa Cruz/)).not.toBeInTheDocument()
+    expect(screen.getByText('Santa Cruz', { selector: 'header p' })).toBeInTheDocument()  // not "Santa Cruz · Santa Cruz"
     expect(screen.getByText(/Santa Cruz Metro Center \(2 min walk\)/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '@catalystclub' })).toHaveAttribute('href', 'https://www.instagram.com/catalystclub/')
     expect(screen.getByRole('img', { name: 'The Catalyst' })).toHaveAttribute('src', 'https://example.com/catalyst.jpg')

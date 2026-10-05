@@ -1,9 +1,13 @@
 import type { Show } from '@/lib/types'
 import { formatTime, formatPrice, formatDateLongYear, mapsHref } from '@/lib/format'
-import { ArrowDownTrayIcon, BuildingOffice2Icon, CalendarDaysIcon, CalendarIcon, ClockIcon, GlobeAltIcon, MapPinIcon, ShoppingCartIcon, SparklesIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
+import { ArrowDownTrayIcon, CalendarDaysIcon, ClockIcon, GlobeAltIcon, MapPinIcon, SparklesIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
 import { googleCalendarUrl, icsFilename, icsHref } from '@/lib/calendar'
+import ActionLinks, { ActionLink } from './ActionLinks'
 import BandLink from './BandLink'
 import ExternalLink from './ExternalLink'
+import FactList from './FactList'
+import PageHeader from './PageHeader'
+import Section from './Section'
 import { Flags, StatusBadge } from './ShowBadges'
 import VenueLink from './VenueLink'
 
@@ -37,117 +41,80 @@ export default function ShowDetail({ show }: ShowDetailProps) {
   const price = formatPrice(show.priceMin, show.priceMax, show.isFree) ?? 'TBA'
   const age = formatAge(show.ageRestriction)
   const ticketsLabel = ticketProviderMatches(show) ? `Tickets via ${show.ticketProvider}` : 'Tickets'
+  const acts = show.acts.slice().sort((a, b) => a.position - b.position)
+  const upcoming = show.status === 'upcoming'
 
   return (
-    <article className="max-w-2xl mx-auto flex flex-col gap-6">
-      <StatusBadge status={show.status} size="detail" />
+    <article className="flex flex-col gap-6">
+      {show.specialEvent && (
+        <div
+          role="note"
+          aria-label="Special event"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-accent-soft-line bg-accent-soft text-accent-soft-ink"
+        >
+          <SparklesIcon className="size-5 shrink-0 text-link" />
+          <span className="font-semibold">{show.specialEvent}</span>
+        </div>
+      )}
 
-      <header>
-        {show.specialEvent && (
-          <div
-            role="note"
-            aria-label="Special event"
-            className="flex items-center gap-2 mb-4 px-4 py-2.5 rounded-lg border border-accent-soft-line bg-accent-soft text-accent-soft-ink"
-          >
-            <SparklesIcon className="size-5 shrink-0 text-link" />
-            <span className="font-semibold">{show.specialEvent}</span>
-          </div>
-        )}
-        <div className="flex items-center gap-1.5 text-sm text-ink-muted mb-1">
-          <CalendarIcon className="size-4 shrink-0" />
-          <span>{formatDateLongYear(show.date)}</span>
-          {show.status === 'upcoming' && (
-            <span className="flex items-center ml-1">
-              <a
-                href={icsHref(show.id)}
-                download={icsFilename(show)}
-                aria-label="Add to calendar"
-                title="Add to calendar (.ics)"
-                className="p-1 rounded-full hover:text-link hover:bg-muted"
-              >
-                <ArrowDownTrayIcon className="size-4" />
-              </a>
-              <a
-                href={googleCalendarUrl(show)}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Add to Google Calendar"
-                title="Add to Google Calendar"
-                className="p-1 rounded-full hover:text-link hover:bg-muted"
-              >
-                <CalendarDaysIcon className="size-4" />
-              </a>
+      <PageHeader
+        eyebrow={<><StatusBadge status={show.status} size="detail" /><span>{formatDateLongYear(show.date)}</span></>}
+        title={acts[0]?.band.name ?? 'Unknown'}
+        subtitle={<>at <VenueLink venueId={show.venue.id} className="text-link underline underline-offset-2">{show.venue.name}</VenueLink> · {show.venue.city}</>}
+      />
+
+      <div className="flex flex-col gap-4 rounded-lg bg-surface p-5">
+        <FactList facts={[
+          ...(door ? [{ icon: ClockIcon, label: set ? 'Doors / Set' : 'Doors', value: set ? `${door} / ${set}` : door }] : []),
+          { icon: TicketIcon, label: 'Price', value: price },
+          { icon: UserIcon, label: 'Ages', value: age },
+        ]} />
+        <Flags show={show} size="detail" showBenefitCause />
+      </div>
+
+      {(show.ticketUrl || show.ticketProvider || upcoming) && (
+        <ActionLinks>
+          {show.ticketUrl ? (
+            <ActionLink href={show.ticketUrl} kind="primary" icon={TicketIcon} external>{ticketsLabel}</ActionLink>
+          ) : show.ticketProvider ? (
+            <span className="inline-flex items-center gap-1.5 px-1 py-2 text-sm text-ink-soft">
+              <TicketIcon aria-hidden="true" className="size-4 shrink-0 text-ink-faint" />
+              {ticketsLabel}
             </span>
+          ) : null}
+          {upcoming && (
+            <>
+              <ActionLink href={icsHref(show.id)} download={icsFilename(show)} icon={ArrowDownTrayIcon}
+                          aria-label="Add to calendar (.ics)" title="Add to calendar (.ics)">
+                .ics
+              </ActionLink>
+              <ActionLink href={googleCalendarUrl(show)} icon={CalendarDaysIcon} external aria-label="Add to Google Calendar">
+                Google Calendar
+              </ActionLink>
+            </>
           )}
-        </div>
-        <h1 className="text-3xl font-bold text-ink">
-          {show.acts[0]?.band.name ?? 'Unknown'}
-        </h1>
-        <p className="text-lg text-ink-soft mt-1">
-          at <VenueLink venueId={show.venue.id} className="hover:underline">{show.venue.name}</VenueLink> · {show.venue.city}
-        </p>
-      </header>
+        </ActionLinks>
+      )}
 
-      <section className="flex flex-wrap gap-4 text-sm text-ink-soft">
-        {door && (
-          <div className="flex items-center gap-1.5">
-            <ClockIcon className="size-4 shrink-0 text-ink-faint" />
-            <span className="font-medium">Doors: </span>
-            {door}
-            {set && <> / Set: {set}</>}
-          </div>
-        )}
-        <div className="flex items-center gap-1.5">
-          <TicketIcon className="size-4 shrink-0 text-ink-faint" />
-          <span className="font-medium">Price: </span>
-          {price}
-        </div>
-        <div className="flex items-center gap-1.5">
-          <UserIcon className="size-4 shrink-0 text-ink-faint" />
-          <span className="font-medium">Ages: </span>
-          {age}
-        </div>
-        {(show.ticketUrl || show.ticketProvider) && (
-          <div className="flex items-center gap-1.5">
-            <ShoppingCartIcon className="size-4 shrink-0 text-ink-faint" />
-            {show.ticketUrl ? (
-              <ExternalLink href={show.ticketUrl} className="text-link hover:underline">
-                {ticketsLabel}
-              </ExternalLink>
-            ) : ticketsLabel}
-          </div>
-        )}
-      </section>
-
-      <Flags show={show} size="detail" showBenefitCause />
-
-      <section>
-        <h2 className="text-base font-semibold mb-3 text-ink">Lineup</h2>
+      <Section title="Lineup">
         <ol className="flex flex-col gap-2">
-          {show.acts
-            .slice()
-            .sort((a, b) => a.position - b.position)
-            .map(act => (
-              <li key={act.band.id}>
-                <BandLink
-                  bandId={act.band.id}
-                  className={`${act.position === 0 ? 'font-bold' : 'font-normal'} hover:underline text-ink`}
-                >
-                  <span data-testid="act-name">{act.band.name}</span>
-                </BandLink>
-                {act.note && <span className="text-ink-muted"> ({act.note})</span>}
-              </li>
-            ))}
+          {acts.map(act => (
+            <li key={act.band.id} className={act.position === 0 ? 'text-xl' : 'text-base'}>
+              <BandLink
+                bandId={act.band.id}
+                className={`${act.position === 0 ? 'font-bold' : 'font-normal'} hover:underline text-ink`}
+              >
+                <span data-testid="act-name">{act.band.name}</span>
+              </BandLink>
+              {act.note && <span className="text-base text-ink-muted"> ({act.note})</span>}
+            </li>
+          ))}
         </ol>
-      </section>
+      </Section>
 
-      <section>
-        <h2 className="text-base font-semibold mb-3 text-ink">Venue</h2>
-        <div className="flex flex-col gap-1 text-sm text-ink-soft">
-          <span className="flex items-center gap-1.5">
-            <BuildingOffice2Icon className="size-4 shrink-0 text-ink-faint" />
-            <VenueLink venueId={show.venue.id} className="font-medium text-ink hover:underline">{show.venue.name}</VenueLink>
-          </span>
+      <Section title="Venue">
+        <div className="flex flex-col gap-1.5 text-sm text-ink-soft">
+          <VenueLink venueId={show.venue.id} className="w-fit text-base font-semibold text-ink hover:underline">{show.venue.name}</VenueLink>
           {show.venue.address && (
             <a
               href={mapsHref(show.venue)}
@@ -163,22 +130,21 @@ export default function ShowDetail({ show }: ShowDetailProps) {
             <ExternalLink
               href={show.venue.websiteUrl}
               icon={GlobeAltIcon}
-              className="w-fit text-link hover:underline"
+              className="w-fit text-link underline underline-offset-2"
             >
               Venue website
             </ExternalLink>
           )}
           {show.venue.description && (
-            <p className="mt-2 text-ink-muted italic">{show.venue.description}</p>
+            <p className="mt-2 text-ink-muted">{show.venue.description}</p>
           )}
         </div>
-      </section>
+      </Section>
 
       {show.notes && (
-        <section>
-          <h2 className="text-base font-semibold mb-1 text-ink">Notes</h2>
+        <Section title="Notes">
           <p className="text-sm text-ink-soft">{show.notes}</p>
-        </section>
+        </Section>
       )}
     </article>
   )

@@ -13,12 +13,15 @@ interface Props {
   description?: string
   /** Keep the page out of search indexes. */
   noindex?: boolean
+  /** The content column (DESIGN.md, "Page width"): 672px for every page but the Shows list, which is wide. */
+  width?: 'narrow' | 'wide'
 }
 
 const {
   title = 'The List — SF Bay Area Music',
   description = "Steve's weekly SF Bay Area music listing, enriched and made browsable.",
   noindex = false,
+  width = 'narrow',
 } = Astro.props
 
 // Hides Shows dated before today, before anything is drawn: the page may have been built days ago.
@@ -64,7 +67,9 @@ const pastShowsScript =
       </div>
     </header>
     <main id="main" tabindex="-1" class="max-w-5xl mx-auto px-4 py-6 outline-none">
-      <slot />
+      <div class:list={['flex flex-col gap-6', width === 'narrow' && 'mx-auto w-full max-w-2xl']}>
+        <slot />
+      </div>
     </main>
     <script>
       // Links that keep the Shows list's filters, and the Back link (lib/keepFilters).

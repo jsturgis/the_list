@@ -4,6 +4,8 @@ import { href } from '@/lib/basePath'
 import { MAX_ALERTS, alertsPageUrl, supabase, type SavedFilter } from '@/lib/supabase'
 import { findSameFilter } from '@/lib/filters'
 import { useSession } from '@/lib/useSession'
+import PageHeader from './PageHeader'
+import Section from './Section'
 import Toast from './Toast'
 
 /** The Saved Filter a sign-in link carries (?save=<query>&name=<name>), removed from the address bar. */
@@ -20,13 +22,11 @@ export default function AlertsPage() {
   const session = useSession()
 
   return (
-    <article className="max-w-2xl mx-auto flex flex-col gap-6">
-      <header>
-        <h1 className="text-3xl font-bold text-ink">Your alerts</h1>
-        <p className="mt-1 text-ink-soft">
-          You&apos;ll receive an email once a week if your saved search filter matches any upcoming shows.
-        </p>
-      </header>
+    <article className="flex flex-col gap-6">
+      <PageHeader
+        title="Your alerts"
+        subtitle="You'll receive an email once a week if your saved search filter matches any upcoming shows."
+      />
 
       {session.status === 'loading' && <p className="text-sm text-ink-muted">Loading…</p>}
       {session.status === 'unavailable' && (
@@ -114,7 +114,7 @@ function YourAlerts({ email, userId }: { email: string; userId: string }) {
   }
 
   return (
-    <section className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-4 text-sm text-ink-muted">
         <span>Signed in as {email}</span>
         <button type="button" onClick={() => supabase?.auth.signOut()} className="underline hover:text-ink-soft">
@@ -129,7 +129,7 @@ function YourAlerts({ email, userId }: { email: string; userId: string }) {
       )}
 
       {weekly !== null && (
-        <div className="flex flex-col gap-1 rounded-lg border border-line bg-panel p-3">
+        <Section title="Weekly email">
           <label className="flex items-center gap-2 text-sm text-ink">
             <input
               type="checkbox"
@@ -142,16 +142,17 @@ function YourAlerts({ email, userId }: { email: string; userId: string }) {
           {!weekly && (
             <p className="text-xs text-ink-muted">Weekly emails are off. Your alerts are kept, ready to turn back on.</p>
           )}
-        </div>
+        </Section>
       )}
 
+      <Section title="Your alerts" headingId="your-alerts-list">
       <div ref={list}>
       {savedFilters === null ? (
         <p className="text-sm text-ink-muted">Loading your alerts…</p>
       ) : savedFilters.length === 0 ? (
         <p data-no-alerts="" tabIndex={-1} className="text-sm text-ink-soft outline-none">
           No alerts yet. Set some filters on the{' '}
-          <a href={href('/')} className="text-link underline">
+          <a href={href('/')} className="text-link underline underline-offset-2">
             Shows list
           </a>{' '}
           and choose Setup Alert.
@@ -182,9 +183,10 @@ function YourAlerts({ email, userId }: { email: string; userId: string }) {
         </div>
       )}
       </div>
+      </Section>
 
       {toast && <Toast onDismiss={dismissToast}>{toast}</Toast>}
-    </section>
+    </div>
   )
 }
 
@@ -215,8 +217,9 @@ function SignInByEmail() {
 
   return (
     <>
+      <Section title="Sign in">
       <form onSubmit={submit} className="flex flex-col gap-3 max-w-sm">
-        <p className="text-sm text-ink-soft">Sign in to see and manage your alerts.</p>
+        <p className="text-sm text-ink-soft">We&apos;ll email you a link to see and manage your alerts.</p>
         <div className="flex flex-col gap-1">
           <label htmlFor="alerts-email" className="text-xs font-medium text-ink-soft">
             Email
@@ -244,6 +247,7 @@ function SignInByEmail() {
           </p>
         )}
       </form>
+      </Section>
       {sent && <Toast onDismiss={dismissToast}>Check your email for a sign-in link.</Toast>}
     </>
   )

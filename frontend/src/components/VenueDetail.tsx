@@ -3,7 +3,9 @@ import {
   BanknotesIcon, BookOpenIcon, CameraIcon, GlobeAltIcon, IdentificationIcon, MapIcon, MapPinIcon, PhoneIcon, StarIcon, UserIcon,
 } from '@heroicons/react/20/solid'
 import type { Show, Venue } from '@/lib/types'
-import ExternalLink from './ExternalLink'
+import ActionLinks, { ActionLink } from './ActionLinks'
+import PageHeader from './PageHeader'
+import Section from './Section'
 import VenueShowRows from './VenueShowRows'
 import { REGION_LABELS, mapsHref, telHref } from '@/lib/format'
 
@@ -32,98 +34,72 @@ export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) 
   const agePolicy = venue.defaultAgeRestriction
     ? AGE_POLICY[venue.defaultAgeRestriction] ?? venue.defaultAgeRestriction
     : null
+  // The Region only when it adds something (not "Santa Cruz · Santa Cruz").
+  const region = venue.region && REGION_LABELS[venue.region] !== venue.city ? REGION_LABELS[venue.region] : undefined
+  const hasDetails = venue.address || venue.phone || venue.nearestTransit || agePolicy || venue.googleRating ||
+    venue.instagram || venue.websiteUrl || venue.wikipediaUrl
+  const item = 'flex items-start gap-1.5 w-fit'
+  const icon = 'size-4 mt-0.5 shrink-0 text-ink-faint'
 
   return (
-    <article className="max-w-2xl mx-auto flex flex-col gap-6">
+    <article className="flex flex-col gap-6">
       {venue.imageUrl && (
         <img src={venue.imageUrl} alt={venue.name} className="w-full max-h-72 object-cover rounded-lg" />
       )}
-      <header>
-        <h1 className="text-3xl font-bold text-ink">{venue.name}</h1>
-        <p className="text-sm text-ink-muted mt-1">
-          {venue.neighborhood ? `${venue.neighborhood} · ` : ''}
-          {venue.city}
-          {venue.region && REGION_LABELS[venue.region] ? ` · ${REGION_LABELS[venue.region]}` : ''}
-        </p>
-        {rules.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2">
-            {rules.map(({ label, icon: Icon }) => (
-              <span key={label} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-muted text-ink-soft">
-                {Icon && <Icon className="size-3.5 shrink-0" />}
-                {label}
-              </span>
-            ))}
-          </div>
-        )}
-      </header>
 
-      {(venue.nearestTransit || venue.instagram || agePolicy) && (
-        <section className="flex flex-col gap-1 text-sm text-ink-soft">
-          {agePolicy && <p className="flex items-center gap-1.5"><UserIcon className="size-4 shrink-0 text-ink-faint" />Usual ages: {agePolicy}</p>}
-          {venue.nearestTransit && (
-            <p className="flex items-start gap-1.5"><MapIcon className="size-4 mt-0.5 shrink-0 text-ink-faint" />Transit: {venue.nearestTransit}</p>
-          )}
-          {venue.instagram && (
-            <a href={instagramUrl(venue.instagram)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 w-fit hover:underline">
-              <CameraIcon className="size-4 shrink-0 text-ink-faint" />
-              {venue.instagram}
-            </a>
-          )}
-        </section>
-      )}
+      <PageHeader title={venue.name} subtitle={[venue.city, region].filter(Boolean).join(' · ')}>
+        {rules.map(({ label, icon: Icon }) => (
+          <span key={label} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-muted text-ink-soft">
+            {Icon && <Icon className="size-3.5 shrink-0" />}
+            {label}
+          </span>
+        ))}
+      </PageHeader>
 
-      {(venue.websiteUrl || venue.wikipediaUrl || venue.phone || venue.googleRating || venue.address) && (
-        <section className="flex flex-col gap-2 text-sm text-ink-soft">
-          {venue.address && (
-            <a
-              href={mapsHref(venue)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-start gap-1.5 w-fit hover:underline"
-            >
-              <MapPinIcon className="size-4 mt-0.5 shrink-0 text-ink-faint" />
-              {venue.address}
-            </a>
-          )}
-          {venue.phone && (
-            <a href={telHref(venue.phone)} className="flex items-center gap-1.5 w-fit hover:underline">
-              <PhoneIcon className="size-4 shrink-0 text-ink-faint" />
-              {venue.phone}
-            </a>
-          )}
-          {venue.googleRating && (
-            <p className="flex items-center gap-1.5">
-              <StarIcon className="size-4 shrink-0 text-link" />
-              Google rating: {venue.googleRating.toFixed(1)}
-            </p>
-          )}
-          <div className="flex flex-wrap gap-3 mt-1">
-            {venue.websiteUrl && (
-              <ExternalLink
-                href={venue.websiteUrl}
-                icon={GlobeAltIcon}
-                className="text-sm px-4 py-1.5 rounded-full bg-strong text-on-inverse hover:bg-strong-hover"
-              >
-                Website
-              </ExternalLink>
+      {hasDetails && (
+        <Section title="Details">
+          <div className="flex flex-col gap-2 text-sm text-ink-soft">
+            {venue.address && (
+              <a href={mapsHref(venue)} target="_blank" rel="noopener noreferrer" className={`${item} hover:underline`}>
+                <MapPinIcon className={icon} />
+                {venue.address}
+              </a>
             )}
-            {venue.wikipediaUrl && (
-              <ExternalLink
-                href={venue.wikipediaUrl}
-                icon={BookOpenIcon}
-                className="text-sm px-4 py-1.5 rounded-full bg-muted text-ink hover:bg-muted-hover"
-              >
-                Wikipedia
-              </ExternalLink>
+            {venue.phone && (
+              <a href={telHref(venue.phone)} className={`${item} hover:underline`}>
+                <PhoneIcon className={icon} />
+                {venue.phone}
+              </a>
+            )}
+            {venue.nearestTransit && <p className={item}><MapIcon className={icon} />Transit: {venue.nearestTransit}</p>}
+            {agePolicy && <p className={item}><UserIcon className={icon} />Usual ages: {agePolicy}</p>}
+            {venue.googleRating && (
+              <p className={item}><StarIcon className="size-4 mt-0.5 shrink-0 text-link" />Google rating: {venue.googleRating.toFixed(1)}</p>
+            )}
+            {venue.instagram && (
+              <a href={instagramUrl(venue.instagram)} target="_blank" rel="noopener noreferrer" className={`${item} hover:underline`}>
+                <CameraIcon className={icon} />
+                {venue.instagram}
+              </a>
             )}
           </div>
-        </section>
+          {(venue.websiteUrl || venue.wikipediaUrl) && (
+            <ActionLinks>
+              {venue.websiteUrl && (
+                <ActionLink href={venue.websiteUrl} kind="custom" icon={GlobeAltIcon} external className="bg-strong text-on-inverse hover:bg-strong-hover">
+                  Website
+                </ActionLink>
+              )}
+              {venue.wikipediaUrl && <ActionLink href={venue.wikipediaUrl} icon={BookOpenIcon} external>Wikipedia</ActionLink>}
+            </ActionLinks>
+          )}
+        </Section>
       )}
 
       {venue.description && (
-        <p className="text-sm text-ink-soft leading-relaxed">
-          {venue.description}
-        </p>
+        <Section title="About">
+          <p className="text-base text-ink-soft leading-relaxed">{venue.description}</p>
+        </Section>
       )}
 
       <VenueShowRows shows={upcomingShows} />

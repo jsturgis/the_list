@@ -19,8 +19,6 @@ const { band, upcomingShows, similarBands } = Astro.props
 ---
 
 <Layout>
-  <div class="flex flex-col gap-6">
-    <BackLink />
-    <BandDetail band={band} upcomingShows={upcomingShows} similarBands={similarBands} />
-  </div>
+  <BackLink />
+  <BandDetail band={band} upcomingShows={upcomingShows} similarBands={similarBands} />
 </Layout>
