@@ -1,12 +1,21 @@
 ---
 import Layout from '@/layouts/Layout.astro'
 import HomeShows from '@/components/HomeShows'
-// The Shows are loaded in the browser from the exported JSON (python -m app.cli export).
+import { PAGE_SIZE } from '@/components/ShowList'
+import { siteData } from '@/lib/siteData.server'
+
+// The edition and the first page of Shows are in the HTML; the browser then loads every Show (home-shows.json)
+// to filter them and keep scrolling.
+const page = siteData().homePage(PAGE_SIZE)
 ---
 
 <Layout>
   <div class="flex flex-col gap-6">
     <h1 class="text-2xl font-bold">This Week&apos;s Shows</h1>
-    <HomeShows client:load />
+    <p class="text-sm text-ink-muted -mt-5">
+      {page.emailSubject ?? 'Upcoming Bay Area music'} — curated by{' '}
+      <a href="mailto:skoepke@stevelist.com" class="underline hover:text-ink-soft">Steve List</a>.
+    </p>
+    <HomeShows page={page} client:load />
   </div>
 </Layout>

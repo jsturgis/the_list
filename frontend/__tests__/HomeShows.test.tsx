@@ -1,9 +1,10 @@
-import { render, screen, within, act } from '@testing-library/react'
+import { render, screen, within, act, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeAll, afterAll, afterEach, beforeEach } from 'vitest'
 import { http, HttpResponse, type JsonBodyType } from 'msw'
 import { setupServer } from 'msw/node'
 import HomeShows from '@/components/HomeShows'
-import { resetSiteData } from '@/lib/data'
+import { PAGE_SIZE } from '@/components/ShowList'
+import { homePage, homeShows, hydrateShows, resetHomeShows } from '@/lib/data'
 import { replaceQuery } from '@/lib/navigation'
 import type { ExportBand, ExportShow, ExportVenue, ExportMeta } from '@/lib/types'
 
@@ -35,22 +36,28 @@ const META: ExportMeta = {
   totalUpcoming: 3,
 }
 
-let files: Record<string, JsonBodyType>
+// The export, from which the tests build the home page and home-shows.json as the site's build does.
+let files: { shows: ExportShow[]; venues: ExportVenue[]; bands: ExportBand[]; meta: ExportMeta } | null
 let requested: string[]
+let respond: (() => Promise<void>) | null  // set to hold the home-shows.json response
+const built = () => hydrateShows(files!.shows, files!.venues, files!.bands)
+const page = () => homePage(files ? built() : [], files?.meta ?? META, PAGE_SIZE)
 const server = setupServer(
-  http.get('*/data/:name', ({ params, request }) => {
+  http.get('*/home-shows.json', async ({ request }) => {
     requested.push(new URL(request.url).pathname)
-    const name = String(params.name).replace(/\.json$/, '')
-    return name in files ? HttpResponse.json(files[name]) : new HttpResponse(null, { status: 404 })
+    await respond?.()
+    return files ? HttpResponse.json(homeShows(built(), files.meta) as unknown as JsonBodyType) : new HttpResponse(null, { status: 404 })
   }),
 )
+const renderHome = () => render(<HomeShows page={page()} />)
 
 beforeAll(() => server.listen())
 afterAll(() => server.close())
 afterEach(() => { server.resetHandlers(); vi.unstubAllEnvs() })
 beforeEach(() => {
   requested = []
-  resetSiteData()
+  respond = null
+  resetHomeShows()
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-10-01T19:00:00Z'))  // noon Pacific, Oct 1
   files = {
@@ -69,13 +76,8 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('HomeShows', () => {
-  it('shows the email subject from meta', async () => {
-    render(<HomeShows />)
-    expect(await screen.findByText(/Sep 25, 2026/)).toBeInTheDocument()
-  })
-
   it('lists Upcoming Shows from today (Bay Area time), without past or cancelled ones', async () => {
-    render(<HomeShows />)
+    renderHome()
     await screen.findByText('Tonight Band')
     expect(screen.getByText('Next Week Band')).toBeInTheDocument()
     expect(screen.queryByText('Yesterday Band')).not.toBeInTheDocument()
@@ -83,7 +85,7 @@ describe('HomeShows', () => {
   })
 
   it("lists Steve's Picks under their own date", async () => {
-    render(<HomeShows />)
+    renderHome()
     const card = (await screen.findByText('Pick Band')).closest('a')!
     expect(card).toHaveAttribute('data-recommended')
     expect(within(screen.getByText(/october 2/i).parentElement!).getByText('Pick Band')).toBeInTheDocument()
@@ -91,7 +93,7 @@ describe('HomeShows', () => {
   })
 
   it('shows sold out, benefit and matinee badges, and the venue neighborhood', async () => {
-    render(<HomeShows />)
+    renderHome()
     const card = (await screen.findByText('Tonight Band')).closest('a')!
     expect(within(card).getByText('Sold out')).toBeInTheDocument()
     expect(within(card).getByText('Benefit')).toBeInTheDocument()
@@ -100,21 +102,53 @@ describe('HomeShows', () => {
   })
 
   it('reports how many Shows are listed', async () => {
-    render(<HomeShows />)
+    renderHome()
     expect(await screen.findByText('Showing 3 of 3 shows')).toBeInTheDocument()
   })
 
-  it('loads the data files from under the base path', async () => {
+  describe('before every Show has loaded', () => {
+    beforeEach(() => { respond = () => new Promise(() => {}) })  // home-shows.json never arrives
+
+    it("lists the build's first page, without dates that have passed since", () => {
+      renderHome()
+      expect(screen.getByText('Tonight Band')).toBeInTheDocument()
+      expect(screen.getByText('Next Week Band')).toBeInTheDocument()
+      expect(screen.queryByText('Yesterday Band')).not.toBeInTheDocument()  // Sep 30: in the build, passed since
+      expect(screen.getByText('Showing 3 of 3 shows')).toBeInTheDocument()
+    })
+
+    it('marks the first page, so the page can hold it back while the URL has a query', () => {
+      const { container } = renderHome()
+      expect(container.querySelector('[data-home-first-page][data-upcoming-shows]')).not.toBeNull()
+      expect(container.querySelector('[data-show-date="2026-10-01"]')).not.toBeNull()
+    })
+
+    it('waits for every Show when the URL has filters, as the first page is unfiltered', () => {
+      replaceQuery('genre=punk')
+      renderHome()
+      expect(screen.getByText('Loading…')).toBeInTheDocument()
+      expect(screen.getByText('Loading 3 shows…')).toBeInTheDocument()
+      expect(screen.queryByText('Tonight Band')).not.toBeInTheDocument()
+      expect(screen.getByLabelText('Genre')).toHaveValue('punk')
+    })
+  })
+
+  it('drops the first-page marks once every Show has loaded', async () => {
+    const { container } = renderHome()
+    await waitFor(() => expect(container.querySelector('[data-home-first-page]')).toBeNull())
+    expect(screen.getByText('Tonight Band')).toBeInTheDocument()
+  })
+
+  it('loads home-shows.json from under the base path', async () => {
     vi.stubEnv('BASE_URL', '/the_list/')
-    render(<HomeShows />)
+    renderHome()
     await screen.findByText('Tonight Band')
-    expect(requested.sort()).toEqual(['/the_list/data/bands.json', '/the_list/data/meta.json',
-                                      '/the_list/data/shows.json', '/the_list/data/venues.json'])
+    expect(requested).toEqual(['/the_list/home-shows.json'])
   })
 
   it('shows an error when the data files are missing', async () => {
-    files = {}
-    render(<HomeShows />)
+    files = null
+    renderHome()
     expect(await screen.findByRole('alert')).toHaveTextContent(/couldn.t load/i)
   })
 
@@ -124,11 +158,12 @@ describe('HomeShows', () => {
       constructor(cb: IntersectionObserverCallback) { observers.push(cb) }
       observe() {} disconnect() {} unobserve() {}
     })
-    files.bands = Array.from({ length: 60 }, (_, i) => band(100 + i, `Band ${i}`))
-    files.shows = Array.from({ length: 60 }, (_, i) => show(100 + i, TODAY, 100 + i, { doorTime: `${String(10 + Math.floor(i / 6)).padStart(2, '0')}:${String((i % 6) * 10).padStart(2, '0')}:00` }))
+    files!.bands = Array.from({ length: 60 }, (_, i) => band(100 + i, `Band ${i}`))
+    files!.shows = Array.from({ length: 60 }, (_, i) => show(100 + i, TODAY, 100 + i, { doorTime: `${String(10 + Math.floor(i / 6)).padStart(2, '0')}:${String((i % 6) * 10).padStart(2, '0')}:00` }))
 
-    render(<HomeShows />)
+    renderHome()
     await screen.findByText('Band 0')
+    await waitFor(() => expect(observers).not.toHaveLength(0))  // once every Show has loaded
     expect(screen.queryByText('Band 59')).not.toBeInTheDocument()
 
     act(() => observers.at(-1)!([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver))
@@ -138,23 +173,23 @@ describe('HomeShows', () => {
 
   describe('filters from the URL', () => {
     beforeEach(() => {
-      files.venues = [venue(1, 'The Fillmore', 'Western Addition'), { ...venue(2, 'Fox Theater'), region: 'east_bay' }]
-      files.bands = [
+      files!.venues = [venue(1, 'The Fillmore', 'Western Addition'), { ...venue(2, 'Fox Theater'), region: 'east_bay' }]
+      files!.bands = [
         { ...band(20, 'Punk Band'), genres: ['punk'] },
         { ...band(21, 'Jazz Band'), genres: ['jazz'] },
         { ...band(22, 'Mystery Band'), genres: [] },
       ]
-      files.shows = [
+      files!.shows = [
         show(20, TODAY, 20, { priceMin: 10, priceMax: 10 }),
         show(21, '2026-10-02', 21, { venueId: 2, priceMin: 40, priceMax: 40 }),
         show(22, '2026-10-03', 22, { isFree: true, priceMin: 0, priceMax: 0 }),
       ]
-      files.meta = { ...META, totalUpcoming: 3 }
+      files!.meta = { ...META, totalUpcoming: 3 }
     })
 
     it('filters the list and the count', async () => {
       replaceQuery('genre=punk')
-      render(<HomeShows />)
+      renderHome()
       expect(await screen.findByText('Punk Band')).toBeInTheDocument()
       expect(screen.queryByText('Jazz Band')).not.toBeInTheDocument()
       expect(screen.queryByText('Mystery Band')).not.toBeInTheDocument()
@@ -162,7 +197,7 @@ describe('HomeShows', () => {
     })
 
     it('updates when the URL filters change', async () => {
-      render(<HomeShows />)
+      renderHome()
       await screen.findByText('Jazz Band')
       expect(screen.getByText('Showing 3 of 3 shows')).toBeInTheDocument()
 
@@ -178,7 +213,7 @@ describe('HomeShows', () => {
 
     it('shows the empty state when nothing matches', async () => {
       replaceQuery('q=nobody')
-      render(<HomeShows />)
+      renderHome()
       expect(await screen.findByText('No shows match your filters.')).toBeInTheDocument()
     })
   })

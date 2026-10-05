@@ -31,6 +31,8 @@ const {
       // Lets CSS hold back what lib/upcomingShows trims, but only when JavaScript will run to trim it. If a script
       // fails to load or throws, drop the mark, so held-back lists show untrimmed rather than not at all.
       document.documentElement.dataset.js = ''
+      // The home page's built first page is unfiltered: hold it back when the URL may have filters (HomeShows).
+      if (location.search.length > 1) document.documentElement.dataset.query = ''
       addEventListener('error', e => {
         if (e instanceof ErrorEvent || e.target instanceof HTMLScriptElement) delete document.documentElement.dataset.js
       }, true)

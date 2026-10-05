@@ -97,11 +97,25 @@ export interface ExportMeta {
   totalUpcoming: number
 }
 
-export interface SiteData {
-  shows: Show[]
-  bands: Map<number, ExportBand>
-  venues: Map<number, ExportVenue>
-  meta: ExportMeta
+/**
+ * A Show as the home page lists, filters and searches it (home-shows.json): the Show's own fields, and only what
+ * the list uses of its Venue and Bands, so the browser doesn't download every Venue and Band description.
+ */
+export type HomeShow = Omit<Show, 'venue' | 'acts'> & {
+  venue: Pick<Venue, 'id' | 'name' | 'city' | 'neighborhood' | 'region'>
+  acts: (Omit<Act, 'band'> & { band: Pick<Band, 'id' | 'name' | 'genres'> })[]
+}
+
+/** What the home page knows at build time: the edition, the filter options, and the first page of Shows. */
+export interface HomePage {
+  emailSubject: string | null
+  filterOptions: ExportMeta['filterOptions']
+  /** Upcoming Shows in the export ("of M shows"). */
+  totalUpcoming: number
+  /** How many Shows home-shows.json lists, before the browser drops any that have passed. */
+  listedCount: number
+  /** The first page of those Shows, in list order (some may have passed since the build). */
+  firstShows: HomeShow[]
 }
 
 /** Filters parsed from the home page URL (see lib/filters.ts buildFilters). */

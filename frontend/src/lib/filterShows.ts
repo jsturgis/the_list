@@ -1,6 +1,6 @@
 import { bayAreaToday } from './data'
 import { matchesSearch } from './fuzzySearch'
-import type { Show, ShowFilters } from './types'
+import type { HomeShow, ShowFilters } from './types'
 
 const contains = (text: string, needle: string) => text.toLowerCase().includes(needle.toLowerCase())
 
@@ -9,7 +9,7 @@ const contains = (text: string, needle: string) => text.toLowerCase().includes(n
  * filtering gives the same results: Upcoming Shows from today (Bay Area time), then each filter.
  * Returns Shows in date, then door-time, order.
  */
-export function filterShows(shows: Show[], filters: ShowFilters | null, today: string = bayAreaToday()): Show[] {
+export function filterShows<T extends HomeShow>(shows: T[], filters: ShowFilters | null, today: string = bayAreaToday()): T[] {
   const f = filters ?? {}
   return shows
     .filter(s => {
