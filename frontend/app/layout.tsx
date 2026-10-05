@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import AlertsLink from '@/components/AlertsLink'
+import LinkBehaviour from '@/components/LinkBehaviour'
 import { href } from '@/lib/basePath'
 import React from 'react'
 import { Geist, Geist_Mono } from 'next/font/google'
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </header>
         <main className="max-w-5xl mx-auto px-4 py-6">{children}</main>
+        <LinkBehaviour />
       </body>
     </html>
   )
