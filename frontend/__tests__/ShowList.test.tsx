@@ -42,7 +42,7 @@ describe('ShowList', () => {
       const oct3 = screen.getByText(/october 3/i).parentElement!
       const oct4 = screen.getByText(/october 4/i).parentElement!
       expect(within(oct3).queryByText('Pick Band')).not.toBeInTheDocument()
-      const headliners = within(oct4).getAllByRole('heading', { level: 3 }).slice(1)  // after the date heading
+      const headliners = within(oct4).getAllByRole('heading', { level: 3 })  // the date heading is level 2
       expect(headliners.map(h => h.textContent)).toEqual(["Steve's pick: Pick Band", 'Regular Band'])
       expect(headliners[0].closest('[data-recommended]')).not.toBeNull()
     })

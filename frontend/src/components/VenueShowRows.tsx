@@ -27,7 +27,7 @@ export default function VenueShowRows({ shows }: { shows: Show[] }) {
                   {(byDate.get(date) ?? [])
                     .slice()
                     .sort((a, b) => (a.doorTime ?? '').localeCompare(b.doorTime ?? ''))
-                    .map(show => <ShowRow key={show.id} show={show} showVenue={false} />)}
+                    .map(show => <ShowRow key={show.id} show={show} showVenue={false} headingLevel={4} />)}
                 </div>
               </div>
             ))}

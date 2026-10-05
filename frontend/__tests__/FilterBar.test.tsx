@@ -69,3 +69,24 @@ describe('FilterBar search', () => {
     expect(window.location.search).toBe('?region=sf&q=rose+chapel')
   })
 })
+
+describe('FilterBar result count', () => {
+  it('is a polite live region, so screen readers hear the count change', () => {
+    render(<FilterBar {...props} />)
+    const count = screen.getByRole('status')
+    expect(count).toHaveTextContent('Showing 10 of 100 shows')
+    expect(count).toHaveAttribute('aria-live', 'polite')
+    expect(count).toHaveAttribute('aria-atomic', 'true')
+  })
+})
+
+describe('FilterBar Advanced filters toggle', () => {
+  it('says whether Advanced filters are open, and which controls it opens', () => {
+    render(<FilterBar {...props} />)
+    const toggle = screen.getByRole('button', { name: /advanced filters/i })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(document.getElementById(toggle.getAttribute('aria-controls')!)).toContainElement(screen.getByLabelText('From date'))
+  })
+})

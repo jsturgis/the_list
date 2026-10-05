@@ -12,6 +12,11 @@ describe('ShowRow', () => {
     expect(showLink()).toHaveAttribute('href', '/shows/42/')
   })
 
+  it('can sit one level deeper, under a Venue page\'s date headings', () => {
+    render(<ShowRow show={makeShow()} headingLevel={4} />)
+    expect(screen.getByRole('heading', { level: 4, name: /Test Band/ })).toBeInTheDocument()
+  })
+
   it('carries the Shows list filters to the Show page', () => {
     render(<ShowRow show={makeShow({ id: 42 })} filterQs="region=sf" />)
     expect(showLink()).toHaveAttribute('href', '/shows/42/?region=sf')

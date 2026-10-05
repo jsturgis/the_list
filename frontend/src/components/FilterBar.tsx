@@ -96,7 +96,8 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
   return (
     <div className="flex flex-col gap-3 p-4 bg-panel rounded-lg border border-line">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-ink">
+        {/* A polite live region: screen readers hear the new count as filters and search change. */}
+        <p role="status" aria-live="polite" aria-atomic="true" className="text-sm font-medium text-ink">
           {showCount === null ? `Loading ${dbTotal} shows…` : `Showing ${showCount} of ${dbTotal} shows`}
         </p>
         <div className="flex items-center gap-4">
@@ -186,7 +187,10 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
 
       <div>
         <button
+          type="button"
           onClick={() => setShowAdvanced(v => !v)}
+          aria-expanded={showAdvanced}
+          aria-controls="advanced-filters"
           className="flex items-center gap-1 text-xs text-ink-muted hover:text-ink-soft"
         >
           <ChevronRightIcon className={`size-3.5 transition-transform ${showAdvanced ? 'rotate-90' : ''}`} />
@@ -197,7 +201,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
         </button>
 
         {showAdvanced && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3">
+          <div id="advanced-filters" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3">
             <div className="flex flex-col gap-1">
               <label htmlFor="filter-from-date" className="text-xs font-medium text-ink-soft">
                 From date
