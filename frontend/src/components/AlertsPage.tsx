@@ -220,20 +220,16 @@ function SignInByEmail() {
       <Section title="Sign in">
       <form onSubmit={submit} className="flex flex-col gap-3 max-w-sm">
         <p className="text-sm text-ink-soft">We&apos;ll email you a link to see and manage your alerts.</p>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="alerts-email" className="text-xs font-medium text-ink-soft">
-            Email
-          </label>
-          <input
-            id="alerts-email"
-            type="email"
-            required
-            autoComplete="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            className="h-9 rounded-full border border-line-strong bg-field text-sm px-3 text-ink"
-          />
-        </div>
+        <input
+          type="email"
+          required
+          autoComplete="email"
+          aria-label="Email"
+          placeholder="Email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          className="h-9 rounded-full border border-line-strong bg-field text-sm px-3 text-ink placeholder:text-ink-faint"
+        />
         <button
           type="submit"
           disabled={sending}

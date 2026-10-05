@@ -123,6 +123,8 @@ WCAG AA.
   - *Quiet:* text-only in `ink-muted`, with an underline or a `muted` hover (Clear filters, Back).
 - **Inputs and selects:** `bg-field`, pill-shaped (`rounded-full`, `px-3`), `line-strong` border, `ink` text,
   `ink-faint` placeholders. Checkboxes keep the browser's shape, tinted with `accent-accent`.
+  A form's only field (the Alerts page's Email) can go without a visible label: its placeholder names it, and
+  `aria-label` gives it the same accessible name.
 - **Focus:** keyboard focus is a 2px `focus-ring` outline, offset 2px, on everything (a global rule; don't remove
   it with `outline-none` unless something else shows focus). Show rows ring the whole row in `focus-ring` instead.
   `focus-ring` is the text-safe green, because the accent itself is under 3:1 on light backgrounds.
@@ -156,7 +158,7 @@ WCAG AA.
 - **Key facts (`FactList`):** a `<dl>` grid, three columns from `sm` and one per line on phones. Each fact has an
   icon and a `text-xs ink-muted` label, over a `text-base font-semibold ink` value (Doors, Price, Ages).
 - **Actions (`ActionLinks`):** a wrapping row of pill links, 14px bold: primary (`bg-accent text-on-accent`, at
-  most one: Tickets, or the 404's way home), secondary (outline `line-strong`, `ink`), or brand colours for the
+  most one: Tickets), secondary (outline `line-strong`, `ink`), or brand colours for the
   streaming services. External ones carry an outward-arrow icon.
 - **Detail pages (Show, Venue, Band):** in order: Back, `PageHeader`, key facts, actions, then `Section`s. A Show
   has Lineup, Venue and Notes; a Venue has Details, About and Upcoming Shows; a Band has Upcoming Shows and
@@ -235,7 +237,8 @@ When you build or change UI in this repo:
    fail on serious or critical accessibility violations, including contrast, in both modes.
 6. **Every page** follows the same shell (`e2e/consistency.spec.ts` checks the first three):
    - it uses the layout's width (narrow unless it's the Shows list), with no `max-w-*` of its own
-   - it opens with `PageHeader`, so its h1 matches every other page's
+   - it opens with `PageHeader`, so its h1 matches every other page's (the 404 is centred, with a music-note
+     icon, but uses the same h1 and subtitle sizes)
    - its sections are `Section`s, so their `h2`s match
    - links in sentences are underlined; actions are `ActionLinks` pills, with at most one primary
 
