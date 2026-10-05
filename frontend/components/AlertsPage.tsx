@@ -1,8 +1,8 @@
 'use client'
 
-import Link from 'next/link'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { TrashIcon } from '@heroicons/react/16/solid'
+import { href } from '@/lib/basePath'
 import { MAX_ALERTS, alertsPageUrl, supabase, type SavedFilter } from '@/lib/supabase'
 import { findSameFilter } from '@/lib/filters'
 import { useSession } from '@/lib/useSession'
@@ -140,9 +140,9 @@ function YourAlerts({ email, userId }: { email: string; userId: string }) {
       ) : savedFilters.length === 0 ? (
         <p className="text-sm text-ink-soft">
           No alerts yet. Set some filters on the{' '}
-          <Link href="/" className="text-link underline">
+          <a href={href('/')} className="text-link underline">
             Shows list
-          </Link>{' '}
+          </a>{' '}
           and choose Setup Alert.
         </p>
       ) : (
@@ -153,9 +153,9 @@ function YourAlerts({ email, userId }: { email: string; userId: string }) {
           <ul className="flex flex-col divide-y divide-line-subtle">
             {savedFilters.map(f => (
               <li key={f.id} className="flex items-center justify-between gap-4 py-2">
-                <Link href={`/?${f.query}`} className="min-w-0 truncate font-medium text-ink hover:underline">
+                <a href={href(`/?${f.query}`)} className="min-w-0 truncate font-medium text-ink hover:underline">
                   {f.name}
-                </Link>
+                </a>
                 <button
                   type="button"
                   onClick={() => remove(f)}

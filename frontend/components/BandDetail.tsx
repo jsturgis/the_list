@@ -1,11 +1,11 @@
 'use client'
 
-import Link from 'next/link'
 import { GlobeAltIcon, MapPinIcon, MusicalNoteIcon } from '@heroicons/react/20/solid'
 import ExternalLink from './ExternalLink'
 import type { Band, Show } from '@/lib/types'
 import SimilarBands from './SimilarBands'
 import { formatDateShort } from '@/lib/format'
+import { href } from '@/lib/basePath'
 import { useBayAreaToday } from '@/lib/useBayAreaToday'
 
 interface BandDetailProps {
@@ -102,8 +102,8 @@ export default function BandDetail({ band, upcomingShows, similarBands }: BandDe
           <ul className="flex flex-col gap-2">
             {shows.map(show => (
               <li key={show.id}>
-                <Link
-                  href={`/shows/${show.id}`}
+                <a
+                  href={href(`/shows/${show.id}/`)}
                   className="flex items-center justify-between gap-4 text-sm -mx-2 px-2 py-1 rounded hover:bg-muted"
                 >
                   <span className="font-medium text-ink min-w-0 truncate">
@@ -114,7 +114,7 @@ export default function BandDetail({ band, upcomingShows, similarBands }: BandDe
                   <span className="text-ink-muted shrink-0">
                     {formatDateShort(show.date)}
                   </span>
-                </Link>
+                </a>
               </li>
             ))}
           </ul>

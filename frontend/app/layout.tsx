@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import AlertsLink from '@/components/AlertsLink'
+import { href } from '@/lib/basePath'
 import React from 'react'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
@@ -22,9 +22,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-full bg-page text-ink">
         <header className="border-b border-line-subtle bg-surface">
           <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-2">
-            <Link href="/" className="font-bold text-lg tracking-tight">
+            <a href={href('/')} className="font-bold text-lg tracking-tight">
               The List
-            </Link>
+            </a>
             <span className="text-ink-faint text-sm">
               SF Bay Area Music
             </span>

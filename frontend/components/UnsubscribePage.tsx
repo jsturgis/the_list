@@ -1,7 +1,7 @@
 'use client'
 
-import Link from 'next/link'
 import { useEffect, useState, useSyncExternalStore } from 'react'
+import { href } from '@/lib/basePath'
 import { supabase } from '@/lib/supabase'
 
 const noSubscription = () => () => {}
@@ -44,9 +44,9 @@ export default function UnsubscribePage() {
           <p className="text-ink-soft">
             You won&apos;t get the weekly Alert email any more. Your alerts are kept, so you can turn the email back on
             any time from the{' '}
-            <Link href="/alerts/" className="text-link underline">
+            <a href={href('/alerts/')} className="text-link underline">
               Alerts page
-            </Link>
+            </a>
             .
           </p>
         </>
@@ -56,9 +56,9 @@ export default function UnsubscribePage() {
           <h1 className="text-3xl font-bold text-ink">This unsubscribe link isn&apos;t valid</h1>
           <p className="text-ink-soft">
             It may be incomplete or from an old email. You can turn the weekly email off yourself on the{' '}
-            <Link href="/alerts/" className="text-link underline">
+            <a href={href('/alerts/')} className="text-link underline">
               Alerts page
-            </Link>{' '}
+            </a>{' '}
             after signing in.
           </p>
         </>

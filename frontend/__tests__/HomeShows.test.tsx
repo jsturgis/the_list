@@ -4,14 +4,9 @@ import { http, HttpResponse, type JsonBodyType } from 'msw'
 import { setupServer } from 'msw/node'
 import HomeShows from '@/components/HomeShows'
 import { resetSiteData } from '@/lib/data'
+import { replaceQuery } from '@/lib/navigation'
 import type { ExportBand, ExportShow, ExportVenue, ExportMeta } from '@/lib/types'
 
-let currentParams = new URLSearchParams()
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-  useSearchParams: () => currentParams,
-  usePathname: () => '/',
-}))
 
 // ── fixture JSON (the export's shape) ─────────────────────────────────────────
 
@@ -54,7 +49,6 @@ beforeAll(() => server.listen())
 afterAll(() => server.close())
 afterEach(() => { server.resetHandlers(); vi.unstubAllEnvs() })
 beforeEach(() => {
-  currentParams = new URLSearchParams()
   requested = []
   resetSiteData()
   vi.useFakeTimers({ toFake: ['Date'] })
@@ -159,7 +153,7 @@ describe('HomeShows', () => {
     })
 
     it('filters the list and the count', async () => {
-      currentParams = new URLSearchParams('genre=punk')
+      replaceQuery('genre=punk')
       render(<HomeShows />)
       expect(await screen.findByText('Punk Band')).toBeInTheDocument()
       expect(screen.queryByText('Jazz Band')).not.toBeInTheDocument()
@@ -168,24 +162,22 @@ describe('HomeShows', () => {
     })
 
     it('updates when the URL filters change', async () => {
-      const { rerender } = render(<HomeShows />)
+      render(<HomeShows />)
       await screen.findByText('Jazz Band')
       expect(screen.getByText('Showing 3 of 3 shows')).toBeInTheDocument()
 
-      currentParams = new URLSearchParams('region=east_bay')
-      rerender(<HomeShows />)
+      act(() => replaceQuery('region=east_bay'))
       expect(await screen.findByText('Showing 1 of 3 shows')).toBeInTheDocument()
       expect(screen.getByText('Jazz Band')).toBeInTheDocument()
       expect(screen.queryByText('Punk Band')).not.toBeInTheDocument()
 
-      currentParams = new URLSearchParams('free=1')
-      rerender(<HomeShows />)
+      act(() => replaceQuery('free=1'))
       expect(await screen.findByText('Mystery Band')).toBeInTheDocument()
       expect(screen.queryByText('Jazz Band')).not.toBeInTheDocument()
     })
 
     it('shows the empty state when nothing matches', async () => {
-      currentParams = new URLSearchParams('q=nobody')
+      replaceQuery('q=nobody')
       render(<HomeShows />)
       expect(await screen.findByText('No shows match your filters.')).toBeInTheDocument()
     })

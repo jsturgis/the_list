@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { href } from '@/lib/basePath'
 import { MusicalNoteIcon } from '@heroicons/react/24/outline'
 
 export default function NotFound() {
@@ -9,9 +9,9 @@ export default function NotFound() {
       <p className="text-ink-muted">
         That show, band or venue isn&apos;t on The List, or it has dropped off since the last edition.
       </p>
-      <Link href="/" className="text-link hover:underline">
+      <a href={href('/')} className="text-link hover:underline">
         See this week&apos;s shows
-      </Link>
+      </a>
     </div>
   )
 }
