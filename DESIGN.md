@@ -215,7 +215,8 @@ list (`shadow-lg`), and toasts.
 
 - **Mobile first.** The `sm` breakpoint (640px) moves Show row details into a right-hand column, and the filter bar
   into a row of controls.
-- **On phones,** each Show list item stacks: headliner, Venue · city, details, flags, calendar links. The calendar
+- **On phones,** each Show list item stacks: headliner, Venue · city, details, flags, calendar links. The Setup
+  Alert panel spans the filter bar's full width instead of hanging off the button. The calendar
   links are labelled buttons, easy to tap.
 - **Touch targets** are at least 36px tall (`h-9` controls). Pills keep their full rounding at every size.
 

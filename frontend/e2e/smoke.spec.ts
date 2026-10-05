@@ -70,6 +70,21 @@ test('region and free filters update the URL and survive a reload', async ({ pag
   await expect(showCards(page)).toHaveCount(1)
 })
 
+test.describe('on a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 } })
+
+  test('the Setup Alert panel spans the filter bar and stays on screen', async ({ page }) => {
+    await page.goto('./?region=east_bay')
+    await page.getByRole('button', { name: /setup alert/i }).click()
+    const panel = (await page.locator('form:has(#save-filter-name)').boundingBox())!
+    const bar = (await page.getByRole('status').locator('..').boundingBox())!
+    expect(Math.round(panel.x)).toBe(Math.round(bar.x))
+    expect(Math.round(panel.width)).toBe(Math.round(bar.width))
+    expect(panel.x).toBeGreaterThanOrEqual(0)
+    expect(panel.x + panel.width).toBeLessThanOrEqual(390)
+  })
+})
+
 test('a Show card opens the Show page', async ({ page }) => {
   await page.goto('./')
   await showCards(page).first().click()

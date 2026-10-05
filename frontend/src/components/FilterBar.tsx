@@ -95,7 +95,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
 
   return (
     <div className="flex flex-col gap-3 p-4 bg-panel rounded-lg border border-line">
-      <div className="flex items-center justify-between">
+      <div className="relative flex items-center justify-between">
         {/* A polite live region: screen readers hear the new count as filters and search change. */}
         <p role="status" aria-live="polite" aria-atomic="true" className="text-sm font-medium text-ink">
           {showCount === null ? `Loading ${dbTotal} shows…` : `Showing ${showCount} of ${dbTotal} shows`}

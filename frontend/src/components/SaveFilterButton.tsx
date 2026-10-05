@@ -106,8 +106,9 @@ export default function SaveFilterButton({ query }: { query: string }) {
     else finish(session.status === 'signedIn' ? 'saved' : 'linkSent')
   }
 
+  // On phones the panel spans the filter bar's top row (the wrapper isn't positioned); from `sm` it hangs off the button.
   return (
-    <div ref={container} className="relative">
+    <div ref={container} className="sm:relative">
       <button
         ref={button}
         type="button"
@@ -124,7 +125,7 @@ export default function SaveFilterButton({ query }: { query: string }) {
       {open && query && (
         <form
           onSubmit={submit}
-          className="absolute right-0 top-full z-20 mt-2 flex w-80 flex-col gap-3 rounded-lg border border-line bg-surface p-4 shadow-lg"
+          className="absolute inset-x-0 top-full z-20 mt-2 flex flex-col sm:left-auto sm:right-0 sm:w-80 gap-3 rounded-lg border border-line bg-surface p-4 shadow-lg"
         >
           <p className="text-xs text-ink-muted">
             Get an email each week with the upcoming shows matching these filters.
