@@ -204,7 +204,8 @@ When you build or change UI in this repo:
 1. Read this file first. Use the tokens in section 2 by name (`bg-surface`, `text-ink-muted`, `text-link`,
    `bg-accent text-on-accent`, `bg-pick`…), never hex values or Tailwind palette colours.
 2. If you need a colour that doesn't exist, add a token to `globals.css` (light and dark) and to the table here.
-   The sync test fails until both match.
+   The sync test fails until both match. If you pair tokens in a new way (text on a background), add the pair to
+   `frontend/__tests__/contrast.test.ts`, which checks every listed pair against WCAG AA in both modes.
 3. Lists of Shows use the Show list item (section 4). Don't introduce new card styles.
 4. Check light and dark mode. For visible changes, run `npm run screenshots -- <dir>` in `frontend/` before and
    after, and put both sets in the PR.
