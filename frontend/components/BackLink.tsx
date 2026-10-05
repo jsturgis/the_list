@@ -1,9 +1,8 @@
 'use client'
 
-import Link from 'next/link'
 import { ArrowLeftIcon } from '@heroicons/react/20/solid'
-import { Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { href } from '@/lib/basePath'
+import { useQuery } from '@/lib/navigation'
 
 const className = 'inline-flex items-center gap-1 text-sm text-ink-muted hover:text-ink-soft'
 
@@ -21,37 +20,24 @@ function canGoBackInApp(): boolean {
   return window.history.length > 1
 }
 
-function BackInHistory({ homeHref }: { homeHref: string }) {
-  const router = useRouter()
+// Goes back in history; when there's nothing in-app to go back to (page opened directly
+// or from another site), goes to the show list, keeping any filters in the URL.
+export default function BackLink() {
+  const qs = useQuery().toString()
   return (
-    <Link
-      href={homeHref}
+    <a
+      href={href(qs ? `/?${qs}` : '/')}
       className={className}
       onClick={e => {
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
         if (canGoBackInApp()) {
           e.preventDefault()
-          router.back()
+          window.history.back()
         }
       }}
     >
       <ArrowLeftIcon className="size-4 shrink-0" />
       Back
-    </Link>
-  )
-}
-
-function BackInHistoryWithFilters() {
-  const qs = useSearchParams().toString()
-  return <BackInHistory homeHref={qs ? `/?${qs}` : '/'} />
-}
-
-// Goes back in history; when there's nothing in-app to go back to (page opened directly
-// or from another site), goes to the show list, keeping any filters in the URL.
-// Suspense boundary lets statically prerendered pages use useSearchParams.
-export default function BackLink() {
-  return (
-    <Suspense fallback={<BackInHistory homeHref="/" />}>
-      <BackInHistoryWithFilters />
-    </Suspense>
+    </a>
   )
 }

@@ -1,11 +1,8 @@
 import { render, screen } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import ShowDetail from '@/components/ShowDetail'
+import { replaceQuery } from '@/lib/navigation'
 import { makeShow, makeVenue, makeBand } from './fixtures'
-
-let currentParams = new URLSearchParams()
-vi.mock('next/navigation', () => ({ useSearchParams: () => currentParams }))
-beforeEach(() => { currentParams = new URLSearchParams() })
 
 describe('ShowDetail', () => {
   const show = makeShow({
@@ -53,9 +50,9 @@ describe('ShowDetail', () => {
 
   it('links each act to its band page', () => {
     render(<ShowDetail show={show} />)
-    expect(screen.getByRole('link', { name: /Headliner Act/i })).toHaveAttribute('href', '/bands/1')
-    expect(screen.getByRole('link', { name: /Support One/i })).toHaveAttribute('href', '/bands/2')
-    expect(screen.getByRole('link', { name: /Opener/i })).toHaveAttribute('href', '/bands/3')
+    expect(screen.getByRole('link', { name: /Headliner Act/i })).toHaveAttribute('href', '/bands/1/')
+    expect(screen.getByRole('link', { name: /Support One/i })).toHaveAttribute('href', '/bands/2/')
+    expect(screen.getByRole('link', { name: /Opener/i })).toHaveAttribute('href', '/bands/3/')
   })
 
   it('renders venue address', () => {
@@ -184,10 +181,10 @@ describe('ShowDetail', () => {
   })
 
   it('links to the venue, keeping the current filters from the URL', () => {
-    currentParams = new URLSearchParams('genre=punk&region=sf')
+    replaceQuery('genre=punk&region=sf')
     render(<ShowDetail show={show} />)
     for (const link of screen.getAllByRole('link', { name: 'The Fillmore' })) {
-      expect(link).toHaveAttribute('href', `/venues/${show.venue.id}?genre=punk&region=sf`)
+      expect(link).toHaveAttribute('href', `/venues/${show.venue.id}/?genre=punk&region=sf`)
     }
   })
 })

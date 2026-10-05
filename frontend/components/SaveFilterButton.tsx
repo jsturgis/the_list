@@ -1,8 +1,8 @@
 'use client'
 
-import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { BellIcon } from '@heroicons/react/16/solid'
+import { href } from '@/lib/basePath'
 import { describeFilters, findSameFilter } from '@/lib/filters'
 import { MAX_ALERTS, alertsPageUrl, supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/useSession'
@@ -131,16 +131,16 @@ export default function SaveFilterButton({ query }: { query: string }) {
               {duplicate ? (
                 <p className="text-xs text-ink-soft">
                   You already have an alert for these filters: “{duplicate.name}”.{' '}
-                  <Link href="/alerts/" className="text-link underline">
+                  <a href={href('/alerts/')} className="text-link underline">
                     Manage your alerts
-                  </Link>
+                  </a>
                 </p>
               ) : atLimit ? (
                 <p className="text-xs text-danger">
                   You have {MAX_ALERTS} alerts, the most allowed.{' '}
-                  <Link href="/alerts/" className="underline">
+                  <a href={href('/alerts/')} className="underline">
                     Delete one
-                  </Link>{' '}
+                  </a>{' '}
                   to set up another.
                 </p>
               ) : (
@@ -190,9 +190,9 @@ export default function SaveFilterButton({ query }: { query: string }) {
           ) : (
             <>
               Alert set up. You&apos;ll get the matching shows by email each week.{' '}
-              <Link href="/alerts/" className="font-medium underline">
+              <a href={href('/alerts/')} className="font-medium underline">
                 Manage your alerts
-              </Link>
+              </a>
             </>
           )}
         </Toast>

@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import FilterBar from '@/components/FilterBar'
+import { replaceQuery } from '@/lib/navigation'
 import { fakeSupabase } from './fakeSupabase'
 
 const fake = vi.hoisted(() => ({ current: null as ReturnType<typeof import('./fakeSupabase').fakeSupabase> | null }))
@@ -9,18 +10,10 @@ vi.mock('@/lib/supabase', async importOriginal => ({
   get supabase() { return fake.current?.client ?? null },
 }))
 
-let params = new URLSearchParams()
-vi.mock('next/navigation', () => ({
-  useSearchParams: () => params,
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-  usePathname: () => '/',
-}))
-
 const props = { showCount: 10, dbTotal: 100, genres: ['punk'], regions: ['east_bay'], ages: [], availableDates: [] }
 
 beforeEach(() => {
   fake.current = fakeSupabase()
-  params = new URLSearchParams()
 })
 
 describe('Save control', () => {
@@ -30,21 +23,21 @@ describe('Save control', () => {
   })
 
   it('suggests a name made from the filters', async () => {
-    params = new URLSearchParams('genre=punk&region=east_bay')
+    replaceQuery('genre=punk&region=east_bay')
     render(<FilterBar {...props} />)
     fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
     expect(screen.getByLabelText('Name')).toHaveValue('punk · East Bay')
   })
 
   it('names every kind of filter in the suggestion', async () => {
-    params = new URLSearchParams('q=chapel&genre=punk&region=sf&free=1&age=21%2B&priceMax=20&fromDate=2026-10-03&toDate=2026-10-10')
+    replaceQuery('q=chapel&genre=punk&region=sf&free=1&age=21%2B&priceMax=20&fromDate=2026-10-03&toDate=2026-10-10')
     render(<FilterBar {...props} />)
     fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
     expect(screen.getByLabelText('Name')).toHaveValue('"chapel" · punk · SF · Free · 21+ · Up to $20 · Sat, Oct 3 – Sat, Oct 10')
   })
 
   it('asks a signed-out visitor for their email and sends a sign-in link that saves the search', async () => {
-    params = new URLSearchParams('genre=punk&region=east_bay&utm_source=x')
+    replaceQuery('genre=punk&region=east_bay&utm_source=x')
     render(<FilterBar {...props} />)
     fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
 
@@ -66,7 +59,7 @@ describe('Save control', () => {
 
   it('saves straight away for a signed-in visitor', async () => {
     fake.current!.state.email = 'fan@example.com'
-    params = new URLSearchParams('genre=punk&region=east_bay')
+    replaceQuery('genre=punk&region=east_bay')
     render(<FilterBar {...props} />)
     fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
 
@@ -84,7 +77,7 @@ describe('Save control', () => {
   it('shows why a save failed', async () => {
     fake.current!.state.email = 'fan@example.com'
     fake.current!.state.insertError = { message: 'You can save up to 20 filters. Delete one to save another.' }
-    params = new URLSearchParams('genre=punk')
+    replaceQuery('genre=punk')
     render(<FilterBar {...props} />)
     fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Punk' } })
@@ -101,7 +94,7 @@ describe('Setup Alert limit', () => {
   it('shows how many alerts a signed-in visitor has used', async () => {
     fake.current!.state.email = 'fan@example.com'
     fake.current!.state.savedFilters = savedFilters(2)
-    params = new URLSearchParams('genre=punk')
+    replaceQuery('genre=punk')
     render(<FilterBar {...props} />)
     fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
     expect(await screen.findByText('2 of 20 alerts used')).toBeInTheDocument()
@@ -110,7 +103,7 @@ describe('Setup Alert limit', () => {
   it('explains the limit instead of offering to save at 20', async () => {
     fake.current!.state.email = 'fan@example.com'
     fake.current!.state.savedFilters = savedFilters(20)
-    params = new URLSearchParams('genre=punk')
+    replaceQuery('genre=punk')
     render(<FilterBar {...props} />)
     fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
 
@@ -126,7 +119,7 @@ describe('Setup Alert duplicates', () => {
   it('won\'t set up an alert the visitor already has, whatever order the filters are in', async () => {
     fake.current!.state.email = 'fan@example.com'
     fake.current!.state.savedFilters = [saved('East Bay punk', 'genre=punk&region=east_bay')]
-    params = new URLSearchParams('region=east_bay&genre=punk')
+    replaceQuery('region=east_bay&genre=punk')
     render(<FilterBar {...props} />)
     fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
 
@@ -138,7 +131,7 @@ describe('Setup Alert duplicates', () => {
   it('treats searches that differ only in letter case as the same', async () => {
     fake.current!.state.email = 'fan@example.com'
     fake.current!.state.savedFilters = [saved('Chapel', 'q=The+Chapel')]
-    params = new URLSearchParams('q=the%20chapel')
+    replaceQuery('q=the%20chapel')
     render(<FilterBar {...props} />)
     fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
     expect(await screen.findByText(/you already have an alert for these filters/i)).toBeInTheDocument()
@@ -147,7 +140,7 @@ describe('Setup Alert duplicates', () => {
   it('still offers to save different filters', async () => {
     fake.current!.state.email = 'fan@example.com'
     fake.current!.state.savedFilters = [saved('East Bay punk', 'genre=punk&region=east_bay')]
-    params = new URLSearchParams('genre=punk')
+    replaceQuery('genre=punk')
     render(<FilterBar {...props} />)
     fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
     expect(await screen.findByText('1 of 20 alerts used')).toBeInTheDocument()
@@ -159,7 +152,7 @@ describe('Setup Alert duplicates', () => {
 describe('Save control dismissing', () => {
   const openSaved = async () => {
     fake.current!.state.email = 'fan@example.com'
-    params = new URLSearchParams('genre=punk')
+    replaceQuery('genre=punk')
     render(<FilterBar {...props} />)
     fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Punk' } })
@@ -168,7 +161,7 @@ describe('Save control dismissing', () => {
   }
 
   it('closes the form with Escape or a click outside it', async () => {
-    params = new URLSearchParams('genre=punk')
+    replaceQuery('genre=punk')
     render(<FilterBar {...props} />)
     fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
     fireEvent.keyDown(screen.getByLabelText('Name'), { key: 'Escape' })
@@ -189,7 +182,7 @@ describe('Save control dismissing', () => {
 describe('Save control without Supabase configured', () => {
   it('is not shown', async () => {
     fake.current = null
-    params = new URLSearchParams('genre=punk')
+    replaceQuery('genre=punk')
     render(<FilterBar {...props} />)
     await waitFor(() => expect(screen.getByText(/showing 10 of 100/i)).toBeInTheDocument())
     expect(screen.queryByRole('button', { name: /setup alert/i })).not.toBeInTheDocument()

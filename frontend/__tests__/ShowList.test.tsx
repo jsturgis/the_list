@@ -1,26 +1,11 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import ShowList from '@/components/ShowList'
+import { replaceQuery } from '@/lib/navigation'
 import { makeBand, makeShow, makeShowFixtures } from './fixtures'
 
-// ── navigation mock ───────────────────────────────────────────────────────────
-
-const currentParams = new URLSearchParams()
-const mockReplace = vi.fn()
-
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mockReplace, replace: mockReplace }),
-  useSearchParams: () => currentParams,
-  usePathname: () => '/',
-}))
-
 // ── helpers ───────────────────────────────────────────────────────────────────
-
-function setParams(params: Record<string, string>) {
-  for (const key of Array.from(currentParams.keys())) currentParams.delete(key)
-  for (const [k, v] of Object.entries(params)) currentParams.set(k, v)
-}
 
 const FILTER_OPTIONS = {
   regions: ['east_bay', 'north_bay', 'sf', 'santa_cruz', 'south_bay'],
@@ -28,11 +13,6 @@ const FILTER_OPTIONS = {
   genres: ['blues', 'folk', 'metal', 'punk', 'rock'],
   dates: ['2026-10-03', '2026-10-04', '2026-10-05'],
 }
-
-beforeEach(() => {
-  setParams({})
-  mockReplace.mockClear()
-})
 
 // ── tests ─────────────────────────────────────────────────────────────────────
 
@@ -105,36 +85,27 @@ describe('ShowList', () => {
       const user = userEvent.setup()
       render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
       await user.selectOptions(screen.getByLabelText(/region/i), 'east_bay')
-      expect(mockReplace).toHaveBeenCalledWith(
-        expect.stringContaining('region=east_bay'),
-        expect.anything(),
-      )
+      expect(new URLSearchParams(window.location.search).toString()).toContain('region=east_bay')
     })
 
     it('updates URL when a genre is typed', async () => {
       const user = userEvent.setup()
       render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
       await user.type(screen.getByLabelText(/genre/i), 'folk')
-      expect(mockReplace).toHaveBeenCalledWith(
-        expect.stringContaining('genre=folk'),
-        expect.anything(),
-      )
+      expect(new URLSearchParams(window.location.search).toString()).toContain('genre=folk')
     })
 
     it('updates URL when free-only is checked', async () => {
       const user = userEvent.setup()
       render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
       await user.click(screen.getByLabelText(/free only/i))
-      expect(mockReplace).toHaveBeenCalledWith(
-        expect.stringContaining('free=1'),
-        expect.anything(),
-      )
+      expect(new URLSearchParams(window.location.search).toString()).toContain('free=1')
     })
   })
 
   describe('Clear filters button', () => {
     it('shows Clear filters button when filters are active', () => {
-      setParams({ region: 'sf' })
+      replaceQuery('region=sf')
       render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
       expect(screen.getByRole('button', { name: /clear/i })).toBeInTheDocument()
     })

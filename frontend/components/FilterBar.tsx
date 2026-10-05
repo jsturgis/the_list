@@ -1,11 +1,11 @@
 'use client'
 
-import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { ChevronRightIcon, InformationCircleIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Combobox from './Combobox'
 import { LEGACY_SEARCH_PARAMS, filterQuery, searchParam } from '@/lib/filters'
 import { REGION_LABELS, ageLabel } from '@/lib/format'
+import { replaceQuery, useQuery } from '@/lib/navigation'
 import SaveFilterButton from './SaveFilterButton'
 
 interface FilterBarProps {
@@ -18,9 +18,7 @@ interface FilterBarProps {
 }
 
 export default function FilterBar({ showCount, dbTotal, genres, regions, ages, availableDates }: FilterBarProps) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
+  const searchParams = useQuery()
 
   const update = useCallback(
     (key: string, value: string, replaces: string[] = []) => {
@@ -31,17 +29,15 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
       } else {
         params.delete(key)
       }
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+      replaceQuery(params)
     },
-    [router, pathname, searchParams],
+    [searchParams],
   )
 
-  const clearAll = useCallback(() => {
-    router.replace(pathname, { scroll: false })
-  }, [router, pathname])
+  const clearAll = useCallback(() => replaceQuery(''), [])
 
-  // Local state for the search input so every keystroke doesn't round-trip
-  // through router.replace (which is async and causes characters to drop).
+  // Local state for the search input, so the URL is updated once typing pauses
+  // rather than on every keystroke.
   const [searchInput, setSearchInput] = useState(searchParam(searchParams))
 
   // Track the last value we sent to the URL. The sync effect below checks

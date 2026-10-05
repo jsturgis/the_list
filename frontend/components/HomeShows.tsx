@@ -1,17 +1,17 @@
 'use client'
 
-import { useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowPathIcon, ExclamationTriangleIcon } from '@heroicons/react/20/solid'
 import ShowList from './ShowList'
 import { loadSiteData } from '@/lib/data'
 import { filterShows } from '@/lib/filterShows'
 import { buildFilters } from '@/lib/filters'
+import { useQuery } from '@/lib/navigation'
 import type { SiteData } from '@/lib/types'
 
 /** Home page body: loads the exported data in the browser and lists the Shows matching the URL filters. */
 export default function HomeShows() {
-  const filtersKey = useSearchParams().toString()
+  const filtersKey = useQuery().toString()
   const [data, setData] = useState<SiteData | null>(null)
   const [error, setError] = useState<string | null>(null)
 

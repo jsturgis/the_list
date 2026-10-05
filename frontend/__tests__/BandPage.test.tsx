@@ -62,13 +62,13 @@ describe('BandDetail', () => {
   it('renders upcoming shows list with show links', () => {
     renderBand()
     const showLinks = screen.getAllByRole('link').filter(l => l.getAttribute('href')?.startsWith('/shows/'))
-    expect(showLinks.map(l => l.getAttribute('href'))).toEqual(['/shows/1', '/shows/2'])
+    expect(showLinks.map(l => l.getAttribute('href'))).toEqual(['/shows/1/', '/shows/2/'])
   })
 
   it('hides shows dated before today (Bay Area time)', () => {
     renderBand(band, [makeShow({ id: 9, date: '2026-09-20', acts: [{ position: 0, band }] }), ...upcomingShows])
     const showLinks = screen.getAllByRole('link').filter(l => l.getAttribute('href')?.startsWith('/shows/'))
-    expect(showLinks.map(l => l.getAttribute('href'))).toEqual(['/shows/1', '/shows/2'])
+    expect(showLinks.map(l => l.getAttribute('href'))).toEqual(['/shows/1/', '/shows/2/'])
   })
 
   it('shows the image, Local tag and Website link when provided', () => {
@@ -92,15 +92,15 @@ describe('BandDetail', () => {
 
   it('lists the precomputed Similar Bands', () => {
     renderBand()
-    expect(screen.getByRole('link', { name: /LCD Soundsystem/ })).toHaveAttribute('href', '/bands/10')
+    expect(screen.getByRole('link', { name: /LCD Soundsystem/ })).toHaveAttribute('href', '/bands/10/')
   })
 })
 
 describe('SimilarBands', () => {
   it('links each similar band to its page, with its first genres', () => {
     render(<SimilarBands bands={similar} />)
-    expect(screen.getByRole('link', { name: /LCD Soundsystem/i })).toHaveAttribute('href', '/bands/10')
-    expect(screen.getByRole('link', { name: /Interpol/i })).toHaveAttribute('href', '/bands/11')
+    expect(screen.getByRole('link', { name: /LCD Soundsystem/i })).toHaveAttribute('href', '/bands/10/')
+    expect(screen.getByRole('link', { name: /Interpol/i })).toHaveAttribute('href', '/bands/11/')
     expect(screen.getByText('post-punk, indie rock')).toBeInTheDocument()
   })
 

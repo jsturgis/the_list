@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { href } from './basePath'
 
 /**
  * The browser's Supabase client, for sign-in and Saved Filters (ADR 0003). The URL and publishable key are
@@ -25,7 +26,7 @@ export interface SavedFilter {
 
 /** Where a sign-in link returns to: the Alerts page, plus any filter waiting to be saved. */
 export function alertsPageUrl(pending?: { name: string; query: string }): string {
-  const url = new URL(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/alerts/`, window.location.origin)
+  const url = new URL(href('/alerts/'), window.location.origin)
   if (pending) {
     url.searchParams.set('save', pending.query)
     url.searchParams.set('name', pending.name)

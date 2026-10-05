@@ -1,12 +1,12 @@
 'use client'
 
-import { useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Show } from '@/lib/types'
 import { MagnifyingGlassIcon } from '@heroicons/react/20/solid'
 import ShowCard from './ShowCard'
 import FilterBar from './FilterBar'
 import { formatDateLong } from '@/lib/format'
+import { useQuery } from '@/lib/navigation'
 
 const PAGE_SIZE = 50
 
@@ -41,7 +41,7 @@ function groupByDate(shows: Show[]): Map<string, Show[]> {
 }
 
 export default function ShowList({ shows, dbTotal = 0, filterOptions = EMPTY_FILTER_OPTIONS }: ShowListProps) {
-  const filtersKey = useSearchParams().toString()
+  const filtersKey = useQuery().toString()
   const [visible, setVisible] = useState(PAGE_SIZE)
   const sentinelRef = useRef<HTMLDivElement>(null)
 

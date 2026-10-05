@@ -1,13 +1,7 @@
 import { render, screen } from '@testing-library/react'
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import ShowCard, { type ShowCardLayout } from '@/components/ShowCard'
 import { makeShow, makeBand } from './fixtures'
-
-vi.mock('next/navigation', () => ({
-  useSearchParams: () => new URLSearchParams(),
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-  usePathname: () => '/',
-}))
 
 describe.each<ShowCardLayout>(['card', 'row'])('ShowCard (%s layout)', layout => {
   it('renders headliner name', () => {
@@ -112,7 +106,7 @@ describe.each<ShowCardLayout>(['card', 'row'])('ShowCard (%s layout)', layout =>
   it('links to show detail page', () => {
     render(<ShowCard layout={layout} show={makeShow({ id: 42 })} />)
     const link = screen.getByRole('link', { name: /Test Band/i })
-    expect(link).toHaveAttribute('href', '/shows/42')
+    expect(link).toHaveAttribute('href', '/shows/42/')
   })
 })
 

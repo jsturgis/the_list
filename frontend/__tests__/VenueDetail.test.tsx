@@ -3,8 +3,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import VenueDetail from '@/components/VenueDetail'
 import { makeBand, makeShow, makeVenue } from './fixtures'
 
-vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }))
-
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-10-01T19:00:00Z'))  // noon Pacific, Oct 1

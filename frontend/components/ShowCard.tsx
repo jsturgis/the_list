@@ -1,10 +1,10 @@
 'use client'
 
-import Link from 'next/link'
 import { ClockIcon, MapPinIcon, StarIcon, TicketIcon, UserIcon } from '@heroicons/react/16/solid'
 import { Flags, StatusBadge } from './ShowBadges'
 import type { Show } from '@/lib/types'
 import { formatTime, formatPrice } from '@/lib/format'
+import { href } from '@/lib/basePath'
 
 function formatAge(age: string): string {
   if (age === 'a/a') return 'All Ages'
@@ -28,7 +28,7 @@ function venueLocation(show: Show): string {
 }
 
 export default function ShowCard({ show, filterQs = '', layout = 'card', showVenue = true }: ShowCardProps) {
-  const showHref = filterQs ? `/shows/${show.id}?${filterQs}` : `/shows/${show.id}`
+  const showHref = href(filterQs ? `/shows/${show.id}/?${filterQs}` : `/shows/${show.id}/`)
   const headliner = show.acts[0]?.band
   const supports = show.acts.slice(1)
   const price = formatPrice(show.priceMin, show.priceMax, show.isFree) ?? ''
@@ -39,7 +39,7 @@ export default function ShowCard({ show, filterQs = '', layout = 'card', showVen
 
   if (layout === 'row') {
     return (
-      <Link
+      <a
         href={showHref}
         className={`flex flex-col sm:flex-row sm:items-center gap-x-4 gap-y-1 px-4 py-3 border-l-2 transition-colors ${focus} ${
           show.isRecommended
@@ -77,12 +77,12 @@ export default function ShowCard({ show, filterQs = '', layout = 'card', showVen
           {meta && <span>{meta}</span>}
           <Flags show={show} size="compact" />
         </div>
-      </Link>
+      </a>
     )
   }
 
   return (
-    <Link
+    <a
       href={showHref}
       className={`rounded-lg border p-4 flex flex-col gap-2 transition-all hover:shadow-md hover:brightness-[0.97] dark:hover:brightness-110 ${focus} ${
         show.isRecommended
@@ -133,6 +133,6 @@ export default function ShowCard({ show, filterQs = '', layout = 'card', showVen
       </div>
 
       <Flags show={show} size="card" />
-    </Link>
+    </a>
   )
 }

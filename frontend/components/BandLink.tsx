@@ -1,5 +1,5 @@
-import Link from 'next/link'
 import type { ReactNode } from 'react'
+import { href } from '@/lib/basePath'
 
 interface BandLinkProps {
   bandId: number
@@ -10,8 +10,8 @@ interface BandLinkProps {
 /** A link to a Band's page. */
 export default function BandLink({ bandId, className, children }: BandLinkProps) {
   return (
-    <Link href={`/bands/${bandId}`} className={className}>
+    <a href={href(`/bands/${bandId}/`)} className={className}>
       {children}
-    </Link>
+    </a>
   )
 }
