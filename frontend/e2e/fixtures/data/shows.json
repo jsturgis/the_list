@@ -173,6 +173,37 @@
     "ageRestriction": "21+",
     "status": "upcoming",
     "isRecommended": false,
+    "willSellOut": true,
+    "isPit": true,
+    "isDrinkTickets": true,
+    "isNoReentry": true,
+    "notes": null,
+    "isMatinee": false,
+    "isSoldOut": true,
+    "ticketProvider": null,
+    "ticketUrl": null,
+    "isBenefit": true,
+    "benefitCause": "the Bay Area Music Fund",
+    "specialEvent": null,
+    "venueId": 1,
+    "acts": [
+      [
+        7,
+        0
+      ]
+    ]
+  },
+  {
+    "id": 107,
+    "date": "2026-10-06",
+    "doorTime": "19:00:00",
+    "setTime": null,
+    "priceMin": 35,
+    "priceMax": 35,
+    "isFree": false,
+    "ageRestriction": "21+",
+    "status": "cancelled",
+    "isRecommended": false,
     "willSellOut": false,
     "isPit": false,
     "isDrinkTickets": false,
@@ -185,10 +216,41 @@
     "isBenefit": false,
     "benefitCause": null,
     "specialEvent": null,
-    "venueId": 1,
+    "venueId": 3,
     "acts": [
       [
         7,
+        0
+      ]
+    ]
+  },
+  {
+    "id": 108,
+    "date": "2026-10-07",
+    "doorTime": "19:00:00",
+    "setTime": null,
+    "priceMin": 35,
+    "priceMax": 35,
+    "isFree": false,
+    "ageRestriction": "21+",
+    "status": "postponed",
+    "isRecommended": false,
+    "willSellOut": false,
+    "isPit": false,
+    "isDrinkTickets": false,
+    "isNoReentry": false,
+    "notes": null,
+    "isMatinee": false,
+    "isSoldOut": false,
+    "ticketProvider": null,
+    "ticketUrl": null,
+    "isBenefit": false,
+    "benefitCause": null,
+    "specialEvent": null,
+    "venueId": 3,
+    "acts": [
+      [
+        6,
         0
       ]
     ]

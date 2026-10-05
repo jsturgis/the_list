@@ -55,7 +55,7 @@
   --strong: #121212;
   --strong-hover: #2a2a2a;
 
-  --danger: --theme(--color-red-600 inline);
+  --danger: --theme(--color-red-700 inline); /* not 600: red-600 on red-100 is 3.9:1, below WCAG AA */
   --danger-soft: --theme(--color-red-100 inline);
   --warning: --theme(--color-yellow-700 inline);
   --warning-soft: --theme(--color-yellow-100 inline);

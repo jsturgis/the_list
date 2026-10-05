@@ -50,7 +50,7 @@ export default function BandDetail({ band, upcomingShows, similarBands }: BandDe
             <ExternalLink
               href={band.spotifyUrl}
               icon={MusicalNoteIcon}
-              className="text-sm px-3 py-1.5 rounded bg-green-600 text-white hover:bg-green-700"
+              className="text-sm px-3 py-1.5 rounded bg-green-700 text-white hover:bg-green-800"
             >
               Spotify
             </ExternalLink>
@@ -59,7 +59,7 @@ export default function BandDetail({ band, upcomingShows, similarBands }: BandDe
             <ExternalLink
               href={band.soundcloudUrl}
               icon={MusicalNoteIcon}
-              className="text-sm px-3 py-1.5 rounded bg-orange-500 text-white hover:bg-orange-600"
+              className="text-sm px-3 py-1.5 rounded bg-orange-700 text-white hover:bg-orange-800"
             >
               SoundCloud
             </ExternalLink>
@@ -68,7 +68,7 @@ export default function BandDetail({ band, upcomingShows, similarBands }: BandDe
             <ExternalLink
               href={band.bandcampUrl}
               icon={MusicalNoteIcon}
-              className="text-sm px-3 py-1.5 rounded bg-teal-600 text-white hover:bg-teal-700"
+              className="text-sm px-3 py-1.5 rounded bg-teal-700 text-white hover:bg-teal-800"
             >
               Bandcamp
             </ExternalLink>

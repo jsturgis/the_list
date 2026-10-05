@@ -93,7 +93,7 @@ export default function ShowList({ shows: listed, showCount, dbTotal = 0, filter
       />
 
       {!listed ? (
-        <p className="flex items-center justify-center gap-1.5 text-ink-faint py-12">
+        <p className="flex items-center justify-center gap-1.5 text-ink-muted py-12">
           <ArrowPathIcon className="size-4 shrink-0 animate-spin" />
           Loading…
         </p>

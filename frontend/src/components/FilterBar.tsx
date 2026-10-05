@@ -75,6 +75,14 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
 
   const [showAdvanced, setShowAdvanced] = useState(hasAdvancedFilters)
 
+  // Open Advanced filters when the URL gains one, including on load: the home page is built before the URL is
+  // read, so the first render can't know. Closing stays the visitor's choice.
+  const [hadAdvancedFilters, setHadAdvancedFilters] = useState(hasAdvancedFilters)
+  if (hasAdvancedFilters !== hadAdvancedFilters) {
+    setHadAdvancedFilters(hasAdvancedFilters)
+    if (hasAdvancedFilters) setShowAdvanced(true)
+  }
+
   const hasFilters =
     searchParams.has('fromDate') ||
     searchParams.has('toDate') ||

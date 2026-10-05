@@ -23,7 +23,7 @@ export default function SimilarBands({ bands }: SimilarBandsProps) {
             >
               <span className="font-medium text-ink">{b.name}</span>
               {b.genres.length > 0 && (
-                <span className="text-ink-faint text-xs">
+                <span className="text-ink-muted text-xs">
                   {b.genres.slice(0, 2).join(', ')}
                 </span>
               )}

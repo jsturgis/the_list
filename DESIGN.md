@@ -43,7 +43,7 @@ Use these tokens through Tailwind's colour utilities (`bg-surface`, `text-ink-mu
 | `ink` | Headings, headliners, main text | `#121212` | `#ffffff` |
 | `ink-soft` | Secondary text: Venue lines, detail values | `#3d3d3d` | `#cbcbcb` |
 | `ink-muted` | Meta text: times, prices, ages, supports, captions | `#5c5c5c` | `#b3b3b3` |
-| `ink-faint` | Decorative icons, placeholders | `#808080` | `#7c7c7c` |
+| `ink-faint` | Decorative icons, icon buttons and placeholders (3:1); never text | `#808080` | `#7c7c7c` |
 | **Lines** | | | |
 | `line` | Borders | `#e2e2e2` | `#2a2a2a` |
 | `line-subtle` | Dividers between rows, the header rule | `#ececec` | `#222222` |
@@ -69,7 +69,7 @@ Use these tokens through Tailwind's colour utilities (`bg-surface`, `text-ink-mu
 | `strong` | The neutral filled button (Website) | `#121212` | `#ffffff` |
 | `strong-hover` | Its hover | `#2a2a2a` | `#e0e0e0` |
 | **Status** | | | |
-| `danger` | Cancelled, Sold out, errors | `red-600` | `red-400` |
+| `danger` | Cancelled, Sold out, errors | `red-700` | `red-400` |
 | `danger-soft` | Their badge background | `red-100` | `color-mix(in oklab, red-900 40%, transparent)` |
 | `warning` | Postponed, warnings | `yellow-700` | `yellow-400` |
 | `warning-soft` | Their badge background | `yellow-100` | `color-mix(in oklab, yellow-900 40%, transparent)` |
@@ -87,7 +87,8 @@ Use these tokens through Tailwind's colour utilities (`bg-surface`, `text-ink-mu
 - `accent-soft` with `accent-soft-ink`, and `accent-chip` with `accent-chip-ink`
 
 **Brand colours we don't own:** the Spotify, SoundCloud and Bandcamp buttons on Band pages keep those services' own
-colours, so people recognise them.
+hues, so people recognise them, one shade darker (`green-700`, `orange-700`, `teal-700`) so their white labels pass
+WCAG AA.
 
 ## 3. Typography Rules
 
@@ -207,7 +208,8 @@ When you build or change UI in this repo:
 3. Lists of Shows use the Show list item (section 4). Don't introduce new card styles.
 4. Check light and dark mode. For visible changes, run `npm run screenshots -- <dir>` in `frontend/` before and
    after, and put both sets in the PR.
-5. Keep the mechanisms in section 7 intact. The smoke tests cover them.
+5. Keep the mechanisms in section 7 intact. The smoke tests cover them, and the axe checks (`e2e/a11y.spec.ts`)
+   fail on serious or critical accessibility violations, including contrast, in both modes.
 
 Example prompt: "Add a 'Free' filter chip to the filter bar, styled as a section 4 input: a `field` pill, `ink`
 text, accent focus ring. On phones it wraps under Search."
