@@ -3,8 +3,8 @@ import { formatDateLong } from '@/lib/format'
 import type { Show } from '@/lib/types'
 
 /**
- * A Venue's Upcoming Shows as compact rows grouped by date. Static: pages are built weekly, so lib/upcomingShows
- * hides dates before today (Bay Area time) in the browser, and shows "No upcoming shows." when none are left.
+ * A Venue's Upcoming Shows as compact rows grouped by date. Pages are built weekly, so the page's CSS hides dates
+ * before today (Bay Area time), and shows "No upcoming shows." when none are left (lib/pastShows).
  */
 export default function VenueShowRows({ shows }: { shows: Show[] }) {
   const byDate = new Map<string, Show[]>()
@@ -34,7 +34,8 @@ export default function VenueShowRows({ shows }: { shows: Show[] }) {
           </div>
         </section>
       )}
-      <p className="text-sm text-ink-muted" data-upcoming-shows-empty="" hidden={shows.length > 0}>
+      {/* Shown by the page's CSS too, when every Show listed has passed (lib/pastShows). */}
+      <p className="text-sm text-ink-muted" data-upcoming-shows-empty="" style={shows.length > 0 ? { display: 'none' } : undefined}>
         No upcoming shows.
       </p>
     </div>

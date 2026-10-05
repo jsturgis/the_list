@@ -7,10 +7,10 @@ The existing React components are kept. Astro renders them to HTML at build time
 - the home page's Shows list and filters (`HomeShows`), whose first page is in the HTML, with the rest loaded from `home-shows.json`
 - the Alerts and Unsubscribe pages, which talk to Supabase (ADR 0003)
 
-Everything else is static. Two small framework-free scripts, loaded by the layout, cover what's left:
+Everything else is static. Two small framework-free pieces of script cover what's left:
 
-- `lib/keepFilters` carries the Shows list's filters onto Venue links and the Back link.
-- `lib/upcomingShows` hides Shows dated before today on pages built days earlier.
+- `lib/keepFilters`, loaded by the layout, carries the Shows list's filters onto Venue links and the Back link.
+- `lib/pastShows` hides Shows dated before today on pages built days earlier. The layout inlines it in `<head>`. CSS can't compare dates, so it writes a rule for each day from the export's date up to yesterday. The rules apply before anything is drawn, so past Shows never flash up, and they don't depend on any script file loading.
 
 ## Considered Options
 
@@ -27,7 +27,8 @@ Everything else is static. Two small framework-free scripts, loaded by the layou
   - The home page's Shows are on screen before any data loads.
 - **Rendering at build time has rules:**
   - Anything that depends on the date or the URL must render the same way at build time and on the first browser render, then update.
-  - When the build's HTML could be stale, CSS keeps it hidden until a script has corrected it, but only when JavaScript runs (`data-js` on `<html>`, removed again if a script fails). The cases are: an Upcoming Shows list with passed dates, and the home page's unfiltered first page on a filtered URL.
+  - Shows whose date has passed are hidden by CSS written in `<head>` (`lib/pastShows`). Lists leave out Shows dated before the export, so the rules only cover the days since. Until React takes over, the home page's "Showing N of M" still counts any hidden Shows.
+  - The home page's first page is unfiltered, so CSS keeps it hidden on a filtered URL until React has every Show. That only happens when JavaScript runs (`data-js` on `<html>`, removed again if a script fails).
 - **Build settings:** Supabase settings are read as `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` (ADR 0003). The base path and site URL still come from `PAGES_BASE_PATH` and `PAGES_SITE_URL`.
 - **Tests:**
   - Astro pages are tested by rendering them with Astro's container API, including which islands a page hydrates.

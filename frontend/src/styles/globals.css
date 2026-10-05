@@ -181,15 +181,9 @@ body {
 }
 
 /*
- * Upcoming Shows lists stay invisible until lib/upcomingShows has hidden the dates that have passed since the
- * weekly build, so they never flash up. Only when JavaScript runs (data-js, set in the layout's <head>, and
- * removed again if a script fails); the space stays reserved, so the page doesn't jump when nothing is trimmed.
+ * The home page's built first page is unfiltered, so it waits for HomeShows when the URL has a query. Only when
+ * JavaScript runs (data-js, set in the layout's <head>, and removed again if a script fails).
  */
-[data-js] [data-upcoming-shows]:not([data-upcoming-shows-ready]) {
-  visibility: hidden;
-}
-
-/* The home page's built first page is unfiltered, so it waits for HomeShows when the URL has a query. */
 [data-js][data-query] [data-home-first-page] {
   visibility: hidden;
 }

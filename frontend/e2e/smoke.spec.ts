@@ -159,16 +159,16 @@ test("the home page's first Shows are on screen before the list's data loads", a
 })
 
 test('a filtered home page never shows the unfiltered first page', async ({ page }) => {
-  // Hold the list's own code and data: the built (unfiltered) first page is in the HTML, and the page's
-  // other script has run and dropped past dates, but the list must stay hidden until the filters apply.
+  // Hold the list's own code and data: the built (unfiltered) first page is in the HTML, but must stay hidden
+  // until the filters apply.
   let release = () => {}
   const held = new Promise<void>(resolve => { release = resolve })
   for (const url of ['**/_astro/HomeShows*.js', '**/home-shows.json'])
     await page.route(url, async route => { await held; await route.continue() })
   await page.goto('./?region=east_bay')
 
-  const firstPage = page.locator('[data-home-first-page]')
-  await expect(firstPage).toHaveAttribute('data-upcoming-shows-ready')
+  await expect(page.locator('[data-home-first-page]')).toHaveCount(1)
+  await expect(page.getByLabel('Region')).toBeVisible()
   await expect(headliner(page, 'Tidepool Choir')).toBeHidden()
 
   release()
@@ -185,5 +185,38 @@ test.describe('without JavaScript', () => {
     await expect(page.getByText('Bay Area & Santa Cruz Concert Events — Sep 25, 2026')).toBeVisible()
     await expect(showCards(page)).toHaveCount(5)
     await expect(showCards(page).first()).toBeVisible()
+  })
+})
+
+test.describe('Shows whose date has passed since the build', () => {
+  // Only the page's inline <head> CSS hides them: every script file is blocked.
+  test.beforeEach(async ({ page }) => { await page.route('**/_astro/*.js', route => route.abort()) })
+
+  test('are hidden from the home page', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-04T12:00:00-07:00'))  // the Oct 3 Shows have passed
+    await page.goto('./')
+    await expect(headliner(page, 'Tidepool Choir')).toBeVisible()  // Oct 4
+    await expect(headliner(page, 'Gilman Youth')).toBeHidden()     // Oct 3
+    await expect(page.getByText(/Saturday, October 3/i)).toBeHidden()
+  })
+
+  test("are hidden from a Venue page, which says so when none are left", async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-04T12:00:00-07:00'))
+    await page.goto('venues/2/')
+    const upcoming = page.getByRole('region', { name: 'Upcoming Shows' })
+    await expect(upcoming.locator('a[href*="/shows/"]:visible')).toHaveCount(1)  // Oct 5; Oct 3 hidden
+
+    await page.clock.setFixedTime(new Date('2026-10-06T12:00:00-07:00'))
+    await page.reload()
+    await expect(page.getByText('No upcoming shows.')).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Upcoming Shows' })).toBeHidden()
+  })
+
+  test("leave a Band page without an Upcoming Shows section when none are left", async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-06T12:00:00-07:00'))
+    await page.goto('bands/1/')
+    await expect(page.getByRole('heading', { level: 1, name: 'Neon Harbor' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Upcoming Shows' })).toBeHidden()
+    await expect(page.getByTestId('similar-bands')).toBeVisible()
   })
 })

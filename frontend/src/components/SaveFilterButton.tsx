@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { BellIcon } from '@heroicons/react/16/solid'
 import { href } from '@/lib/basePath'
 import { describeFilters, findSameFilter } from '@/lib/filters'
-import { MAX_ALERTS, alertsPageUrl, supabase } from '@/lib/supabase'
+import { MAX_ALERTS, alertsAvailable, alertsPageUrl, supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/useSession'
 import Toast from './Toast'
 
@@ -43,7 +43,8 @@ export default function SaveFilterButton({ query }: { query: string }) {
     }
   }, [open])
 
-  if (session.status === 'unavailable') return null
+  // Decided at build time too, so a build without the Supabase settings never renders the button and then drops it.
+  if (!alertsAvailable() || session.status === 'unavailable') return null
 
   const toggle = () => {
     if (!open) {

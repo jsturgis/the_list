@@ -8,6 +8,12 @@ export function bayAreaToday(now: Date = new Date()): string {
   }).format(now)
 }
 
+/** The Bay Area date the export was made (YYYY-MM-DD), or '' if unknown. Shows dated before it have passed for good. */
+export function exportDay(meta: Pick<ExportMeta, 'generatedAt'>): string {
+  const time = Date.parse(meta.generatedAt)
+  return Number.isNaN(time) ? '' : bayAreaToday(new Date(time))
+}
+
 /** Join exported Shows with their Venue and Bands, in the shape the components already use. */
 export function hydrateShows(shows: ExportShow[], venues: ExportVenue[], bands: ExportBand[]): Show[] {
   const venueById = new Map(venues.map(v => [v.id, v]))
@@ -24,9 +30,11 @@ export function hydrateShows(shows: ExportShow[], venues: ExportVenue[], bands: 
 const byDateThenDoor = (a: Show, b: Show) =>
   a.date.localeCompare(b.date) || (a.doorTime ?? '').localeCompare(b.doorTime ?? '')
 
-/** A Band's Upcoming Shows (any Act), in date then door-time order. */
-export function bandShows(shows: Show[], bandId: number): Show[] {
-  return shows.filter(s => s.status === 'upcoming' && s.acts.some(a => a.band.id === bandId)).sort(byDateThenDoor)
+/** A Band's Upcoming Shows (any Act) dated `from` or later, in date then door-time order. */
+export function bandShows(shows: Show[], bandId: number, from = ''): Show[] {
+  return shows
+    .filter(s => s.status === 'upcoming' && s.date >= from && s.acts.some(a => a.band.id === bandId))
+    .sort(byDateThenDoor)
 }
 
 /** A Band's Similar Bands, resolved in order (ids missing from the export are skipped). */
@@ -49,8 +57,8 @@ export function toHomeShow({ venue, acts, ...show }: Show): HomeShow {
  * passed since.
  */
 export function homeShows(shows: Show[], meta: Pick<ExportMeta, 'generatedAt'>): HomeShow[] {
-  const exportDay = bayAreaToday(new Date(meta.generatedAt))
-  return shows.filter(s => s.status === 'upcoming' && s.date >= exportDay).sort(byDateThenDoor).map(toHomeShow)
+  const from = exportDay(meta)
+  return shows.filter(s => s.status === 'upcoming' && s.date >= from).sort(byDateThenDoor).map(toHomeShow)
 }
 
 /** What the home page renders at build time: the edition, the filter options and the first `pageSize` Shows. */

@@ -89,6 +89,22 @@ describe('detail pages ship no React', () => {
     expect(html).toMatch(/<head>.*<script>.*document\.documentElement\.dataset\.js = ''.*<\/script>.*<\/head>/s)
   })
 
+  it("hides Shows that have passed with CSS written by an inline <head> script, from the export's day", async () => {
+    const html = await render(ShowPage, { show: shows[0] })
+    const head = html.match(/<head>(.*)<\/head>/s)![1]
+    const script = head.match(/<script>(document\.head\.append\(.*?\}\)\))<\/script>/s)![1]
+    // Run it as the browser would, on Oct 4 (the fixture export was made on Sep 30), with just enough document.
+    const added: { textContent?: string }[] = []
+    const document = { createElement: () => ({}), head: { append: (el: { textContent?: string }) => added.push(el) } }
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-04T19:00:00Z'))
+    try { new Function('document', script)(document) } finally { vi.useRealTimers() }
+    const css = added[0].textContent!
+    expect(css).toContain('[data-show-date="2026-09-30"]')
+    expect(css).toContain('[data-show-date="2026-10-03"]')
+    expect(css).not.toContain('[data-show-date="2026-10-04"]')
+  })
+
   it('a Venue page lists its Upcoming Shows statically, marked by date for the browser to trim', async () => {
     const html = await render(VenuePage, { venue, upcomingShows: shows })
     expect(islands(html)).toEqual([])
@@ -100,7 +116,7 @@ describe('detail pages ship no React', () => {
   it('a Band page lists its Upcoming Shows statically, marked by date for the browser to trim', async () => {
     const html = await render(BandPage, { band, upcomingShows: shows, similarBands: [] })
     expect(islands(html)).toEqual([])
-    expect(html).toContain('data-upcoming-shows')
+    expect(html).toContain('data-upcoming-shows-list')
     expect(html).toContain('data-show-date="2026-10-03"')
   })
 })
@@ -114,6 +130,14 @@ describe('the home page', () => {
     expect(html).toContain('Showing 5 of 5 shows')
     expect(html).toContain('data-home-first-page')
     expect(html).toContain('data-show-date="2026-10-03"')
+  })
+
+  it('has the Setup Alert button only on builds with the Supabase settings, so it never appears and then goes', async () => {
+    vi.stubEnv('PUBLIC_SUPABASE_URL', '')
+    expect(await render(HomePage)).not.toContain('Setup Alert')
+    vi.stubEnv('PUBLIC_SUPABASE_URL', 'https://example.supabase.co')
+    vi.stubEnv('PUBLIC_SUPABASE_ANON_KEY', 'sb_publishable_test')
+    expect(await render(HomePage)).toContain('Setup Alert')
   })
 
   it('hydrates one island, the Shows list', async () => {

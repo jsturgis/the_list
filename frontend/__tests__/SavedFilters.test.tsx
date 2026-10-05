@@ -8,6 +8,7 @@ const fake = vi.hoisted(() => ({ current: null as ReturnType<typeof import('./fa
 vi.mock('@/lib/supabase', async importOriginal => ({
   ...(await importOriginal<typeof import('@/lib/supabase')>()),
   get supabase() { return fake.current?.client ?? null },
+  alertsAvailable: () => fake.current !== null,  // the build has the Supabase settings when there's a client
 }))
 
 const props = { showCount: 10, dbTotal: 100, genres: ['punk'], regions: ['east_bay'], ages: [], availableDates: [] }

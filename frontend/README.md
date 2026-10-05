@@ -55,7 +55,7 @@ src/
   lib/
     siteData.server.ts  # build-time access to the export
     keepFilters.ts      # carries the Shows list's filters onto Venue and Back links
-    upcomingShows.ts    # hides Shows dated before today on pages built days earlier
+    pastShows.ts        # CSS that hides Shows dated before today; inlined in each page's <head>
     navigation.ts       # the URL's query in React (useQuery, replaceQuery)
     basePath.ts         # href(): a site path under the base path
   styles/globals.css    # Tailwind and the colour theme (see the root README)

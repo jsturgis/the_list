@@ -119,7 +119,7 @@ describe('HomeShows', () => {
 
     it('marks the first page, so the page can hold it back while the URL has a query', () => {
       const { container } = renderHome()
-      expect(container.querySelector('[data-home-first-page][data-upcoming-shows]')).not.toBeNull()
+      expect(container.querySelector('[data-home-first-page]')).not.toBeNull()
       expect(container.querySelector('[data-show-date="2026-10-01"]')).not.toBeNull()
     })
 

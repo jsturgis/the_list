@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import VenueDetail from '@/components/VenueDetail'
-import { hidePastShows } from '@/lib/upcomingShows'
+import { pastShowsStyle } from '@/lib/pastShows'
 import type { Show } from '@/lib/types'
 import { makeBand, makeShow, makeVenue } from './fixtures'
 
@@ -17,14 +17,22 @@ const venue = makeVenue({
   imageUrl: 'https://example.com/catalyst.jpg', defaultAgeRestriction: 'varies',
   isSoberSpace: false, isCashOnly: true, membershipRequired: null, description: "Santa Cruz's long-running rock club.",
 })
-// As on the Venue page: the static page, then the browser hides dates that have passed (lib/upcomingShows).
+// As on the Venue page: the built list, plus the CSS that hides dates that have passed (lib/pastShows).
 const renderVenue = (v = venue, shows: Show[] = []) => {
   const result = render(<VenueDetail venue={v} upcomingShows={shows} />)
-  hidePastShows()
+  hidePast()
   return result
 }
 const show = (id: number, date: string, name: string) =>
   makeShow({ id, date, venue, acts: [{ position: 0, band: makeBand({ id, name }) }] })
+
+// The page's <head> adds this style: the export was made in early September, and the clock says Oct 1.
+function hidePast() {
+  const style = document.createElement('style')
+  style.textContent = pastShowsStyle('2026-09-01')
+  document.head.append(style)
+}
+afterEach(() => document.head.querySelectorAll('style').forEach(s => s.remove()))
 
 describe('VenueDetail', () => {
   it('shows the neighborhood, transit, Instagram and image', () => {
