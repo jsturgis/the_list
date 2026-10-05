@@ -9,7 +9,7 @@ const base = process.env.PAGES_BASE_PATH ?? '/the_list'
 const site = process.env.PAGES_SITE_URL || `https://jsturgis.github.io${base}`
 
 export default defineConfig({
-  // A static site (ADR 0002): every page is built ahead of time from the export in public/data.
+  // A static site (ADR 0002): every page is built ahead of time from the export in export/ (not published).
   output: 'static',
   base: base || '/',
   site,
