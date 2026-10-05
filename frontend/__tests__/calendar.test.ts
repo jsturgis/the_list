@@ -69,6 +69,8 @@ describe('icsDataUri', () => {
   it('escapes commas, semicolons and new lines in text', () => {
     expect(ics()).toContain('LOCATION:Bottom of the Hill\\, 1233 17th St\\, San Francisco\\, CA 94107')
     expect(ics()).toMatch(/DESCRIPTION:.*\\n/)
+    const semicolon = makeShow({ ...show, acts: [{ position: 0, band: makeBand({ name: 'Rock; Roll' }) }] })
+    expect(ics(semicolon)).toContain('Rock\\; Roll')
   })
 
   it('folds lines longer than 75 bytes, without splitting characters', () => {

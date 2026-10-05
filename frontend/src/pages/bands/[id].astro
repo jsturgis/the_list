@@ -1,0 +1,26 @@
+---
+import type { GetStaticPaths } from 'astro'
+import Layout from '@/layouts/Layout.astro'
+import BackLink from '@/components/BackLink'
+import BandDetail from '@/components/BandDetail'
+import { siteData } from '@/lib/siteData.server'
+
+// One static page per exported Band; anything else is the 404 page.
+export const getStaticPaths = (() =>
+  siteData().bandIds().map(id => {
+    const band = siteData().band(Number(id))!
+    return {
+      params: { id },
+      props: { band, upcomingShows: siteData().bandShows(band.id), similarBands: siteData().similarBands(band.id) },
+    }
+  })) satisfies GetStaticPaths
+
+const { band, upcomingShows, similarBands } = Astro.props
+---
+
+<Layout>
+  <div class="flex flex-col gap-6">
+    <BackLink />
+    <BandDetail band={band} upcomingShows={upcomingShows} similarBands={similarBands} client:load />
+  </div>
+</Layout>

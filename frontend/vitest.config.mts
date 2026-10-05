@@ -1,9 +1,8 @@
-import { defineConfig } from 'vitest/config'
-import react from '@vitejs/plugin-react'
-import tsconfigPaths from 'vite-tsconfig-paths'
+/// <reference types="vitest/config" />
+import { getViteConfig } from 'astro/config'
 
-export default defineConfig({
-  plugins: [tsconfigPaths(), react()],
+// Astro's Vite config, so tests resolve imports, React and import.meta.env (BASE_URL, PUBLIC_*) as the site does.
+export default getViteConfig({
   test: {
     environment: 'jsdom',
     globals: true,

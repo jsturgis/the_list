@@ -1,0 +1,20 @@
+---
+import type { GetStaticPaths } from 'astro'
+import Layout from '@/layouts/Layout.astro'
+import BackLink from '@/components/BackLink'
+import ShowDetail from '@/components/ShowDetail'
+import { siteData } from '@/lib/siteData.server'
+
+// One static page per exported Show; anything else is the 404 page.
+export const getStaticPaths = (() =>
+  siteData().showIds().map(id => ({ params: { id }, props: { show: siteData().show(Number(id))! } }))) satisfies GetStaticPaths
+
+const { show } = Astro.props
+---
+
+<Layout>
+  <div class="flex flex-col gap-6">
+    <BackLink />
+    <ShowDetail show={show} client:load />
+  </div>
+</Layout>

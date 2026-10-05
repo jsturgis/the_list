@@ -56,13 +56,13 @@ describe('useQuery', () => {
 
 describe('href', () => {
   it('prefixes the configured base path', () => {
-    vi.stubEnv('NEXT_PUBLIC_BASE_PATH', '/the_list')
+    vi.stubEnv('BASE_URL', '/the_list/')
     expect(href('/data/shows.json')).toBe('/the_list/data/shows.json')
     expect(href('/')).toBe('/the_list/')
   })
 
   it('leaves the path alone without one', () => {
-    vi.stubEnv('NEXT_PUBLIC_BASE_PATH', undefined)
+    vi.stubEnv('BASE_URL', '/')
     expect(href('/bands/10/')).toBe('/bands/10/')
   })
 })

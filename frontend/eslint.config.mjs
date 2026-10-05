@@ -1,22 +1,25 @@
-import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
+import { defineConfig, globalIgnores } from 'eslint/config'
+import js from '@eslint/js'
+import tseslint from 'typescript-eslint'
+import reactHooks from 'eslint-plugin-react-hooks'
+import astro from 'eslint-plugin-astro'
+import globals from 'globals'
 
-const eslintConfig = defineConfig([
-  ...nextVitals,
-  ...nextTs,
-  // Override default ignores of eslint-config-next.
+export default defineConfig([
   globalIgnores([
-    // Default ignores of eslint-config-next:
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
+    'dist/**',
+    '.astro/**',
     // Playwright: the built fixture site and run output
-    "e2e/.site/**",
-    "playwright-report/**",
-    "test-results/**",
+    'e2e/.site/**',
+    'playwright-report/**',
+    'test-results/**',
   ]),
-]);
-
-export default eslintConfig;
+  js.configs.recommended,
+  tseslint.configs.recommended,
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [reactHooks.configs.flat['recommended-latest']],
+  },
+  astro.configs.recommended,
+  { languageOptions: { globals: { ...globals.browser, ...globals.node } } },
+])

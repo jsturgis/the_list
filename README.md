@@ -18,7 +18,7 @@ removed) in a [public Google Drive folder](https://drive.google.com/drive/folder
    MusicBrainz for new bands the edition has none for, and keeps only image URLs and links that work
 4. **Stores** shows, bands, venues, and acts in SQLite (Alembic-managed schema)
 5. **Indexes** band and show embeddings in FAISS for Similar Bands (Ollama `nomic-embed-text`)
-6. **Exports** the data to static JSON and builds a Next.js static site with region, band, venue, genre,
+6. **Exports** the data to static JSON and builds an Astro static site with region, band, venue, genre,
    date and free-only filters, all running in the browser
 7. **Serves** a Strawberry GraphQL API over FastAPI, for local development only
 
@@ -33,10 +33,10 @@ removed) in a [public Google Drive folder](https://drive.google.com/drive/folder
 | Embeddings | Ollama `nomic-embed-text` (dim=768) |
 | Vector search | FAISS `IndexIDMap(IndexFlatL2)` |
 | Source | Formatted edition JSON on Google Drive (public link, `latest.json` pointer) |
-| Frontend | Next.js static export, Tailwind; Vitest, React Testing Library, MSW |
+| Frontend | Astro static site with React islands, Tailwind; Vitest, React Testing Library, MSW, Playwright |
 | Hosting | GitHub Pages, built and deployed by GitHub Actions |
 
-**Colours** come from the theme in `frontend/app/globals.css`: semantic tokens (`bg-surface`, `text-ink-muted`,
+**Colours** come from the theme in `frontend/src/styles/globals.css`: semantic tokens (`bg-surface`, `text-ink-muted`,
 `border-line`, `bg-accent`, `text-link`, `bg-danger-soft`, …) that switch with the system's light/dark setting.
 Use them instead of palette classes like `text-zinc-500`, and don't add `dark:` colour variants; to change a colour,
 change its token there. The streaming-service buttons (Spotify, SoundCloud, Bandcamp) keep their brand colours.
@@ -99,12 +99,7 @@ cd frontend && npm run dev     # http://localhost:3000/the_list/
 ```
 
 The site is served from `/the_list/`, as on GitHub Pages. `npm run build` writes the static site to
-`frontend/out/`; to try it locally, serve it under that path:
-
-```bash
-mkdir -p /tmp/site && ln -sfn "$PWD/out" /tmp/site/the_list && python3 -m http.server 8080 -d /tmp/site
-# http://localhost:8080/the_list/
-```
+`frontend/dist/`; `npm run preview` serves it under that path.
 
 Frontend checks (the same ones CI runs):
 
@@ -197,9 +192,11 @@ backend/
   tests/
   alembic/           # Database migrations
 frontend/
-  app/               # Next.js pages: home, Show, Band and Venue pages, not-found
-  components/        # UI
-  lib/               # data loading, browser filtering, base path helper
+  src/
+    pages/           # Astro pages: home, Show, Band and Venue pages, Alerts, 404
+    layouts/         # the page shell: head, header, link behaviour script
+    components/      # UI (React)
+    lib/             # data loading, browser filtering, navigation, base path helper
   __tests__/
 samples/             # sample edition JSON and the (redacted) email it came from
 scripts/
@@ -307,7 +304,8 @@ emails go through Resend from `alerts@list.sturgis.me`.
   4. **GitHub:**
      - secrets `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (the `sb_secret_…` key) and `RESEND_API_KEY`
      - variables `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (the publishable key) and
-       `ALERTS_FROM`
+       `ALERTS_FROM`. The Deploy workflow passes the first two to the build as `PUBLIC_SUPABASE_URL` and
+       `PUBLIC_SUPABASE_ANON_KEY`; set those in `frontend/.env` to try sign-in locally.
 - **Unsubscribe:** every Alert links to `/alerts/unsubscribe/?token=…`, which turns that person's
   Alerts off without signing in. People can also turn them off and on, or delete alerts, on `/alerts/`.
 - **Privacy:** email addresses never enter the repository, the `data` branch or the logs. The job logs

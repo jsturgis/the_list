@@ -1,0 +1,8 @@
+---
+import Layout from '@/layouts/Layout.astro'
+import AlertsPage from '@/components/AlertsPage'
+---
+
+<Layout title="Your alerts — The List" description="Saved searches and the weekly email of matching SF Bay Area shows.">
+  <AlertsPage client:only="react" />
+</Layout>
