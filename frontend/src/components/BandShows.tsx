@@ -19,7 +19,7 @@ export default function BandShows({ shows }: { shows: Show[] }) {
           <li key={show.id} data-show-date={show.date}>
             <a
               href={href(`/shows/${show.id}/`)}
-              className="flex items-center justify-between gap-4 text-sm -mx-2 px-2 py-1 rounded hover:bg-muted"
+              className="flex items-center justify-between gap-4 text-sm -mx-2 px-2 py-1 rounded-lg hover:bg-muted"
             >
               <span className="font-medium text-ink min-w-0 truncate">
                 {show.venue.name}

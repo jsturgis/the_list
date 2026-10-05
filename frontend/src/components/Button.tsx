@@ -5,7 +5,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export default function Button({ variant = 'primary', className = '', children, ...props }: ButtonProps) {
-  const base = 'px-5 py-2 rounded text-sm font-medium transition-colors disabled:opacity-50'
+  const base = 'px-5 py-2 rounded-full text-sm font-medium transition-colors disabled:opacity-50'
   const variants = {
     primary: 'bg-accent text-on-accent hover:bg-accent-hover',
     secondary: 'bg-muted text-ink hover:bg-muted-hover',

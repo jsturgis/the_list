@@ -19,7 +19,7 @@ export default function SimilarBands({ bands }: SimilarBandsProps) {
           <li key={b.id}>
             <BandLink
               bandId={b.id}
-              className="flex items-center gap-2 text-sm hover:bg-muted -mx-2 px-2 py-1 rounded"
+              className="flex items-center gap-2 text-sm hover:bg-muted -mx-2 px-2 py-1 rounded-lg"
             >
               <span className="font-medium text-ink">{b.name}</span>
               {b.genres.length > 0 && (

@@ -159,7 +159,7 @@ function YourAlerts({ email, userId }: { email: string; userId: string }) {
                   onClick={() => remove(f)}
                   aria-label={`Delete ${f.name}`}
                   title="Delete"
-                  className="shrink-0 rounded p-1 text-ink-faint hover:bg-muted hover:text-danger"
+                  className="shrink-0 rounded-full p-1 text-ink-faint hover:bg-muted hover:text-danger"
                 >
                   <TrashIcon className="size-4" />
                 </button>
@@ -214,13 +214,13 @@ function SignInByEmail() {
             autoComplete="email"
             value={email}
             onChange={e => setEmail(e.target.value)}
-            className="h-9 rounded border border-line-strong bg-field text-sm px-2 text-ink"
+            className="h-9 rounded-full border border-line-strong bg-field text-sm px-3 text-ink"
           />
         </div>
         <button
           type="submit"
           disabled={sending}
-          className="h-9 rounded bg-accent px-3 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50"
+          className="h-9 rounded-full bg-accent px-4 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50"
         >
           Email me a sign-in link
         </button>

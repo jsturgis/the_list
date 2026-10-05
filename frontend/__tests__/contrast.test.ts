@@ -36,6 +36,11 @@ const PAIRS: [text: string, background: string, use: string, min: number][] = [
   ['info', 'info-soft', 'Matinee badge', 4.5],
   ['hot', 'hot-soft', 'Will Sell Out badge', 4.5],
   ['ink-soft', 'muted', 'neutral flags and genre tags', 4.5],
+  ['focus-ring', 'page', 'focus outline on the page', 3],
+  ['focus-ring', 'surface', 'focus outline on rows, panels, the header', 3],
+  ['focus-ring', 'panel', 'focus outline in the filter panel', 3],
+  ['focus-ring', 'field', 'focus outline against a form field', 3],
+  ['focus-ring', 'pick', "focused Steve's Pick row", 3],
 ]
 
 const TRANSLUCENT_ON_SURFACE = new Set(['pick', 'accent-soft', 'accent-chip', 'danger-soft', 'warning-soft', 'success-soft', 'info-soft', 'hot-soft'])

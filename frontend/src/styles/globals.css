@@ -9,6 +9,7 @@
  *   page / surface / panel / field / muted   backgrounds, from the page itself up to form fields and chips
  *   ink / ink-soft / ink-muted / ink-faint   text and icons, from headings down to decorative icons
  *   line / line-subtle / line-strong         borders and dividers
+ *   focus-ring                               the keyboard focus outline (and focused rows' ring)
  *   accent, link                             the green brand colour: accent fills buttons (black text, on-accent);
  *                                            link is its text-safe shade for links and green text
  *   accent-soft, accent-chip                 tinted green backgrounds (banners, tags) with their -line / -ink
@@ -35,6 +36,7 @@
   --line: #e2e2e2;
   --line-subtle: #ececec;
   --line-strong: #cfcfcf;
+  --focus-ring: #117a37; /* the text-safe green: the accent itself is under 3:1 on light backgrounds */
 
   --accent: #1ed760;
   --accent-hover: #1fdf64;
@@ -86,6 +88,7 @@
     --line: #2a2a2a;
     --line-subtle: #222222;
     --line-strong: #4d4d4d;
+    --focus-ring: #1ed760;
 
     --accent: #1ed760;
     --accent-hover: #3be477;
@@ -137,6 +140,7 @@
   --color-line: var(--line);
   --color-line-subtle: var(--line-subtle);
   --color-line-strong: var(--line-strong);
+  --color-focus-ring: var(--focus-ring);
 
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
@@ -195,6 +199,11 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.1em;
     font-weight: 700;
+  }
+  /* Keyboard focus: a green outline on everything (DESIGN.md). Show rows ring the whole row instead. */
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
   }
 }
 

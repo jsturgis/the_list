@@ -14,8 +14,8 @@ interface ShowRowProps {
 }
 
 const calendarLink =
-  'inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-ink-muted hover:bg-muted hover:text-link ' +
-  'outline-none focus-visible:ring-2 focus-visible:ring-accent'
+  'inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs text-ink-muted hover:bg-muted hover:text-link ' +
+  'outline-none focus-visible:ring-2 focus-visible:ring-focus-ring'
 
 /**
  * A Show in a list (DESIGN.md, "Show list item"): the headliner "with" the supports, then Venue · city; then door
@@ -33,7 +33,7 @@ export default function ShowRow({ show, filterQs = '', showVenue = true }: ShowR
   return (
     <div
       data-recommended={show.isRecommended ? '' : undefined}
-      className={`relative flex flex-col gap-1 px-4 py-3 transition-colors sm:flex-row sm:gap-4 has-[[data-show-link]:focus-visible]:ring-2 has-[[data-show-link]:focus-visible]:ring-inset has-[[data-show-link]:focus-visible]:ring-accent ${
+      className={`relative flex flex-col gap-1 px-4 py-3 transition-colors sm:flex-row sm:gap-4 has-[[data-show-link]:focus-visible]:ring-2 has-[[data-show-link]:focus-visible]:ring-inset has-[[data-show-link]:focus-visible]:ring-focus-ring ${
         show.isRecommended ? 'bg-pick hover:bg-pick-hover' : 'hover:bg-surface-hover'
       }`}
     >
