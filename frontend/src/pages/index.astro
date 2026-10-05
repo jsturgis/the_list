@@ -1,9 +1,9 @@
 ---
 import Layout from '@/layouts/Layout.astro'
 import HomeShows from '@/components/HomeShows'
+// The Shows are loaded in the browser from the exported JSON (python -m app.cli export).
 ---
 
-<!-- The Shows are loaded in the browser from the exported JSON (python -m app.cli export). -->
 <Layout>
   <div class="flex flex-col gap-6">
     <h1 class="text-2xl font-bold">This Week&apos;s Shows</h1>

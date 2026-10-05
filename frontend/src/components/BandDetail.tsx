@@ -1,21 +1,18 @@
 import { GlobeAltIcon, MapPinIcon, MusicalNoteIcon } from '@heroicons/react/20/solid'
 import ExternalLink from './ExternalLink'
-import type { Band, Show } from '@/lib/types'
+import type { ReactNode } from 'react'
+import type { Band } from '@/lib/types'
 import SimilarBands from './SimilarBands'
-import { formatDateShort } from '@/lib/format'
-import { href } from '@/lib/basePath'
-import { useBayAreaToday } from '@/lib/useBayAreaToday'
 
 interface BandDetailProps {
   band: Band
-  /** The Band's Upcoming Shows; dates before today (Bay Area time) are hidden in the browser. */
-  upcomingShows: Show[]
   similarBands: Band[]
+  /** The Band's Upcoming Shows (BandShows), shown above Similar Bands; the page hydrates just that part. */
+  children?: ReactNode
 }
 
-export default function BandDetail({ band, upcomingShows, similarBands }: BandDetailProps) {
-  const today = useBayAreaToday()
-  const shows = today ? upcomingShows.filter(s => s.date >= today) : upcomingShows
+/** A Band's page body. Static: the only part that changes in the browser is the Upcoming Shows list (children). */
+export default function BandDetail({ band, similarBands, children }: BandDetailProps) {
 
   return (
     <article className="max-w-2xl mx-auto flex flex-col gap-6">
@@ -90,32 +87,7 @@ export default function BandDetail({ band, upcomingShows, similarBands }: BandDe
         </section>
       )}
 
-      {shows.length > 0 && (
-        <section>
-          <h2 className="text-base font-semibold mb-3 text-ink">
-            Upcoming Shows
-          </h2>
-          <ul className="flex flex-col gap-2">
-            {shows.map(show => (
-              <li key={show.id}>
-                <a
-                  href={href(`/shows/${show.id}/`)}
-                  className="flex items-center justify-between gap-4 text-sm -mx-2 px-2 py-1 rounded hover:bg-muted"
-                >
-                  <span className="font-medium text-ink min-w-0 truncate">
-                    {show.venue.name}
-                    {' · '}
-                    {show.venue.city}
-                  </span>
-                  <span className="text-ink-muted shrink-0">
-                    {formatDateShort(show.date)}
-                  </span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      {children}
 
       <SimilarBands bands={similarBands} />
     </article>

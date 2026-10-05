@@ -1,13 +1,13 @@
 import ShowCard from './ShowCard'
 import { useBayAreaToday } from '@/lib/useBayAreaToday'
 import { formatDateLong } from '@/lib/format'
-import type { Show } from '@/lib/types'
+import type { ShowSummary } from '@/lib/types'
 
 /**
  * A Venue's Upcoming Shows as compact rows grouped by date. Pages are built weekly, so dates before
  * today (Bay Area time) are hidden in the browser.
  */
-export default function VenueShowRows({ shows }: { shows: Show[] }) {
+export default function VenueShowRows({ shows }: { shows: ShowSummary[] }) {
   const today = useBayAreaToday()
 
   const visible = today ? shows.filter(s => s.date >= today) : shows
@@ -15,7 +15,7 @@ export default function VenueShowRows({ shows }: { shows: Show[] }) {
     return <p className="text-sm text-ink-muted">No upcoming shows.</p>
   }
 
-  const byDate = new Map<string, Show[]>()
+  const byDate = new Map<string, ShowSummary[]>()
   for (const s of visible) byDate.set(s.date, [...(byDate.get(s.date) ?? []), s])
 
   return (

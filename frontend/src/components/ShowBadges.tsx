@@ -1,6 +1,6 @@
 import type { ComponentType, ReactNode, SVGProps } from 'react'
 import { ClockIcon, ExclamationTriangleIcon, FireIcon, HeartIcon, NoSymbolIcon, SunIcon, XCircleIcon } from '@heroicons/react/16/solid'
-import type { Show } from '@/lib/types'
+import type { ShowSummary } from '@/lib/types'
 
 /** 'compact' for the single-line row (no icons, so it stays on one line), 'card' for the grid, 'detail' for the Show page. */
 export type BadgeSize = 'compact' | 'card' | 'detail'
@@ -23,7 +23,7 @@ function Badge({ icon: Icon, size, className, title, children }: {
   )
 }
 
-export function StatusBadge({ status, size = 'card' }: { status: Show['status']; size?: BadgeSize }) {
+export function StatusBadge({ status, size = 'card' }: { status: ShowSummary['status']; size?: BadgeSize }) {
   if (status !== 'cancelled' && status !== 'postponed') return null
   const isCancelled = status === 'cancelled'
   const sizing = { compact: 'text-[10px] px-1.5 py-0.5', card: 'text-xs px-2 py-0.5', detail: 'text-sm px-3 py-1.5' }[size]
@@ -37,7 +37,7 @@ export function StatusBadge({ status, size = 'card' }: { status: Show['status'];
   )
 }
 
-export function Flags({ show, size, showBenefitCause = false }: { show: Show; size: BadgeSize; showBenefitCause?: boolean }) {
+export function Flags({ show, size, showBenefitCause = false }: { show: ShowSummary; size: BadgeSize; showBenefitCause?: boolean }) {
   if (!(show.isSoldOut || show.isBenefit || show.isMatinee || show.willSellOut || show.isPit ||
         show.isDrinkTickets || show.isNoReentry)) return null
   const layout = { compact: 'gap-1 sm:flex-nowrap', card: 'gap-1 text-xs', detail: 'gap-2' }[size]

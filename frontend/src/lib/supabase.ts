@@ -14,6 +14,11 @@ const key = import.meta.env.PUBLIC_SUPABASE_ANON_KEY
 export const supabase: SupabaseClient | null =
   url && key && typeof window !== 'undefined' ? createClient(url, key, { auth: { flowType: 'implicit' } }) : null
 
+/** Whether this build has the Supabase settings, so the Alerts features are shown (read at build time too). */
+export function alertsAvailable(): boolean {
+  return Boolean(import.meta.env.PUBLIC_SUPABASE_URL && import.meta.env.PUBLIC_SUPABASE_ANON_KEY)
+}
+
 /** The most Saved Filters (alerts) one person can have; the database enforces it (see the saved_filters trigger). */
 export const MAX_ALERTS = 20
 

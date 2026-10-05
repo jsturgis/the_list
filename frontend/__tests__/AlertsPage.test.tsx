@@ -71,21 +71,6 @@ describe('Alerts page, signed in', () => {
   })
 })
 
-describe('Header link to the Alerts page', () => {
-  it('is shown when Alerts are available', async () => {
-    const { default: AlertsLink } = await import('@/components/AlertsLink')
-    render(<AlertsLink />)
-    expect(await screen.findByRole('link', { name: 'Your alerts' })).toHaveAttribute('href', expect.stringMatching(/^\/alerts\/?$/))
-  })
-
-  it('is hidden when the build has no Supabase settings', async () => {
-    fake.current = null
-    const { default: AlertsLink } = await import('@/components/AlertsLink')
-    const { container } = render(<AlertsLink />)
-    expect(container).toBeEmptyDOMElement()
-  })
-})
-
 describe('Managing alerts', () => {
   beforeEach(() => {
     fake.current!.state.email = 'fan@example.com'

@@ -3,6 +3,8 @@ import type { GetStaticPaths } from 'astro'
 import Layout from '@/layouts/Layout.astro'
 import BackLink from '@/components/BackLink'
 import BandDetail from '@/components/BandDetail'
+import BandShows from '@/components/BandShows'
+import { summarizeShow } from '@/lib/data'
 import { siteData } from '@/lib/siteData.server'
 
 // One static page per exported Band; anything else is the 404 page.
@@ -21,6 +23,9 @@ const { band, upcomingShows, similarBands } = Astro.props
 <Layout>
   <div class="flex flex-col gap-6">
     <BackLink />
-    <BandDetail band={band} upcomingShows={upcomingShows} similarBands={similarBands} client:load />
+    <BandDetail band={band} similarBands={similarBands}>
+      {/* The only island: it hides Shows whose date has passed since the build. */}
+      <BandShows shows={upcomingShows.map(summarizeShow)} client:load />
+    </BandDetail>
   </div>
 </Layout>

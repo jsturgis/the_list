@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import BandDetail from '@/components/BandDetail'
+import BandShows from '@/components/BandShows'
 import SimilarBands from '@/components/SimilarBands'
 import { makeBand, makeShow, makeVenue } from './fixtures'
 
@@ -35,8 +36,9 @@ describe('BandDetail', () => {
     }),
   ]
 
+  // As the Band page composes them: the Upcoming Shows island in BandDetail's slot.
   const renderBand = (b = band, shows = upcomingShows) =>
-    render(<BandDetail band={b} upcomingShows={shows} similarBands={similar} />)
+    render(<BandDetail band={b} similarBands={similar}><BandShows shows={shows} /></BandDetail>)
 
   it('renders band name', () => {
     renderBand()

@@ -1,10 +1,9 @@
-import type { ComponentType, SVGProps } from 'react'
+import type { ComponentType, ReactNode, SVGProps } from 'react'
 import {
   BanknotesIcon, BookOpenIcon, CameraIcon, GlobeAltIcon, IdentificationIcon, MapIcon, MapPinIcon, PhoneIcon, StarIcon, UserIcon,
 } from '@heroicons/react/20/solid'
-import type { Show, Venue } from '@/lib/types'
+import type { Venue } from '@/lib/types'
 import ExternalLink from './ExternalLink'
-import VenueShowRows from './VenueShowRows'
 import { REGION_LABELS, mapsHref, telHref } from '@/lib/format'
 
 const AGE_POLICY: Record<string, string> = { all_ages: 'All ages', varies: 'Varies by show' }
@@ -21,10 +20,12 @@ interface Rule {
 
 interface VenueDetailProps {
   venue: Venue
-  upcomingShows: Show[]
+  /** The Venue's Upcoming Shows (VenueShowRows), shown last; the page hydrates just that part. */
+  children?: ReactNode
 }
 
-export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) {
+/** A Venue's page body. Static: the only part that changes in the browser is the Upcoming Shows list (children). */
+export default function VenueDetail({ venue, children }: VenueDetailProps) {
   const rules: Rule[] = []
   if (venue.isSoberSpace) rules.push({ label: 'Sober space' })
   if (venue.isCashOnly) rules.push({ label: 'Cash only', icon: BanknotesIcon })
@@ -126,7 +127,7 @@ export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) 
         </p>
       )}
 
-      <VenueShowRows shows={upcomingShows} />
+      {children}
     </article>
   )
 }
