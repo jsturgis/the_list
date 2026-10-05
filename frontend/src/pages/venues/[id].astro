@@ -1,0 +1,23 @@
+---
+import type { GetStaticPaths } from 'astro'
+import Layout from '@/layouts/Layout.astro'
+import BackLink from '@/components/BackLink'
+import VenueDetail from '@/components/VenueDetail'
+import { siteData } from '@/lib/siteData.server'
+
+// One static page per exported Venue; anything else is the 404 page.
+export const getStaticPaths = (() =>
+  siteData().venueIds().map(id => {
+    const venue = siteData().venue(Number(id))!
+    return { params: { id }, props: { venue, upcomingShows: siteData().venueShows(venue.id) } }
+  })) satisfies GetStaticPaths
+
+const { venue, upcomingShows } = Astro.props
+---
+
+<Layout>
+  <div class="flex flex-col gap-6">
+    <BackLink />
+    <VenueDetail venue={venue} upcomingShows={upcomingShows} client:load />
+  </div>
+</Layout>

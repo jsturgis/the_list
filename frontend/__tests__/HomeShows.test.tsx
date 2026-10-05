@@ -105,7 +105,7 @@ describe('HomeShows', () => {
   })
 
   it('loads the data files from under the base path', async () => {
-    vi.stubEnv('NEXT_PUBLIC_BASE_PATH', '/the_list')
+    vi.stubEnv('BASE_URL', '/the_list/')
     render(<HomeShows />)
     await screen.findByText('Tonight Band')
     expect(requested.sort()).toEqual(['/the_list/data/bands.json', '/the_list/data/meta.json',

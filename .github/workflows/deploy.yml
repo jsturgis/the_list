@@ -173,15 +173,17 @@ jobs:
           PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
           PAGES_SITE_URL: ${{ steps.pages.outputs.base_url }}
           # Sign-in and Saved Filters (ADR 0003). Public by design; without them the Alerts features are hidden.
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          # The repository variables keep their original NEXT_PUBLIC_ names; Astro reads PUBLIC_ ones.
+          PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          ASTRO_TELEMETRY_DISABLED: 1
         run: |
           npm ci
           npm run build
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: frontend/out
+          path: frontend/dist
 
   deploy:
     needs: build

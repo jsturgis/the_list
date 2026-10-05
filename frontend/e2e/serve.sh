@@ -7,12 +7,12 @@ FIXTURES=e2e/fixtures/data
 SITE=e2e/.site
 PORT="${E2E_PORT:-4173}"
 
-SITE_DATA_DIR="$FIXTURES" npx next build
+SITE_DATA_DIR="$FIXTURES" npx astro build
 
-# The build copies public/data (the local export, if any) into out/; the browser must load the fixtures.
+# The build copies public/data (the local export, if any) into dist/; the browser must load the fixtures.
 rm -rf "$SITE"
 mkdir -p "$SITE"
-cp -R out "$SITE/the_list"
+cp -R dist "$SITE/the_list"
 rm -rf "$SITE/the_list/data"
 cp -R "$FIXTURES" "$SITE/the_list/data"
 

@@ -1,0 +1,47 @@
+---
+import '@/styles/globals.css'
+import AlertsLink from '@/components/AlertsLink'
+import { href } from '@/lib/basePath'
+
+interface Props {
+  title?: string
+  description?: string
+  /** Keep the page out of search indexes. */
+  noindex?: boolean
+}
+
+const {
+  title = 'The List — SF Bay Area Music',
+  description = "Steve's weekly SF Bay Area music listing, enriched and made browsable.",
+  noindex = false,
+} = Astro.props
+---
+
+<!doctype html>
+<html lang="en" class="h-full antialiased">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    {noindex && <meta name="robots" content="noindex" />}
+    <link rel="icon" href={href('/favicon.ico')} sizes="any" />
+  </head>
+  <body class="min-h-full bg-page text-ink">
+    <header class="border-b border-line-subtle bg-surface">
+      <div class="max-w-5xl mx-auto px-4 py-4 flex items-center gap-2">
+        <a href={href('/')} class="font-bold text-lg tracking-tight">The List</a>
+        <span class="text-ink-faint text-sm">SF Bay Area Music</span>
+        <AlertsLink client:load />
+      </div>
+    </header>
+    <main class="max-w-5xl mx-auto px-4 py-6">
+      <slot />
+    </main>
+    <script>
+      // Links that keep the Shows list's filters, and the Back link (lib/keepFilters).
+      import { installLinkBehaviour } from '@/lib/keepFilters'
+      installLinkBehaviour()
+    </script>
+  </body>
+</html>
