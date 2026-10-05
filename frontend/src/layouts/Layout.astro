@@ -27,6 +27,8 @@ const {
     <meta name="description" content={description} />
     {noindex && <meta name="robots" content="noindex" />}
     <link rel="icon" href={href('/favicon.ico')} sizes="any" />
+    <!-- Lets CSS hold back what lib/upcomingShows trims, but only when JavaScript will run to trim it. -->
+    <script is:inline>document.documentElement.dataset.js = ''</script>
   </head>
   <body class="min-h-full bg-page text-ink">
     <header class="border-b border-line-subtle bg-surface">
@@ -40,9 +42,12 @@ const {
       <slot />
     </main>
     <script>
-      // Links that keep the Shows list's filters, and the Back link (lib/keepFilters).
+      // Links that keep the Shows list's filters, and the Back link (lib/keepFilters); Upcoming Shows lists drop
+      // the dates that have passed since the weekly build (lib/upcomingShows).
       import { installLinkBehaviour } from '@/lib/keepFilters'
+      import { hidePastShows } from '@/lib/upcomingShows'
       installLinkBehaviour()
+      hidePastShows()
     </script>
   </body>
 </html>

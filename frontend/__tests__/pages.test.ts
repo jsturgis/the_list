@@ -69,10 +69,9 @@ describe('the header', () => {
   })
 })
 
-describe('detail pages ship React only for their Upcoming Shows', () => {
-  const venue = makeVenue({ id: 2, name: '924 Gilman Street', description: 'A volunteer-run all-ages club.' })
-  const band = makeBand({ id: 1, name: 'Neon Harbor', description: 'Synth-pop from Oakland.' })
-  const similar = makeBand({ id: 3, name: 'Static Bloom' })
+describe('detail pages ship no React', () => {
+  const venue = makeVenue({ id: 2, name: '924 Gilman Street' })
+  const band = makeBand({ id: 1, name: 'Neon Harbor' })
   const shows = [
     makeShow({ id: 102, date: '2026-10-03', venue, acts: [{ position: 0, band }] }),
     makeShow({ id: 105, date: '2026-10-05', venue, acts: [{ position: 0, band }] }),
@@ -84,22 +83,23 @@ describe('detail pages ship React only for their Upcoming Shows', () => {
     expect(islands(html)).toEqual([])
   })
 
-  it("a Venue page hydrates only its Upcoming Shows, given only the Shows", async () => {
-    const html = await render(VenuePage, { venue, upcomingShows: shows })
-    expect(html).toContain('A volunteer-run all-ages club.')
-    const found = islands(html)
-    expect(found.map(i => i.component)).toEqual(['VenueShowRows'])
-    expect(found[0].props).toContain('&quot;shows&quot;')
-    expect(found[0].props).not.toContain('A volunteer-run all-ages club.')
+  it('marks the page as running JavaScript before it renders, so lists can wait to be trimmed', async () => {
+    const html = await render(ShowPage, { show: shows[0] })
+    expect(html).toMatch(/<head>.*<script>document\.documentElement\.dataset\.js = ''<\/script>.*<\/head>/s)
   })
 
-  it('a Band page hydrates only its Upcoming Shows, given only the Shows', async () => {
-    const html = await render(BandPage, { band, upcomingShows: shows, similarBands: [similar] })
-    expect(html).toContain('Synth-pop from Oakland.')
-    expect(html).toContain('Static Bloom')
-    const found = islands(html)
-    expect(found.map(i => i.component)).toEqual(['BandShows'])
-    expect(found[0].props).not.toContain('Static Bloom')
-    expect(found[0].props).not.toContain('Synth-pop from Oakland.')
+  it('a Venue page lists its Upcoming Shows statically, marked by date for the browser to trim', async () => {
+    const html = await render(VenuePage, { venue, upcomingShows: shows })
+    expect(islands(html)).toEqual([])
+    expect(html).toContain('data-upcoming-shows')
+    expect(html).toContain('data-show-date="2026-10-03"')
+    expect(html).toContain('data-show-date="2026-10-05"')
+  })
+
+  it('a Band page lists its Upcoming Shows statically, marked by date for the browser to trim', async () => {
+    const html = await render(BandPage, { band, upcomingShows: shows, similarBands: [] })
+    expect(islands(html)).toEqual([])
+    expect(html).toContain('data-upcoming-shows')
+    expect(html).toContain('data-show-date="2026-10-03"')
   })
 })
