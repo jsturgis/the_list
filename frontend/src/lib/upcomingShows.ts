@@ -7,7 +7,8 @@ import { bayAreaToday } from './data'
  * container is hidden and its data-upcoming-shows-empty message, if it has one, is shown instead.
  *
  * So past Shows never flash up, the layout marks the page data-js before it renders, and CSS keeps each list
- * invisible until this has run and marked it data-upcoming-shows-ready. Without JavaScript, lists show as built.
+ * invisible until this has run and marked it data-upcoming-shows-ready. Without JavaScript, or if a script fails
+ * to load or throws (the layout then removes data-js), lists show as built.
  */
 export function hidePastShows(root: ParentNode = document, today: string = bayAreaToday()): void {
   for (const list of root.querySelectorAll<HTMLElement>('[data-upcoming-shows]')) {

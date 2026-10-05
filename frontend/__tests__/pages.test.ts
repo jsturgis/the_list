@@ -85,7 +85,7 @@ describe('detail pages ship no React', () => {
 
   it('marks the page as running JavaScript before it renders, so lists can wait to be trimmed', async () => {
     const html = await render(ShowPage, { show: shows[0] })
-    expect(html).toMatch(/<head>.*<script>document\.documentElement\.dataset\.js = ''<\/script>.*<\/head>/s)
+    expect(html).toMatch(/<head>.*<script>.*document\.documentElement\.dataset\.js = ''.*<\/script>.*<\/head>/s)
   })
 
   it('a Venue page lists its Upcoming Shows statically, marked by date for the browser to trim', async () => {
