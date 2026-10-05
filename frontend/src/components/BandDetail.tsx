@@ -77,7 +77,7 @@ export default function BandDetail({ band, upcomingShows, similarBands }: BandDe
             <ExternalLink
               href={band.websiteUrl}
               icon={GlobeAltIcon}
-              className="text-sm px-3 py-1.5 rounded bg-strong text-white hover:bg-strong-hover"
+              className="text-sm px-3 py-1.5 rounded bg-strong text-on-inverse hover:bg-strong-hover"
             >
               Website
             </ExternalLink>

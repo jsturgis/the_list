@@ -1,4 +1,6 @@
 ---
+import '@fontsource-variable/figtree'
+import figtreeLatin from '@fontsource-variable/figtree/files/figtree-latin-wght-normal.woff2?url'
 import '@/styles/globals.css'
 import AlertsLink from '@/components/AlertsLink'
 import { href } from '@/lib/basePath'
@@ -34,6 +36,8 @@ const pastShowsScript =
     <meta name="description" content={description} />
     {noindex && <meta name="robots" content="noindex" />}
     <link rel="icon" href={href('/favicon.ico')} sizes="any" />
+    <!-- Figtree (DESIGN.md): preload the Latin file so text renders in it from the start, not after a swap. -->
+    <link rel="preload" href={figtreeLatin} as="font" type="font/woff2" crossorigin />
     <script is:inline set:html={pastShowsScript} />
     <script is:inline>
       // The home page's built first page is unfiltered, so CSS holds it back while the URL may have filters, until

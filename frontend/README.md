@@ -62,6 +62,13 @@ src/
   styles/globals.css    # Tailwind and the colour theme (see the root README)
 ```
 
+## Screenshots
+
+`npm run screenshots -- <dir>` builds the site from the e2e fixtures (with placeholder Supabase settings, so the Alerts
+features show) and saves every page, plus the Setup Alert panel, in light and dark mode. Use it for before/after
+shots of visible changes (see `DESIGN.md`). To photograph another build, such as `main`'s for the "before" set, pass
+its directory (the one holding `the_list/`) as a second argument. It's not part of CI.
+
 ## Checks
 
 The same ones CI runs:
