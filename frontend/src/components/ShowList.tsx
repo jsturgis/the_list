@@ -26,8 +26,9 @@ interface ShowListProps {
   dbTotal?: number
   filterOptions?: FilterOptions
   /**
-   * The list is the page's build-time first page: its dates are marked for lib/upcomingShows to drop any that
-   * have passed, and it's held back while the URL has a query (the layout's <head> script), as it's unfiltered.
+   * The list is the page's build-time first page: its dates are marked, so the page's CSS hides any that have
+   * passed (lib/pastShows), and it's held back while the URL has a query (the layout's <head> script), as it's
+   * unfiltered.
    */
   firstPage?: boolean
 }
@@ -103,14 +104,10 @@ export default function ShowList({ shows: listed, showCount, dbTotal = 0, filter
         </div>
       ) : (
         <>
-          <section
-            data-upcoming-shows={firstPage ? '' : undefined}
-            data-home-first-page={firstPage ? '' : undefined}
-            suppressHydrationWarning  // lib/upcomingShows marks it ready before or after hydration
-          >
+          <section data-home-first-page={firstPage ? '' : undefined}>
             <div className="flex flex-col gap-6">
               {sortedDates.map(date => (
-                <div key={date} data-show-date={firstPage ? date : undefined} suppressHydrationWarning>
+                <div key={date} data-show-date={firstPage ? date : undefined}>
                   <h3 className="text-sm font-semibold text-ink-muted uppercase tracking-wide mb-2">
                     {formatDateLong(date)}
                   </h3>

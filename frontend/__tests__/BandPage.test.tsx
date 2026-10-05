@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import BandDetail from '@/components/BandDetail'
-import { hidePastShows } from '@/lib/upcomingShows'
+import { pastShowsStyle } from '@/lib/pastShows'
 import SimilarBands from '@/components/SimilarBands'
 import { makeBand, makeShow, makeVenue } from './fixtures'
 
@@ -15,6 +15,14 @@ const similar = [
   makeBand({ id: 10, name: 'LCD Soundsystem', genres: ['indie rock', 'electronic'] }),
   makeBand({ id: 11, name: 'Interpol', genres: ['post-punk', 'indie rock'] }),
 ]
+
+// The page's <head> adds this style: the export was made in early September, and the clock says Oct 1.
+function hidePast() {
+  const style = document.createElement('style')
+  style.textContent = pastShowsStyle('2026-09-01')
+  document.head.append(style)
+}
+afterEach(() => document.head.querySelectorAll('style').forEach(s => s.remove()))
 
 describe('BandDetail', () => {
   const band = makeBand({
@@ -36,10 +44,10 @@ describe('BandDetail', () => {
     }),
   ]
 
-  // As on the Band page: the static page, then the browser hides dates that have passed (lib/upcomingShows).
+  // As on the Band page: the built list, plus the CSS that hides dates that have passed (lib/pastShows).
   const renderBand = (b = band, shows = upcomingShows) => {
     const result = render(<BandDetail band={b} upcomingShows={shows} similarBands={similar} />)
-    hidePastShows()
+    hidePast()
     return result
   }
 

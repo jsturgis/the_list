@@ -3,14 +3,14 @@ import { formatDateShort } from '@/lib/format'
 import type { Show } from '@/lib/types'
 
 /**
- * A Band's Upcoming Shows, linking to each Show. Static: pages are built weekly, so lib/upcomingShows hides
- * dates before today (Bay Area time) in the browser, and the whole section when none are left.
+ * A Band's Upcoming Shows, linking to each Show. Pages are built weekly, so the page's CSS hides dates before
+ * today (Bay Area time), and the whole section when none are left (lib/pastShows).
  */
 export default function BandShows({ shows }: { shows: Show[] }) {
   if (shows.length === 0) return null
 
   return (
-    <section data-upcoming-shows="">
+    <section data-upcoming-shows-list="">
       <h2 className="text-base font-semibold mb-3 text-ink">
         Upcoming Shows
       </h2>

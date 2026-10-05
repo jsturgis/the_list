@@ -2,6 +2,8 @@
 import '@/styles/globals.css'
 import AlertsLink from '@/components/AlertsLink'
 import { href } from '@/lib/basePath'
+import { pastShowsStyle } from '@/lib/pastShows'
+import { siteData } from '@/lib/siteData.server'
 import { alertsAvailable } from '@/lib/supabase'
 
 interface Props {
@@ -16,6 +18,11 @@ const {
   description = "Steve's weekly SF Bay Area music listing, enriched and made browsable.",
   noindex = false,
 } = Astro.props
+
+// Hides Shows dated before today, before anything is drawn: the page may have been built days ago.
+const pastShowsScript =
+  `document.head.append(Object.assign(document.createElement('style'), ` +
+  `{ textContent: (${pastShowsStyle})(${JSON.stringify(siteData().exportDay)}) }))`
 ---
 
 <!doctype html>
@@ -27,11 +34,12 @@ const {
     <meta name="description" content={description} />
     {noindex && <meta name="robots" content="noindex" />}
     <link rel="icon" href={href('/favicon.ico')} sizes="any" />
+    <script is:inline set:html={pastShowsScript} />
     <script is:inline>
-      // Lets CSS hold back what lib/upcomingShows trims, but only when JavaScript will run to trim it. If a script
-      // fails to load or throws, drop the mark, so held-back lists show untrimmed rather than not at all.
+      // The home page's built first page is unfiltered, so CSS holds it back while the URL may have filters, until
+      // HomeShows has every Show. Only when JavaScript runs (data-js); if a script fails to load or throws, drop the
+      // mark, so the first page shows rather than nothing.
       document.documentElement.dataset.js = ''
-      // The home page's built first page is unfiltered: hold it back when the URL may have filters (HomeShows).
       if (location.search.length > 1) document.documentElement.dataset.query = ''
       addEventListener('error', e => {
         if (e instanceof ErrorEvent || e.target instanceof HTMLScriptElement) delete document.documentElement.dataset.js
@@ -50,12 +58,9 @@ const {
       <slot />
     </main>
     <script>
-      // Links that keep the Shows list's filters, and the Back link (lib/keepFilters); Upcoming Shows lists drop
-      // the dates that have passed since the weekly build (lib/upcomingShows).
+      // Links that keep the Shows list's filters, and the Back link (lib/keepFilters).
       import { installLinkBehaviour } from '@/lib/keepFilters'
-      import { hidePastShows } from '@/lib/upcomingShows'
       installLinkBehaviour()
-      hidePastShows()
     </script>
   </body>
 </html>

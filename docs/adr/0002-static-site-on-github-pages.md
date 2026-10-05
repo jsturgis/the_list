@@ -11,7 +11,7 @@ The List is published as a static site on GitHub Pages instead of running the Fa
 
 - The GraphQL API is still the way to explore data locally, but the published site never calls it; anything the site shows has to be in the export.
 - Every page must exist at build time: the Show, Venue and Band pages come from `getStaticPaths` over the export, so a Band or Show added between deploys has no page until the next one, and any other id gets the 404 page.
-- Pages are built days before some visits, so anything that depends on today's date is decided in the browser: past Shows are dropped from lists there, in Bay Area time.
+- Pages are built days before some visits, so anything that depends on today's date is decided in the browser, in Bay Area time. Lists leave out Shows dated before the export, and an inline `<head>` script hides any that have passed since (ADR 0004).
 - The build reads the export from `frontend/public/data` and writes the site to `frontend/dist`, which the Deploy workflow uploads. The export files are copied into the published site too, though the site itself no longer fetches them.
 - The `data` branch grows by roughly a database's size per ingest. If that becomes a problem, squash its history; only the latest commit is used.
 - Rolling back the site is reverting a `data` branch commit and redeploying.
