@@ -130,3 +130,20 @@ test('a failed data load shows an error', async ({ page }) => {
 
   await expect(page.getByRole('main').getByRole('alert')).toContainText("Couldn't load the list of shows")
 })
+
+test("a Venue's Upcoming Shows still show if the page script fails to load", async ({ page }) => {
+  await page.route('**/_astro/*.js', route => route.abort())
+  await page.goto('venues/2/')
+
+  const upcoming = page.getByRole('region', { name: 'Upcoming Shows' })
+  await expect(upcoming).toBeVisible()
+  await expect(upcoming.locator('a[href*="/shows/"]')).toHaveCount(2)
+})
+
+test("a Band's Upcoming Shows still show if the page script throws", async ({ page }) => {
+  await page.route('**/_astro/*.js', route =>
+    route.fulfill({ contentType: 'text/javascript', body: 'throw new Error("broken build")' }))
+  await page.goto('bands/1/')
+
+  await expect(page.getByRole('heading', { name: 'Upcoming Shows' })).toBeVisible()
+})

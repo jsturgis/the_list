@@ -27,8 +27,14 @@ const {
     <meta name="description" content={description} />
     {noindex && <meta name="robots" content="noindex" />}
     <link rel="icon" href={href('/favicon.ico')} sizes="any" />
-    <!-- Lets CSS hold back what lib/upcomingShows trims, but only when JavaScript will run to trim it. -->
-    <script is:inline>document.documentElement.dataset.js = ''</script>
+    <script is:inline>
+      // Lets CSS hold back what lib/upcomingShows trims, but only when JavaScript will run to trim it. If a script
+      // fails to load or throws, drop the mark, so held-back lists show untrimmed rather than not at all.
+      document.documentElement.dataset.js = ''
+      addEventListener('error', e => {
+        if (e instanceof ErrorEvent || e.target instanceof HTMLScriptElement) delete document.documentElement.dataset.js
+      }, true)
+    </script>
   </head>
   <body class="min-h-full bg-page text-ink">
     <header class="border-b border-line-subtle bg-surface">
