@@ -36,10 +36,10 @@ removed) in a [public Google Drive folder](https://drive.google.com/drive/folder
 | Frontend | Astro static site with React islands, Tailwind; Vitest, React Testing Library, MSW, Playwright |
 | Hosting | GitHub Pages, built and deployed by GitHub Actions |
 
-**Colours** come from the theme in `frontend/src/styles/globals.css`: semantic tokens (`bg-surface`, `text-ink-muted`,
-`border-line`, `bg-accent`, `text-link`, `bg-danger-soft`, …) that switch with the system's light/dark setting.
-Use them instead of palette classes like `text-zinc-500`, and don't add `dark:` colour variants; to change a colour,
-change its token there. The streaming-service buttons (Spotify, SoundCloud, Bandcamp) keep their brand colours.
+**Design:** [`DESIGN.md`](DESIGN.md) describes the site's design system: the colour tokens (defined in
+`frontend/src/styles/globals.css`, switching with the system's light/dark setting), the Figtree typeface, the type
+scale and the component styles. Use the semantic tokens (`bg-surface`, `text-ink-muted`, `text-link`, …) rather than
+palette classes or `dark:` variants; a test keeps `DESIGN.md` and the stylesheet in sync.
 
 ## Local setup
 

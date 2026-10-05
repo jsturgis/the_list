@@ -3,55 +3,57 @@
 /*
  * Colour theme. Components use these semantic tokens (bg-surface, text-ink-muted, border-line, bg-accent, …)
  * rather than palette colours, and never need a dark: variant for colour: each token switches with the
- * system's light/dark setting below. To change the palette, change the values here.
+ * system's light/dark setting below. DESIGN.md (repository root) describes every token; to change the palette,
+ * change the values here and there (a test keeps them in sync).
  *
  *   page / surface / panel / field / muted   backgrounds, from the page itself up to form fields and chips
  *   ink / ink-soft / ink-muted / ink-faint   text and icons, from headings down to decorative icons
  *   line / line-subtle / line-strong         borders and dividers
- *   accent, link                             the amber brand colour: filled buttons, links and highlights
- *   accent-soft, accent-chip                 tinted amber backgrounds (banners, tags) with their -line / -ink
+ *   accent, link                             the green brand colour: accent fills buttons (black text, on-accent);
+ *                                            link is its text-safe shade for links and green text
+ *   accent-soft, accent-chip                 tinted green backgrounds (banners, tags) with their -line / -ink
  *   pick                                     a Steve's Pick card: background, -hover and -line (border)
  *   surface-hover, field-active              hover on a card; the highlighted option in a list
  *   inverse, strong                          dark-on-light surfaces: toasts, the neutral filled button
  *   danger, warning, success, info, hot      status colours: text, and a -soft background for badges
  */
 :root {
-  --page: --theme(--color-zinc-50 inline);
-  --surface: --theme(--color-white inline);
-  --panel: --theme(--color-zinc-50 inline);
-  --field: --theme(--color-white inline);
-  --muted: --theme(--color-zinc-100 inline);
-  --muted-hover: --theme(--color-zinc-200 inline);
-  --surface-hover: --theme(--color-zinc-50 inline);
-  --field-active: --theme(--color-zinc-100 inline);
+  --page: #f6f6f6;
+  --surface: #ffffff;
+  --panel: #ffffff;
+  --field: #ededed;
+  --muted: #ededed;
+  --muted-hover: #e2e2e2;
+  --surface-hover: #f0f0f0;
+  --field-active: #e2e2e2;
 
-  --ink: --theme(--color-zinc-900 inline);
-  --ink-soft: --theme(--color-zinc-600 inline);
-  --ink-muted: --theme(--color-zinc-500 inline);
-  --ink-faint: --theme(--color-zinc-400 inline);
+  --ink: #121212;
+  --ink-soft: #3d3d3d;
+  --ink-muted: #5c5c5c;
+  --ink-faint: #808080;
 
-  --line: --theme(--color-zinc-200 inline);
-  --line-subtle: --theme(--color-zinc-200 inline);
-  --line-strong: --theme(--color-zinc-300 inline);
+  --line: #e2e2e2;
+  --line-subtle: #ececec;
+  --line-strong: #cfcfcf;
 
-  --accent: --theme(--color-amber-500 inline);
-  --accent-hover: --theme(--color-amber-600 inline);
-  --on-accent: --theme(--color-white inline);
-  --link: --theme(--color-amber-700 inline); /* not 600: amber-600 on white is ~3:1, below WCAG AA for text */
-  --accent-soft: --theme(--color-amber-50 inline);
-  --accent-soft-line: --theme(--color-amber-200 inline);
-  --accent-soft-ink: --theme(--color-amber-900 inline);
-  --accent-chip: --theme(--color-amber-100 inline);
-  --accent-chip-ink: --theme(--color-amber-800 inline);
-  --pick: --theme(--color-amber-50 inline);
-  --pick-hover: --theme(--color-amber-100 inline);
-  --pick-line: --theme(--color-amber-400 inline);
+  --accent: #1ed760;
+  --accent-hover: #1fdf64;
+  --on-accent: #000000;
+  --link: #117a37;
+  --accent-soft: #e8f9ee;
+  --accent-soft-line: #b5ecc8;
+  --accent-soft-ink: #0b4f24;
+  --accent-chip: #d6f5e1;
+  --accent-chip-ink: #0d6b30;
+  --pick: #e8f9ee;
+  --pick-hover: #dcf6e6;
+  --pick-line: #117a37;
 
-  --inverse: --theme(--color-zinc-900 inline);
-  --on-inverse: --theme(--color-white inline);
-  --inverse-muted: --theme(--color-zinc-400 inline);
-  --strong: --theme(--color-zinc-800 inline);
-  --strong-hover: --theme(--color-zinc-700 inline);
+  --inverse: #121212;
+  --on-inverse: #ffffff;
+  --inverse-muted: #b3b3b3;
+  --strong: #121212;
+  --strong-hover: #2a2a2a;
 
   --danger: --theme(--color-red-600 inline);
   --danger-soft: --theme(--color-red-100 inline);
@@ -67,41 +69,42 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --page: --theme(--color-zinc-950 inline);
-    --surface: --theme(--color-zinc-900 inline);
-    --panel: --theme(--color-zinc-900 inline);
-    --field: --theme(--color-zinc-800 inline);
-    --muted: --theme(--color-zinc-800 inline);
-    --muted-hover: --theme(--color-zinc-700 inline);
-    --surface-hover: color-mix(in oklab, --theme(--color-zinc-800 inline) 60%, transparent);
-    --field-active: --theme(--color-zinc-700 inline);
+    --page: #121212;
+    --surface: #181818;
+    --panel: #181818;
+    --field: #2a2a2a;
+    --muted: #2a2a2a;
+    --muted-hover: #333333;
+    --surface-hover: #252525;
+    --field-active: #333333;
 
-    --ink: --theme(--color-zinc-50 inline);
-    --ink-soft: --theme(--color-zinc-300 inline);
-    --ink-muted: --theme(--color-zinc-400 inline);
-    --ink-faint: --theme(--color-zinc-500 inline);
+    --ink: #ffffff;
+    --ink-soft: #cbcbcb;
+    --ink-muted: #b3b3b3;
+    --ink-faint: #7c7c7c;
 
-    --line: --theme(--color-zinc-700 inline);
-    --line-subtle: --theme(--color-zinc-800 inline);
-    --line-strong: --theme(--color-zinc-600 inline);
+    --line: #2a2a2a;
+    --line-subtle: #222222;
+    --line-strong: #4d4d4d;
 
-    --accent: --theme(--color-amber-600 inline);
-    --accent-hover: --theme(--color-amber-500 inline);
-    --link: --theme(--color-amber-400 inline);
-    --accent-soft: color-mix(in oklab, --theme(--color-amber-900 inline) 20%, transparent);
-    --accent-soft-line: color-mix(in oklab, --theme(--color-amber-800 inline) 60%, transparent);
-    --accent-soft-ink: --theme(--color-amber-200 inline);
-    --accent-chip: color-mix(in oklab, --theme(--color-amber-900 inline) 40%, transparent);
-    --accent-chip-ink: --theme(--color-amber-300 inline);
-    --pick: color-mix(in oklab, --theme(--color-amber-950 inline) 20%, transparent);
-    --pick-hover: color-mix(in oklab, --theme(--color-amber-950 inline) 40%, transparent);
-    --pick-line: --theme(--color-amber-600 inline);
+    --accent: #1ed760;
+    --accent-hover: #3be477;
+    --on-accent: #000000;
+    --link: #1ed760;
+    --accent-soft: #10291a;
+    --accent-soft-line: #1b4d2d;
+    --accent-soft-ink: #b8f5cd;
+    --accent-chip: #143a22;
+    --accent-chip-ink: #6ff09b;
+    --pick: #1b2a20;
+    --pick-hover: #213528;
+    --pick-line: #1ed760;
 
-    --inverse: --theme(--color-zinc-100 inline);
-    --on-inverse: --theme(--color-zinc-900 inline);
-    --inverse-muted: --theme(--color-zinc-500 inline);
-    --strong: --theme(--color-zinc-700 inline);
-    --strong-hover: --theme(--color-zinc-600 inline);
+    --inverse: #ffffff;
+    --on-inverse: #121212;
+    --inverse-muted: #666666;
+    --strong: #ffffff;
+    --strong-hover: #e0e0e0;
 
     --danger: --theme(--color-red-400 inline);
     --danger-soft: color-mix(in oklab, --theme(--color-red-900 inline) 40%, transparent);
@@ -164,6 +167,9 @@
   --color-info-soft: var(--info-soft);
   --color-hot: var(--hot);
   --color-hot-soft: var(--hot-soft);
+
+  /* Figtree (self-hosted, loaded by the layout), DESIGN.md's typeface. */
+  --font-sans: 'Figtree Variable', ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Opt selects into customizable rendering (Chromium 135+); other browsers keep native selects. */
@@ -177,7 +183,19 @@
 body {
   background: var(--page);
   color: var(--ink);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Type (DESIGN.md): weight contrast carries the hierarchy; button labels are uppercase and tracked. */
+@layer base {
+  h1 {
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  button {
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 700;
+  }
 }
 
 /*
