@@ -82,19 +82,19 @@ test('a Show card opens the Show page', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Add to calendar' })).toBeVisible()
 })
 
-test('a Band opens in a modal that Back closes', async ({ page }) => {
+test('a Band link opens the Band page', async ({ page }) => {
   await page.goto('shows/102/')
   await page.getByTestId('act-name').filter({ hasText: 'Neon Harbor' }).click()
 
-  const dialog = page.getByRole('dialog')
-  await expect(dialog).toBeVisible()
   await expect(page).toHaveURL(/\/the_list\/bands\/1\/$/)
-  await expect(dialog.getByRole('heading', { level: 1, name: 'Neon Harbor' })).toBeVisible()
-  await expect(dialog.getByTestId('similar-bands')).toContainText('Fog City Ramblers')
+  await expect(page.getByRole('heading', { level: 1, name: 'Neon Harbor' })).toBeVisible()
+  await expect(page.getByTestId('similar-bands')).toContainText('Fog City Ramblers')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
 
   await page.goBack()
-  await expect(dialog).toBeHidden()
   await expect(page).toHaveURL(/\/the_list\/shows\/102\/$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Neon Harbor' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Lineup' })).toBeVisible()
 })
 
 test('a Band URL loaded directly renders the full Band page', async ({ page }) => {

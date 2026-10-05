@@ -1,6 +1,6 @@
 # Static site on GitHub Pages, rebuilt by GitHub Actions
 
-The List is published as a static site on GitHub Pages instead of running the FastAPI/GraphQL backend on a server. The data changes once a week (a new edition every Friday), so every page can be built ahead of time: an Actions workflow exports the database to JSON, builds the Next.js static export under `/the_list`, and deploys it. Filtering, infinite scroll and the Band modal run in the browser from the exported JSON. The SQLite database and FAISS index live on an orphan `data` branch rather than on a server's disk; each ingest commits the new versions there and the deploy reads them.
+The List is published as a static site on GitHub Pages instead of running the FastAPI/GraphQL backend on a server. The data changes once a week (a new edition every Friday), so every page can be built ahead of time: an Actions workflow exports the database to JSON, builds the Next.js static export under `/the_list`, and deploys it. Filtering and infinite scroll run in the browser from the exported JSON. The SQLite database and FAISS index live on an orphan `data` branch rather than on a server's disk; each ingest commits the new versions there and the deploy reads them.
 
 ## Considered Options
 
