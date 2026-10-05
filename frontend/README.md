@@ -88,4 +88,10 @@ time, install the browser with `npx playwright install chromium`.
 The tests don't use your local export in `export/`. `e2e/serve.sh` builds the site from the small fixture
 dataset in `e2e/fixtures/data` (setting `SITE_DATA_DIR`), then serves it under `/the_list/` the way GitHub Pages
 does. The browser clock is frozen at 2026-10-01 (`e2e/fixtures.ts`), so the fixture Shows never go out of date.
-If you change the fixtures, update the counts and names in `e2e/smoke.spec.ts`.
+If you change the fixtures, update the counts and names in `e2e/smoke.spec.ts`. The build gets placeholder
+Supabase settings, so the Alerts features render signed out (nothing contacts Supabase).
+
+`e2e/a11y.spec.ts` runs [axe](https://github.com/dequelabs/axe-core) on every page and state (home with and without
+filters, the Setup Alert panel, Show, Band, Venue, Cancelled and Postponed Shows, Alerts, Unsubscribe, 404) in light
+and dark mode. It fails on any serious or critical WCAG 2.1 A/AA violation. Fix violations rather than disabling rules;
+a disabled rule needs a written reason in the test.

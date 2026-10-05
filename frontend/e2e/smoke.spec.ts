@@ -251,3 +251,9 @@ test('the Show page links the same .ics file', async ({ page }) => {
   await page.goto('shows/102/')
   await expect(page.getByRole('link', { name: 'Add to calendar' })).toHaveAttribute('href', '/the_list/calendar/102.ics')
 })
+
+test('a link with an advanced filter opens Advanced filters', async ({ page }) => {
+  await page.goto('./?fromDate=2026-10-04')
+  await expect(page.getByLabel('From date')).toHaveValue('2026-10-04')
+  await expect(showCards(page)).toHaveCount(3)  // Oct 4, 5 and 10
+})
