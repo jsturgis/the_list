@@ -86,19 +86,20 @@ describe('HomeShows', () => {
 
   it("lists Steve's Picks under their own date", async () => {
     renderHome()
-    const card = (await screen.findByText('Pick Band')).closest('a')!
-    expect(card).toHaveAttribute('data-recommended')
+    const card = (await screen.findByText('Pick Band')).closest('[data-recommended]')!
+    expect(card).not.toBeNull()
     expect(within(screen.getByText(/october 2/i).parentElement!).getByText('Pick Band')).toBeInTheDocument()
     expect(screen.getByText('Tonight Band').compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('shows sold out, benefit and matinee badges, and the venue neighborhood', async () => {
+  it('shows sold out, benefit and matinee badges, and the Venue and city without the neighborhood', async () => {
     renderHome()
-    const card = (await screen.findByText('Tonight Band')).closest('a')!
-    expect(within(card).getByText('Sold out')).toBeInTheDocument()
-    expect(within(card).getByText('Benefit')).toBeInTheDocument()
-    expect(within(card).getByText('Matinee')).toBeInTheDocument()
-    expect(within(card).getByText(/Western Addition/)).toBeInTheDocument()
+    const row = (await screen.findByText('Tonight Band')).closest('h3')!.parentElement!.parentElement!.parentElement!
+    expect(within(row).getByText('Sold out')).toBeInTheDocument()
+    expect(within(row).getByText('Benefit')).toBeInTheDocument()
+    expect(within(row).getByText('Matinee')).toBeInTheDocument()
+    expect(within(row).getByText('The Fillmore · San Francisco')).toBeInTheDocument()
+    expect(within(row).queryByText(/Western Addition/)).not.toBeInTheDocument()
   })
 
   it('reports how many Shows are listed', async () => {

@@ -1,7 +1,7 @@
 import type { Show } from '@/lib/types'
 import { formatTime, formatPrice, formatDateLongYear, mapsHref } from '@/lib/format'
 import { ArrowDownTrayIcon, BuildingOffice2Icon, CalendarDaysIcon, CalendarIcon, ClockIcon, GlobeAltIcon, MapPinIcon, ShoppingCartIcon, SparklesIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
-import { googleCalendarUrl, icsDataUri, icsFilename } from '@/lib/calendar'
+import { googleCalendarUrl, icsFilename, icsHref } from '@/lib/calendar'
 import BandLink from './BandLink'
 import ExternalLink from './ExternalLink'
 import { Flags, StatusBadge } from './ShowBadges'
@@ -59,7 +59,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
           {show.status === 'upcoming' && (
             <span className="flex items-center ml-1">
               <a
-                href={icsDataUri(show)}
+                href={icsHref(show.id)}
                 download={icsFilename(show)}
                 aria-label="Add to calendar"
                 title="Add to calendar (.ics)"

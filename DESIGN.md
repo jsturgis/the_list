@@ -110,7 +110,7 @@ colours, so people recognise them.
 
 ## 4. Component Stylings
 
-Components marked *(#72)* or *(#98)* don't match this yet; those issues bring them in line.
+Components marked *(#72)* don't match this yet; that issue brings them in line.
 
 - **Buttons**
   - *Primary:* `bg-accent` / `text-on-accent`, pill (`rounded-full`) *(#72)*, uppercase label. One per view, for
@@ -123,13 +123,15 @@ Components marked *(#72)* or *(#98)* don't match this yet; those issues bring th
 - **Filter bar:** a `panel` block (8px radius) above the list, holding the Shows count, the Region, Search and
   Genre controls, Free only, Advanced filters and Setup Alert.
 - **Show list item:**
-  - Shows are listed as rows, not cards *(#98)*, in one `surface` panel per date (8px radius) with `line-subtle`
-    dividers.
+  - Shows are listed as rows (`ShowRow`), not cards, in one `surface` panel per date (8px radius) with
+    `line-subtle` dividers. Venue pages use the same row without the Venue line.
   - *Line 1:* status badge, then a star if it's a Steve's Pick, then the bold headliner and "with" the supports.
   - *Line 2:* Venue · city. No street address.
   - *Details:* door time · price · age, the flags, and the two calendar links (.ics and Google Calendar) for
-    Upcoming Shows. On desktop they sit in a right-hand column; on phones each is its own line.
-  - The headliner links to the Show page and its click area covers the row.
+    Upcoming Shows. The .ics links point to static files (`/calendar/<id>.ics`), never `data:` URIs. On desktop
+    the details sit in a right-hand column; on phones each is its own line.
+  - The headliner (an `h3`) links to the Show page, and its click area covers the row. The calendar links sit
+    above it.
 - **Steve's Pick:** the row or card takes `pick` (hover `pick-hover`) and a star in `pick-line`. No other emphasis.
 - **Show flags and statuses:**
   - Cancelled: `danger`, uppercase badge
@@ -140,8 +142,6 @@ Components marked *(#72)* or *(#98)* don't match this yet; those issues bring th
   - Matinee: `info`
   - Pit Warning, Drink Tickets, No Re-entry: neutral, `muted` with `ink-soft`
   - Badges are small rounded labels (pills *(#72)*).
-- **Cards (where cards remain):** `surface`, 8px radius, no border and no hover shadow *(#72)*, hover
-  `surface-hover`.
 - **Detail pages (Show, Venue, Band):** a single readable column (`max-w-2xl`), with the h1 first and a Back link
   above. Facts are set as icon + label rows in `ink-soft`. Upcoming Shows use the Show list item.
 - **Banners:** `accent-soft` with `accent-soft-line` and `accent-soft-ink` (special events).

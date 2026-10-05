@@ -102,7 +102,7 @@ export interface ExportMeta {
  * the list uses of its Venue and Bands, so the browser doesn't download every Venue and Band description.
  */
 export type HomeShow = Omit<Show, 'venue' | 'acts'> & {
-  venue: Pick<Venue, 'id' | 'name' | 'city' | 'neighborhood' | 'region'>
+  venue: Pick<Venue, 'id' | 'name' | 'city' | 'neighborhood' | 'region' | 'address'>
   acts: (Omit<Act, 'band'> & { band: Pick<Band, 'id' | 'name' | 'genres'> })[]
 }
 

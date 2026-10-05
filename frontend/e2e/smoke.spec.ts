@@ -227,3 +227,27 @@ test("the database export isn't published with the site", async ({ page }) => {
   }
   expect((await page.request.get('home-shows.json')).ok()).toBe(true)
 })
+
+test("a Show row's calendar links: a static .ics file and a Google Calendar event", async ({ page }) => {
+  await page.goto('./')
+  const row = page.locator('[data-recommended]').first()  // Neon Harbor at The Fillmore, Oct 3
+  const ics = row.getByRole('link', { name: 'Add to calendar (.ics)' })
+  await expect(ics).toHaveAttribute('href', '/the_list/calendar/102.ics')
+  await expect(ics).toHaveAttribute('download', 'neon-harbor-2026-10-03.ics')
+
+  const file = await page.request.get('calendar/102.ics')
+  expect(file.ok()).toBe(true)
+  expect(file.headers()['content-type']).toMatch(/^text\/calendar/)
+  const text = await file.text()
+  expect(text).toMatch(/^BEGIN:VCALENDAR\r\n/)
+  expect(text).toContain('SUMMARY:Neon Harbor at The Fillmore')
+
+  const google = new URL((await row.getByRole('link', { name: 'Add to Google Calendar' }).getAttribute('href'))!)
+  expect(google.hostname).toBe('calendar.google.com')
+  expect(google.searchParams.get('text')).toBe('Neon Harbor at The Fillmore')
+})
+
+test('the Show page links the same .ics file', async ({ page }) => {
+  await page.goto('shows/102/')
+  await expect(page.getByRole('link', { name: 'Add to calendar' })).toHaveAttribute('href', '/the_list/calendar/102.ics')
+})

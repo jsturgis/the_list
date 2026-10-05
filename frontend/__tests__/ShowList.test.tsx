@@ -28,7 +28,8 @@ describe('ShowList', () => {
 
     it('has no separate Steve\'s Picks section', () => {
       render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
-      expect(screen.queryByRole('heading', { name: /steve'?s pick/i })).not.toBeInTheDocument()
+      // A Pick's own row is named "Steve's pick: …"; there's no section heading for Picks.
+      expect(screen.queryByRole('heading', { name: /^steve'?s picks?$/i })).not.toBeInTheDocument()
     })
 
     it('lists a pick under its own date, ahead of that date\'s other shows', () => {
@@ -41,9 +42,9 @@ describe('ShowList', () => {
       const oct3 = screen.getByText(/october 3/i).parentElement!
       const oct4 = screen.getByText(/october 4/i).parentElement!
       expect(within(oct3).queryByText('Pick Band')).not.toBeInTheDocument()
-      const cards = within(oct4).getAllByRole('link')
-      expect(cards.map(c => within(c).getByRole('heading').textContent)).toEqual(['Pick Band', 'Regular Band'])
-      expect(cards[0]).toHaveAttribute('data-recommended')
+      const headliners = within(oct4).getAllByRole('heading', { level: 3 }).slice(1)  // after the date heading
+      expect(headliners.map(h => h.textContent)).toEqual(["Steve's pick: Pick Band", 'Regular Band'])
+      expect(headliners[0].closest('[data-recommended]')).not.toBeNull()
     })
 
     it('groups shows under date headings', () => {

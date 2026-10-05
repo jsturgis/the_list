@@ -61,7 +61,9 @@ describe('homeShows', () => {
   })
 
   it('keeps only what the home page uses of the Venue and Bands', () => {
-    expect(listed[0].venue).toEqual({ id: 1, name: 'The Fillmore', city: 'San Francisco', neighborhood: 'Western Addition', region: 'sf' })
+    expect(listed[0].venue).toEqual({
+      id: 1, name: 'The Fillmore', city: 'San Francisco', neighborhood: 'Western Addition', region: 'sf', address: '1805 Geary Blvd',
+    })
     expect(Object.keys(listed[0].acts[0].band).sort()).toEqual(['genres', 'id', 'name'])
   })
 })

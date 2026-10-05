@@ -10,7 +10,7 @@ const notFoundPage = join(root, 'the_list', '404.html')
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
   '.txt': 'text/plain; charset=utf-8', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.png': 'image/png',
-  '.woff2': 'font/woff2',
+  '.woff2': 'font/woff2', '.ics': 'text/calendar; charset=utf-8',
 }
 
 async function isDir(path) {

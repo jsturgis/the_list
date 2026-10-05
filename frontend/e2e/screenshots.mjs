@@ -1,4 +1,5 @@
-// Screenshots of every page, in light and dark mode, for reviewing design changes (DESIGN.md). Run on demand,
+// Screenshots of every page, at desktop and phone width in light and dark mode, for reviewing design changes
+// (DESIGN.md). Run on demand,
 // not in CI: `npm run screenshots -- <output dir> [built site dir]`.
 //
 // Without a built site, it builds this tree from the e2e fixtures (as e2e/serve.sh does), with placeholder
@@ -56,8 +57,9 @@ try {
     await new Promise(r => setTimeout(r, 100))
   }
   const browser = await chromium.launch()
-  for (const scheme of ['light', 'dark']) {
-    const context = await browser.newContext({ viewport: { width: 1100, height: 900 }, colorScheme: scheme })
+  const DEVICES = [['desktop', { viewport: { width: 1100, height: 900 } }], ['phone', { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 }]]
+  for (const [device, options] of DEVICES) for (const scheme of ['light', 'dark']) {
+    const context = await browser.newContext({ ...options, colorScheme: scheme })
     for (const [name, path, step] of PAGES) {
       const page = await context.newPage()
       await page.clock.setFixedTime(new Date('2026-10-01T12:00:00-07:00'))  // the fixtures' "today"
@@ -65,7 +67,7 @@ try {
       if (step) await step(page)
       await page.evaluate(() => document.fonts.ready)
       await page.waitForTimeout(300)
-      await page.screenshot({ path: join(out, `${name}-${scheme}.png`), fullPage: true })
+      await page.screenshot({ path: join(out, `${name}-${device}-${scheme}.png`), fullPage: true })
       await page.close()
     }
     await context.close()
