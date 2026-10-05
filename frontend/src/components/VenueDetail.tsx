@@ -48,7 +48,7 @@ export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) 
         {rules.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
             {rules.map(({ label, icon: Icon }) => (
-              <span key={label} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-muted text-ink-soft">
+              <span key={label} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-muted text-ink-soft">
                 {Icon && <Icon className="size-3.5 shrink-0" />}
                 {label}
               </span>
@@ -102,7 +102,7 @@ export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) 
               <ExternalLink
                 href={venue.websiteUrl}
                 icon={GlobeAltIcon}
-                className="text-sm px-3 py-1.5 rounded bg-strong text-on-inverse hover:bg-strong-hover"
+                className="text-sm px-4 py-1.5 rounded-full bg-strong text-on-inverse hover:bg-strong-hover"
               >
                 Website
               </ExternalLink>
@@ -111,7 +111,7 @@ export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) 
               <ExternalLink
                 href={venue.wikipediaUrl}
                 icon={BookOpenIcon}
-                className="text-sm px-3 py-1.5 rounded bg-muted text-ink hover:bg-muted-hover"
+                className="text-sm px-4 py-1.5 rounded-full bg-muted text-ink hover:bg-muted-hover"
               >
                 Wikipedia
               </ExternalLink>

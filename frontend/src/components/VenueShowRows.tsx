@@ -20,7 +20,7 @@ export default function VenueShowRows({ shows }: { shows: Show[] }) {
           <div className="flex flex-col gap-6">
             {Array.from(byDate.keys()).sort().map(date => (
               <div key={date} data-show-date={date}>
-                <h3 className="text-sm font-semibold text-ink-muted uppercase tracking-wide mb-2">
+                <h3 className="text-lg font-bold text-ink mb-2">
                   {formatDateLong(date)}
                 </h3>
                 <div className="flex flex-col divide-y divide-line-subtle overflow-hidden rounded-lg bg-surface">

@@ -6,8 +6,8 @@ import { MAX_ALERTS, alertsAvailable, alertsPageUrl, supabase } from '@/lib/supa
 import { useSession } from '@/lib/useSession'
 import Toast from './Toast'
 
-const INPUT = 'h-9 rounded border border-line-strong bg-field text-sm px-2 text-ink placeholder:text-ink-faint'
-const BUTTON = 'h-9 rounded bg-accent px-3 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50'
+const INPUT = 'h-9 rounded-full border border-line-strong bg-field text-sm px-3 text-ink placeholder:text-ink-faint'
+const BUTTON = 'h-9 rounded-full bg-accent px-4 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50'
 
 type Done = 'linkSent' | 'saved'
 
@@ -95,7 +95,7 @@ export default function SaveFilterButton({ query }: { query: string }) {
         onClick={toggle}
         disabled={!query || session.status === 'loading'}
         aria-expanded={open}
-        className="inline-flex items-center gap-1 rounded border border-accent bg-surface px-2.5 py-1 text-xs font-medium text-link hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex items-center gap-1 rounded-full border border-accent bg-surface px-2.5 py-1 text-xs font-medium text-link hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50"
         title={query ? 'Get a weekly email with the shows matching these filters' : 'Set a filter to get alerts for it'}
       >
         <BellIcon className="size-3.5 shrink-0" />

@@ -25,7 +25,7 @@ export default function Toast({ children, onDismiss }: { children: ReactNode; on
         type="button"
         onClick={onDismiss}
         aria-label="Dismiss"
-        className="-m-1 rounded p-1 text-inverse-muted hover:text-on-inverse"
+        className="-m-1 rounded-full p-1 text-inverse-muted hover:text-on-inverse"
       >
         <XMarkIcon className="size-4" />
       </button>

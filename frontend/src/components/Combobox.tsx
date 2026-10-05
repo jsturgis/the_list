@@ -12,7 +12,7 @@ interface ComboboxProps {
 }
 
 const inputClass =
-  'w-full h-9 rounded border border-line-strong bg-field text-sm px-2 py-1.5 text-ink placeholder:text-ink-faint'
+  'w-full h-9 rounded-full border border-line-strong bg-field text-sm px-3 py-1.5 text-ink placeholder:text-ink-faint'
 
 /**
  * Text input with a filterable suggestion list rendered at the input's width (ARIA combobox pattern).
@@ -119,7 +119,7 @@ export default function Combobox({ id, options, value, onChange, placeholder, ..
           ref={listRef}
           id={listId}
           role="listbox"
-          className="absolute z-20 mt-1 w-full max-h-60 overflow-y-auto rounded border border-line bg-field py-1 text-sm shadow-lg"
+          className="absolute z-20 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-line bg-field py-1 text-sm shadow-lg"
         >
           {matches.length === 0 ? (
             <li className="px-2 py-1.5 text-ink-muted">No matches</li>

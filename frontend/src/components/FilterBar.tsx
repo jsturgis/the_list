@@ -122,7 +122,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
             id="filter-region"
             value={searchParams.get('region') ?? ''}
             onChange={e => update('region', e.target.value)}
-            className="h-9 rounded border border-line-strong bg-field text-sm px-2 py-1.5 text-ink"
+            className="h-9 rounded-full border border-line-strong bg-field text-sm px-3 py-1.5 text-ink"
           >
             <option value="">All Regions</option>
             {regions.map(r => (
@@ -145,7 +145,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
               placeholder="Search bands & venues…"
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
-              className="h-9 w-full rounded border border-line-strong bg-field text-sm pl-8 pr-2 py-1.5 text-ink placeholder:text-ink-faint"
+              className="h-9 w-full rounded-full border border-line-strong bg-field text-sm pl-8 pr-3 py-1.5 text-ink placeholder:text-ink-faint"
             />
           </div>
         </div>
@@ -209,7 +209,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
                 min={availableDates[0] ?? ''}
                 max={searchParams.get('toDate') || availableDates[availableDates.length - 1] || ''}
                 onChange={e => update('fromDate', e.target.value)}
-                className="h-9 rounded border border-line-strong bg-field text-sm px-2 py-1.5 text-ink"
+                className="h-9 rounded-full border border-line-strong bg-field text-sm px-3 py-1.5 text-ink"
               />
             </div>
 
@@ -224,7 +224,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
                 min={searchParams.get('fromDate') || availableDates[0] || ''}
                 max={availableDates[availableDates.length - 1] ?? ''}
                 onChange={e => update('toDate', e.target.value)}
-                className="h-9 rounded border border-line-strong bg-field text-sm px-2 py-1.5 text-ink"
+                className="h-9 rounded-full border border-line-strong bg-field text-sm px-3 py-1.5 text-ink"
               />
             </div>
 
@@ -236,7 +236,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
                 id="filter-age"
                 value={searchParams.get('age') ?? ''}
                 onChange={e => update('age', e.target.value)}
-                className="h-9 rounded border border-line-strong bg-field text-sm px-2 py-1.5 text-ink"
+                className="h-9 rounded-full border border-line-strong bg-field text-sm px-3 py-1.5 text-ink"
               >
                 <option value="">Any Age</option>
                 {ages.map(a => (
@@ -258,7 +258,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
                 placeholder="e.g. 20"
                 value={searchParams.get('priceMax') ?? ''}
                 onChange={e => update('priceMax', e.target.value)}
-                className="h-9 rounded border border-line-strong bg-field text-sm px-2 py-1.5 text-ink placeholder:text-ink-faint"
+                className="h-9 rounded-full border border-line-strong bg-field text-sm px-3 py-1.5 text-ink placeholder:text-ink-faint"
               />
             </div>
           </div>

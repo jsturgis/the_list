@@ -14,9 +14,9 @@ const NEUTRAL = 'bg-muted text-ink-soft'
 function Badge({ icon: Icon, size, className, title, children }: {
   icon?: Icon; size: BadgeSize; className: string; title?: string; children: ReactNode
 }) {
-  const sizing = { compact: 'text-[11px] px-1 py-px', card: 'px-1.5 py-0.5', detail: 'text-sm px-2 py-1' }[size]
+  const sizing = { compact: 'text-[11px] px-1.5 py-px', card: 'px-1.5 py-0.5', detail: 'text-sm px-2 py-1' }[size]
   return (
-    <span className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded ${sizing} ${className}`} title={title}>
+    <span className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full ${sizing} ${className}`} title={title}>
       {Icon && size !== 'compact' && <Icon className={`${size === 'detail' ? 'size-4' : 'size-3.5'} shrink-0`} />}
       {children}
     </span>
@@ -28,7 +28,7 @@ export function StatusBadge({ status, size = 'card' }: { status: HomeShow['statu
   const isCancelled = status === 'cancelled'
   const sizing = { compact: 'text-[10px] px-1.5 py-0.5', card: 'text-xs px-2 py-0.5', detail: 'text-sm px-3 py-1.5' }[size]
   return (
-    <span className={`inline-flex items-center gap-1 ${sizing} font-bold uppercase tracking-wide rounded w-fit shrink-0 ${isCancelled ? RED : YELLOW}`}>
+    <span className={`inline-flex items-center gap-1 ${sizing} font-bold uppercase tracking-wide rounded-full w-fit shrink-0 ${isCancelled ? RED : YELLOW}`}>
       {size !== 'compact' && (isCancelled
         ? <XCircleIcon className={`${size === 'detail' ? 'size-4' : 'size-3.5'} shrink-0`} />
         : <ClockIcon className={`${size === 'detail' ? 'size-4' : 'size-3.5'} shrink-0`} />)}

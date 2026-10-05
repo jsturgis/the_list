@@ -48,6 +48,7 @@ Use these tokens through Tailwind's colour utilities (`bg-surface`, `text-ink-mu
 | `line` | Borders | `#e2e2e2` | `#2a2a2a` |
 | `line-subtle` | Dividers between rows, the header rule | `#ececec` | `#222222` |
 | `line-strong` | Strong borders (form fields) | `#cfcfcf` | `#4d4d4d` |
+| `focus-ring` | The keyboard focus outline, and a focused Show row's ring (3:1 on every background) | `#117a37` | `#1ed760` |
 | **Accent (green)** | | | |
 | `accent` | Fill for primary buttons and active states. Never text on a light background | `#1ed760` | `#1ed760` |
 | `accent-hover` | Hover on `accent` | `#1fdf64` | `#3be477` |
@@ -111,16 +112,17 @@ WCAG AA.
 
 ## 4. Component Stylings
 
-Components marked *(#72)* don't match this yet; that issue brings them in line.
-
 - **Buttons**
-  - *Primary:* `bg-accent` / `text-on-accent`, pill (`rounded-full`) *(#72)*, uppercase label. One per view, for
+  - *Primary:* `bg-accent` / `text-on-accent`, pill (`rounded-full`), uppercase label. One per view, for
     the main action (Email me a sign-in link, Save).
   - *Neutral:* `bg-strong` / `text-on-inverse`.
   - *Outline:* `border-accent`, `text-link` on `surface` (Setup Alert).
   - *Quiet:* text-only in `ink-muted`, with an underline or a `muted` hover (Clear filters, Back).
-- **Inputs and selects:** `bg-field`, pill-shaped *(#72)*, `ink` text, `ink-faint` placeholders. The focus ring is
-  the accent *(#72)*.
+- **Inputs and selects:** `bg-field`, pill-shaped (`rounded-full`, `px-3`), `line-strong` border, `ink` text,
+  `ink-faint` placeholders. Checkboxes keep the browser's shape, tinted with `accent-accent`.
+- **Focus:** keyboard focus is a 2px `focus-ring` outline, offset 2px, on everything (a global rule; don't remove
+  it with `outline-none` unless something else shows focus). Show rows ring the whole row in `focus-ring` instead.
+  `focus-ring` is the text-safe green, because the accent itself is under 3:1 on light backgrounds.
 - **Filter bar:** a `panel` block (8px radius) above the list, holding the Shows count, the Region, Search and
   Genre controls, Free only, Advanced filters and Setup Alert.
 - **Show list item:**
@@ -142,7 +144,7 @@ Components marked *(#72)* don't match this yet; that issue brings them in line.
   - Benefit: `success`
   - Matinee: `info`
   - Pit Warning, Drink Tickets, No Re-entry: neutral, `muted` with `ink-soft`
-  - Badges are small rounded labels (pills *(#72)*).
+  - Badges are small pills (`rounded-full`) that never wrap inside; a row of them wraps badge by badge.
 - **Detail pages (Show, Venue, Band):** a single readable column (`max-w-2xl`), with the h1 first and a Back link
   above. Facts are set as icon + label rows in `ink-soft`. Upcoming Shows use the Show list item.
 - **Banners:** `accent-soft` with `accent-soft-line` and `accent-soft-ink` (special events).
@@ -156,7 +158,8 @@ Components marked *(#72)* don't match this yet; that issue brings them in line.
 - **Spacing** steps in 4px (Tailwind's scale). Sections on a page are 24px apart (`gap-6`). Rows have 12px vertical
   and 16px horizontal padding.
 - **Radius:** 8px (`rounded-lg`) for panels, cards and toasts; full pills (`rounded-full`) for buttons, inputs,
-  selects, chips and badges *(#72)*.
+  selects, chips, badges and small icon buttons. Hover backgrounds on list links (Similar Bands, a Band's Upcoming
+  Shows) and floating lists (the Genre options) are 8px.
 - **Lists group by date.** Date headings sit above each date's panel, and Steve's Picks come first within a date.
 
 ## 6. Depth & Elevation

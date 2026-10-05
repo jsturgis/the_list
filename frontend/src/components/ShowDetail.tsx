@@ -63,7 +63,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
                 download={icsFilename(show)}
                 aria-label="Add to calendar"
                 title="Add to calendar (.ics)"
-                className="p-1 rounded hover:text-link hover:bg-muted"
+                className="p-1 rounded-full hover:text-link hover:bg-muted"
               >
                 <ArrowDownTrayIcon className="size-4" />
               </a>
@@ -73,7 +73,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
                 rel="noopener noreferrer"
                 aria-label="Add to Google Calendar"
                 title="Add to Google Calendar"
-                className="p-1 rounded hover:text-link hover:bg-muted"
+                className="p-1 rounded-full hover:text-link hover:bg-muted"
               >
                 <CalendarDaysIcon className="size-4" />
               </a>
