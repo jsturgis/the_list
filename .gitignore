@@ -6,7 +6,6 @@ __pycache__/
 .venv/
 venv/
 node_modules/
-.next/
 *.db
 *.db-shm
 *.db-wal
