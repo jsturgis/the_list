@@ -11,7 +11,7 @@ const noSubscription = () => () => {}
 
 /**
  * Who's signed in, kept up to date as they sign in or out. 'loading' while prerendering and hydrating, so the
- * static page and the first browser render match (as useBayAreaToday does).
+ * static page and the first browser render match.
  */
 export function useSession(): SessionState {
   const inBrowser = useSyncExternalStore(noSubscription, () => true, () => false)

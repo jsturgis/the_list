@@ -179,3 +179,12 @@ body {
   color: var(--ink);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/*
+ * Upcoming Shows lists stay invisible until lib/upcomingShows has hidden the dates that have passed since the
+ * weekly build, so they never flash up. Only when JavaScript runs (data-js, set in the layout's <head>); the
+ * space stays reserved, so the page doesn't jump when nothing is trimmed.
+ */
+[data-js] [data-upcoming-shows]:not([data-upcoming-shows-ready]) {
+  visibility: hidden;
+}

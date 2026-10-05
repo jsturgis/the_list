@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { bayAreaToday, hydrateShows, summarizeShow } from '@/lib/data'
-import { makeBand, makeShow, makeVenue } from './fixtures'
+import { bayAreaToday, hydrateShows } from '@/lib/data'
 import type { ExportBand, ExportShow, ExportVenue } from '@/lib/types'
 
 const venue: ExportVenue = {
@@ -43,19 +42,5 @@ describe('bayAreaToday', () => {
 
   it('matches UTC in the morning', () => {
     expect(bayAreaToday(new Date('2026-09-29T16:00:00Z'))).toBe('2026-09-29')
-  })
-})
-
-describe('summarizeShow', () => {
-  it("keeps the Show's own fields and just the names of its Venue and Bands", () => {
-    const venue = makeVenue({ id: 2, name: '924 Gilman Street', city: 'Berkeley', neighborhood: null, description: 'All-ages club.' })
-    const band = makeBand({ id: 1, name: 'Neon Harbor', description: 'Synth-pop.', genres: ['synth-pop'] })
-    const show = makeShow({ id: 102, date: '2026-10-03', isRecommended: true, venue, acts: [{ position: 0, band, note: 'duo' }] })
-
-    const summary = summarizeShow(show)
-
-    expect(summary).toMatchObject({ id: 102, date: '2026-10-03', isRecommended: true })
-    expect(summary.venue).toEqual({ id: 2, name: '924 Gilman Street', city: 'Berkeley', neighborhood: null })
-    expect(summary.acts).toEqual([{ position: 0, note: 'duo', band: { id: 1, name: 'Neon Harbor' } }])
   })
 })

@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import BandDetail from '@/components/BandDetail'
-import BandShows from '@/components/BandShows'
+import { hidePastShows } from '@/lib/upcomingShows'
 import SimilarBands from '@/components/SimilarBands'
 import { makeBand, makeShow, makeVenue } from './fixtures'
 
@@ -36,9 +36,12 @@ describe('BandDetail', () => {
     }),
   ]
 
-  // As the Band page composes them: the Upcoming Shows island in BandDetail's slot.
-  const renderBand = (b = band, shows = upcomingShows) =>
-    render(<BandDetail band={b} similarBands={similar}><BandShows shows={shows} /></BandDetail>)
+  // As on the Band page: the static page, then the browser hides dates that have passed (lib/upcomingShows).
+  const renderBand = (b = band, shows = upcomingShows) => {
+    const result = render(<BandDetail band={b} upcomingShows={shows} similarBands={similar} />)
+    hidePastShows()
+    return result
+  }
 
   it('renders band name', () => {
     renderBand()

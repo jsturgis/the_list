@@ -1,25 +1,22 @@
 import { href } from '@/lib/basePath'
 import { formatDateShort } from '@/lib/format'
-import type { ShowSummary } from '@/lib/types'
-import { useBayAreaToday } from '@/lib/useBayAreaToday'
+import type { Show } from '@/lib/types'
 
 /**
- * A Band's Upcoming Shows, linking to each Show. Pages are built weekly, so dates before today (Bay Area time)
- * are hidden in the browser; nothing renders when none are left.
+ * A Band's Upcoming Shows, linking to each Show. Static: pages are built weekly, so lib/upcomingShows hides
+ * dates before today (Bay Area time) in the browser, and the whole section when none are left.
  */
-export default function BandShows({ shows }: { shows: ShowSummary[] }) {
-  const today = useBayAreaToday()
-  const visible = today ? shows.filter(s => s.date >= today) : shows
-  if (visible.length === 0) return null
+export default function BandShows({ shows }: { shows: Show[] }) {
+  if (shows.length === 0) return null
 
   return (
-    <section>
+    <section data-upcoming-shows="">
       <h2 className="text-base font-semibold mb-3 text-ink">
         Upcoming Shows
       </h2>
       <ul className="flex flex-col gap-2">
-        {visible.map(show => (
-          <li key={show.id}>
+        {shows.map(show => (
+          <li key={show.id} data-show-date={show.date}>
             <a
               href={href(`/shows/${show.id}/`)}
               className="flex items-center justify-between gap-4 text-sm -mx-2 px-2 py-1 rounded hover:bg-muted"

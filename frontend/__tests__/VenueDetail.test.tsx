@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import VenueDetail from '@/components/VenueDetail'
-import VenueShowRows from '@/components/VenueShowRows'
+import { hidePastShows } from '@/lib/upcomingShows'
 import type { Show } from '@/lib/types'
 import { makeBand, makeShow, makeVenue } from './fixtures'
 
@@ -17,9 +17,12 @@ const venue = makeVenue({
   imageUrl: 'https://example.com/catalyst.jpg', defaultAgeRestriction: 'varies',
   isSoberSpace: false, isCashOnly: true, membershipRequired: null, description: "Santa Cruz's long-running rock club.",
 })
-// As the Venue page composes them: the Upcoming Shows island in VenueDetail's slot.
-const renderVenue = (v = venue, shows: Show[] = []) =>
-  render(<VenueDetail venue={v}><VenueShowRows shows={shows} /></VenueDetail>)
+// As on the Venue page: the static page, then the browser hides dates that have passed (lib/upcomingShows).
+const renderVenue = (v = venue, shows: Show[] = []) => {
+  const result = render(<VenueDetail venue={v} upcomingShows={shows} />)
+  hidePastShows()
+  return result
+}
 const show = (id: number, date: string, name: string) =>
   makeShow({ id, date, venue, acts: [{ position: 0, band: makeBand({ id, name }) }] })
 
@@ -63,12 +66,13 @@ describe('VenueDetail', () => {
     const list = screen.getByRole('region', { name: 'Upcoming Shows' })
     expect(within(list).getByText('Tonight Band')).toBeInTheDocument()
     expect(within(list).getByText('Weekend Band')).toBeInTheDocument()
-    expect(within(list).queryByText('Yesterday Band')).not.toBeInTheDocument()
+    expect(within(list).getByText('Yesterday Band')).not.toBeVisible()
     expect(within(list).getByText(/Thursday, October 1/i)).toBeInTheDocument()
   })
 
   it('says so when there are no upcoming shows', () => {
     renderVenue(venue, [show(1, '2026-09-30', 'Yesterday Band')])
-    expect(screen.getByText('No upcoming shows.')).toBeInTheDocument()
+    expect(screen.getByText('No upcoming shows.')).toBeVisible()
+    expect(screen.queryByRole('region', { name: 'Upcoming Shows' })).not.toBeInTheDocument()
   })
 })

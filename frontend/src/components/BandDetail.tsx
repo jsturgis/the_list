@@ -1,18 +1,16 @@
 import { GlobeAltIcon, MapPinIcon, MusicalNoteIcon } from '@heroicons/react/20/solid'
 import ExternalLink from './ExternalLink'
-import type { ReactNode } from 'react'
-import type { Band } from '@/lib/types'
+import type { Band, Show } from '@/lib/types'
+import BandShows from './BandShows'
 import SimilarBands from './SimilarBands'
 
 interface BandDetailProps {
   band: Band
+  upcomingShows: Show[]
   similarBands: Band[]
-  /** The Band's Upcoming Shows (BandShows), shown above Similar Bands; the page hydrates just that part. */
-  children?: ReactNode
 }
 
-/** A Band's page body. Static: the only part that changes in the browser is the Upcoming Shows list (children). */
-export default function BandDetail({ band, similarBands, children }: BandDetailProps) {
+export default function BandDetail({ band, upcomingShows, similarBands }: BandDetailProps) {
 
   return (
     <article className="max-w-2xl mx-auto flex flex-col gap-6">
@@ -87,7 +85,7 @@ export default function BandDetail({ band, similarBands, children }: BandDetailP
         </section>
       )}
 
-      {children}
+      <BandShows shows={upcomingShows} />
 
       <SimilarBands bands={similarBands} />
     </article>
