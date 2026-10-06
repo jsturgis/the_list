@@ -54,6 +54,26 @@ def _mb_lookup(mbid: str) -> dict:
         return {}
 
 
+_MB_WS = "https://musicbrainz.org/ws/2"
+_MB_HEADERS = {
+    "User-Agent": f"{settings.musicbrainz_app_name}/{settings.musicbrainz_app_version} ( {settings.musicbrainz_contact} )",
+}
+
+
+def _mb_genres(mbid: str) -> list[str]:
+    """The artist's MusicBrainz genres, most votes first: the curated genre list, not free-form tags ("seen live",
+    "american"). musicbrainzngs can't ask for genres, so this uses the web service directly."""
+    _time.sleep(1.0)  # MusicBrainz allows one request a second; musicbrainzngs only paces its own calls
+    try:
+        resp = httpx.get(f"{_MB_WS}/artist/{mbid}", params={"inc": "genres", "fmt": "json"},
+                         headers=_MB_HEADERS, timeout=10.0)
+        resp.raise_for_status()
+        genres = resp.json().get("genres", [])
+    except Exception:
+        return []
+    return [g["name"] for g in sorted(genres, key=lambda g: -int(g.get("count", 0)))]
+
+
 def _extract_genres_via_llm(text: str) -> list[str]:
     llm = get_enrichment_llm()
     chain = llm.with_structured_output(_GenreList)
@@ -118,13 +138,15 @@ def _find_bandcamp_url(name: str) -> Optional[str]:
 
 
 def _enrich_band(name: str, use_llm: bool = True) -> dict:
-    """Return {genres, spotify_url, soundcloud_url, bandcamp_url} for a band name.
+    """Return {genres, tags, spotify_url, soundcloud_url, bandcamp_url} for a band name.
 
-    With `use_llm=False` only MusicBrainz is used (no LLM guesses for SoundCloud/Bandcamp or genres).
+    `genres` are MusicBrainz's curated genres (at most 5), falling back to its top 5 tags when it has none;
+    `mb_genres` says whether they're the curated ones. With `use_llm=False` only MusicBrainz is used (no LLM
+    guesses for SoundCloud/Bandcamp or genres).
     """
     artist = _mb_search(name)
     if artist is None:
-        return {"genres": [], "spotify_url": None, "soundcloud_url": None, "bandcamp_url": None}
+        return {"genres": [], "mb_genres": False, "spotify_url": None, "soundcloud_url": None, "bandcamp_url": None}
 
     full = _mb_lookup(artist["id"])
 
@@ -133,7 +155,8 @@ def _enrich_band(name: str, use_llm: bool = True) -> dict:
         key=lambda t: int(t.get("count", 0)),
         reverse=True,
     )
-    genres = [t["name"] for t in tags[:5]]
+    curated = _mb_genres(artist["id"])[:5]
+    genres = curated or [t["name"] for t in tags[:5]]
 
     spotify_url: Optional[str] = None
     soundcloud_url: Optional[str] = None
@@ -149,8 +172,8 @@ def _enrich_band(name: str, use_llm: bool = True) -> dict:
             bandcamp_url = target
 
     if not use_llm:
-        return {"genres": genres, "spotify_url": spotify_url, "soundcloud_url": soundcloud_url,
-                "bandcamp_url": bandcamp_url}
+        return {"genres": genres, "mb_genres": bool(curated), "spotify_url": spotify_url,
+                "soundcloud_url": soundcloud_url, "bandcamp_url": bandcamp_url}
 
     # LLM fallback: find SoundCloud URL when MB doesn't have one
     if not soundcloud_url:
@@ -168,6 +191,7 @@ def _enrich_band(name: str, use_llm: bool = True) -> dict:
 
     return {
         "genres": genres,
+        "mb_genres": bool(curated),
         "spotify_url": spotify_url,
         "soundcloud_url": soundcloud_url,
         "bandcamp_url": bandcamp_url,
