@@ -418,6 +418,30 @@ async def test_pipeline_takes_discogs_genres_after_last_fm_and_before_musicbrain
     mock_artist.assert_not_called()
 
 
+def _discogs_with_members(name, links):
+    from app.ingestion.discogs import DiscogsArtist
+    if name != "Deafheaven":
+        return None
+    return DiscogsArtist(1, "Deafheaven", "https://www.discogs.com/artist/1", members=[
+        {"name": "George Clarke", "active": True}, {"name": "Derek Prine", "active": False}])
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.discogs_artist", side_effect=_discogs_with_members)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_saves_a_new_bands_members_from_discogs(mock_batch, mock_discogs, mock_venue, mock_fetch, db):
+    await _run_ingestion_async(db=db)
+
+    assert db.query(Band).filter(Band.name == "Deafheaven").one().members == [
+        {"name": "George Clarke", "active": True}, {"name": "Derek Prine", "active": False}]
+    assert db.query(Band).filter(Band.name == "Uniform").one().members == []   # not on Discogs
+    # Saved once: a later ingest doesn't touch them.
+    mock_discogs.side_effect = lambda name, links: None
+    await _run_ingestion_async(db=db)
+    assert len(db.query(Band).filter(Band.name == "Deafheaven").one().members) == 2
+
+
 @patch("app.scheduler.fetch_latest_edition", return_value=(None, None))
 async def test_pipeline_returns_early_when_no_edition(mock_fetch, db):
     await _run_ingestion_async(db=db)

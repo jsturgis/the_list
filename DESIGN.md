@@ -170,7 +170,7 @@ WCAG AA.
   most one: Tickets), secondary (outline `line-strong`, `ink`), or brand colours for the
   streaming services. External ones carry an outward-arrow icon.
 - **Detail pages (Show, Venue, Band):** in order: Back, `PageHeader`, key facts, actions, then `Section`s. A Show
-  has Lineup, Venue and Notes; a Venue has Details, Upcoming Shows and About; a Band has Upcoming Shows, Social
+  has Lineup, Venue and Notes; a Venue has Details, Upcoming Shows and About; a Band has Upcoming Shows, Members, Social
   and Similar Bands. Upcoming Shows on Venue and Band pages are one panel of Show list items, each with its compact
   date, with no date headings.
 - **Loading (`Ghost`):** anything waiting on Supabase (who's signed in, their alerts and weekly email setting, an
@@ -183,6 +183,10 @@ WCAG AA.
   under the base path; never hot-linked. A photo from Wikimedia Commons is a `<figure>` whose `<figcaption>` credits
   it, as its licence requires: "Photo: <author>, <licence>, via Wikimedia Commons" in `text-xs ink-muted`, with the
   licence and "Wikimedia Commons" (the photo's page) as running-text links. The edition's photos have no credit.
+- **Band members (`BandMembers`):** a **Members** section after Upcoming Shows, from Discogs: current members as a
+  wrapping list of `text-sm` semibold `ink` names, then a `text-xs ink-muted` "Formerly" label over a wrapping list
+  of past members in `ink-soft`. Each is a real `<ul>`, named "Current members" and "Formerly". Hidden without
+  members; a Band that has split up shows only "Formerly".
 - **Band links:** a Band's actions are its listening links, up to 3 free services then up to 3 paid ones,
   ranked by service in the backend (`app/band_links.py`), then its website. Spotify, SoundCloud and Bandcamp
   keep their brand-coloured pills; other services are outline pills, and paid ones say "(subscription)" in their

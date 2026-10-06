@@ -12,7 +12,7 @@ const venue = (id: number, name: string): ExportVenue => ({
   defaultAgeRestriction: null, isSoberSpace: null, isCashOnly: null, membershipRequired: null,
 })
 const band = (id: number, similar: number[] = []): ExportBand => ({
-  id, name: `Band ${id}`, genres: [], spotifyUrl: null, soundcloudUrl: null, bandcampUrl: null, links: [], imageCredit: null, websiteUrl: null,
+  id, name: `Band ${id}`, genres: [], spotifyUrl: null, soundcloudUrl: null, bandcampUrl: null, links: [], imageCredit: null, members: [], websiteUrl: null,
   imageUrl: null, isLocal: null, description: null, similar,
 })
 const show = (id: number, venueId: number, date: string, status = 'upcoming'): ExportShow => ({
