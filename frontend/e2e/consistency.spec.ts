@@ -30,12 +30,12 @@ async function measure(page: Page) {
   return { x: Math.round(box.x), width: Math.round(box.width), backX: backX === null ? null : Math.round(backX), ...type }
 }
 
-test('narrow pages share one 672px column, with Back aligned to it', async ({ page }) => {
+test('narrow pages share one 672px column, with Back at the full-width left edge', async ({ page }) => {
   for (const [name, path] of NARROW) {
     await page.goto(path)
     const m = await measure(page)
     expect({ name, x: m.x, width: m.width }).toEqual({ name, x: 304, width: 672 })  // (1280 − 672) / 2
-    if (DETAIL.has(name)) expect({ name, backX: m.backX }).toEqual({ name, backX: 304 })
+    if (DETAIL.has(name)) expect({ name, backX: m.backX }).toEqual({ name, backX: 144 })  // (1280 − 1024) / 2 + 16, like the home page's title
   }
 })
 

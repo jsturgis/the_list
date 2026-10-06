@@ -153,8 +153,9 @@ WCAG AA.
 - **Page header (`PageHeader`):** every page starts with one: an optional eyebrow (a Show's status and date), the
   h1, an optional subtitle (`text-lg ink-soft`) and an optional row of chips.
 - **Sections (`Section`):** a `<section aria-labelledby>`: a 24px bold `h2` on the page, then the content in a
-  panel below it (`surface`, 8px radius, 20px padding), 12px apart. The heading is never inside the panel. `plain`
-  drops the panel for content that already sits in panels (date-grouped Show rows).
+  panel below it (`surface`, 8px radius, 20px padding), 12px apart. The heading, and an optional note at the right
+  end of its line in `text-sm ink-muted` ("3 of 20 alerts"), are never inside the panel. `plain` drops the panel
+  for content that already sits in panels (date-grouped Show rows).
 - **Key facts (`FactList`):** a `<dl>` grid, three columns from `sm` and one per line on phones. Each fact has an
   icon and a `text-xs ink-muted` label, over a `text-base font-semibold ink` value (Doors, Price, Ages).
 - **Actions (`ActionLinks`):** a wrapping row of pill links, 14px bold: primary (`bg-accent text-on-accent`, at
@@ -174,7 +175,8 @@ WCAG AA.
 - **Two widths, set by the layout** (`Layout`'s `width` prop), never by a page's components:
   - *wide:* the home page, the full `max-w-5xl` (1024px) with 16px side padding, for the filter bar and list.
   - *narrow (the default):* every other page (Show, Venue, Band, Alerts, Unsubscribe, 404) in one centred 672px
-    column (`max-w-2xl`, `w-full`). The Back link sits inside the column, above the page header.
+    column (`max-w-2xl`, `w-full`). The Back link sits above it at the full-width left edge (the layout's `back`
+    slot), lined up with the home page's content.
 - **Spacing** steps in 4px (Tailwind's scale). Blocks on a page (header, facts, sections) are 24px apart (`gap-6`). Rows have 12px vertical
   and 16px horizontal padding.
 - **Radius:** 8px (`rounded-lg`) for panels, cards and toasts; full pills (`rounded-full`) for buttons, inputs,
