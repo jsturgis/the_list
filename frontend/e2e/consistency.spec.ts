@@ -16,11 +16,12 @@ const DETAIL = new Set(['Show page', 'Venue page', 'Band page'])
 
 test.use({ viewport: { width: 1280, height: 800 } })
 
-/** The h1's box and type, and the Back link's left edge if there is one. */
+/** The content column's box (the h1's container in `main`), the h1's type, and the Back link's left edge. */
 async function measure(page: Page) {
   const h1 = page.getByRole('heading', { level: 1 })
   await expect(h1).toBeVisible()
-  const box = (await h1.boundingBox())!
+  const box = (await h1.locator('xpath=ancestor::*[parent::main][1]').boundingBox())!
+  expect((await h1.boundingBox())!.x).toBeCloseTo(box.x, 0)  // the title starts at the column's left edge
   const type = await h1.evaluate(el => {
     const s = getComputedStyle(el)
     return { size: s.fontSize, weight: s.fontWeight }
