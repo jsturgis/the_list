@@ -55,7 +55,7 @@ test('the first Tab reaches "Skip to content", which moves focus to the page con
 
 test('keyboard focus is visible on fields, buttons, links and Show rows', async ({ page }) => {
   await page.goto('./?region=east_bay')
-  for (const target of [page.getByLabel('Search'), page.getByRole('button', { name: /setup alert/i }), page.getByRole('link', { name: 'Your alerts' })]) {
+  for (const target of [page.getByLabel('Search'), page.getByRole('button', { name: /save search/i }), page.getByRole('link', { name: 'Your alerts' })]) {
     await page.locator('body').click({ position: { x: 1, y: 1 } })
     await tabTo(page, target)
     await expect(target).toHaveCSS('outline-style', 'solid')
@@ -67,9 +67,9 @@ test('keyboard focus is visible on fields, buttons, links and Show rows', async 
   await expect(row).not.toHaveCSS('box-shadow', 'none')  // the row's focus ring
 })
 
-test('Setup Alert panel: focus moves in, Escape returns it, and Tab past the end closes it', async ({ page }) => {
+test('Save search panel: focus moves in, Escape returns it, and Tab past the end closes it', async ({ page }) => {
   await page.goto('./?region=east_bay')
-  const button = page.getByRole('button', { name: /setup alert/i })
+  const button = page.getByRole('button', { name: /save search/i })
   await tabTo(page, button)
   await page.keyboard.press('Enter')
   await expect(page.getByLabel('Name')).toBeFocused()
@@ -94,9 +94,8 @@ test('keyboard only: set up an alert', async ({ page }) => {
   await tabTo(page, page.getByLabel('Search'))
   await page.keyboard.type('gilman')
   await expect(page).toHaveURL(/q=gilman/)
-  const button = page.getByRole('button', { name: /setup alert/i })
-  for (let i = 0; i < 10 && !(await button.evaluate(el => el === document.activeElement)); i++) await page.keyboard.press('Shift+Tab')
-  await expect(button).toBeFocused()
+  const button = page.getByRole('button', { name: /save search/i })
+  await tabTo(page, button, 10)  // after the filters, at the end of the filter bar
   await page.keyboard.press('Enter')
   await expect(page.getByLabel('Name')).toHaveValue('"gilman"')
   await page.keyboard.press('Tab')

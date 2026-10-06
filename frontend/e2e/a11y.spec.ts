@@ -14,8 +14,8 @@ const STATES: [string, string, (page: Page) => Promise<void>][] = [
     await expect(page.locator('main [data-show-link]').first()).toBeVisible()
     await expect(page.getByLabel('From date')).toBeVisible()  // Advanced filters open when the URL has one
   }],
-  ['Setup Alert panel open', './?region=east_bay', async page => {
-    await page.getByRole('button', { name: /setup alert/i }).click()
+  ['Save search panel open', './?region=east_bay', async page => {
+    await page.getByRole('button', { name: /save search/i }).click()
     await expect(page.getByLabel('Email')).toBeVisible()
   }],
   ['Show page', 'shows/102/', page => expect(page.getByRole('heading', { name: 'Lineup' })).toBeVisible()],
