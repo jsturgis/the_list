@@ -112,9 +112,10 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                 venue_cache[key] = await loop.run_in_executor(None, _enrich_venue, name, city or "", street, False)
             _apply_venue_data(data, venue_cache[key])
 
-        # New Bands: look them up on MusicBrainz (no LLM), once per name. Its curated genres win over the
-        # edition's genre field, which is sometimes guessed from the name (Soulfly as "Soul / Funk / R&B");
-        # the edition's genre is the fallback, then MusicBrainz's tags. Links only fill gaps.
+        # New Bands: look them up on MusicBrainz (no LLM), once per name. MusicBrainz is the source of truth;
+        # the edition, whose genres and links are sometimes guessed from the name (Soulfly as "Soul / Funk /
+        # R&B" at soulfly.bandcamp.com), is the fallback. Genres: MusicBrainz's curated genres, else the
+        # edition's, else MusicBrainz's free-form tags. Links: each one MusicBrainz has, else the edition's.
         # A Band already in the database was looked up when it was new, so it isn't tried again.
         band_cache: dict[str, dict | None] = {}
         for data in shows_data:
@@ -127,7 +128,7 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                         band_cache[name] = await loop.run_in_executor(None, _enrich_band, name, False)
                 found = band_cache[name]
                 if found:
-                    links = {k: v for k, v in found.items() if k.endswith("_url") and v and not enrichment.get(k)}
+                    links = {k: v for k, v in found.items() if k.endswith("_url") and v}
                     genres = found["genres"] if found["mb_genres"] else (enrichment["genres"] or found["genres"])
                     data["band_enrichment"][i] = (name, {**enrichment, **links, "genres": genres})
 
