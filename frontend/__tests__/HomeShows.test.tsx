@@ -94,7 +94,7 @@ describe('HomeShows', () => {
 
   it('shows sold out, benefit and matinee badges, and the Venue and city without the neighborhood', async () => {
     renderHome()
-    const row = (await screen.findByText('Tonight Band')).closest('h3')!.parentElement!.parentElement!.parentElement!
+    const row = (await screen.findByText('Tonight Band')).closest('li')!  // the Show's list item
     expect(within(row).getByText('Sold out')).toBeInTheDocument()
     expect(within(row).getByText('Benefit')).toBeInTheDocument()
     expect(within(row).getByText('Matinee')).toBeInTheDocument()

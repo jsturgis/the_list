@@ -133,6 +133,22 @@ for (const [label, width] of [['desktop', 1280], ['phone', 390]] as const) {
   })
 }
 
+for (const [label, width] of [['desktop', 1280], ['phone', 390]] as const) {
+  test(`Venue and Band rows centre the Acts on the compact date (${label})`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    for (const path of ['venues/2/', 'bands/1/']) {
+      await page.goto(path)
+      const rows = await page.getByRole('region', { name: 'Upcoming Shows' }).getByRole('listitem').all()
+      expect(rows.length).toBeGreaterThan(0)
+      for (const row of rows) {
+        const date = (await row.locator('time').boundingBox())!
+        const acts = (await row.getByRole('heading').boundingBox())!
+        expect(Math.abs((date.y + date.height / 2) - (acts.y + acts.height / 2)), path).toBeLessThanOrEqual(1)
+      }
+    }
+  })
+}
+
 test("a Venue page has a bell for that Venue's alerts", async ({ page }) => {
   await page.goto('venues/2/')
   await expect(page.getByRole('button', { name: /^Get alerts for / })).toBeVisible()
