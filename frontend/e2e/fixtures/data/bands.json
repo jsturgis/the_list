@@ -15,6 +15,43 @@
     "similar": [
       2,
       3
+    ],
+    "links": [
+      {
+        "group": "listening",
+        "service": "spotify",
+        "label": "Spotify",
+        "url": "https://open.spotify.com/artist/neonharbor",
+        "paid": false
+      },
+      {
+        "group": "listening",
+        "service": "bandcamp",
+        "label": "Bandcamp",
+        "url": "https://neonharbor.bandcamp.com/",
+        "paid": false
+      },
+      {
+        "group": "listening",
+        "service": "apple_music",
+        "label": "Apple Music",
+        "url": "https://music.apple.com/us/artist/neon-harbor/1",
+        "paid": true
+      },
+      {
+        "group": "follow",
+        "service": "instagram",
+        "label": "Instagram",
+        "url": "https://www.instagram.com/neonharbor/",
+        "paid": false
+      },
+      {
+        "group": "follow",
+        "service": "youtube",
+        "label": "YouTube",
+        "url": "https://www.youtube.com/@neonharbor",
+        "paid": false
+      }
     ]
   },
   {
@@ -32,7 +69,8 @@
     "description": null,
     "similar": [
       1
-    ]
+    ],
+    "links": []
   },
   {
     "id": 3,
@@ -49,7 +87,8 @@
     "description": null,
     "similar": [
       1
-    ]
+    ],
+    "links": []
   },
   {
     "id": 4,
@@ -64,7 +103,8 @@
     "imageUrl": null,
     "isLocal": null,
     "description": null,
-    "similar": []
+    "similar": [],
+    "links": []
   },
   {
     "id": 5,
@@ -79,7 +119,8 @@
     "imageUrl": null,
     "isLocal": null,
     "description": null,
-    "similar": []
+    "similar": [],
+    "links": []
   },
   {
     "id": 6,
@@ -94,7 +135,8 @@
     "imageUrl": null,
     "isLocal": null,
     "description": null,
-    "similar": []
+    "similar": [],
+    "links": []
   },
   {
     "id": 7,
@@ -109,6 +151,22 @@
     "imageUrl": null,
     "isLocal": null,
     "description": null,
-    "similar": []
+    "similar": [],
+    "links": [
+      {
+        "group": "listening",
+        "service": "bandcamp",
+        "label": "Bandcamp",
+        "url": "https://redwoodsirens.bandcamp.com",
+        "paid": false
+      },
+      {
+        "group": "listening",
+        "service": "soundcloud",
+        "label": "SoundCloud",
+        "url": "https://soundcloud.com/redwood-sirens",
+        "paid": false
+      }
+    ]
   }
 ]

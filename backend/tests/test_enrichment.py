@@ -294,6 +294,38 @@ async def test_mb_spotify_url_set(mock_search, mock_lookup, mock_venue):
 @patch("app.pipeline.enrichment._enrich_venue", return_value={})
 @patch("app.pipeline.enrichment._mb_lookup")
 @patch("app.pipeline.enrichment._mb_search")
+async def test_mb_spotify_url_set_whatever_the_relation_type(mock_search, mock_lookup, mock_venue):
+    """MusicBrainz now calls Spotify links "free streaming"; links are matched by host, not type."""
+    mock_search.return_value = _mb_artist()
+    mock_lookup.return_value = _mb_full(url_rels=[
+        {"type": "free streaming", "target": "https://open.spotify.com/artist/2DqzOWVL2ly48IA9bpZdie"},
+        {"type": "free streaming", "target": "https://open.spotify.com/playlist/xyz"},  # not an artist page
+    ])
+    result = await enrich_show(_raw())
+    assert result["spotify_url"] == "https://open.spotify.com/artist/2DqzOWVL2ly48IA9bpZdie"
+
+
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment._mb_lookup")
+@patch("app.pipeline.enrichment._mb_search")
+async def test_mb_official_homepage_is_the_website(mock_search, mock_lookup, mock_venue):
+    mock_search.return_value = _mb_artist()
+    mock_lookup.return_value = _mb_full(url_rels=[
+        {"type": "social network", "target": "https://www.instagram.com/headliner/"},
+        {"type": "official homepage", "target": "https://www.headliner.com/"},
+    ])
+    result = await enrich_show(_raw(bands=["Headliner"]))
+    assert result["band_enrichment"][0][1]["website_url"] == "https://www.headliner.com/"
+    # Every link is kept as MusicBrainz gave it.
+    assert result["band_enrichment"][0][1]["links"] == [
+        {"type": "social network", "url": "https://www.instagram.com/headliner/"},
+        {"type": "official homepage", "url": "https://www.headliner.com/"},
+    ]
+
+
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment._mb_lookup")
+@patch("app.pipeline.enrichment._mb_search")
 async def test_mb_soundcloud_url_set(mock_search, mock_lookup, mock_venue):
     mock_search.return_value = _mb_artist()
     mock_lookup.return_value = _mb_full(

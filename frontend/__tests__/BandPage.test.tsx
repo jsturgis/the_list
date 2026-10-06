@@ -4,6 +4,7 @@ import BandDetail from '@/components/BandDetail'
 import { pastShowsStyle } from '@/lib/pastShows'
 import SimilarBands from '@/components/SimilarBands'
 import { makeBand, makeShow, makeVenue } from './fixtures'
+import type { BandLink } from '@/lib/types'
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
@@ -61,15 +62,33 @@ describe('BandDetail', () => {
     expect(screen.getByText(/garage rock/)).toBeInTheDocument()
   })
 
-  it('renders Spotify link when available', () => {
-    renderBand()
-    expect(screen.getByRole('link', { name: /spotify/i })).toHaveAttribute('href', band.spotifyUrl)
+  const link = (group: BandLink['group'], service: string, label: string, paid = false): BandLink =>
+    ({ group, service, label, url: `https://${service}.example/the-strokes`, paid })
+
+  it('shows the listening links in the order given: free services, then paid ones', () => {
+    renderBand(makeBand({ links: [
+      link('listening', 'spotify', 'Spotify'), link('listening', 'soundcloud', 'SoundCloud'),
+      link('listening', 'apple_music', 'Apple Music', true),
+    ] }), [])
+    const buttons = screen.getAllByRole('link').filter(a => /Spotify|SoundCloud|Apple Music/.test(a.textContent ?? ''))
+    expect(buttons.map(a => a.textContent)).toEqual(['Spotify', 'SoundCloud', 'Apple Music'])
+    expect(buttons[0]).toHaveAttribute('href', 'https://spotify.example/the-strokes')
+    expect(buttons[2]).toHaveAttribute('title', 'Apple Music (subscription)')
   })
 
-  it('renders SoundCloud as fallback when Spotify absent', () => {
-    renderBand(makeBand({ spotifyUrl: null, soundcloudUrl: 'https://soundcloud.com/thestrokes' }), [])
-    expect(screen.getByRole('link', { name: /soundcloud/i })).toHaveAttribute('href', 'https://soundcloud.com/thestrokes')
-    expect(screen.queryByRole('link', { name: /spotify/i })).not.toBeInTheDocument()
+  it('lists social profiles under Social', () => {
+    renderBand(makeBand({ links: [
+      link('listening', 'spotify', 'Spotify'), link('follow', 'instagram', 'Instagram'), link('follow', 'youtube', 'YouTube'),
+    ] }), [])
+    const region = screen.getByRole('region', { name: 'Social' })
+    expect(within(region).getAllByRole('listitem').map(li => li.textContent)).toEqual(['Instagram', 'YouTube'])
+    expect(within(region).getByRole('link', { name: /Instagram/ })).toHaveAttribute('href', 'https://instagram.example/the-strokes')
+    expect(within(region).queryByText('Spotify')).not.toBeInTheDocument()  // listening links are buttons above
+  })
+
+  it('has no Social section without social profiles', () => {
+    renderBand(makeBand({ links: [link('listening', 'spotify', 'Spotify')] }), [])
+    expect(screen.queryByRole('region', { name: 'Social' })).not.toBeInTheDocument()
   })
 
   it('renders upcoming shows list with show links', () => {

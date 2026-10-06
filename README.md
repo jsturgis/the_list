@@ -15,8 +15,8 @@ removed) in a [public Google Drive folder](https://drive.google.com/drive/folder
 2. **Parses** each show's details (prices, age restrictions, times, and flags: `*` recommended, `$` will
    sell out, etc.)
 3. **Enriches** new venues with Google Maps Places (address, lat/lng, place ID), takes new bands' genres
-   from MusicBrainz's curated genres (the edition's genre field is the fallback, then MusicBrainz tags),
-   and keeps only image URLs and links that work
+   and links from MusicBrainz, the source of truth (the edition's are the fallback; MusicBrainz tags come
+   last for genres), and keeps only image URLs and links that work
 4. **Stores** shows, bands, venues, and acts in SQLite (Alembic-managed schema)
 5. **Indexes** band and show embeddings in FAISS for Similar Bands (Ollama `nomic-embed-text`)
 6. **Exports** the data to static JSON and builds an Astro static site with region, band, venue, genre,
@@ -320,7 +320,9 @@ Google Drive (public folder)
   └─ latest.json → newest formatted edition JSON
        └─ edition_shows()        → upsert-ready dict per show (details parsed, bands with genres/links)
             └─ Google Places     → only for venues not yet in the DB
-            └─ MusicBrainz       → genres for new bands (not yet in the DB): curated genres, else the edition's
+            └─ joint billings    → "Dying Fetus And Sanguisugabogg" becomes two bands, "Belle and Sebastian"
+                                   stays one (app/ingestion/joint_bands.py, decided on MusicBrainz)
+            └─ MusicBrainz       → genres and links for new bands (not yet in the DB), over the edition's
             └─ image URL check   → keep, repair (Wikimedia paths) or drop each image URL
                  └─ upsert_shows()   → Show, Venue, Band and Act rows
                       └─ embed + index in FAISS

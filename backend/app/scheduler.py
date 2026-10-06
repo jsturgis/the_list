@@ -18,6 +18,7 @@ from app.ingestion.drive import fetch_latest_edition
 from app.ingestion.edition import edition_meta, edition_shows
 from app.ingestion.enriched import merge_enriched
 from app.ingestion.images import check_image_urls
+from app.ingestion.joint_bands import joint_parts, split_joint_acts, split_joint_name
 from app.ingestion.links import check_links
 from app.ingestion.upsert import find_venue, known_region, upsert_shows
 from app.models.act import Act
@@ -112,9 +113,24 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                 venue_cache[key] = await loop.run_in_executor(None, _enrich_venue, name, city or "", street, False)
             _apply_venue_data(data, venue_cache[key])
 
-        # New Bands: look them up on MusicBrainz (no LLM), once per name. Its curated genres win over the
-        # edition's genre field, which is sometimes guessed from the name (Soulfly as "Soul / Funk / R&B");
-        # the edition's genre is the fallback, then MusicBrainz's tags. Links only fill gaps.
+        # New names that are two Bands billed together ("Dying Fetus And Sanguisugabogg") become two Acts; real
+        # Bands with "and" in the name ("Belle and Sebastian") don't. MusicBrainz decides, once per name.
+        split_cache: dict[str, list[str]] = {}
+
+        def split(name: str) -> list[str]:
+            if name not in split_cache:
+                known = joint_parts(name) is None or db.query(Band.id).filter(Band.name == name).first()
+                split_cache[name] = [name] if known else split_joint_name(name)
+            return split_cache[name]
+
+        for data in shows_data:
+            for name, halves in await loop.run_in_executor(None, split_joint_acts, data, split):
+                logger.info("ingestion: %r is a joint billing: %s", name, " + ".join(halves))
+
+        # New Bands: look them up on MusicBrainz (no LLM), once per name. MusicBrainz is the source of truth;
+        # the edition, whose genres are sometimes guessed from the name (Soulfly as "Soul / Funk / R&B"), is the
+        # fallback. Genres: MusicBrainz's curated genres, else the edition's, else MusicBrainz's free-form tags.
+        # Links: each one MusicBrainz has, else the edition's.
         # A Band already in the database was looked up when it was new, so it isn't tried again.
         band_cache: dict[str, dict | None] = {}
         for data in shows_data:
@@ -127,7 +143,8 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                         band_cache[name] = await loop.run_in_executor(None, _enrich_band, name, False)
                 found = band_cache[name]
                 if found:
-                    links = {k: v for k, v in found.items() if k.endswith("_url") and v and not enrichment.get(k)}
+                    links = {k: v for k, v in found.items() if k.endswith("_url") and v}
+                    links["mb_links"] = found.get("links") or []  # every MusicBrainz link, for app/band_links.py
                     genres = found["genres"] if found["mb_genres"] else (enrichment["genres"] or found["genres"])
                     data["band_enrichment"][i] = (name, {**enrichment, **links, "genres": genres})
 

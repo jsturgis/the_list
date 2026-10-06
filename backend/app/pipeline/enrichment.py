@@ -138,7 +138,7 @@ def _find_bandcamp_url(name: str) -> Optional[str]:
 
 
 def _enrich_band(name: str, use_llm: bool = True) -> dict:
-    """Return {genres, tags, spotify_url, soundcloud_url, bandcamp_url} for a band name.
+    """Return {genres, mb_genres, spotify_url, soundcloud_url, bandcamp_url, website_url} for a band name.
 
     `genres` are MusicBrainz's curated genres (at most 5), falling back to its top 5 tags when it has none;
     `mb_genres` says whether they're the curated ones. With `use_llm=False` only MusicBrainz is used (no LLM
@@ -146,7 +146,8 @@ def _enrich_band(name: str, use_llm: bool = True) -> dict:
     """
     artist = _mb_search(name)
     if artist is None:
-        return {"genres": [], "mb_genres": False, "spotify_url": None, "soundcloud_url": None, "bandcamp_url": None}
+        return {"genres": [], "mb_genres": False, "spotify_url": None, "soundcloud_url": None, "bandcamp_url": None,
+                "website_url": None, "links": []}
 
     full = _mb_lookup(artist["id"])
 
@@ -161,19 +162,26 @@ def _enrich_band(name: str, use_llm: bool = True) -> dict:
     spotify_url: Optional[str] = None
     soundcloud_url: Optional[str] = None
     bandcamp_url: Optional[str] = None
+    website_url: Optional[str] = None
+    # Every artist-to-URL relationship, kept raw for app/band_links.py to group and rank.
+    links = [{"type": rel.get("type", ""), "url": rel["target"]} for rel in full.get("url-relation-list", [])
+             if rel.get("target")]
     for rel in full.get("url-relation-list", []):
         target = rel.get("target", "")
-        rel_type = rel.get("type", "")
-        if not spotify_url and "spotify.com" in target and rel_type == "streaming music":
+        # Matched by host: MusicBrainz's relation types change (Spotify was "streaming music", now "free streaming").
+        if not spotify_url and "open.spotify.com/artist/" in target:
             spotify_url = target
         if not soundcloud_url and "soundcloud.com" in target:
             soundcloud_url = target
         if not bandcamp_url and "bandcamp.com" in target:
             bandcamp_url = target
+        if not website_url and rel.get("type") == "official homepage":
+            website_url = target
 
     if not use_llm:
         return {"genres": genres, "mb_genres": bool(curated), "spotify_url": spotify_url,
-                "soundcloud_url": soundcloud_url, "bandcamp_url": bandcamp_url}
+                "soundcloud_url": soundcloud_url, "bandcamp_url": bandcamp_url, "website_url": website_url,
+                "links": links}
 
     # LLM fallback: find SoundCloud URL when MB doesn't have one
     if not soundcloud_url:
@@ -195,6 +203,8 @@ def _enrich_band(name: str, use_llm: bool = True) -> dict:
         "spotify_url": spotify_url,
         "soundcloud_url": soundcloud_url,
         "bandcamp_url": bandcamp_url,
+        "website_url": website_url,
+        "links": links,
     }
 
 
