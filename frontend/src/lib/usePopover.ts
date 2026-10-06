@@ -1,7 +1,7 @@
 import { useEffect, type RefObject } from 'react'
 
 /**
- * Closing behaviour for a small panel that opens from a button (Setup Alert, a Band or Venue page's heart): it
+ * Closing behaviour for a small panel that opens from a button (Setup Alert, a Band or Venue page's bell): it
  * closes with Escape (focus goes back to the button), a click anywhere outside `container`, or when focus leaves
  * it (Tab past its last control), so it never stays open behind where the keyboard is.
  */

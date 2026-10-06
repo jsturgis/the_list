@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { HeartIcon as HeartOutline } from '@heroicons/react/24/outline'
-import { HeartIcon as HeartSolid } from '@heroicons/react/24/solid'
+import { BellIcon as BellOutline } from '@heroicons/react/24/outline'
+import { BellAlertIcon as BellSolid } from '@heroicons/react/24/solid'
 import { href } from '@/lib/basePath'
 import { findSameFilter } from '@/lib/filters'
 import { MAX_ALERTS, alertsAvailable, alertsPageUrl, supabase, type SavedFilter } from '@/lib/supabase'
@@ -8,7 +8,7 @@ import { usePopover } from '@/lib/usePopover'
 import { useSession } from '@/lib/useSession'
 import Toast from './Toast'
 
-interface AlertHeartProps {
+interface AlertBellProps {
   /** What the alert is for: a Band's Shows, or the Shows at a Venue. */
   kind: 'band' | 'venue'
   id: number
@@ -26,11 +26,11 @@ const INPUT = 'h-9 rounded-full border border-line-strong bg-field text-sm px-3 
 const BUTTON = 'h-9 rounded-full bg-accent px-4 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50'
 
 /**
- * A Band or Venue page's heart: a Saved Filter for that one Band or Venue (`bandId=3`, `venueId=2`), so its
+ * A Band or Venue page's bell: a Saved Filter for that one Band or Venue (`bandId=3`, `venueId=2`), so its
  * Upcoming Shows come in the weekly Alert. Signed in, it saves or deletes that alert in one press; a visitor who
  * isn't signed in gets a sign-in link by email, and the Alerts page saves the alert once they follow it.
  */
-export default function AlertHeart({ kind, id, name }: AlertHeartProps) {
+export default function AlertBell({ kind, id, name }: AlertBellProps) {
   const session = useSession()
   const query = `${kind === 'band' ? 'bandId' : 'venueId'}=${id}`
   const shows = kind === 'band' ? `${name}'s upcoming shows` : `the upcoming shows at ${name}`
@@ -59,7 +59,7 @@ export default function AlertHeart({ kind, id, name }: AlertHeartProps) {
     return () => { cancelled = true }
   }, [signedIn])
 
-  // Decided at build time too, so a build without the Supabase settings never renders the heart and then drops it.
+  // Decided at build time too, so a build without the Supabase settings never renders the bell and then drops it.
   if (!alertsAvailable() || session.status === 'unavailable') return null
 
   const alert = saved ? findSameFilter(saved, query) : undefined
@@ -112,10 +112,10 @@ export default function AlertHeart({ kind, id, name }: AlertHeartProps) {
     button.current?.focus()
   }
 
-  const Heart = on ? HeartSolid : HeartOutline
+  const Bell = on ? BellSolid : BellOutline
   return (
-    // On phones the panel spans the page header's title row (this wrapper isn't positioned), wherever the heart
-    // landed on it; from `sm` it hangs off the heart.
+    // On phones the panel spans the page header's title row (this wrapper isn't positioned), wherever the bell
+    // landed on it; from `sm` it hangs off the bell.
     <div ref={container} className="sm:relative">
       <button
         ref={button}
@@ -130,7 +130,7 @@ export default function AlertHeart({ kind, id, name }: AlertHeartProps) {
           ? 'border-accent bg-accent-chip text-link'
           : 'border-line-strong bg-surface text-ink-soft hover:border-accent hover:text-link'}`}
       >
-        <Heart className="size-6" aria-hidden="true" />
+        <Bell className="size-6" aria-hidden="true" />
       </button>
 
       {open && (

@@ -12,7 +12,7 @@ export function searchParam(params: URLSearchParams): string {
 /** Every URL param the Shows filter reads (see buildFilters). */
 export const FILTER_PARAMS = ['q', ...LEGACY_SEARCH_PARAMS, 'region', 'fromDate', 'toDate', 'priceMax', 'free', 'age', 'genre', 'bandId', 'venueId']
 
-/** The params that pin the list to one Band or Venue, as a Band or Venue page's heart saves them. */
+/** The params that pin the list to one Band or Venue, as a Band or Venue page's bell saves them. */
 export const PIN_PARAMS = ['bandId', 'venueId']
 
 /** The filter part of a Shows list URL's query string, as a Saved Filter stores it: other params are dropped. */
