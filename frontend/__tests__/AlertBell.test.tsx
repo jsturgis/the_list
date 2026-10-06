@@ -77,6 +77,14 @@ describe('Alert bell, signed out', () => {
     expect(screen.queryByLabelText('Email')).not.toBeInTheDocument()
   })
 
+  it('keeps its panel open when Safari moves focus to <main> mid-click', async () => {
+    const { container } = render(<main tabIndex={-1}><AlertBell kind="band" id={3} name="Neon Harbor" /></main>)
+    await waitFor(async () => expect(await bell()).toBeEnabled())
+    fireEvent.click(await bell())
+    fireEvent.focusOut(screen.getByLabelText('Email'), { relatedTarget: container.querySelector('main') })
+    expect(screen.getByLabelText('Email')).toBeInTheDocument()
+  })
+
   it('isn\'t shown on a build without alerts', () => {
     fake.current = null
     const { container } = render(<AlertBell kind="band" id={3} name="Neon Harbor" />)
