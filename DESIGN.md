@@ -181,8 +181,9 @@ WCAG AA.
 - **Band links:** a Band's actions are its listening links, up to 3 free services then up to 3 paid ones,
   ranked by service in the backend (`app/band_links.py`), then its website. Spotify, SoundCloud and Bandcamp
   keep their brand-coloured pills; other services are outline pills, and paid ones say "(subscription)" in their
-  title. Its other links sit in a **Links** section (`BandLinks`): a `<dl>` with one line per group, "Follow",
-  "Tour dates" and "More about", each a wrapping list of bold `ink` links, underlined on hover.
+  title. Its follow and tour-date links sit in a **Links** section (`BandLinks`): a `<dl>` with one line per group,
+  "Follow" (Instagram, Facebook, X, TikTok, Bluesky, YouTube) and "Tour dates" (Songkick), each a wrapping list of
+  bold `ink` links, underlined on hover. No Bandsintown or reference links (Wikipedia, AllMusic, Discogs, Last.fm).
 - **Alert bell (`AlertBell`):** on Band and Venue pages, a round 40px icon button at the right of the title's
   line. Off: outline bell, `surface` with a `line-strong` border, `ink-soft`. On: solid ringing bell, `accent-chip` with
   an `accent` border, `link`. Signed in, a press saves or deletes the alert for that Band or Venue (`aria-pressed`)

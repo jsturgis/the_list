@@ -2,9 +2,9 @@ import type { BandLink } from '@/lib/types'
 import ExternalLink from './ExternalLink'
 import Section from './Section'
 
-const GROUPS: [BandLink['group'], string][] = [['follow', 'Follow'], ['tour', 'Tour dates'], ['about', 'More about']]
+const GROUPS: [BandLink['group'], string][] = [['follow', 'Follow'], ['tour', 'Tour dates']]
 
-/** A Band's follow, tour-date and reference links (DESIGN.md, "Band links"), one labelled line per group. */
+/** A Band's follow and tour-date links (DESIGN.md, "Band links"), one labelled line per group. */
 export default function BandLinks({ links }: { links: BandLink[] }) {
   const groups = GROUPS.map(([group, label]) => [label, links.filter(l => l.group === group)] as const)
     .filter(([, inGroup]) => inGroup.length > 0)

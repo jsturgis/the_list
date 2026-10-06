@@ -76,18 +76,18 @@ describe('BandDetail', () => {
     expect(buttons[2]).toHaveAttribute('title', 'Apple Music (subscription)')
   })
 
-  it('lists follow, tour-date and reference links under Links, by group', () => {
+  it('lists follow and tour-date links under Links, by group', () => {
     renderBand(makeBand({ links: [
-      link('listening', 'spotify', 'Spotify'), link('follow', 'instagram', 'Instagram'),
-      link('tour', 'bandsintown', 'Bandsintown'), link('about', 'wikipedia', 'Wikipedia'), link('about', 'discogs', 'Discogs'),
+      link('listening', 'spotify', 'Spotify'), link('follow', 'instagram', 'Instagram'), link('follow', 'youtube', 'YouTube'),
+      link('tour', 'songkick', 'Songkick'),
     ] }), [])
     const region = screen.getByRole('region', { name: 'Links' })
     const rows = within(region).getAllByRole('term').map(dt => [dt.textContent, dt.nextElementSibling?.textContent])
-    expect(rows).toEqual([['Follow', 'Instagram'], ['Tour dates', 'Bandsintown'], ['More about', 'WikipediaDiscogs']])
+    expect(rows).toEqual([['Follow', 'InstagramYouTube'], ['Tour dates', 'Songkick']])
     expect(within(region).queryByText('Spotify')).not.toBeInTheDocument()  // listening links are buttons above
   })
 
-  it('has no Links section without follow, tour-date or reference links', () => {
+  it('has no Links section without follow or tour-date links', () => {
     renderBand(makeBand({ links: [link('listening', 'spotify', 'Spotify')] }), [])
     expect(screen.queryByRole('region', { name: 'Links' })).not.toBeInTheDocument()
   })

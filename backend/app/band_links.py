@@ -4,8 +4,10 @@ own Spotify/SoundCloud/Bandcamp links (the fallback where MusicBrainz has none f
 Groups, in order:
   listening   up to 3 free services, then up to 3 paid ones, each ranked by service (below)
   follow      the Band's own profiles: Instagram, Facebook, X, TikTok, Bluesky, YouTube
-  tour        tour dates: Bandsintown, Songkick
-  about       Wikipedia, AllMusic, Discogs, Last.fm
+  tour        tour dates: Songkick
+
+Other links (Bandsintown, Wikipedia, AllMusic, Discogs, Last.fm, …) aren't shown. They stay in Band.links, where
+enrichment can use them to find data.
 
 A service is recognised by the link's host, not MusicBrainz's relationship type, which changes ("streaming
 music" became "free streaming") and is inconsistent (Apple Music is "streaming" or "apple music").
@@ -23,7 +25,7 @@ MAX_PAID = 3
 class Service:
     key: str
     label: str
-    group: str        # listening | follow | tour | about
+    group: str        # listening | follow | tour
     paid: bool = False
 
 
@@ -52,13 +54,7 @@ _SERVICES: list[tuple[tuple[str, ...], str, Service]] = [
     (("bsky.app",), "", Service("bluesky", "Bluesky", "follow")),
     (("youtube.com",), "", Service("youtube", "YouTube", "follow")),
     # Tour dates
-    (("bandsintown.com",), "", Service("bandsintown", "Bandsintown", "tour")),
     (("songkick.com",), "", Service("songkick", "Songkick", "tour")),
-    # More about
-    (("en.wikipedia.org",), "", Service("wikipedia", "Wikipedia", "about")),
-    (("allmusic.com",), "", Service("allmusic", "AllMusic", "about")),
-    (("discogs.com",), "", Service("discogs", "Discogs", "about")),
-    (("last.fm",), "", Service("lastfm", "Last.fm", "about")),
 ]
 _RANK = {service.key: i for i, (_, _, service) in enumerate(_SERVICES)}
 

@@ -54,23 +54,9 @@
       },
       {
         "group": "tour",
-        "service": "bandsintown",
-        "label": "Bandsintown",
-        "url": "https://www.bandsintown.com/a/1-neon-harbor",
-        "paid": false
-      },
-      {
-        "group": "about",
-        "service": "wikipedia",
-        "label": "Wikipedia",
-        "url": "https://en.wikipedia.org/wiki/Neon_Harbor",
-        "paid": false
-      },
-      {
-        "group": "about",
-        "service": "discogs",
-        "label": "Discogs",
-        "url": "https://www.discogs.com/artist/1-Neon-Harbor",
+        "service": "songkick",
+        "label": "Songkick",
+        "url": "https://www.songkick.com/artists/1-neon-harbor",
         "paid": false
       }
     ]

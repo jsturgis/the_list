@@ -22,8 +22,10 @@ def _mb(*urls):
     ("https://x.com/soulfly", "x"),
     ("https://twitter.com/soulfly", "x"),
     ("https://box.com/x.com/thing", None),                        # host, not a substring
-    ("https://www.last.fm/music/Soulfly", "lastfm"),
-    ("https://fr.wikipedia.org/wiki/Soulfly", None),              # English Wikipedia only
+    ("https://www.songkick.com/artists/1-soulfly", "songkick"),
+    ("https://www.bandsintown.com/a/1-soulfly", None),           # not shown
+    ("https://en.wikipedia.org/wiki/Soulfly", None),             # not shown: reference links aren't
+    ("https://www.last.fm/music/Soulfly", None),
     ("not a url", None),
 ])
 def test_service_for(url, service):
@@ -51,14 +53,15 @@ def test_listening_is_three_free_then_three_paid_ranked_by_service():
 
 def test_other_groups_follow_listening_in_order():
     links = band_links(_mb(
-        "https://www.allmusic.com/artist/mn1", "https://www.bandsintown.com/a/1", "https://www.instagram.com/soulfly/",
+        "https://www.allmusic.com/artist/mn1", "https://www.songkick.com/artists/1", "https://www.instagram.com/soulfly/",
         "https://en.wikipedia.org/wiki/Soulfly", "https://open.spotify.com/artist/1", "https://www.youtube.com/soulfly",
+        "https://www.bandsintown.com/a/1",
     ))
+    # Bandsintown and the reference links (AllMusic, Wikipedia) aren't shown.
     assert [(link.group, link.service) for link in links] == [
         ("listening", "spotify"),
         ("follow", "instagram"), ("follow", "youtube"),
-        ("tour", "bandsintown"),
-        ("about", "wikipedia"), ("about", "allmusic"),
+        ("tour", "songkick"),
     ]
 
 
@@ -80,5 +83,4 @@ def test_a_band_without_musicbrainz_links_keeps_the_editions():
 def test_unknown_links_and_duplicates_are_left_out():
     links = band_links(_mb("https://open.spotify.com/artist/1", "https://open.spotify.com/artist/2",
                            "https://viaf.org/viaf/1", "https://www.discogs.com/artist/1"))
-    assert [(link.service, link.url) for link in links] == [
-        ("spotify", "https://open.spotify.com/artist/1"), ("discogs", "https://www.discogs.com/artist/1")]
+    assert [(link.service, link.url) for link in links] == [("spotify", "https://open.spotify.com/artist/1")]

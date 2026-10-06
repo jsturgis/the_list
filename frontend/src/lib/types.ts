@@ -27,8 +27,8 @@ export interface Venue {
 
 /** One of a Band's links, grouped and ranked by the backend (app/band_links.py). */
 export interface BandLink {
-  /** listening: up to 3 free services, then up to 3 paid; follow; tour (dates); about. In that order. */
-  group: 'listening' | 'follow' | 'tour' | 'about'
+  /** listening: up to 3 free services, then up to 3 paid; follow; tour (dates). In that order. */
+  group: 'listening' | 'follow' | 'tour'
   service: string
   label: string
   url: string
