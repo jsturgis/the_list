@@ -23,7 +23,10 @@ export function usePopover(
     }
     const onFocusOut = (e: FocusEvent) => {
       const next = e.relatedTarget as Node | null
-      if (next && container.current && !container.current.contains(next)) close()
+      // Safari doesn't focus a button that's clicked: focus goes to the nearest focusable ancestor instead (the
+      // page's <main tabindex="-1">), mid-click. That's focus moving *around* the panel, not away from it, so the
+      // panel stays open and the click lands.
+      if (next && container.current && !container.current.contains(next) && !next.contains(container.current)) close()
     }
     const el = container.current
     document.addEventListener('keydown', onKey)

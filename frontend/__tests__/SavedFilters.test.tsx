@@ -83,6 +83,27 @@ describe('Save control', () => {
     expect(fake.current!.client.insert).not.toHaveBeenCalled()
   })
 
+  it('saves when Save is clicked in Safari, where focus jumps to <main> mid-click', async () => {
+    fake.current!.state.email = 'fan@example.com'
+    replaceQuery('genre=punk&region=east_bay')
+    const { container } = render(<main tabIndex={-1}><FilterBar {...props} /></main>)
+    fireEvent.click(await screen.findByRole('button', { name: /save search/i }))
+    await screen.findByText(/alerts used/)
+    // Safari doesn't focus a clicked button: the name field loses focus to the nearest focusable ancestor first.
+    fireEvent.focusOut(screen.getByLabelText('Name'), { relatedTarget: container.querySelector('main') })
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }))
+    await findToast()
+    expect(fake.current!.state.savedFilters).toMatchObject([{ query: 'genre=punk&region=east_bay' }])
+  })
+
+  it('closes when focus moves on to something else', async () => {
+    replaceQuery('genre=punk')
+    render(<><FilterBar {...props} /><a href="/next">Next</a></>)
+    fireEvent.click(await screen.findByRole('button', { name: /save search/i }))
+    fireEvent.focusOut(screen.getByLabelText('Name'), { relatedTarget: screen.getByRole('link', { name: 'Next' }) })
+    await waitFor(() => expect(screen.queryByLabelText('Name')).not.toBeInTheDocument())
+  })
+
   it('saves straight away for a signed-in visitor', async () => {
     fake.current!.state.email = 'fan@example.com'
     replaceQuery('genre=punk&region=east_bay')
