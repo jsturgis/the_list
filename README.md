@@ -259,7 +259,9 @@ redirects there.
 - **The Deploy workflow** (`.github/workflows/deploy.yml`) has three stages:
   1. **Ingest**: runs `python -m app.cli ingest` against the `data` branch's database (with an Ollama
      service container for embeddings) and commits the changed database, index and Band photos back to
-     `data`.
+     `data`. Each run's row in `ingestion_runs` records its new Bands and, as percentages, how many have no
+     photo and how many fell back to the edition for genres, photo and links (`app/ingestion/ingest_stats.py`;
+     also in the `ingestionRuns` GraphQL query and the ingest log), to follow the lookups' coverage.
   2. **Build and deploy**: checks out `main` and the `data` branch, runs `python -m app.cli export`,
      copies `images/` into the site's static files, builds the static site and deploys it to Pages.
   3. **Alerts**: after a successful ingest and deploy only, runs `python -m app.cli alerts`. That emails

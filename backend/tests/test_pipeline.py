@@ -343,6 +343,47 @@ async def test_pipeline_splits_joint_billings_into_two_bands(mock_batch, mock_sp
     assert [c.args[0] for c in mock_split.call_args_list] == ["Dying Fetus And Sanguisugabogg"]
 
 
+@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_records_how_the_new_bands_came_out(mock_batch, mock_venue, mock_fetch, db):
+    # No service knows anyone (the offline defaults), so every new Band falls back to the edition.
+    await _run_ingestion_async(db=db)
+
+    run = db.query(IngestionRun).order_by(IngestionRun.id.desc()).first()
+    assert (run.new_bands, run.new_bands_without_photo_pct, run.new_bands_photo_from_edition_pct) == (3, 100.0, 0.0)
+    assert run.new_bands_genres_from_edition_pct == 100.0   # Deafheaven, Uniform, Mdou Moctar: the edition's genres
+    assert run.new_bands_links_from_edition_pct == 33.3     # Deafheaven's Bandcamp link
+
+    await _run_ingestion_async(db=db)  # the same edition again: no new Bands
+    run = db.query(IngestionRun).order_by(IngestionRun.id.desc()).first()
+    assert (run.new_bands, run.new_bands_without_photo_pct, run.new_bands_genres_from_edition_pct) == (0, None, None)
+
+
+_TWO_DATES_EDITION = {
+    **_EDITION,
+    "events": [
+        _edition_event("Oct 2, 2026", "Bottom of the Hill", "San Francisco",
+                       [("Local Heroes", "Rock", "https://localheroes.bandcamp.com/")], "21+ $12 8pm"),
+        _edition_event("Oct 3, 2026", "The Chapel", "San Francisco",
+                       [("Local Heroes", "Punk", "https://localheroes.example/")], "21+ $12 8pm"),
+    ],
+}
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=(_TWO_DATES_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_the_edition_fallback_stats_count_a_band_on_several_shows(mock_batch, mock_venue, mock_fetch, db):
+    """The Band keeps its first Show's edition genres and each link field's first value; the stats must agree."""
+    await _run_ingestion_async(db=db)
+
+    heroes = db.query(Band).filter(Band.name == "Local Heroes").one()
+    assert heroes.genres == ["rock"] and heroes.bandcamp_url == "https://localheroes.bandcamp.com/"
+    run = db.query(IngestionRun).order_by(IngestionRun.id.desc()).first()
+    assert (run.new_bands, run.new_bands_genres_from_edition_pct, run.new_bands_links_from_edition_pct) == (1, 100.0, 100.0)
+
+
 @patch("app.scheduler.fetch_latest_edition", return_value=(None, None))
 async def test_pipeline_returns_early_when_no_edition(mock_fetch, db):
     await _run_ingestion_async(db=db)

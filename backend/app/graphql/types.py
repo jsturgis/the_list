@@ -120,6 +120,11 @@ class IngestionRunType:
     shows_parsed: int | None
     shows_upserted: int | None
     shows_new: int | None
+    new_bands: int | None
+    new_bands_without_photo_pct: float | None
+    new_bands_photo_from_edition_pct: float | None
+    new_bands_genres_from_edition_pct: float | None
+    new_bands_links_from_edition_pct: float | None
     error: str | None
 
 
