@@ -15,7 +15,8 @@ from app.clock import local_today
 from app.config import settings
 from app.database import SessionLocal
 from app.ingestion.band_photos import save_band_photos
-from app.ingestion.discogs import discogs_artist, discogs_credit, discogs_genres
+from app.ingestion.band_sources import photo_candidates, service_genres
+from app.ingestion.discogs import discogs_artist, discogs_genres
 from app.ingestion.drive import fetch_latest_edition
 from app.ingestion.edition import edition_meta, edition_shows
 from app.ingestion.enriched import merge_enriched
@@ -139,8 +140,7 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
         # Links: each one MusicBrainz has, else the edition's.
         # A Band already in the database was looked up when it was new, so it isn't tried again.
         band_cache: dict[str, dict | None] = {}
-        lastfm_cache: dict[str, list[str]] = {}
-        discogs_genre_cache: dict[str, list[str]] = {}
+        genre_cache: dict[str, list[str]] = {}  # each new Band's genres from the services, asked once
         # For the run's stats: the new Bands that took their genres or links from the edition (app/ingestion/ingest_stats).
         edition_genres: dict[str, list[str]] = {}
         edition_links: dict[str, dict[str, str]] = {}
@@ -161,36 +161,22 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                 if found:
                     links = {k: v for k, v in found.items() if k.endswith("_url") and v}
                     links["mb_links"] = found.get("links") or []  # every MusicBrainz link, for app/band_links.py
-                    # Photos, in order: Commons, Discogs, and only then the edition's (with no credit). The first
-                    # that loads is used; the rest are fallbacks if it turns out to be gone when downloaded.
+                    # Photos, in order (app/ingestion/band_sources): Commons, Discogs, and only then the edition's.
+                    # The first that loads is used; the rest are fallbacks if it turns out to be gone when downloaded.
                     artist = found.get("discogs")
-                    candidates = []
-                    if photo := found.get("commons_photo"):
-                        candidates.append({"url": photo.url, "credit": photo.credit})
-                    if artist and artist.image_url:
-                        candidates.append({"url": artist.image_url, "credit": discogs_credit(artist)})
+                    candidates = photo_candidates(found.get("commons_photo"), artist, enrichment.get("image_url"))
                     if candidates:
-                        if enrichment.get("image_url"):
-                            candidates.append({"url": enrichment["image_url"], "credit": None})
                         links.update(image_url=candidates[0]["url"], image_credit=candidates[0]["credit"],
                                      image_candidates=candidates)
-                    # Genres: MusicBrainz's curated ones, else Last.fm's tags, else Discogs' genres and styles (each
-                    # asked only when needed, once per name), else MusicBrainz's free-form tags, and only when every
-                    # service has none, the edition's.
-                    if found["mb_genres"]:
-                        genres = found["genres"]
-                    else:
-                        if name not in lastfm_cache:
-                            lastfm_cache[name] = await loop.run_in_executor(None, lastfm_tags, name, found.get("mbid"))
-                        if not lastfm_cache[name] and name not in discogs_genre_cache:
-                            artist = found.get("discogs")
-                            discogs_genre_cache[name] = (
-                                await loop.run_in_executor(None, discogs_genres, artist.id) if artist else [])
-                        from_services = lastfm_cache[name] or discogs_genre_cache.get(name) or found["genres"]
-                        genres = from_services or enrichment["genres"]
-                        # First Show wins, as in the upsert, which only fills a Band's empty fields.
-                        if genres and not from_services:
-                            edition_genres.setdefault(name, genres)
+                    # Genres from the services in order (app/ingestion/band_sources), asked once per name; only when
+                    # every service has none, the edition's.
+                    if name not in genre_cache:
+                        genre_cache[name] = await loop.run_in_executor(
+                            None, service_genres, name, found, lastfm_tags, discogs_genres)
+                    genres = genre_cache[name] or enrichment["genres"]
+                    # First Show wins, as in the upsert, which only fills a Band's empty fields.
+                    if genres and not genre_cache[name]:
+                        edition_genres.setdefault(name, genres)
                     for field in _BAND_LINK_FIELDS:
                         if enrichment.get(field) and field not in links:
                             edition_links.setdefault(name, {}).setdefault(field, enrichment[field])
@@ -262,6 +248,10 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
 
         # How the new Bands came out: no photo, or the edition's genres, photo or links (no service had any).
         new_names = {name for name, found in band_cache.items() if found is not None}
+        looked_up_at = datetime.utcnow()
+        for band in bands:
+            if band.name in new_names:
+                band.enriched_at = looked_up_at
         for field, value in new_band_stats([b for b in bands if b.name in new_names], edition_genres,
                                            edition_links).items():
             setattr(run, field, value)

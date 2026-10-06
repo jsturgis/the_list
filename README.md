@@ -186,7 +186,7 @@ Set these in `backend/.env` for local runs. The Deploy workflow sets its own (se
 ```
 backend/
   app/
-    cli.py           # python -m app.cli ingest | export
+    cli.py           # python -m app.cli ingest | export | alerts | backfill
     scheduler.py     # ingestion pipeline and daily maintenance (run by `cli ingest`)
     export.py        # static JSON export for the frontend
     catalog.py       # filter options, Similar Bands, latest subject (shared by API and export)
@@ -284,6 +284,17 @@ redirects there.
   `GOOGLE_MAPS_API_KEY`, `LASTFM_API_KEY`, `DISCOGS_CONSUMER_KEY` and `DISCOGS_CONSUMER_SECRET` secrets and the
   `DRIVE_LATEST_FILE_ID` repository variable
   (Settings → Secrets and variables → Actions). No Anthropic key: ingestion makes no LLM calls.
+- **The Backfill workflow** (`.github/workflows/backfill.yml`, run by hand: **Backfill → Run workflow** or
+  `gh workflow run backfill.yml`) brings Bands ingested before a lookup existed up to what new Bands get:
+  `python -m app.cli backfill` looks each one up on MusicBrainz, Last.fm, Discogs and Wikimedia Commons by the
+  ingest's rules (`app/ingestion/band_sources.py`; what the Band already has is the last fallback), re-embeds it
+  when its genres change, and stores its new photo. Each Band looked up gets `enriched_at`, so it's resumable:
+  a run takes the Bands not yet looked up (those on Upcoming Shows first), stops after **max minutes** (default
+  300, under the 6-hour job limit) or **limit** Bands, commits to `data` and starts a deploy-only Deploy. Run it
+  again until its commit message says none are still to do. Discogs' rate limit (one request a second) sets
+  the pace. It needs `LASTFM_API_KEY` and both Discogs keys, and won't start without them. A service that's
+  down mid-run returns nothing, and those Bands are still marked looked up. Locally (with the keys in `backend/.env`):
+  `docker compose exec api python -m app.cli backfill --limit 20`.
 - **Updating the data by hand**: commit a new `the_list.db` and `faiss/` to the `data` branch, then run
   the workflow with **Skip ingestion**.
 - **Rolling back**: revert the bad commit on the `data` branch (`git revert <sha>` on a checkout of
