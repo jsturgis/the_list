@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import AlertsPage from '@/components/AlertsPage'
-import { fakeSupabase } from './fakeSupabase'
+import { fakeSupabase, gate } from './fakeSupabase'
 
 const fake = vi.hoisted(() => ({ current: null as ReturnType<typeof import('./fakeSupabase').fakeSupabase> | null }))
 vi.mock('@/lib/supabase', async importOriginal => ({
@@ -28,6 +28,37 @@ describe('Alerts page, signed out', () => {
     expect(email).toBe('fan@example.com')
     expect(new URL(options!.emailRedirectTo!).pathname).toBe('/alerts/')
     expect(new URL(options!.emailRedirectTo!).search).toBe('')
+  })
+})
+
+describe('Alerts page, while loading', () => {
+  const ghosts = (c: HTMLElement) => c.querySelectorAll('[data-ghost]').length
+
+  it('shows a ghost section until it knows whether someone is signed in', async () => {
+    const [held, release] = gate()
+    fake.current!.state.sessionGate = held
+    const { container } = render(<AlertsPage />)
+    expect(screen.getByText('Loading…')).toBeInTheDocument()
+    expect(ghosts(container)).toBe(1)
+    release()
+    expect(await screen.findByRole('button', { name: /email me a sign-in link/i })).toBeInTheDocument()
+    expect(ghosts(container)).toBe(0)
+  })
+
+  it('shows ghost alerts and a ghost weekly email setting until they load', async () => {
+    fake.current!.state.email = 'fan@example.com'
+    fake.current!.state.savedFilters = [savedFilter('Free', 'free=1')]
+    fake.current!.state.subscription = { enabled: true }
+    const [held, release] = gate()
+    fake.current!.state.dataGate = held
+    const { container } = render(<AlertsPage />)
+    expect(await screen.findByText('Loading your alerts…')).toBeInTheDocument()
+    expect(screen.getByText('Loading your weekly email setting…')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Your alerts', level: 2 })).toBeInTheDocument()
+    release()
+    expect(await screen.findByRole('link', { name: 'Free' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /email me these alerts each week/i })).toBeChecked()
+    expect(ghosts(container)).toBe(0)
   })
 })
 

@@ -164,6 +164,11 @@ WCAG AA.
 - **Detail pages (Show, Venue, Band):** in order: Back, `PageHeader`, key facts, actions, then `Section`s. A Show
   has Lineup, Venue and Notes; a Venue has Details, About and Upcoming Shows; a Band has Upcoming Shows and
   Similar Bands. Upcoming Shows on Venue and Band pages use the Show list item, grouped under 20px date headings.
+- **Loading (`Ghost`):** anything waiting on Supabase (who's signed in, their alerts and weekly email setting, an
+  unsubscribe) shows ghost placeholders: `line`-coloured bars in the shape of the content to come, pulsing
+  (`motion-safe:animate-pulse`, so still for reduced motion). Headings that are already known stay real. Ghosts are
+  `aria-hidden`; a visually hidden "Loading …" label stands in for screen readers. Static data (Shows, Bands,
+  Venues) is in the page and never needs one.
 - **Banners:** `accent-soft` with `accent-soft-line` and `accent-soft-ink` (special events).
 - **Toasts:** `inverse` with `on-inverse`, 8px radius, at the bottom of the screen.
 - **Links:** links inside running text (a sentence) are `text-link underline underline-offset-2`, always
