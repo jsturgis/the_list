@@ -4,7 +4,7 @@ import enum
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Enum, Integer, String, Text, func
+from sqlalchemy import DateTime, Enum, Float, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -35,6 +35,14 @@ class IngestionRun(Base):
     shows_parsed: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     shows_upserted: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     shows_new: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # Bands first seen in this ingest (app/ingestion/ingest_stats.py): how many, and the percentage (0–100) with no
+    # photo, and that had to fall back to the edition for their genres, photo and links. None without new Bands.
+    new_bands: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    new_bands_without_photo_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    new_bands_photo_from_edition_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    new_bands_genres_from_edition_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    new_bands_links_from_edition_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     # Error details
     error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

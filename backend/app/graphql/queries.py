@@ -120,6 +120,11 @@ def _ingestion_run(r: IngestionRun) -> IngestionRunType:
         shows_parsed=r.shows_parsed,
         shows_upserted=r.shows_upserted,
         shows_new=r.shows_new,
+        new_bands=r.new_bands,
+        new_bands_without_photo_pct=r.new_bands_without_photo_pct,
+        new_bands_photo_from_edition_pct=r.new_bands_photo_from_edition_pct,
+        new_bands_genres_from_edition_pct=r.new_bands_genres_from_edition_pct,
+        new_bands_links_from_edition_pct=r.new_bands_links_from_edition_pct,
         error=r.error,
     )
 

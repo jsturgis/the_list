@@ -19,6 +19,7 @@ from app.ingestion.drive import fetch_latest_edition
 from app.ingestion.edition import edition_meta, edition_shows
 from app.ingestion.enriched import merge_enriched
 from app.ingestion.images import check_image_urls
+from app.ingestion.ingest_stats import new_band_stats
 from app.ingestion.joint_bands import joint_parts, split_joint_acts, split_joint_name
 from app.ingestion.lastfm import lastfm_tags
 from app.ingestion.links import check_links
@@ -138,6 +139,9 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
         # A Band already in the database was looked up when it was new, so it isn't tried again.
         band_cache: dict[str, dict | None] = {}
         lastfm_cache: dict[str, list[str]] = {}
+        # For the run's stats: the new Bands that took their genres or links from the edition (app/ingestion/ingest_stats).
+        edition_genres: dict[str, list[str]] = {}
+        edition_links: dict[str, dict[str, str]] = {}
         for data in shows_data:
             for i, (name, enrichment) in enumerate(data["band_enrichment"]):
                 if name not in band_cache:
@@ -165,6 +169,12 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                         if name not in lastfm_cache:
                             lastfm_cache[name] = await loop.run_in_executor(None, lastfm_tags, name, found.get("mbid"))
                         genres = lastfm_cache[name] or found["genres"] or enrichment["genres"]
+                        # First Show wins, as in the upsert, which only fills a Band's empty fields.
+                        if genres and genres == enrichment["genres"] and not (lastfm_cache[name] or found["genres"]):
+                            edition_genres.setdefault(name, genres)
+                    for field in _BAND_LINK_FIELDS:
+                        if enrichment.get(field) and field not in links:
+                            edition_links.setdefault(name, {}).setdefault(field, enrichment[field])
                     data["band_enrichment"][i] = (name, {**enrichment, **links, "genres": genres})
 
         # The edition's image URLs are often broken: keep (or repair) only those that load.
@@ -223,6 +233,16 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
         db.commit()
         if stored:
             logger.info("ingestion: saved %d band photos", stored)
+
+        # How the new Bands came out: no photo, or the edition's genres, photo or links (no service had any).
+        new_names = {name for name, found in band_cache.items() if found is not None}
+        for field, value in new_band_stats([b for b in bands if b.name in new_names], edition_genres,
+                                           edition_links).items():
+            setattr(run, field, value)
+        db.commit()
+        logger.info("ingestion: %s new bands; %s%% without a photo; from the edition: genres %s%%, photo %s%%, "
+                    "links %s%%", run.new_bands, run.new_bands_without_photo_pct, run.new_bands_genres_from_edition_pct,
+                    run.new_bands_photo_from_edition_pct, run.new_bands_links_from_edition_pct)
 
         logger.info("ingestion: embedding and indexing")
         await batch_embed_and_index(db, shows)
