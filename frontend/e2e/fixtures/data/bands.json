@@ -51,13 +51,6 @@
         "label": "YouTube",
         "url": "https://www.youtube.com/@neonharbor",
         "paid": false
-      },
-      {
-        "group": "tour",
-        "service": "songkick",
-        "label": "Songkick",
-        "url": "https://www.songkick.com/artists/1-neon-harbor",
-        "paid": false
       }
     ]
   },

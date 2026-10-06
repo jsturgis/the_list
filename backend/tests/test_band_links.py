@@ -22,8 +22,8 @@ def _mb(*urls):
     ("https://x.com/soulfly", "x"),
     ("https://twitter.com/soulfly", "x"),
     ("https://box.com/x.com/thing", None),                        # host, not a substring
-    ("https://www.songkick.com/artists/1-soulfly", "songkick"),
-    ("https://www.bandsintown.com/a/1-soulfly", None),           # not shown
+    ("https://www.songkick.com/artists/1-soulfly", None),        # tour dates aren't shown
+    ("https://www.bandsintown.com/a/1-soulfly", None),
     ("https://en.wikipedia.org/wiki/Soulfly", None),             # not shown: reference links aren't
     ("https://www.last.fm/music/Soulfly", None),
     ("not a url", None),
@@ -57,11 +57,10 @@ def test_other_groups_follow_listening_in_order():
         "https://en.wikipedia.org/wiki/Soulfly", "https://open.spotify.com/artist/1", "https://www.youtube.com/soulfly",
         "https://www.bandsintown.com/a/1",
     ))
-    # Bandsintown and the reference links (AllMusic, Wikipedia) aren't shown.
+    # Tour dates (Songkick, Bandsintown) and the reference links (AllMusic, Wikipedia) aren't shown.
     assert [(link.group, link.service) for link in links] == [
         ("listening", "spotify"),
         ("follow", "instagram"), ("follow", "youtube"),
-        ("tour", "songkick"),
     ]
 
 

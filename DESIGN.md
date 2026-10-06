@@ -170,7 +170,7 @@ WCAG AA.
   most one: Tickets), secondary (outline `line-strong`, `ink`), or brand colours for the
   streaming services. External ones carry an outward-arrow icon.
 - **Detail pages (Show, Venue, Band):** in order: Back, `PageHeader`, key facts, actions, then `Section`s. A Show
-  has Lineup, Venue and Notes; a Venue has Details, Upcoming Shows and About; a Band has Upcoming Shows, Links
+  has Lineup, Venue and Notes; a Venue has Details, Upcoming Shows and About; a Band has Upcoming Shows, Social
   and Similar Bands. Upcoming Shows on Venue and Band pages are one panel of Show list items, each with its compact
   date, with no date headings.
 - **Loading (`Ghost`):** anything waiting on Supabase (who's signed in, their alerts and weekly email setting, an
@@ -181,9 +181,9 @@ WCAG AA.
 - **Band links:** a Band's actions are its listening links, up to 3 free services then up to 3 paid ones,
   ranked by service in the backend (`app/band_links.py`), then its website. Spotify, SoundCloud and Bandcamp
   keep their brand-coloured pills; other services are outline pills, and paid ones say "(subscription)" in their
-  title. Its follow and tour-date links sit in a **Links** section (`BandLinks`): a `<dl>` with one line per group,
-  "Follow" (Instagram, Facebook, X, TikTok, Bluesky, YouTube) and "Tour dates" (Songkick), each a wrapping list of
-  bold `ink` links, underlined on hover. No Bandsintown or reference links (Wikipedia, AllMusic, Discogs, Last.fm).
+  title. Its social profiles (Instagram, Facebook, X, TikTok, Bluesky, YouTube) sit in a **Social** section
+  (`SocialLinks`): a wrapping list of bold `ink` links, underlined on hover. No tour-date links (Songkick,
+  Bandsintown) or reference links (Wikipedia, AllMusic, Discogs, Last.fm).
 - **Alert bell (`AlertBell`):** on Band and Venue pages, a round 40px icon button at the right of the title's
   line. Off: outline bell, `surface` with a `line-strong` border, `ink-soft`. On: solid ringing bell, `accent-chip` with
   an `accent` border, `link`. Signed in, a press saves or deletes the alert for that Band or Venue (`aria-pressed`)

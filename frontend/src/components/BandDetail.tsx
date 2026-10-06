@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 import { GlobeAltIcon, MapPinIcon, MusicalNoteIcon } from '@heroicons/react/20/solid'
 import ActionLinks, { ActionLink } from './ActionLinks'
-import BandLinks from './BandLinks'
 import PageHeader from './PageHeader'
+import SocialLinks from './SocialLinks'
 import type { Band, Show } from '@/lib/types'
 import BandShows from './BandShows'
 import SimilarBands from './SimilarBands'
@@ -67,7 +67,7 @@ export default function BandDetail({ band, upcomingShows, similarBands, bell }: 
 
       <BandShows shows={upcomingShows} />
 
-      <BandLinks links={band.links ?? []} />
+      <SocialLinks links={band.links ?? []} />
 
       <SimilarBands bands={similarBands} />
     </article>

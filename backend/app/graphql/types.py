@@ -33,7 +33,7 @@ class VenueType:
 @strawberry.type
 class BandLinkType:
     """One of a Band's links, grouped and ranked for the site (app/band_links.py)."""
-    group: str      # listening | follow | tour
+    group: str      # listening | follow
     service: str    # spotify, apple_music, instagram, …
     label: str      # "Spotify", "Apple Music", …
     url: str
