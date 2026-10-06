@@ -19,7 +19,7 @@ const venue = (id: number, name: string, neighborhood: string | null = null): Ex
   isSoberSpace: null, isCashOnly: null, membershipRequired: null,
 })
 const band = (id: number, name: string): ExportBand => ({
-  id, name, genres: [], spotifyUrl: null, soundcloudUrl: null, bandcampUrl: null, links: [], websiteUrl: null, imageUrl: null,
+  id, name, genres: [], spotifyUrl: null, soundcloudUrl: null, bandcampUrl: null, links: [], imageCredit: null, websiteUrl: null, imageUrl: null,
   isLocal: null, description: null, similar: [],
 })
 const show = (id: number, date: string, bandId: number, extra: Partial<ExportShow> = {}): ExportShow => ({

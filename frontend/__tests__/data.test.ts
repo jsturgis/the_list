@@ -10,7 +10,7 @@ const venue: ExportVenue = {
   membershipRequired: null,
 }
 const band = (id: number, name: string): ExportBand => ({
-  id, name, genres: ['punk'], spotifyUrl: null, soundcloudUrl: null, bandcampUrl: null, links: [],
+  id, name, genres: ['punk'], spotifyUrl: null, soundcloudUrl: null, bandcampUrl: null, links: [], imageCredit: null,
   websiteUrl: null, imageUrl: null, isLocal: null, description: null, similar: [],
 })
 const show = (id: number, date: string, status = 'upcoming', acts: ExportShow['acts'] = [[10, 0], [11, 1]]): ExportShow => ({

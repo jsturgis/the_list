@@ -21,6 +21,18 @@ class JSONList(TypeDecorator):
         return json.loads(value) if value else []
 
 
+class JSONDict(TypeDecorator):
+    """A JSON object, or NULL."""
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        return json.dumps(value) if value else None
+
+    def process_result_value(self, value, dialect):
+        return json.loads(value) if value else None
+
+
 class Band(Base):
     __tablename__ = "bands"
 
@@ -33,6 +45,9 @@ class Band(Base):
     # From the formatted edition
     website_url: Mapped[Optional[str]] = mapped_column(String(500))
     image_url: Mapped[Optional[str]] = mapped_column(String(500))
+    # The photo's credit when it came from Wikimedia Commons: {author, license, license_url, source_url}; None for
+    # the edition's photos. The site shows it with the photo, as the licence requires.
+    image_credit: Mapped[Optional[dict]] = mapped_column(JSONDict)
     is_local: Mapped[Optional[bool]] = mapped_column(Boolean)
     # From the enriched export: what the Band is ("Bilingual metal band from Fairfield ...")
     description: Mapped[Optional[str]] = mapped_column(Text)

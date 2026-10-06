@@ -326,6 +326,8 @@ Google Drive (public folder)
             └─ joint billings    → "Dying Fetus And Sanguisugabogg" becomes two bands, "Belle and Sebastian"
                                    stays one (app/ingestion/joint_bands.py, decided on MusicBrainz)
             └─ MusicBrainz       → genres and links for new bands (not yet in the DB), over the edition's
+                 └─ Wikimedia      → the band's photo on Commons through its Wikidata link, with its credit
+                                     (app/ingestion/wikimedia.py), over the edition's photo
             └─ image URL check   → keep, repair (Wikimedia paths) or drop each image URL
                  └─ upsert_shows()   → Show, Venue, Band and Act rows
                       └─ band photos     → download each band photo still at a remote URL, resize to ≤800px

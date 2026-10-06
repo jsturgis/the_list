@@ -24,7 +24,8 @@ def offline_musicbrainz():
     with patch("app.scheduler._enrich_band", return_value={"genres": [], "mb_genres": False, "spotify_url": None,
                                                            "soundcloud_url": None, "bandcamp_url": None}), \
          patch("app.scheduler.split_joint_name", side_effect=lambda name: [name]), \
-         patch("app.scheduler.save_band_photos", return_value=0):  # no photo downloads unless a test asks
+         patch("app.scheduler.save_band_photos", return_value=0), \
+         patch("app.scheduler.commons_photo", return_value=None):  # no downloads or Commons unless a test asks
         yield
 
 # ── sample data ───────────────────────────────────────────────────────────────
@@ -483,6 +484,71 @@ async def test_pipeline_drops_a_band_photo_that_cannot_be_downloaded(mock_batch,
 
     assert db.query(Band).filter(Band.name == "Deafheaven").one().image_url is None
     assert not any(tmp_path.rglob("*.webp"))
+
+
+_COMMONS_CREDIT = {"author": "S. Bollmann", "license": "CC BY-SA 4.0",
+                   "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+                   "source_url": "https://commons.wikimedia.org/wiki/File:Deafheaven.jpg"}
+
+
+def _deafheaven_on_musicbrainz(name, use_llm=True):
+    if name != "Deafheaven":
+        return _NOT_ON_MUSICBRAINZ
+    return {**_NOT_ON_MUSICBRAINZ, "links": [{"type": "wikidata", "url": "https://www.wikidata.org/wiki/Q1"}]}
+
+
+def _commons(links):
+    from app.ingestion.wikimedia import CommonsPhoto
+    if any(link["type"] == "wikidata" for link in links):
+        return CommonsPhoto("https://upload.wikimedia.org/deafheaven-800.jpg", _COMMONS_CREDIT)
+    return None
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler._enrich_band", side_effect=_deafheaven_on_musicbrainz)
+@patch("app.scheduler.commons_photo", side_effect=_commons)
+@patch("app.scheduler.check_image_urls", side_effect=lambda urls: {u: u for u in urls})
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_prefers_the_commons_photo_and_saves_its_credit(mock_batch, mock_images, mock_commons, mock_band,
+                                                                       mock_venue, mock_fetch, db):
+    await _run_ingestion_async(db=db)
+
+    deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
+    assert deafheaven.image_url == "https://upload.wikimedia.org/deafheaven-800.jpg"   # over the edition's
+    assert deafheaven.image_credit == _COMMONS_CREDIT
+    # A Band already in the database isn't looked up again.
+    mock_commons.reset_mock()
+    await _run_ingestion_async(db=db)
+    mock_commons.assert_not_called()
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler._enrich_band", side_effect=_deafheaven_on_musicbrainz)
+@patch("app.scheduler.commons_photo", side_effect=_commons)
+@patch("app.scheduler.check_image_urls", side_effect=lambda urls: {
+    u: (None if "upload.wikimedia.org/deafheaven" in u else u) for u in urls})
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_falls_back_to_the_editions_photo_when_the_commons_one_does_not_load(
+        mock_batch, mock_images, mock_commons, mock_band, mock_venue, mock_fetch, db):
+    await _run_ingestion_async(db=db)
+
+    deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
+    assert deafheaven.image_url == "https://example.com/wrong-path.jpg"   # the edition's
+    assert deafheaven.image_credit is None                                # which has no credit
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.check_image_urls", side_effect=lambda urls: {u: u for u in urls})
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_keeps_the_editions_photo_without_a_credit_when_commons_has_none(
+        mock_batch, mock_images, mock_venue, mock_fetch, db):
+    await _run_ingestion_async(db=db)
+
+    deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
+    assert (deafheaven.image_url, deafheaven.image_credit) == ("https://example.com/wrong-path.jpg", None)
 
 
 @patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
