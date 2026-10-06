@@ -54,6 +54,8 @@ class Band(Base):
     # From MusicBrainz: every artist-to-URL relationship, as [{"type": "free streaming", "url": ...}]. Grouped
     # and ranked for the site by app/band_links.py.
     links: Mapped[list] = mapped_column(JSONList, default=list)
+    # From Discogs: [{"name": ..., "active": bool}], current members marked active.
+    members: Mapped[list] = mapped_column(JSONList, default=list)
     embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())

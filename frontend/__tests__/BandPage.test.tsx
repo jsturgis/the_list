@@ -76,6 +76,29 @@ describe('BandDetail', () => {
     expect(buttons[2]).toHaveAttribute('title', 'Apple Music (subscription)')
   })
 
+  it('lists members under Members: current ones, then former ones under "Formerly"', () => {
+    renderBand(makeBand({ members: [
+      { name: 'Julian Casablancas', active: true }, { name: 'Old Drummer', active: false }, { name: 'Nick Valensi', active: true },
+    ] }), [])
+    const region = screen.getByRole('region', { name: 'Members' })
+    const current = within(region).getByRole('list', { name: 'Current members' })
+    expect(within(current).getAllByRole('listitem').map(li => li.textContent)).toEqual(['Julian Casablancas', 'Nick Valensi'])
+    const former = within(region).getByRole('list', { name: 'Formerly' })
+    expect(within(former).getAllByRole('listitem').map(li => li.textContent)).toEqual(['Old Drummer'])
+  })
+
+  it('lists only former members for a Band that has split up', () => {
+    renderBand(makeBand({ members: [{ name: 'Old Drummer', active: false }] }), [])
+    const region = screen.getByRole('region', { name: 'Members' })
+    expect(within(region).queryByRole('list', { name: 'Current members' })).not.toBeInTheDocument()
+    expect(within(region).getByRole('list', { name: 'Formerly' })).toHaveTextContent('Old Drummer')
+  })
+
+  it('has no Members section without members', () => {
+    renderBand(makeBand({ members: [] }), [])
+    expect(screen.queryByRole('region', { name: 'Members' })).not.toBeInTheDocument()
+  })
+
   it('lists social profiles under Social', () => {
     renderBand(makeBand({ links: [
       link('listening', 'spotify', 'Spotify'), link('follow', 'instagram', 'Instagram'), link('follow', 'youtube', 'YouTube'),

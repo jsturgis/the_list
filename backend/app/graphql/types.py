@@ -40,6 +40,13 @@ class PhotoCreditType:
 
 
 @strawberry.type
+class BandMemberType:
+    """One of a Band's members, from Discogs."""
+    name: str
+    active: bool    # a current member
+
+
+@strawberry.type
 class BandLinkType:
     """One of a Band's links, grouped and ranked for the site (app/band_links.py)."""
     group: str      # listening | follow
@@ -63,6 +70,7 @@ class BandType:
     is_local: bool | None
     description: str | None
     links: list[BandLinkType]
+    members: list[BandMemberType]
 
 
 @strawberry.type

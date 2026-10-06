@@ -34,6 +34,13 @@ export interface PhotoCredit {
   sourceUrl: string
 }
 
+/** One of a Band's members, from Discogs. */
+export interface BandMember {
+  name: string
+  /** A current member (past members are listed under "Formerly"). */
+  active: boolean
+}
+
 /** One of a Band's links, grouped and ranked by the backend (app/band_links.py). */
 export interface BandLink {
   /** listening: up to 3 free services, then up to 3 paid; then follow. In that order. */
@@ -61,6 +68,8 @@ export interface Band {
   description?: string | null
   /** From MusicBrainz, with the edition's Spotify/SoundCloud/Bandcamp links as the fallback. */
   links?: BandLink[]
+  /** From Discogs. */
+  members?: BandMember[]
 }
 
 export interface Act {

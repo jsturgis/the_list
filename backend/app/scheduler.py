@@ -185,9 +185,10 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                     for field in _BAND_LINK_FIELDS:
                         if enrichment.get(field) and field not in links:
                             edition_links.setdefault(name, {}).setdefault(field, enrichment[field])
-                    # The Discogs artist rides along for the members and photo steps.
-                    data["band_enrichment"][i] = (name, {**enrichment, **links, "genres": genres,
-                                                         "discogs": found.get("discogs")})
+                    # The Discogs artist rides along for the photo step; its members are saved with the Band.
+                    artist = found.get("discogs")
+                    data["band_enrichment"][i] = (name, {**enrichment, **links, "genres": genres, "discogs": artist,
+                                                         "members": artist.members if artist else []})
 
         # The edition's image URLs are often broken: keep (or repair) only those that load.
         image_urls = [d["venue_image_url"] for d in shows_data if d.get("venue_image_url")] + [

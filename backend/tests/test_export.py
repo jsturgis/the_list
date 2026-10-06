@@ -55,6 +55,7 @@ def data(db):
     chapel = _venue(db, "The Chapel")
     unused_venue = _venue(db, "Closed Venue")
     headliner = _band(db, "Headliner", embedding=VEC, website_url="https://headliner.com", is_local=True,
+                      members=[{"name": "Ana", "active": True}, {"name": "Bo", "active": False}],
                       links=[{"type": "free streaming", "url": "https://open.spotify.com/artist/h"},
                              {"type": "social network", "url": "https://www.instagram.com/headliner/"}])
     support = _band(db, "Support", genres=["noise"], image_url="bands/2-3f9c2a1b7e.webp", image_credit={
@@ -120,6 +121,8 @@ def test_venue_and_band_fields(exported, data):
         "author": "S. Bollmann", "license": "CC BY-SA 4.0", "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
         "sourceUrl": "https://commons.wikimedia.org/wiki/File:Support.jpg"}
     assert headliner["imageCredit"] is None  # no Commons photo
+    assert headliner["members"] == [{"name": "Ana", "active": True}, {"name": "Bo", "active": False}]
+    assert support["members"] == []
     # Links are exported grouped and ranked, camelCased like the rest.
     assert headliner["links"] == [
         {"group": "listening", "service": "spotify", "label": "Spotify", "url": "https://open.spotify.com/artist/h", "paid": False},
