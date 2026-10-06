@@ -26,7 +26,9 @@ def offline_musicbrainz():
          patch("app.scheduler.split_joint_name", side_effect=lambda name: [name]), \
          patch("app.scheduler.save_band_photos", return_value=0), \
          patch("app.scheduler.commons_photo", return_value=None), \
-         patch("app.scheduler.lastfm_tags", return_value=[]):  # no downloads, Commons or Last.fm unless a test asks
+         patch("app.scheduler.lastfm_tags", return_value=[]), \
+         patch("app.scheduler.discogs_artist", return_value=None), \
+         patch("app.scheduler.discogs_genres", return_value=[]):  # no downloads or lookups unless a test asks
         yield
 
 # ── sample data ───────────────────────────────────────────────────────────────
@@ -382,6 +384,38 @@ async def test_the_edition_fallback_stats_count_a_band_on_several_shows(mock_bat
     assert heroes.genres == ["rock"] and heroes.bandcamp_url == "https://localheroes.bandcamp.com/"
     run = db.query(IngestionRun).order_by(IngestionRun.id.desc()).first()
     assert (run.new_bands, run.new_bands_genres_from_edition_pct, run.new_bands_links_from_edition_pct) == (1, 100.0, 100.0)
+
+
+def _discogs_artists(name, links):
+    from app.ingestion.discogs import DiscogsArtist
+    ids = {"Chat Pile": 7258502, "Uniform": 11, "Mdou Moctar": 12}
+    return DiscogsArtist(ids[name], name, f"https://www.discogs.com/artist/{ids[name]}") if name in ids else None
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=(_NO_GENRE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler._enrich_band", side_effect=_musicbrainz_tags_only)
+@patch("app.scheduler.lastfm_tags", side_effect=lambda name, mbid: {"Mdou Moctar": ["tuareg rock"]}.get(name, []))
+@patch("app.scheduler.discogs_artist", side_effect=_discogs_artists)
+@patch("app.scheduler.discogs_genres", side_effect=lambda artist_id: {7258502: ["sludge metal", "noise rock"]}.get(artist_id, []))
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_takes_discogs_genres_after_last_fm_and_before_musicbrainz_tags(
+        mock_batch, mock_genres, mock_artist, mock_lastfm, mock_band, mock_venue, mock_fetch, db):
+    await _run_ingestion_async(db=db)
+
+    genres = {b.name: b.genres for b in db.query(Band)}
+    assert genres["Chat Pile"] == ["sludge metal", "noise rock"]  # Discogs', over MusicBrainz's "seen live"
+    assert genres["Mdou Moctar"] == ["tuareg rock"]              # Last.fm's: Discogs isn't asked for genres
+    assert genres["Uniform"] == ["noise"]                        # Discogs has none: MusicBrainz's free-form tags
+    assert genres["Deafheaven"] == ["blackgaze"]                 # not on any service: the edition's, last
+    asked = sorted(c.args[0] for c in mock_genres.call_args_list)
+    assert asked == [11, 7258502]                                # Bands with a Discogs artist and no Last.fm tags
+    # Every new Band's Discogs artist is looked up once; a second ingest looks up no one.
+    assert sorted(c.args[0] for c in mock_artist.call_args_list) == [
+        "Chat Pile", "Deafheaven", "Mdou Moctar", "Mystery Act", "Uniform"]
+    mock_artist.reset_mock()
+    await _run_ingestion_async(db=db)
+    mock_artist.assert_not_called()
 
 
 @patch("app.scheduler.fetch_latest_edition", return_value=(None, None))

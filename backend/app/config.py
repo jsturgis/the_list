@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     musicbrainz_contact: str = "https://github.com/jsturgis/the_list"
     # Last.fm, for genre tags (app/ingestion/lastfm.py); without a key Last.fm is skipped.
     lastfm_api_key: str | None = None
+    # Discogs app credentials, for members, photos and genres (app/ingestion/discogs.py); without them it's skipped.
+    discogs_consumer_key: str | None = None
+    discogs_consumer_secret: str | None = None
 
     google_maps_api_key: str = ""
 
