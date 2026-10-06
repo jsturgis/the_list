@@ -170,14 +170,19 @@ WCAG AA.
   most one: Tickets), secondary (outline `line-strong`, `ink`), or brand colours for the
   streaming services. External ones carry an outward-arrow icon.
 - **Detail pages (Show, Venue, Band):** in order: Back, `PageHeader`, key facts, actions, then `Section`s. A Show
-  has Lineup, Venue and Notes; a Venue has Details, Upcoming Shows and About; a Band has Upcoming Shows and
-  Similar Bands. Upcoming Shows on Venue and Band pages are one panel of Show list items, each with its compact
+  has Lineup, Venue and Notes; a Venue has Details, Upcoming Shows and About; a Band has Upcoming Shows, Links
+  and Similar Bands. Upcoming Shows on Venue and Band pages are one panel of Show list items, each with its compact
   date, with no date headings.
 - **Loading (`Ghost`):** anything waiting on Supabase (who's signed in, their alerts and weekly email setting, an
   unsubscribe) shows ghost placeholders: `line`-coloured bars in the shape of the content to come, pulsing
   (`motion-safe:animate-pulse`, so still for reduced motion). Headings that are already known stay real. Ghosts are
   `aria-hidden`; a visually hidden "Loading …" label stands in for screen readers. Static data (Shows, Bands,
   Venues) is in the page and never needs one.
+- **Band links:** a Band's actions are its listening links, up to 3 free services then up to 3 paid ones,
+  ranked by service in the backend (`app/band_links.py`), then its website. Spotify, SoundCloud and Bandcamp
+  keep their brand-coloured pills; other services are outline pills, and paid ones say "(subscription)" in their
+  title. Its other links sit in a **Links** section (`BandLinks`): a `<dl>` with one line per group, "Follow",
+  "Tour dates" and "More about", each a wrapping list of bold `ink` links, underlined on hover.
 - **Alert bell (`AlertBell`):** on Band and Venue pages, a round 40px icon button at the right of the title's
   line. Off: outline bell, `surface` with a `line-strong` border, `ink-soft`. On: solid ringing bell, `accent-chip` with
   an `accent` border, `link`. Signed in, a press saves or deletes the alert for that Band or Venue (`aria-pressed`)

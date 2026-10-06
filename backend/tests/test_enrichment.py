@@ -316,6 +316,11 @@ async def test_mb_official_homepage_is_the_website(mock_search, mock_lookup, moc
     ])
     result = await enrich_show(_raw(bands=["Headliner"]))
     assert result["band_enrichment"][0][1]["website_url"] == "https://www.headliner.com/"
+    # Every link is kept as MusicBrainz gave it.
+    assert result["band_enrichment"][0][1]["links"] == [
+        {"type": "social network", "url": "https://www.instagram.com/headliner/"},
+        {"type": "official homepage", "url": "https://www.headliner.com/"},
+    ]
 
 
 @patch("app.pipeline.enrichment._enrich_venue", return_value={})

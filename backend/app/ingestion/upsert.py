@@ -275,6 +275,8 @@ def _upsert_acts(db: Session, show: Show, data: dict) -> None:
             band.image_url = enrichment["image_url"]
         if enrichment.get("description") and not band.description:
             band.description = enrichment["description"]
+        if enrichment.get("mb_links") and not band.links:
+            band.links = enrichment["mb_links"]
         if enrichment.get("is_local") is not None and band.is_local is None:
             band.is_local = enrichment["is_local"]
 

@@ -147,7 +147,7 @@ def _enrich_band(name: str, use_llm: bool = True) -> dict:
     artist = _mb_search(name)
     if artist is None:
         return {"genres": [], "mb_genres": False, "spotify_url": None, "soundcloud_url": None, "bandcamp_url": None,
-                "website_url": None}
+                "website_url": None, "links": []}
 
     full = _mb_lookup(artist["id"])
 
@@ -163,6 +163,9 @@ def _enrich_band(name: str, use_llm: bool = True) -> dict:
     soundcloud_url: Optional[str] = None
     bandcamp_url: Optional[str] = None
     website_url: Optional[str] = None
+    # Every artist-to-URL relationship, kept raw for app/band_links.py to group and rank.
+    links = [{"type": rel.get("type", ""), "url": rel["target"]} for rel in full.get("url-relation-list", [])
+             if rel.get("target")]
     for rel in full.get("url-relation-list", []):
         target = rel.get("target", "")
         # Matched by host: MusicBrainz's relation types change (Spotify was "streaming music", now "free streaming").
@@ -177,7 +180,8 @@ def _enrich_band(name: str, use_llm: bool = True) -> dict:
 
     if not use_llm:
         return {"genres": genres, "mb_genres": bool(curated), "spotify_url": spotify_url,
-                "soundcloud_url": soundcloud_url, "bandcamp_url": bandcamp_url, "website_url": website_url}
+                "soundcloud_url": soundcloud_url, "bandcamp_url": bandcamp_url, "website_url": website_url,
+                "links": links}
 
     # LLM fallback: find SoundCloud URL when MB doesn't have one
     if not soundcloud_url:
@@ -200,6 +204,7 @@ def _enrich_band(name: str, use_llm: bool = True) -> dict:
         "soundcloud_url": soundcloud_url,
         "bandcamp_url": bandcamp_url,
         "website_url": website_url,
+        "links": links,
     }
 
 

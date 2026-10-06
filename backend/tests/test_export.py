@@ -54,7 +54,9 @@ def data(db):
     fillmore = _venue(db, google_place_id="ChIJfillmore", neighborhood="Western Addition", is_cash_only=False)
     chapel = _venue(db, "The Chapel")
     unused_venue = _venue(db, "Closed Venue")
-    headliner = _band(db, "Headliner", embedding=VEC, website_url="https://headliner.com", is_local=True)
+    headliner = _band(db, "Headliner", embedding=VEC, website_url="https://headliner.com", is_local=True,
+                      links=[{"type": "free streaming", "url": "https://open.spotify.com/artist/h"},
+                             {"type": "social network", "url": "https://www.instagram.com/headliner/"}])
     support = _band(db, "Support", genres=["noise"])
     past_band = _band(db, "Past Band")
     similar_unexported = _band(db, "Not Playing", embedding=VEC)
@@ -109,6 +111,11 @@ def test_venue_and_band_fields(exported, data):
     headliner = next(b for b in exported["bands"] if b["id"] == data["headliner"].id)
     assert (headliner["name"], headliner["genres"], headliner["websiteUrl"], headliner["isLocal"]) == (
         "Headliner", ["punk"], "https://headliner.com", True)
+    # Links are exported grouped and ranked, camelCased like the rest.
+    assert headliner["links"] == [
+        {"group": "listening", "service": "spotify", "label": "Spotify", "url": "https://open.spotify.com/artist/h", "paid": False},
+        {"group": "follow", "service": "instagram", "label": "Instagram", "url": "https://www.instagram.com/headliner/", "paid": False},
+    ]
 
 
 def test_similar_bands_exclude_self_and_unexported(exported, data):

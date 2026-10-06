@@ -144,6 +144,7 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                 found = band_cache[name]
                 if found:
                     links = {k: v for k, v in found.items() if k.endswith("_url") and v}
+                    links["mb_links"] = found.get("links") or []  # every MusicBrainz link, for app/band_links.py
                     genres = found["genres"] if found["mb_genres"] else (enrichment["genres"] or found["genres"])
                     data["band_enrichment"][i] = (name, {**enrichment, **links, "genres": genres})
 

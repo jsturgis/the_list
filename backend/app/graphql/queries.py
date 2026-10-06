@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 from typing import Optional
 
 import numpy as np
@@ -9,11 +10,12 @@ from sqlalchemy.orm import Session, joinedload
 from strawberry.types import Info
 
 from app import catalog
+from app.band_links import band_links
 from app.clock import local_today
 from app.embeddings.search import find_similar_shows
 from app.fuzzy_search import matches_search
 from app.graphql.types import (
-    ActType, BandType, FilterOptionsType, IngestionRunType, ShowFilters, ShowType, VenueType,
+    ActType, BandLinkType, BandType, FilterOptionsType, IngestionRunType, ShowFilters, ShowType, VenueType,
 )
 from app.models.act import Act
 from app.models.band import Band
@@ -64,6 +66,8 @@ def _band(b: Band) -> BandType:
         image_url=b.image_url,
         is_local=b.is_local,
         description=b.description,
+        links=[BandLinkType(**dataclasses.asdict(link)) for link in band_links(
+            b.links, spotify_url=b.spotify_url, soundcloud_url=b.soundcloud_url, bandcamp_url=b.bandcamp_url)],
     )
 
 

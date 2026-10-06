@@ -36,6 +36,9 @@ class Band(Base):
     is_local: Mapped[Optional[bool]] = mapped_column(Boolean)
     # From the enriched export: what the Band is ("Bilingual metal band from Fairfield ...")
     description: Mapped[Optional[str]] = mapped_column(Text)
+    # From MusicBrainz: every artist-to-URL relationship, as [{"type": "free streaming", "url": ...}]. Grouped
+    # and ranked for the site by app/band_links.py.
+    links: Mapped[list] = mapped_column(JSONList, default=list)
     embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())

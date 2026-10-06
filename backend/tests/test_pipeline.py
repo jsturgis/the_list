@@ -206,7 +206,9 @@ def _musicbrainz(name, use_llm=True):
                       "soundcloud_url": None, "bandcamp_url": "https://chatpile.bandcamp.com/"},
         "Deafheaven": {"genres": ["shoegaze", "black metal"], "mb_genres": True,
                        "spotify_url": "https://open.spotify.com/artist/deafheaven", "soundcloud_url": None,
-                       "bandcamp_url": "https://deafheavens.bandcamp.com/", "website_url": None},
+                       "bandcamp_url": "https://deafheavens.bandcamp.com/", "website_url": None,
+                       "links": [{"type": "free streaming", "url": "https://open.spotify.com/artist/deafheaven"},
+                                 {"type": "social network", "url": "https://www.instagram.com/deafheaven/"}]},
         # Only free-form tags, no curated genres
         "Uniform": {"genres": ["seen live", "noise"], "mb_genres": False, "spotify_url": None,
                     "soundcloud_url": None, "bandcamp_url": None},
@@ -231,6 +233,9 @@ async def test_pipeline_takes_genres_from_musicbrainz_then_the_edition(mock_batc
     deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
     assert deafheaven.bandcamp_url == "https://deafheavens.bandcamp.com/"
     assert deafheaven.spotify_url == "https://open.spotify.com/artist/deafheaven"
+    # Every MusicBrainz link is kept, for the site to group (app/band_links.py).
+    assert [link["url"] for link in deafheaven.links] == [
+        "https://open.spotify.com/artist/deafheaven", "https://www.instagram.com/deafheaven/"]
     # Every new Band is looked up, once per name, and without the LLM.
     looked_up = sorted(call.args[0] for call in mock_band.call_args_list)
     assert looked_up == ["Chat Pile", "Deafheaven", "Mdou Moctar", "Mystery Act", "Uniform"]

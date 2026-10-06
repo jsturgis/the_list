@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { GlobeAltIcon, MapPinIcon, MusicalNoteIcon } from '@heroicons/react/20/solid'
 import ActionLinks, { ActionLink } from './ActionLinks'
+import BandLinks from './BandLinks'
 import PageHeader from './PageHeader'
 import type { Band, Show } from '@/lib/types'
 import BandShows from './BandShows'
@@ -14,8 +15,16 @@ interface BandDetailProps {
   bell?: ReactNode
 }
 
+// The three services with a brand-coloured button; the rest are outline buttons.
+const BRAND: Record<string, string> = {
+  spotify: 'bg-green-700 hover:bg-green-800 text-white',
+  soundcloud: 'bg-orange-700 hover:bg-orange-800 text-white',
+  bandcamp: 'bg-teal-700 hover:bg-teal-800 text-white',
+}
+
 export default function BandDetail({ band, upcomingShows, similarBands, bell }: BandDetailProps) {
-  const brand = (bg: string) => `${bg} text-white`
+  // Up to 3 free services, then up to 3 paid ones, already ranked by the backend (app/band_links.py).
+  const listening = (band.links ?? []).filter(l => l.group === 'listening')
   return (
     <article className="flex flex-col gap-6">
       {band.imageUrl && (
@@ -34,23 +43,20 @@ export default function BandDetail({ band, upcomingShows, similarBands, bell }: 
         ))}
       </PageHeader>
 
-      {(band.spotifyUrl || band.soundcloudUrl || band.bandcampUrl || band.websiteUrl) && (
+      {(listening.length > 0 || band.websiteUrl) && (
         <ActionLinks>
-          {band.spotifyUrl && (
-            <ActionLink href={band.spotifyUrl} kind="custom" icon={MusicalNoteIcon} external className={brand('bg-green-700 hover:bg-green-800')}>
-              Spotify
+          {listening.map(link => (
+            <ActionLink
+              key={link.service}
+              href={link.url}
+              icon={MusicalNoteIcon}
+              external
+              {...(BRAND[link.service] ? { kind: 'custom', className: BRAND[link.service] } : { kind: 'secondary' })}
+              title={link.paid ? `${link.label} (subscription)` : undefined}
+            >
+              {link.label}
             </ActionLink>
-          )}
-          {!band.spotifyUrl && band.soundcloudUrl && (
-            <ActionLink href={band.soundcloudUrl} kind="custom" icon={MusicalNoteIcon} external className={brand('bg-orange-700 hover:bg-orange-800')}>
-              SoundCloud
-            </ActionLink>
-          )}
-          {band.bandcampUrl && (
-            <ActionLink href={band.bandcampUrl} kind="custom" icon={MusicalNoteIcon} external className={brand('bg-teal-700 hover:bg-teal-800')}>
-              Bandcamp
-            </ActionLink>
-          )}
+          ))}
           {band.websiteUrl && (
             <ActionLink href={band.websiteUrl} kind="custom" icon={GlobeAltIcon} external className="bg-strong text-on-inverse hover:bg-strong-hover">
               Website
@@ -60,6 +66,8 @@ export default function BandDetail({ band, upcomingShows, similarBands, bell }: 
       )}
 
       <BandShows shows={upcomingShows} />
+
+      <BandLinks links={band.links ?? []} />
 
       <SimilarBands bands={similarBands} />
     </article>
