@@ -152,16 +152,23 @@ describe('ShowDetail', () => {
     expect(screen.queryByRole('note', { name: 'Special event' })).not.toBeInTheDocument()
   })
 
-  it('shows the special event and ticket provider when known', () => {
-    render(<ShowDetail show={makeShow({ specialEvent: 'Hardly Strictly Bluegrass', ticketProvider: 'ticketweb' })} />)
+  it('shows the special event when known', () => {
+    render(<ShowDetail show={makeShow({ specialEvent: 'Hardly Strictly Bluegrass' })} />)
     expect(screen.getByText('Hardly Strictly Bluegrass')).toBeInTheDocument()
-    expect(screen.getByText(/Tickets via ticketweb/i)).toBeInTheDocument()
+  })
+
+  it('lists where tickets are sold among the key facts, by name', () => {
+    render(<ShowDetail show={makeShow({ ticketProvider: 'box_office' })} />)
+    expect(screen.getAllByRole('term').map(t => t.textContent)).toContain('Tickets')
+    expect(screen.getAllByRole('definition').map(d => d.textContent)).toContain('Box office')
+    expect(screen.queryByText(/box_office/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Tickets/ })).not.toBeInTheDocument()  // no link to show
   })
 
   it('names the provider on a ticket link only when the link goes to that provider', () => {
     const { unmount } = render(<ShowDetail show={makeShow({
       ticketProvider: 'ticketweb', ticketUrl: 'https://www.ticketweb.com/event/sleep-tickets/123' })} />)
-    expect(screen.getByRole('link', { name: /Tickets via ticketweb/i }))
+    expect(screen.getByRole('link', { name: 'Tickets via TicketWeb' }))
       .toHaveAttribute('href', 'https://www.ticketweb.com/event/sleep-tickets/123')
     unmount()
 
@@ -175,7 +182,7 @@ describe('ShowDetail', () => {
   it('leaves the new details out when unknown', () => {
     render(<ShowDetail show={show} />)
     expect(screen.queryByText('Sold out')).not.toBeInTheDocument()
-    expect(screen.queryByText(/Tickets via/i)).not.toBeInTheDocument()
+    expect(screen.getAllByRole('term').map(t => t.textContent)).not.toContain('Tickets')
     expect(screen.queryByText(/Benefit/)).not.toBeInTheDocument()
   })
 
