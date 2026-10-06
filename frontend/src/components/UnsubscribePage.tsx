@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { href } from '@/lib/basePath'
 import { supabase } from '@/lib/supabase'
+import { GhostLine, LoadingLabel } from './Ghost'
 import PageHeader from './PageHeader'
 
 const noSubscription = () => () => {}
@@ -35,7 +36,18 @@ export default function UnsubscribePage() {
 
   return (
     <article className="flex flex-col gap-6">
-      {(state === 'loading' || state === 'working') && <PageHeader title="Unsubscribe" subtitle="Unsubscribing…" />}
+      {(state === 'loading' || state === 'working') && (
+        <PageHeader
+          title="Unsubscribe"
+          subtitle={
+            <span data-ghost="" className="flex flex-col gap-2 pt-1">
+              <LoadingLabel>Unsubscribing…</LoadingLabel>
+              <GhostLine className="h-5 w-full" />
+              <GhostLine className="h-5 w-2/3" />
+            </span>
+          }
+        />
+      )}
       {state === 'unavailable' && (
         <PageHeader title="Unsubscribe" subtitle="Alerts aren't available on this copy of the site." />
       )}

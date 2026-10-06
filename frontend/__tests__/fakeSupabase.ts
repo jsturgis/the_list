@@ -12,6 +12,9 @@ export function fakeSupabase() {
     // The Alert subscription row: created with the first Saved Filter (a database trigger does it for real).
     subscription: null as { enabled: boolean } | null,
     insertError: null as { message: string } | null,
+    // Set to a pending promise to hold answers back, to see the page while it loads: the session, or the data.
+    sessionGate: null as Promise<void> | null,
+    dataGate: null as Promise<void> | null,
   }
   const session = () => (state.email ? { user: { id: 'user-1', email: state.email } } : null)
   const listeners: ((event: string, s: ReturnType<typeof session>) => void)[] = []
@@ -26,7 +29,7 @@ export function fakeSupabase() {
     select: (_columns?: string, options?: { count?: string; head?: boolean }) =>
       options?.head
         ? Promise.resolve({ count: state.savedFilters.length, error: null })
-        : { order: async () => ({ data: [...state.savedFilters], error: null }) },
+        : { order: async () => { await state.dataGate; return { data: [...state.savedFilters], error: null } } },
     delete: () => ({
       eq: vi.fn(async (_column: string, id: string) => {
         state.savedFilters = state.savedFilters.filter(f => f.id !== id)
@@ -35,7 +38,7 @@ export function fakeSupabase() {
     }),
   }
   const subscriptions = {
-    select: () => ({ maybeSingle: async () => ({ data: state.subscription ? { ...state.subscription } : null, error: null }) }),
+    select: () => ({ maybeSingle: async () => { await state.dataGate; return { data: state.subscription ? { ...state.subscription } : null, error: null } } }),
     update: (values: { enabled: boolean }) => ({
       eq: vi.fn(async () => {
         if (state.subscription) state.subscription.enabled = values.enabled
@@ -46,7 +49,7 @@ export function fakeSupabase() {
 
   const client = {
     auth: {
-      getSession: vi.fn(async () => ({ data: { session: session() }, error: null })),
+      getSession: vi.fn(async () => { await state.sessionGate; return { data: { session: session() }, error: null } }),
       onAuthStateChange: vi.fn((listener: (event: string, s: ReturnType<typeof session>) => void) => {
         listeners.push(listener)
         return { data: { subscription: { unsubscribe: vi.fn() } } }
@@ -65,6 +68,7 @@ export function fakeSupabase() {
     unsubscribeTokens: new Set<string>(['good-token']),
     rpc: vi.fn(async (fn: string, args: { token: string }) => {
       if (fn !== 'unsubscribe') throw new Error(`unexpected function ${fn}`)
+      await state.dataGate
       const found = client.unsubscribeTokens.has(args.token)
       if (found && state.subscription) state.subscription.enabled = false
       return { data: found, error: null }
@@ -76,4 +80,11 @@ export function fakeSupabase() {
     }),
   }
   return { client, state }
+}
+
+/** A gate for `sessionGate` / `dataGate`, and the function that opens it. */
+export function gate(): [Promise<void>, () => void] {
+  let open!: () => void
+  const promise = new Promise<void>(resolve => { open = resolve })
+  return [promise, open]
 }

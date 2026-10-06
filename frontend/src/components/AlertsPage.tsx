@@ -4,6 +4,7 @@ import { href } from '@/lib/basePath'
 import { MAX_ALERTS, alertsPageUrl, supabase, type SavedFilter } from '@/lib/supabase'
 import { findSameFilter } from '@/lib/filters'
 import { useSession } from '@/lib/useSession'
+import { GhostLine, GhostRows, LoadingLabel } from './Ghost'
 import PageHeader from './PageHeader'
 import Section from './Section'
 import Toast from './Toast'
@@ -28,7 +29,18 @@ export default function AlertsPage() {
         subtitle="You'll receive an email once a week if your saved search filter matches any upcoming shows."
       />
 
-      {session.status === 'loading' && <p className="text-sm text-ink-muted">Loading…</p>}
+      {session.status === 'loading' && (
+        // Not yet known whether this is the sign-in form or someone's alerts: a section's outline.
+        <div data-ghost="" className="flex flex-col gap-3">
+          <LoadingLabel>Loading…</LoadingLabel>
+          <GhostLine className="h-7 w-32" />
+          <div className="flex flex-col gap-3 rounded-lg bg-surface p-5">
+            <GhostLine className="w-3/4" />
+            <GhostLine className="h-9 w-full" />
+            <GhostLine className="h-9 w-full" />
+          </div>
+        </div>
+      )}
       {session.status === 'unavailable' && (
         <p className="text-sm text-ink-muted">Alerts aren&apos;t available on this copy of the site.</p>
       )}
@@ -128,6 +140,15 @@ function YourAlerts({ email, userId }: { email: string; userId: string }) {
         </p>
       )}
 
+      {savedFilters === null && !error && (
+        <Section title="Weekly email">
+          <div data-ghost="" className="flex items-center gap-2">
+            <LoadingLabel>Loading your weekly email setting…</LoadingLabel>
+            <GhostLine className="size-4 rounded" />
+            <GhostLine className="w-56" />
+          </div>
+        </Section>
+      )}
       {weekly !== null && (
         <Section title="Weekly email">
           <label className="flex items-center gap-2 text-sm text-ink">
@@ -152,7 +173,7 @@ function YourAlerts({ email, userId }: { email: string; userId: string }) {
       >
       <div ref={list}>
       {savedFilters === null ? (
-        <p className="text-sm text-ink-muted">Loading your alerts…</p>
+        <GhostRows label="Loading your alerts…" />
       ) : savedFilters.length === 0 ? (
         <p data-no-alerts="" tabIndex={-1} className="text-sm text-ink-soft outline-none">
           No alerts yet. Set some filters on the{' '}

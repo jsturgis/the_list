@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import UnsubscribePage from '@/components/UnsubscribePage'
-import { fakeSupabase } from './fakeSupabase'
+import { fakeSupabase, gate } from './fakeSupabase'
 
 const fake = vi.hoisted(() => ({ current: null as ReturnType<typeof import('./fakeSupabase').fakeSupabase> | null }))
 vi.mock('@/lib/supabase', async importOriginal => ({
@@ -27,6 +27,17 @@ describe('Unsubscribe page', () => {
     expect(fake.current!.state.subscription).toEqual({ enabled: false })
     expect(screen.getByText(/your alerts are kept/i)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /alerts page/i })).toHaveAttribute('href', expect.stringMatching(/^\/alerts\/?$/))
+  })
+
+  it('shows a ghost message while it unsubscribes', async () => {
+    const [held, release] = gate()
+    fake.current!.state.dataGate = held
+    const { container } = open('?token=good-token')
+    expect(screen.getByText('Unsubscribing…')).toBeInTheDocument()
+    expect(container.querySelector('[data-ghost]')).not.toBeNull()
+    release()
+    expect(await screen.findByRole('heading', { name: /you're unsubscribed/i })).toBeInTheDocument()
+    expect(container.querySelector('[data-ghost]')).toBeNull()
   })
 
   it('says so when the link isn\'t valid', async () => {
