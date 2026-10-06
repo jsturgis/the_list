@@ -57,6 +57,9 @@ class Band(Base):
     links: Mapped[list] = mapped_column(JSONList, default=list)
     # From Discogs: [{"name": ..., "active": bool}], current members marked active.
     members: Mapped[list] = mapped_column(JSONList, default=list)
+    # When it was last looked up on the services: set for new Bands at ingest, and by the backfill
+    # (app/ingestion/backfill.py) for the rest. None: never looked up.
+    enriched_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
