@@ -6,10 +6,10 @@ export interface Fact {
   value: ReactNode
 }
 
-/** Key facts as labelled values (DESIGN.md, "Key facts"): three across from `sm`, one per line on phones. */
+/** Key facts as labelled values (DESIGN.md, "Key facts"): side by side in equal columns from `sm`, one per line on phones. */
 export default function FactList({ facts }: { facts: Fact[] }) {
   return (
-    <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <dl className="grid grid-cols-1 gap-4 sm:auto-cols-fr sm:grid-flow-col">
       {facts.map(({ icon: Icon, label, value }) => (
         <div key={label}>
           <dt className="flex items-center gap-1.5 text-xs text-ink-muted">

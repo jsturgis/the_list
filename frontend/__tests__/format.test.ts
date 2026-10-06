@@ -1,5 +1,16 @@
 import { describe, it, expect } from 'vitest'
-import { mapsHref, telHref } from '@/lib/format'
+import { mapsHref, telHref, ticketProviderLabel } from '@/lib/format'
+
+describe('ticketProviderLabel', () => {
+  it('names the known providers', () => {
+    expect(['box_office', 'door_only', 'free_entry', 'ticketweb', 'bottomofthehill'].map(ticketProviderLabel))
+      .toEqual(['Box office', 'At the door', 'Free entry', 'TicketWeb', 'Bottom of the Hill'])
+  })
+
+  it('shows an unknown provider with spaces for underscores', () => {
+    expect(ticketProviderLabel('will_call')).toBe('will call')
+  })
+})
 
 describe('telHref', () => {
   it('adds +1 to a 10-digit US number', () => {

@@ -24,6 +24,22 @@ export const REGION_LABELS: Record<string, string> = {
   santa_cruz: 'Santa Cruz',
 }
 
+const TICKET_PROVIDERS: Record<string, string> = {
+  box_office: 'Box office',
+  door_only: 'At the door',
+  free_entry: 'Free entry',
+  ticketweb: 'TicketWeb',
+  seetickets: 'See Tickets',
+  eventbrite: 'Eventbrite',
+  bottomofthehill: 'Bottom of the Hill',
+  tixr: 'Tixr',
+}
+
+/** Where tickets are sold: "box_office" -> "Box office"; an unknown one with its underscores as spaces. */
+export function ticketProviderLabel(provider: string): string {
+  return TICKET_PROVIDERS[provider] ?? provider.replace(/_/g, ' ')
+}
+
 /** "a/a" -> "All Ages"; other age restrictions ("21+") as they are. */
 export function ageLabel(age: string): string {
   return age === 'a/a' ? 'All Ages' : age

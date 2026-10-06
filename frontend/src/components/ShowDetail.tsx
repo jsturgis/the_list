@@ -1,6 +1,6 @@
 import type { Show } from '@/lib/types'
-import { formatTime, formatPrice, formatDateLongYear, mapsHref } from '@/lib/format'
-import { ArrowDownTrayIcon, CalendarDaysIcon, ClockIcon, GlobeAltIcon, MapPinIcon, SparklesIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
+import { formatTime, formatPrice, formatDateLongYear, mapsHref, ticketProviderLabel } from '@/lib/format'
+import { ArrowDownTrayIcon, BanknotesIcon, CalendarDaysIcon, ClockIcon, GlobeAltIcon, MapPinIcon, SparklesIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
 import { googleCalendarUrl, icsFilename, icsHref } from '@/lib/calendar'
 import ActionLinks, { ActionLink } from './ActionLinks'
 import BandLink from './BandLink'
@@ -40,7 +40,9 @@ export default function ShowDetail({ show }: ShowDetailProps) {
   const set = formatTime(show.setTime)
   const price = formatPrice(show.priceMin, show.priceMax, show.isFree) ?? 'TBA'
   const age = formatAge(show.ageRestriction)
-  const ticketsLabel = ticketProviderMatches(show) ? `Tickets via ${show.ticketProvider}` : 'Tickets'
+  // Where tickets are sold, unless the ticket link goes somewhere else (the two can disagree).
+  const provider = show.ticketProvider && ticketProviderMatches(show) ? ticketProviderLabel(show.ticketProvider) : null
+  const ticketsLabel = provider ? `Tickets via ${provider}` : 'Tickets'
   const acts = show.acts.slice().sort((a, b) => a.position - b.position)
   const upcoming = show.status === 'upcoming'
 
@@ -83,22 +85,16 @@ export default function ShowDetail({ show }: ShowDetailProps) {
       <div className="flex flex-col gap-4 rounded-lg bg-surface p-5">
         <FactList facts={[
           ...(door ? [{ icon: ClockIcon, label: set ? 'Doors / Set' : 'Doors', value: set ? `${door} / ${set}` : door }] : []),
-          { icon: TicketIcon, label: 'Price', value: price },
+          { icon: BanknotesIcon, label: 'Price', value: price },
           { icon: UserIcon, label: 'Ages', value: age },
+          ...(provider ? [{ icon: TicketIcon, label: 'Tickets', value: provider }] : []),
         ]} />
         <Flags show={show} size="detail" showBenefitCause />
       </div>
 
-      {(show.ticketUrl || show.ticketProvider) && (
+      {show.ticketUrl && (
         <ActionLinks>
-          {show.ticketUrl ? (
-            <ActionLink href={show.ticketUrl} kind="primary" icon={TicketIcon} external>{ticketsLabel}</ActionLink>
-          ) : show.ticketProvider ? (
-            <span className="inline-flex items-center gap-1.5 px-1 py-2 text-sm text-ink-soft">
-              <TicketIcon aria-hidden="true" className="size-4 shrink-0 text-ink-faint" />
-              {ticketsLabel}
-            </span>
-          ) : null}
+          <ActionLink href={show.ticketUrl} kind="primary" icon={TicketIcon} external>{ticketsLabel}</ActionLink>
         </ActionLinks>
       )}
 
