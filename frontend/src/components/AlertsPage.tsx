@@ -145,7 +145,11 @@ function YourAlerts({ email, userId }: { email: string; userId: string }) {
         </Section>
       )}
 
-      <Section title="Your alerts" headingId="your-alerts-list">
+      <Section
+        title="Your alerts"
+        headingId="your-alerts-list"
+        subtitle={savedFilters?.length ? `${savedFilters.length} of ${MAX_ALERTS} alerts` : undefined}
+      >
       <div ref={list}>
       {savedFilters === null ? (
         <p className="text-sm text-ink-muted">Loading your alerts…</p>
@@ -158,10 +162,7 @@ function YourAlerts({ email, userId }: { email: string; userId: string }) {
           and choose Setup Alert.
         </p>
       ) : (
-        <div className="flex flex-col gap-2">
-          <p className="text-xs text-ink-muted">
-            {savedFilters.length} of {MAX_ALERTS} alerts
-          </p>
+        <div>
           <ul className="flex flex-col divide-y divide-line-subtle">
             {savedFilters.map(f => (
               <li key={f.id} className="flex items-center justify-between gap-4 py-2">
