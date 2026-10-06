@@ -83,20 +83,20 @@ export default function SaveFilterButton({ query, pinnedName }: { query: string;
     else finish(session.status === 'signedIn' ? 'saved' : 'linkSent')
   }
 
-  // On phones the panel spans the filter bar's top row (the wrapper isn't positioned); from `sm` it hangs off the button.
+  // On phones the panel spans the filter bar's last row (the wrapper isn't positioned); from `sm` it hangs off the button.
   return (
-    <div ref={container} className="sm:relative">
+    <div ref={container} className="flex-1 sm:relative sm:flex-none">
       <button
         ref={button}
         type="button"
         onClick={toggle}
         disabled={!query || session.status === 'loading'}
         aria-expanded={open}
-        className="inline-flex items-center gap-1 rounded-full border border-accent bg-surface px-2.5 py-1 text-xs font-medium text-link hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50"
-        title={query ? 'Get a weekly email with the shows matching these filters' : 'Set a filter to get alerts for it'}
+        className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-full bg-accent px-4 text-sm font-bold text-on-accent hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+        title={query ? 'Get a weekly email with the shows matching these filters' : 'Set a filter to save it as a search'}
       >
-        <BellIcon className="size-3.5 shrink-0" />
-        Setup Alert
+        <BellIcon className="size-4 shrink-0" />
+        Save search
       </button>
 
       {open && query && (

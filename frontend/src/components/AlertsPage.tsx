@@ -180,7 +180,7 @@ function YourAlerts({ email, userId }: { email: string; userId: string }) {
           <a href={href('/')} className="text-link underline underline-offset-2">
             Shows list
           </a>{' '}
-          and choose Setup Alert.
+          and choose Save search.
         </p>
       ) : (
         <div>

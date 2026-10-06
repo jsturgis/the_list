@@ -48,7 +48,7 @@ const PAGES = [
   ['alerts', 'alerts/'],
   ['unsubscribe', 'alerts/unsubscribe/'],
   ['not-found', 'shows/99999/'],
-  ['setup-alert-panel', '?region=east_bay', page => page.getByRole('button', { name: /setup alert/i }).click()],
+  ['setup-alert-panel', '?region=east_bay', page => page.getByRole('button', { name: /setup alert|save search/i }).click()],
 ]
 
 try {
