@@ -15,7 +15,7 @@ from app.clock import local_today
 from app.config import settings
 from app.database import SessionLocal
 from app.ingestion.band_photos import save_band_photos
-from app.ingestion.discogs import discogs_artist, discogs_genres
+from app.ingestion.discogs import discogs_artist, discogs_credit, discogs_genres
 from app.ingestion.drive import fetch_latest_edition
 from app.ingestion.edition import edition_meta, edition_shows
 from app.ingestion.enriched import merge_enriched
@@ -161,10 +161,19 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                 if found:
                     links = {k: v for k, v in found.items() if k.endswith("_url") and v}
                     links["mb_links"] = found.get("links") or []  # every MusicBrainz link, for app/band_links.py
+                    # Photos, in order: Commons, Discogs, and only then the edition's (with no credit). The first
+                    # that loads is used; the rest are fallbacks if it turns out to be gone when downloaded.
+                    artist = found.get("discogs")
+                    candidates = []
                     if photo := found.get("commons_photo"):
-                        # The Commons photo wins; the edition's is the fallback if the Commons one doesn't load.
-                        links.update(image_url=photo.url, image_credit=photo.credit,
-                                     fallback_image_url=enrichment.get("image_url"))
+                        candidates.append({"url": photo.url, "credit": photo.credit})
+                    if artist and artist.image_url:
+                        candidates.append({"url": artist.image_url, "credit": discogs_credit(artist)})
+                    if candidates:
+                        if enrichment.get("image_url"):
+                            candidates.append({"url": enrichment["image_url"], "credit": None})
+                        links.update(image_url=candidates[0]["url"], image_credit=candidates[0]["credit"],
+                                     image_candidates=candidates)
                     # Genres: MusicBrainz's curated ones, else Last.fm's tags, else Discogs' genres and styles (each
                     # asked only when needed, once per name), else MusicBrainz's free-form tags, and only when every
                     # service has none, the edition's.
@@ -185,28 +194,29 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                     for field in _BAND_LINK_FIELDS:
                         if enrichment.get(field) and field not in links:
                             edition_links.setdefault(name, {}).setdefault(field, enrichment[field])
-                    # The Discogs artist rides along for the photo step; its members are saved with the Band.
-                    artist = found.get("discogs")
+                    # Its Discogs members are saved with the Band.
                     data["band_enrichment"][i] = (name, {**enrichment, **links, "genres": genres, "discogs": artist,
                                                          "members": artist.members if artist else []})
 
         # The edition's image URLs are often broken: keep (or repair) only those that load.
         image_urls = [d["venue_image_url"] for d in shows_data if d.get("venue_image_url")] + [
-            e[k] for d in shows_data for _, e in d["band_enrichment"] for k in ("image_url", "fallback_image_url")
-            if e.get(k)]
+            url for d in shows_data for _, e in d["band_enrichment"]
+            for url in ([c["url"] for c in e["image_candidates"]] if e.get("image_candidates") else [e.get("image_url")])
+            if url]
         if image_urls:
             checked = await loop.run_in_executor(None, check_image_urls, image_urls)
             for data in shows_data:
                 if data.get("venue_image_url"):
                     data["venue_image_url"] = checked.get(data["venue_image_url"])
                 for _, enrichment in data["band_enrichment"]:
-                    if enrichment.get("image_url"):
+                    if candidates := enrichment.get("image_candidates"):
+                        # The first candidate that loads (repaired if need be); the rest stay as fallbacks.
+                        loading = [{**c, "url": checked[c["url"]]} for c in candidates if checked.get(c["url"])]
+                        first = loading[0] if loading else {"url": None, "credit": None}
+                        enrichment.update(image_url=first["url"], image_credit=first["credit"],
+                                          image_fallbacks=loading[1:])
+                    elif enrichment.get("image_url"):
                         enrichment["image_url"] = checked.get(enrichment["image_url"])
-                    if not enrichment.get("image_url"):
-                        # A Commons photo that doesn't load: the edition's (uncredited) photo instead.
-                        fallback = enrichment.get("fallback_image_url")
-                        enrichment["image_url"] = checked.get(fallback) if fallback else None
-                        enrichment["image_credit"] = None
 
         # Skip links that don't work: domains that don't exist, missing pages (Bandcamp links aren't checked).
         links = _unsaved_links(db, shows_data)
@@ -239,9 +249,12 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
 
         # Photos are kept with the data: download each Band's that's still a remote URL into the images folder.
         bands = list({a.band.id: a.band for s in shows for a in s.acts}.values())
-        # The edition's photo for a Band whose Commons photo was chosen, in case that one turns out to be gone.
-        fallbacks = {name: e["fallback_image_url"] for d in shows_data for name, e in d["band_enrichment"]
-                     if e.get("image_credit") and e.get("fallback_image_url")}
+        # The photos after each new Band's chosen one, in case that one turns out to be gone (first Show wins).
+        fallbacks: dict[str, list[dict]] = {}
+        for d in shows_data:
+            for name, e in d["band_enrichment"]:
+                if e.get("image_fallbacks"):
+                    fallbacks.setdefault(name, e["image_fallbacks"])
         stored = await loop.run_in_executor(None, save_band_photos, bands, settings.images_path, fallbacks)
         db.commit()
         if stored:

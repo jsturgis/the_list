@@ -47,6 +47,11 @@ class DiscogsArtist:
     image_url: str | None = None
 
 
+def discogs_credit(artist: DiscogsArtist) -> dict:
+    """The photo credit for a Discogs artist's image: no author or licence (Discogs doesn't give them), its page."""
+    return {"source": "Discogs", "author": None, "license": None, "license_url": None, "source_url": artist.page_url}
+
+
 def _plain_name(name: str) -> str:
     return _SUFFIX.sub("", name or "").strip()
 

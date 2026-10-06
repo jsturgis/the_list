@@ -156,6 +156,9 @@ test("a Band's stored photo loads from the site, under its base path", async ({ 
   await expect.poll(() => photo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBeGreaterThan(0)
   // A Wikimedia Commons photo carries its credit.
   await expect(page.getByRole('figure')).toContainText('Photo: S. Bollmann, CC BY-SA 4.0, via Wikimedia Commons')
+  // A Discogs photo says so.
+  await page.goto('bands/7/')
+  await expect(page.getByRole('figure')).toHaveText('Photo via Discogs')
 })
 
 test("a Venue page has a bell for that Venue's alerts", async ({ page }) => {

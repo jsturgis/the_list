@@ -75,6 +75,7 @@ def commons_photo(links: list[dict], client: httpx.Client | None = None) -> Comm
         meta = info.get("extmetadata", {})
         url = (info.get("thumburl") or info["url"]).split("?")[0]  # drop Commons' tracking parameters
         return CommonsPhoto(url, {
+            "source": "Wikimedia Commons",
             "author": _plain(meta.get("Artist", {}).get("value")),
             "license": _plain(meta.get("LicenseShortName", {}).get("value")),
             "license_url": (meta.get("LicenseUrl", {}).get("value") or None),

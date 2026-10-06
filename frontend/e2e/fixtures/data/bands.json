@@ -54,6 +54,7 @@
       }
     ],
     "imageCredit": {
+      "source": "Wikimedia Commons",
       "author": "S. Bollmann",
       "license": "CC BY-SA 4.0",
       "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
@@ -178,7 +179,7 @@
     "soundcloudUrl": "https://soundcloud.com/redwood-sirens",
     "bandcampUrl": "https://redwoodsirens.bandcamp.com",
     "websiteUrl": null,
-    "imageUrl": null,
+    "imageUrl": "/images/bands/7-3ac90f4cb6.webp",
     "isLocal": null,
     "description": null,
     "similar": [],
@@ -198,7 +199,13 @@
         "paid": false
       }
     ],
-    "imageCredit": null,
+    "imageCredit": {
+      "source": "Discogs",
+      "author": null,
+      "license": null,
+      "licenseUrl": null,
+      "sourceUrl": "https://www.discogs.com/artist/7-Redwood-Sirens"
+    },
     "members": []
   }
 ]

@@ -45,8 +45,9 @@ class Band(Base):
     # From the formatted edition
     website_url: Mapped[Optional[str]] = mapped_column(String(500))
     image_url: Mapped[Optional[str]] = mapped_column(String(500))
-    # The photo's credit when it came from Wikimedia Commons: {author, license, license_url, source_url}; None for
-    # the edition's photos. The site shows it with the photo, as the licence requires.
+    # The photo's credit when it came from a service: {source ("Wikimedia Commons" or "Discogs"), author, license,
+    # license_url, source_url}; None for the edition's photos. The site shows it with the photo. Credits saved
+    # before photos could come from Discogs have no source: they're Wikimedia Commons ones.
     image_credit: Mapped[Optional[dict]] = mapped_column(JSONDict)
     is_local: Mapped[Optional[bool]] = mapped_column(Boolean)
     # From the enriched export: what the Band is ("Bilingual metal band from Fairfield ...")

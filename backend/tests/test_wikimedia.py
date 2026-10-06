@@ -53,6 +53,7 @@ def test_finds_the_photo_and_its_credit():
     photo = commons_photo(_LINKS, _client(_entity("Soulfly Rockharz 2015 05.jpg"), _imageinfo()))
     assert photo.url == "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Soulfly.jpg/960px-Soulfly.jpg"
     assert photo.credit == {
+        "source": "Wikimedia Commons",
         "author": "S. Bollmann",  # the HTML link reduced to its text
         "license": "CC BY-SA 4.0",
         "license_url": "https://creativecommons.org/licenses/by-sa/4.0",

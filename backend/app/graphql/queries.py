@@ -65,7 +65,8 @@ def _band(b: Band) -> BandType:
         bandcamp_url=b.bandcamp_url,
         website_url=b.website_url,
         image_url=site_path(b.image_url),
-        image_credit=PhotoCreditType(**b.image_credit) if b.image_credit else None,
+        # Credits saved before photos could come from Discogs are all Wikimedia Commons ones.
+        image_credit=PhotoCreditType(**{"source": "Wikimedia Commons", **b.image_credit}) if b.image_credit else None,
         is_local=b.is_local,
         description=b.description,
         links=[BandLinkType(**dataclasses.asdict(link)) for link in band_links(

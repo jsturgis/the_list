@@ -105,12 +105,13 @@ def save_band_photo(band: Band, url: str, images_dir: str | Path, client: httpx.
     return True
 
 
-def save_band_photos(bands: list[Band], images_dir: str | Path, fallbacks: dict[str, str] | None = None) -> int:
+def save_band_photos(bands: list[Band], images_dir: str | Path, fallbacks: dict[str, list[dict]] | None = None) -> int:
     """Store the photo of every Band whose image is still a remote URL. Returns how many were stored.
 
-    `fallbacks` maps a Band's name to the edition's photo, for a Band whose (Commons) photo turns out to be gone:
-    that's tried instead, without the credit. A photo is never worth failing an ingest over: anything unexpected
-    for one Band is logged and skipped.
+    `fallbacks` maps a Band's name to the photos after its chosen one, in order ({"url", "credit"}: Discogs', then
+    the edition's with no credit): when the chosen photo turns out to be gone, the next is tried, with its own
+    credit. A temporary failure stops there, keeping that photo for the next ingest to retry. A photo is never worth
+    failing an ingest over: anything unexpected for one Band is logged and skipped.
     """
     pending = [b for b in bands if b.image_url and not is_stored(b.image_url)]
     stored = 0
@@ -121,9 +122,14 @@ def save_band_photos(bands: list[Band], images_dir: str | Path, fallbacks: dict[
             try:
                 if save_band_photo(band, band.image_url, images_dir, client):
                     stored += 1
-                elif band.image_url is None and (fallback := (fallbacks or {}).get(band.name)):
-                    band.image_url, band.image_credit = fallback, None  # the edition's photo has no credit
-                    stored += save_band_photo(band, fallback, images_dir, client)
+                    continue
+                for fallback in (fallbacks or {}).get(band.name, []):
+                    if band.image_url is not None:  # kept for a retry after a temporary failure
+                        break
+                    band.image_url, band.image_credit = fallback["url"], fallback["credit"]
+                    if save_band_photo(band, fallback["url"], images_dir, client):
+                        stored += 1
+                        break
             except Exception:
                 logger.warning("band photos: skipped %s", band.name, exc_info=True)
     return stored
