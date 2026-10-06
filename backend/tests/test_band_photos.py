@@ -191,7 +191,7 @@ def test_a_commons_photo_that_is_gone_falls_back_to_the_editions(tmp_path, monke
     monkeypatch.setattr(band_photos.httpx, "Client", lambda **kw: _client(
         {commons: httpx.Response(404), edition: httpx.Response(200, content=_jpeg())}))
 
-    assert band_photos.save_band_photos([band], tmp_path, fallbacks={band.name: edition}) == 1
+    assert band_photos.save_band_photos([band], tmp_path, fallbacks={band.name: [{"url": edition, "credit": None}]}) == 1
     assert is_stored(band.image_url)
     assert band.image_credit is None  # the edition's photo carries no credit
 
@@ -204,5 +204,28 @@ def test_a_temporary_commons_failure_keeps_it_for_next_time_rather_than_falling_
     monkeypatch.setattr(band_photos.httpx, "Client", lambda **kw: _client(
         {commons: httpx.Response(503), edition: httpx.Response(200, content=_jpeg())}))
 
-    assert band_photos.save_band_photos([band], tmp_path, fallbacks={band.name: edition}) == 0
+    assert band_photos.save_band_photos([band], tmp_path, fallbacks={band.name: [{"url": edition, "credit": None}]}) == 0
     assert band.image_url == commons and band.image_credit is not None
+
+
+def test_a_gone_photo_falls_back_down_the_list_with_each_ones_credit(tmp_path, monkeypatch):
+    """Commons gone, then Discogs gone too: the edition's photo, with no credit."""
+    from app.ingestion import band_photos
+    commons, disc, edition = "https://upload.wikimedia.org/x.jpg", "https://i.discogs.com/x.jpg", "https://img.example/e.jpg"
+    discogs_credit = {"source": "Discogs", "author": None, "license": None, "license_url": None,
+                      "source_url": "https://www.discogs.com/artist/1"}
+    band = _band(image_url=commons)
+    band.image_credit = {"source": "Wikimedia Commons", "author": "A", "license": "CC BY 4.0", "license_url": None,
+                         "source_url": "https://c/x"}
+    routes = {commons: httpx.Response(404), disc: httpx.Response(200, content=_jpeg())}
+    monkeypatch.setattr(band_photos.httpx, "Client", lambda **kw: _client(routes))
+
+    fallbacks = {band.name: [{"url": disc, "credit": discogs_credit}, {"url": edition, "credit": None}]}
+    assert band_photos.save_band_photos([band], tmp_path, fallbacks=fallbacks) == 1
+    assert is_stored(band.image_url) and band.image_credit == discogs_credit   # Discogs', credited
+
+    band2 = _band(3, image_url=commons)
+    routes[disc] = httpx.Response(410)
+    routes[edition] = httpx.Response(200, content=_jpeg(color=(9, 9, 9)))
+    assert band_photos.save_band_photos([band2], tmp_path, fallbacks={band2.name: fallbacks[band.name]}) == 1
+    assert is_stored(band2.image_url) and band2.image_credit is None             # the edition's, uncredited

@@ -689,6 +689,64 @@ async def test_pipeline_keeps_the_editions_photo_without_a_credit_when_commons_h
     assert (deafheaven.image_url, deafheaven.image_credit) == ("https://example.com/wrong-path.jpg", None)
 
 
+def _deafheaven_on_discogs(name, links):
+    from app.ingestion.discogs import DiscogsArtist
+    if name != "Deafheaven":
+        return None
+    return DiscogsArtist(9, "Deafheaven", "https://www.discogs.com/artist/9-Deafheaven",
+                         image_url="https://i.discogs.com/deafheaven.jpg")
+
+
+_DISCOGS_CREDIT = {"source": "Discogs", "author": None, "license": None, "license_url": None,
+                   "source_url": "https://www.discogs.com/artist/9-Deafheaven"}
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.discogs_artist", side_effect=_deafheaven_on_discogs)
+@patch("app.scheduler.check_image_urls", side_effect=lambda urls: {u: u for u in urls})
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_uses_the_discogs_photo_when_commons_has_none(mock_batch, mock_images, mock_discogs, mock_venue,
+                                                                     mock_fetch, db):
+    await _run_ingestion_async(db=db)
+
+    deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
+    assert deafheaven.image_url == "https://i.discogs.com/deafheaven.jpg"   # over the edition's
+    assert deafheaven.image_credit == _DISCOGS_CREDIT
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler._enrich_band", side_effect=_deafheaven_on_musicbrainz)
+@patch("app.scheduler.commons_photo", side_effect=_commons)
+@patch("app.scheduler.discogs_artist", side_effect=_deafheaven_on_discogs)
+@patch("app.scheduler.check_image_urls", side_effect=lambda urls: {
+    u: (None if "upload.wikimedia.org" in u else u) for u in urls})
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_uses_the_discogs_photo_when_the_commons_one_does_not_load(
+        mock_batch, mock_images, mock_discogs, mock_commons, mock_band, mock_venue, mock_fetch, db):
+    await _run_ingestion_async(db=db)
+
+    deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
+    assert (deafheaven.image_url, deafheaven.image_credit) == ("https://i.discogs.com/deafheaven.jpg", _DISCOGS_CREDIT)
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler._enrich_band", side_effect=_deafheaven_on_musicbrainz)
+@patch("app.scheduler.commons_photo", side_effect=_commons)
+@patch("app.scheduler.discogs_artist", side_effect=_deafheaven_on_discogs)
+@patch("app.scheduler.check_image_urls", side_effect=lambda urls: {u: u for u in urls})
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_prefers_commons_to_discogs(mock_batch, mock_images, mock_discogs, mock_commons, mock_band,
+                                                   mock_venue, mock_fetch, db):
+    await _run_ingestion_async(db=db)
+
+    deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
+    assert deafheaven.image_url == "https://upload.wikimedia.org/deafheaven-800.jpg"
+    assert deafheaven.image_credit == _COMMONS_CREDIT
+
+
 @patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)

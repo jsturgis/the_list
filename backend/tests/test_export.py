@@ -117,8 +117,9 @@ def test_venue_and_band_fields(exported, data):
     # A stored photo is exported at the site's URL for it.
     support = next(b for b in exported["bands"] if b["id"] == data["support"].id)
     assert support["imageUrl"] == "/images/bands/2-3f9c2a1b7e.webp"
+    # A credit saved before credits had a source is a Wikimedia Commons one.
     assert support["imageCredit"] == {
-        "author": "S. Bollmann", "license": "CC BY-SA 4.0", "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+        "source": "Wikimedia Commons", "author": "S. Bollmann", "license": "CC BY-SA 4.0", "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
         "sourceUrl": "https://commons.wikimedia.org/wiki/File:Support.jpg"}
     assert headliner["imageCredit"] is None  # no Commons photo
     assert headliner["members"] == [{"name": "Ana", "active": True}, {"name": "Bo", "active": False}]

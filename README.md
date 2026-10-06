@@ -335,7 +335,8 @@ Google Drive (public folder)
                                    Discogs' genres and styles (app/ingestion/discogs.py), MusicBrainz's free-form
                                    tags, and only then the edition's
                  └─ Wikimedia      → the band's photo on Commons through its Wikidata link, with its credit
-                                     (app/ingestion/wikimedia.py), over the edition's photo
+                                     (app/ingestion/wikimedia.py); else its Discogs photo ("Photo via Discogs");
+                                     only then the edition's
             └─ image URL check   → keep, repair (Wikimedia paths) or drop each image URL
                  └─ upsert_shows()   → Show, Venue, Band and Act rows
                       └─ band photos     → download each band photo still at a remote URL, resize to ≤800px

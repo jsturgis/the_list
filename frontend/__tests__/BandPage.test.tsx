@@ -158,7 +158,7 @@ describe('BandDetail', () => {
 
   it('credits a Wikimedia Commons photo under it, linking the licence and the photo page', () => {
     renderBand(makeBand({ id: 6, name: 'Locals', imageUrl: '/images/bands/6-3f9c2a1b7e.webp', imageCredit: {
-      author: 'S. Bollmann', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0',
+      source: 'Wikimedia Commons', author: 'S. Bollmann', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0',
       sourceUrl: 'https://commons.wikimedia.org/wiki/File:Locals.jpg',
     } }), [])
     const caption = screen.getByRole('figure').querySelector('figcaption')!
@@ -170,10 +170,19 @@ describe('BandDetail', () => {
 
   it('credits a Commons photo without a licence link or an author', () => {
     renderBand(makeBand({ name: 'Locals', imageUrl: '/images/bands/6-a.webp', imageCredit: {
-      author: null, license: 'Public domain', licenseUrl: null, sourceUrl: 'https://commons.wikimedia.org/wiki/File:L.jpg',
+      source: 'Wikimedia Commons', author: null, license: 'Public domain', licenseUrl: null, sourceUrl: 'https://commons.wikimedia.org/wiki/File:L.jpg',
     } }), [])
     expect(screen.getByRole('figure').querySelector('figcaption'))
       .toHaveTextContent('Photo: unknown author, Public domain, via Wikimedia Commons')
+  })
+
+  it('credits a Discogs photo "Photo via Discogs", linking the artist\'s page', () => {
+    renderBand(makeBand({ name: 'Locals', imageUrl: '/images/bands/6-d.webp', imageCredit: {
+      source: 'Discogs', author: null, license: null, licenseUrl: null, sourceUrl: 'https://www.discogs.com/artist/6-Locals',
+    } }), [])
+    const caption = screen.getByRole('figure').querySelector('figcaption')!
+    expect(caption).toHaveTextContent(/^Photo via Discogs$/)
+    expect(within(caption).getByRole('link', { name: 'Discogs' })).toHaveAttribute('href', 'https://www.discogs.com/artist/6-Locals')
   })
 
   it('shows the edition\'s photo without a credit', () => {

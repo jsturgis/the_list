@@ -25,12 +25,14 @@ export interface Venue {
   membershipRequired?: boolean | null
 }
 
-/** Who took a Band's Wikimedia Commons photo, and its licence: shown with the photo, as the licence requires. */
+/** Where a Band's photo came from, who took it and its licence: shown with the photo. */
 export interface PhotoCredit {
+  /** "Wikimedia Commons" or "Discogs". */
+  source: string
   author: string | null
   license: string | null
   licenseUrl: string | null
-  /** The photo's page on Wikimedia Commons. */
+  /** The photo's page on Wikimedia Commons, or the artist's page on Discogs. */
   sourceUrl: string
 }
 
@@ -61,7 +63,7 @@ export interface Band {
   // From the formatted edition
   websiteUrl?: string | null
   imageUrl?: string | null
-  /** Set when the photo came from Wikimedia Commons. */
+  /** Set when the photo came from a service (Wikimedia Commons or Discogs); not for the edition's. */
   imageCredit?: PhotoCredit | null
   isLocal?: boolean | null
   // From the enriched export

@@ -32,7 +32,8 @@ class VenueType:
 
 @strawberry.type
 class PhotoCreditType:
-    """Who took a Band's Wikimedia Commons photo and its licence; the site shows it with the photo."""
+    """Where a Band's photo came from, who took it and its licence; the site shows it with the photo."""
+    source: str     # "Wikimedia Commons" or "Discogs"
     author: str | None
     license: str | None
     license_url: str | None

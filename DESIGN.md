@@ -182,7 +182,8 @@ WCAG AA.
   8px radius, with the Band's name as its alt text. It's the site's own copy (≤800px WebP, saved at ingest), served
   under the base path; never hot-linked. A photo from Wikimedia Commons is a `<figure>` whose `<figcaption>` credits
   it, as its licence requires: "Photo: <author>, <licence>, via Wikimedia Commons" in `text-xs ink-muted`, with the
-  licence and "Wikimedia Commons" (the photo's page) as running-text links. The edition's photos have no credit.
+  licence and "Wikimedia Commons" (the photo's page) as running-text links. A photo from Discogs reads "Photo via
+  Discogs", linking the artist's Discogs page. The edition's photos have no credit.
 - **Band members (`BandMembers`):** a **Members** section after Upcoming Shows, from Discogs: current members as a
   wrapping list of `text-sm` semibold `ink` names, then a `text-xs ink-muted` "Formerly" label over a wrapping list
   of past members in `ink-soft`. Each is a real `<ul>`, named "Current members" and "Formerly". Hidden without

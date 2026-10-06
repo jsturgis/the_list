@@ -85,8 +85,18 @@ export default function BandDetail({ band, upcomingShows, similarBands, bell }: 
 
 const creditLink = 'text-link underline underline-offset-2'
 
-/** "Photo: <author>, <licence>, via Wikimedia Commons", as a Commons photo's licence requires. */
+/**
+ * "Photo: <author>, <licence>, via Wikimedia Commons", as a Commons photo's licence requires; "Photo via Discogs"
+ * for a Discogs photo, which has no author or licence to name.
+ */
 function PhotoCreditLine({ credit }: { credit: PhotoCredit }) {
+  if (credit.source === 'Discogs') {
+    return (
+      <figcaption className="text-xs text-ink-muted">
+        Photo via <a href={credit.sourceUrl} target="_blank" rel="noopener noreferrer" className={creditLink}>Discogs</a>
+      </figcaption>
+    )
+  }
   return (
     <figcaption className="text-xs text-ink-muted">
       Photo: {credit.author ?? 'unknown author'}
