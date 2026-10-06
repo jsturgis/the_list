@@ -22,7 +22,7 @@ export default function BandDetail({ band, upcomingShows, similarBands, bell }: 
         <img src={band.imageUrl} alt={band.name} className="w-full max-h-72 object-cover rounded-lg" />
       )}
 
-      <PageHeader title={band.name} aside={bell} subtitle={band.description ?? undefined}>
+      <PageHeader title={band.name} aside={bell} asideBesideTitle subtitle={band.description ?? undefined}>
         {band.isLocal && (
           <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-accent-chip text-accent-chip-ink">
             <MapPinIcon className="size-3.5 shrink-0" />

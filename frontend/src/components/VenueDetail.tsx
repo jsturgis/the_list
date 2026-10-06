@@ -49,7 +49,7 @@ export default function VenueDetail({ venue, upcomingShows, bell }: VenueDetailP
         <img src={venue.imageUrl} alt={venue.name} className="w-full max-h-72 object-cover rounded-lg" />
       )}
 
-      <PageHeader title={venue.name} aside={bell} subtitle={[venue.city, region].filter(Boolean).join(' · ')}>
+      <PageHeader title={venue.name} aside={bell} asideBesideTitle subtitle={[venue.city, region].filter(Boolean).join(' · ')}>
         {rules.map(({ label, icon: Icon }) => (
           <span key={label} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-muted text-ink-soft">
             {Icon && <Icon className="size-3.5 shrink-0" />}
