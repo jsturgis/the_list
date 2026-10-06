@@ -178,6 +178,9 @@ WCAG AA.
   (`motion-safe:animate-pulse`, so still for reduced motion). Headings that are already known stay real. Ghosts are
   `aria-hidden`; a visually hidden "Loading …" label stands in for screen readers. Static data (Shows, Bands,
   Venues) is in the page and never needs one.
+- **Band photo:** at the top of a Band page, full column width, at most 288px tall (`max-h-72`, `object-cover`),
+  8px radius, with the Band's name as its alt text. It's the site's own copy (≤800px WebP, saved at ingest), served
+  under the base path; never hot-linked.
 - **Band links:** a Band's actions are its listening links, up to 3 free services then up to 3 paid ones,
   ranked by service in the backend (`app/band_links.py`), then its website. Spotify, SoundCloud and Bandcamp
   keep their brand-coloured pills; other services are outline pills, and paid ones say "(subscription)" in their

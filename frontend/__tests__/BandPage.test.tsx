@@ -127,6 +127,12 @@ describe('BandDetail', () => {
     expect(screen.getByRole('link', { name: /website/i })).toHaveAttribute('href', 'https://locals.com')
   })
 
+  it('shows a stored photo from the site itself', () => {
+    renderBand(makeBand({ id: 6, name: 'Locals', imageUrl: '/images/bands/6-3f9c2a1b7e.webp' }), [])
+    // The site path goes through href(), which adds the base path in a build (none in tests).
+    expect(screen.getByRole('img', { name: 'Locals' })).toHaveAttribute('src', '/images/bands/6-3f9c2a1b7e.webp')
+  })
+
   it('leaves them out otherwise', () => {
     renderBand()
     expect(screen.queryByRole('img')).not.toBeInTheDocument()

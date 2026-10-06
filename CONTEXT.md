@@ -15,7 +15,7 @@ A Band's appearance within a Show. The first Act is the headliner; subsequent Ac
 _Avoid_: Performer, artist (use Band or Act depending on context)
 
 **Band**:
-A named musical act — a group, solo artist, or ensemble. DJs and back-to-back DJ sets are excluded.
+A named musical act — a group, solo artist, or ensemble. DJs and back-to-back DJ sets are excluded. A Band's photo is kept with the data: downloaded at ingest, resized and stored on the `data` branch, and served by the site itself rather than linked from where it came from.
 _Avoid_: Artist, performer, act (when referring to the entity itself rather than its role in a Show)
 
 **Venue**:

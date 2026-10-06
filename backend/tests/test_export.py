@@ -57,7 +57,7 @@ def data(db):
     headliner = _band(db, "Headliner", embedding=VEC, website_url="https://headliner.com", is_local=True,
                       links=[{"type": "free streaming", "url": "https://open.spotify.com/artist/h"},
                              {"type": "social network", "url": "https://www.instagram.com/headliner/"}])
-    support = _band(db, "Support", genres=["noise"])
+    support = _band(db, "Support", genres=["noise"], image_url="bands/2-3f9c2a1b7e.webp")
     past_band = _band(db, "Past Band")
     similar_unexported = _band(db, "Not Playing", embedding=VEC)
     tonight = _show(db, fillmore, 0, [headliner, support], door_time=time(20), price_min=15.0, price_max=20.0,
@@ -111,6 +111,9 @@ def test_venue_and_band_fields(exported, data):
     headliner = next(b for b in exported["bands"] if b["id"] == data["headliner"].id)
     assert (headliner["name"], headliner["genres"], headliner["websiteUrl"], headliner["isLocal"]) == (
         "Headliner", ["punk"], "https://headliner.com", True)
+    # A stored photo is exported at the site's URL for it.
+    support = next(b for b in exported["bands"] if b["id"] == data["support"].id)
+    assert support["imageUrl"] == "/images/bands/2-3f9c2a1b7e.webp"
     # Links are exported grouped and ranked, camelCased like the rest.
     assert headliner["links"] == [
         {"group": "listening", "service": "spotify", "label": "Spotify", "url": "https://open.spotify.com/artist/h", "paid": False},

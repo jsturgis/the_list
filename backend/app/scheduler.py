@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.clock import local_today
 from app.config import settings
 from app.database import SessionLocal
+from app.ingestion.band_photos import save_band_photos
 from app.ingestion.drive import fetch_latest_edition
 from app.ingestion.edition import edition_meta, edition_shows
 from app.ingestion.enriched import merge_enriched
@@ -188,6 +189,14 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
             .filter(Show.id.in_(show_ids))
             .all()
         )
+
+        # Photos are kept with the data: download each Band's that's still a remote URL into the images folder.
+        bands = list({a.band.id: a.band for s in shows for a in s.acts}.values())
+        stored = await loop.run_in_executor(None, save_band_photos, bands, settings.images_path)
+        db.commit()
+        if stored:
+            logger.info("ingestion: saved %d band photos", stored)
+
         logger.info("ingestion: embedding and indexing")
         await batch_embed_and_index(db, shows)
 

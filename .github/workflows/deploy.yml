@@ -81,6 +81,7 @@ jobs:
         env:
           DATABASE_URL: sqlite:///${{ github.workspace }}/data/the_list.db
           FAISS_INDEX_PATH: ${{ github.workspace }}/data/faiss
+          IMAGES_PATH: ${{ github.workspace }}/data/images
           OLLAMA_BASE_URL: http://localhost:11434
           DRIVE_LATEST_FILE_ID: ${{ vars.DRIVE_LATEST_FILE_ID }}
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
@@ -104,6 +105,8 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add the_list.db faiss
+          # Band photos kept with the data; -A also stages photos the ingest replaced and deleted.
+          if [ -d images ]; then git add -A images; fi
           git diff --cached --quiet || { git commit -q -F "$RUNNER_TEMP/message" && git push -q; }
           git log -1 --format='%h %s'
 
@@ -165,6 +168,11 @@ jobs:
 
       - id: pages
         uses: actions/configure-pages@v5
+
+      - name: Copy the Band photos into the site
+        run: |
+          rm -rf frontend/public/images
+          if [ -d data/images ]; then cp -R data/images frontend/public/images; fi
 
       - name: Build the site
         working-directory: frontend

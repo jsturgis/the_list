@@ -11,6 +11,7 @@ from strawberry.types import Info
 
 from app import catalog
 from app.band_links import band_links
+from app.ingestion.band_photos import site_path
 from app.clock import local_today
 from app.embeddings.search import find_similar_shows
 from app.fuzzy_search import matches_search
@@ -63,7 +64,7 @@ def _band(b: Band) -> BandType:
         soundcloud_url=b.soundcloud_url,
         bandcamp_url=b.bandcamp_url,
         website_url=b.website_url,
-        image_url=b.image_url,
+        image_url=site_path(b.image_url),
         is_local=b.is_local,
         description=b.description,
         links=[BandLinkType(**dataclasses.asdict(link)) for link in band_links(

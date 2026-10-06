@@ -149,6 +149,13 @@ for (const [label, width] of [['desktop', 1280], ['phone', 390]] as const) {
   })
 }
 
+test("a Band's stored photo loads from the site, under its base path", async ({ page }) => {
+  await page.goto('bands/1/')
+  const photo = page.getByRole('img', { name: 'Neon Harbor' })
+  await expect(photo).toHaveAttribute('src', /^\/the_list\/images\/bands\/1-[0-9a-f]{10}\.webp$/)
+  await expect.poll(() => photo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBeGreaterThan(0)
+})
+
 test("a Venue page has a bell for that Venue's alerts", async ({ page }) => {
   await page.goto('venues/2/')
   await expect(page.getByRole('button', { name: /^Get alerts for / })).toBeVisible()
