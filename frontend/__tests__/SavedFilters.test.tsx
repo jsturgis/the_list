@@ -25,6 +25,23 @@ beforeEach(() => {
   fake.current = fakeSupabase()
 })
 
+describe('A list pinned to one Band or Venue', () => {
+  it('shows the Band as a chip, which removes it', async () => {
+    replaceQuery('bandId=3&region=sf')
+    render(<FilterBar {...props} pinned={{ param: 'bandId', name: 'Neon Harbor' }} />)
+    expect(screen.getByText('Shows with')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show all shows, not only with Neon Harbor' }))
+    await waitFor(() => expect(window.location.search).toBe('?region=sf'))
+  })
+
+  it('names a Setup Alert after the Band', async () => {
+    replaceQuery('bandId=3')
+    render(<FilterBar {...props} pinned={{ param: 'bandId', name: 'Neon Harbor' }} />)
+    fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
+    expect(screen.getByLabelText('Name')).toHaveValue('Neon Harbor')
+  })
+})
+
 describe('Save control', () => {
   it('is unavailable until a filter is set', async () => {
     render(<FilterBar {...props} />)

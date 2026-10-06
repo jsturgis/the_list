@@ -18,7 +18,7 @@ export default function PageHeader({ eyebrow, title, aside, subtitle, children }
     <header className="flex flex-col gap-2">
       {eyebrow && <div className="flex flex-wrap items-center gap-2 text-sm text-ink-muted">{eyebrow}</div>}
       {aside ? (
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
           <h1 className="text-3xl text-ink sm:text-4xl">{title}</h1>
           <div className="flex items-center gap-2 text-sm text-ink-muted">{aside}</div>
         </div>

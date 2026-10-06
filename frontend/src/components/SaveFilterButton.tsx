@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useRef, useState, type FormEvent } from 'react'
 import { BellIcon } from '@heroicons/react/16/solid'
 import { href } from '@/lib/basePath'
 import { describeFilters, findSameFilter } from '@/lib/filters'
 import { MAX_ALERTS, alertsAvailable, alertsPageUrl, supabase } from '@/lib/supabase'
+import { usePopover } from '@/lib/usePopover'
 import { useSession } from '@/lib/useSession'
 import Toast from './Toast'
 
@@ -15,7 +16,7 @@ type Done = 'linkSent' | 'saved'
  * Saves the Shows list's current filters as a Saved Filter, for the weekly Alert. A visitor who isn't
  * signed in gets a sign-in link by email; the Alerts page saves the filter once they follow it.
  */
-export default function SaveFilterButton({ query }: { query: string }) {
+export default function SaveFilterButton({ query, pinnedName }: { query: string; pinnedName?: string }) {
   const session = useSession()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
@@ -33,39 +34,15 @@ export default function SaveFilterButton({ query }: { query: string }) {
     setDone(null)
   }, [])
 
-  // The form closes with Escape (focus goes back to the button), a click anywhere outside it, or when focus leaves
-  // it (Tab past its last control), so it never stays open behind where the keyboard is.
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      setOpen(false)
-      button.current?.focus()
-    }
-    const onPointer = (e: MouseEvent) => {
-      if (container.current && !container.current.contains(e.target as Node)) setOpen(false)
-    }
-    const onFocusOut = (e: FocusEvent) => {
-      const next = e.relatedTarget as Node | null
-      if (next && container.current && !container.current.contains(next)) setOpen(false)
-    }
-    const el = container.current
-    document.addEventListener('keydown', onKey)
-    document.addEventListener('mousedown', onPointer)
-    el?.addEventListener('focusout', onFocusOut)
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.removeEventListener('mousedown', onPointer)
-      el?.removeEventListener('focusout', onFocusOut)
-    }
-  }, [open])
+  const close = useCallback(() => setOpen(false), [])
+  usePopover(open, close, container, button)
 
   // Decided at build time too, so a build without the Supabase settings never renders the button and then drops it.
   if (!alertsAvailable() || session.status === 'unavailable') return null
 
   const toggle = () => {
     if (!open) {
-      setName(describeFilters(new URLSearchParams(query)))
+      setName(describeFilters(new URLSearchParams(query), pinnedName))
       setExisting(null)
       if (session.status === 'signedIn' && supabase) {
         supabase

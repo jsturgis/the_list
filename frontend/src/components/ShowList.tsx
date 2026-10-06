@@ -3,6 +3,7 @@ import type { HomeShow } from '@/lib/types'
 import { ArrowPathIcon, MagnifyingGlassIcon } from '@heroicons/react/20/solid'
 import ShowRow from './ShowRow'
 import FilterBar from './FilterBar'
+import { pinnedTo } from '@/lib/filters'
 import { formatDateLong } from '@/lib/format'
 import { useQuery } from '@/lib/navigation'
 
@@ -80,10 +81,12 @@ export default function ShowList({ shows: listed, showCount, dbTotal = 0, filter
   }, [hasMore, visible])
 
   const { regions, ages, genres, dates: availableDates } = filterOptions
+  const pinned = useMemo(() => pinnedTo(new URLSearchParams(filtersKey), shows), [filtersKey, shows])
 
   return (
     <div className="flex flex-col gap-6">
       <FilterBar
+        pinned={pinned}
         showCount={listed ? (showCount ?? shows.length) : null}
         dbTotal={dbTotal}
         genres={genres}

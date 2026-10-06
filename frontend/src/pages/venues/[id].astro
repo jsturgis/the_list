@@ -1,6 +1,7 @@
 ---
 import type { GetStaticPaths } from 'astro'
 import Layout from '@/layouts/Layout.astro'
+import AlertBell from '@/components/AlertBell'
 import BackLink from '@/components/BackLink'
 import VenueDetail from '@/components/VenueDetail'
 import { siteData } from '@/lib/siteData.server'
@@ -17,5 +18,7 @@ const { venue, upcomingShows } = Astro.props
 
 <Layout>
   <BackLink slot="back" />
-  <VenueDetail venue={venue} upcomingShows={upcomingShows} />
+  <VenueDetail venue={venue} upcomingShows={upcomingShows}>
+    <AlertBell slot="bell" client:idle kind="venue" id={venue.id} name={venue.name} />
+  </VenueDetail>
 </Layout>

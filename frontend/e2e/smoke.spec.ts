@@ -73,6 +73,16 @@ test('region and free filters update the URL and survive a reload', async ({ pag
 test.describe('on a phone', () => {
   test.use({ viewport: { width: 390, height: 844 } })
 
+  test("a Band page's alert panel spans the column and stays on screen", async ({ page }) => {
+    await page.goto('bands/3/')
+    await page.getByRole('button', { name: 'Get alerts for Static Bloom' }).click()
+    const panel = (await page.locator('form:has(input[type=email])').boundingBox())!
+    const column = (await page.getByRole('heading', { level: 1 }).locator('xpath=ancestor::*[parent::main][1]').boundingBox())!
+    expect(Math.round(panel.x)).toBe(Math.round(column.x))
+    expect(Math.round(panel.width)).toBe(Math.round(column.width))
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390)  // no sideways scroll
+  })
+
   test('the Setup Alert panel spans the filter bar and stays on screen', async ({ page }) => {
     await page.goto('./?region=east_bay')
     await page.getByRole('button', { name: /setup alert/i }).click()
@@ -83,6 +93,33 @@ test.describe('on a phone', () => {
     expect(panel.x).toBeGreaterThanOrEqual(0)
     expect(panel.x + panel.width).toBeLessThanOrEqual(390)
   })
+})
+
+test("a Band page's bell offers alerts for that Band; its link lists only that Band's Shows", async ({ page }) => {
+  let redirect = ''
+  await page.route('https://e2e.invalid/auth/v1/otp**', async route => {
+    redirect = new URL(route.request().url()).searchParams.get('redirect_to') ?? ''
+    await route.fulfill({ json: {} })
+  })
+  await page.goto('bands/3/')
+  const bell = page.getByRole('button', { name: 'Get alerts for Static Bloom' })
+  await bell.click()
+  await page.getByLabel('Email').fill('fan@example.com')
+  await page.getByRole('button', { name: /email me a sign-in link/i }).click()
+  await expect(page.getByText('Check your email for a sign-in link')).toBeVisible()
+  expect(new URL(redirect).searchParams.get('save')).toBe('bandId=3')  // the Alerts page saves it after sign-in
+
+  await page.goto('./?bandId=3')
+  await expect(page.getByText('Shows with')).toBeVisible()
+  await expect(page.getByRole('main').getByText('Static Bloom').first()).toBeVisible()
+  const rows = page.locator('main [data-show-link]')
+  await expect(rows).not.toHaveCount(0)
+  for (const row of await rows.all()) await expect(row.locator('xpath=ancestor::div[contains(@class,"relative")][1]')).toContainText('Static Bloom')
+})
+
+test("a Venue page has a bell for that Venue's alerts", async ({ page }) => {
+  await page.goto('venues/2/')
+  await expect(page.getByRole('button', { name: /^Get alerts for / })).toBeVisible()
 })
 
 test('a Show card opens the Show page', async ({ page }) => {
