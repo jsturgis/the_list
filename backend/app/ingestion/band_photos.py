@@ -91,6 +91,7 @@ def save_band_photo(band: Band, url: str, images_dir: str | Path, client: httpx.
         logger.info("band photos: couldn't use %s for %s (%s)", url, band.name, "gone" if gone else "will retry")
         if gone and not is_stored(band.image_url):
             band.image_url = None
+            band.image_credit = None  # a credit goes with its photo
         return False
 
     relative = f"bands/{band.id}-{hashlib.sha256(data).hexdigest()[:10]}.webp"
@@ -104,10 +105,12 @@ def save_band_photo(band: Band, url: str, images_dir: str | Path, client: httpx.
     return True
 
 
-def save_band_photos(bands: list[Band], images_dir: str | Path) -> int:
+def save_band_photos(bands: list[Band], images_dir: str | Path, fallbacks: dict[str, str] | None = None) -> int:
     """Store the photo of every Band whose image is still a remote URL. Returns how many were stored.
 
-    A photo is never worth failing an ingest over: anything unexpected for one Band is logged and skipped.
+    `fallbacks` maps a Band's name to the edition's photo, for a Band whose (Commons) photo turns out to be gone:
+    that's tried instead, without the credit. A photo is never worth failing an ingest over: anything unexpected
+    for one Band is logged and skipped.
     """
     pending = [b for b in bands if b.image_url and not is_stored(b.image_url)]
     stored = 0
@@ -116,7 +119,11 @@ def save_band_photos(bands: list[Band], images_dir: str | Path) -> int:
     with httpx.Client(timeout=20, follow_redirects=True, headers={"User-Agent": _USER_AGENT}) as client:
         for band in pending:
             try:
-                stored += save_band_photo(band, band.image_url, images_dir, client)
+                if save_band_photo(band, band.image_url, images_dir, client):
+                    stored += 1
+                elif band.image_url is None and (fallback := (fallbacks or {}).get(band.name)):
+                    band.image_url, band.image_credit = fallback, None  # the edition's photo has no credit
+                    stored += save_band_photo(band, fallback, images_dir, client)
             except Exception:
                 logger.warning("band photos: skipped %s", band.name, exc_info=True)
     return stored

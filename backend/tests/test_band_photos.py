@@ -17,11 +17,14 @@ def _jpeg(width=1600, height=900, color=(200, 30, 30)) -> bytes:
     return buf.getvalue()
 
 
+_RealClient = httpx.Client  # tests that replace httpx.Client still build clients with this
+
+
 def _client(routes: dict[str, httpx.Response]) -> httpx.Client:
     """An httpx client that answers from `routes` (URL -> response), 404 for anything else."""
     def handler(request):
         return routes.get(str(request.url), httpx.Response(404))
-    return httpx.Client(transport=httpx.MockTransport(handler))
+    return _RealClient(transport=httpx.MockTransport(handler))
 
 
 def _band(band_id=7, image_url=None):
@@ -159,8 +162,10 @@ def test_a_network_error_keeps_the_remote_url(tmp_path):
 def test_a_photo_that_is_gone_counts_as_none(tmp_path):
     url = "https://img.example/gone.jpg"
     band = _band(image_url=url)
+    band.image_credit = {"author": "A", "license": "CC BY 4.0", "license_url": None, "source_url": "https://c/x"}
     assert save_band_photo(band, url, tmp_path, _client({url: httpx.Response(410)})) is False
     assert band.image_url is None
+    assert band.image_credit is None  # a credit goes with its photo
 
 
 def test_an_unexpected_error_for_one_band_does_not_stop_the_others(tmp_path, monkeypatch):
@@ -176,3 +181,28 @@ def test_an_unexpected_error_for_one_band_does_not_stop_the_others(tmp_path, mon
 
     assert band_photos.save_band_photos([bad, ok], tmp_path) == 1
     assert is_stored(ok.image_url) and bad.image_url == "https://img.example/bad.jpg"
+
+
+def test_a_commons_photo_that_is_gone_falls_back_to_the_editions(tmp_path, monkeypatch):
+    from app.ingestion import band_photos
+    commons, edition = "https://upload.wikimedia.org/x-800.jpg", "https://img.example/edition.jpg"
+    band = _band(image_url=commons)
+    band.image_credit = {"author": "A", "license": "CC BY 4.0", "license_url": None, "source_url": "https://c/x"}
+    monkeypatch.setattr(band_photos.httpx, "Client", lambda **kw: _client(
+        {commons: httpx.Response(404), edition: httpx.Response(200, content=_jpeg())}))
+
+    assert band_photos.save_band_photos([band], tmp_path, fallbacks={band.name: edition}) == 1
+    assert is_stored(band.image_url)
+    assert band.image_credit is None  # the edition's photo carries no credit
+
+
+def test_a_temporary_commons_failure_keeps_it_for_next_time_rather_than_falling_back(tmp_path, monkeypatch):
+    from app.ingestion import band_photos
+    commons, edition = "https://upload.wikimedia.org/x-800.jpg", "https://img.example/edition.jpg"
+    band = _band(image_url=commons)
+    band.image_credit = {"author": "A", "license": "CC BY 4.0", "license_url": None, "source_url": "https://c/x"}
+    monkeypatch.setattr(band_photos.httpx, "Client", lambda **kw: _client(
+        {commons: httpx.Response(503), edition: httpx.Response(200, content=_jpeg())}))
+
+    assert band_photos.save_band_photos([band], tmp_path, fallbacks={band.name: edition}) == 0
+    assert band.image_url == commons and band.image_credit is not None

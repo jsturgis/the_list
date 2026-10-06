@@ -52,7 +52,13 @@
         "url": "https://www.youtube.com/@neonharbor",
         "paid": false
       }
-    ]
+    ],
+    "imageCredit": {
+      "author": "S. Bollmann",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Neon_Harbor.jpg"
+    }
   },
   {
     "id": 2,
@@ -70,7 +76,8 @@
     "similar": [
       1
     ],
-    "links": []
+    "links": [],
+    "imageCredit": null
   },
   {
     "id": 3,
@@ -88,7 +95,8 @@
     "similar": [
       1
     ],
-    "links": []
+    "links": [],
+    "imageCredit": null
   },
   {
     "id": 4,
@@ -104,7 +112,8 @@
     "isLocal": null,
     "description": null,
     "similar": [],
-    "links": []
+    "links": [],
+    "imageCredit": null
   },
   {
     "id": 5,
@@ -120,7 +129,8 @@
     "isLocal": null,
     "description": null,
     "similar": [],
-    "links": []
+    "links": [],
+    "imageCredit": null
   },
   {
     "id": 6,
@@ -136,7 +146,8 @@
     "isLocal": null,
     "description": null,
     "similar": [],
-    "links": []
+    "links": [],
+    "imageCredit": null
   },
   {
     "id": 7,
@@ -167,6 +178,7 @@
         "url": "https://soundcloud.com/redwood-sirens",
         "paid": false
       }
-    ]
+    ],
+    "imageCredit": null
   }
 ]

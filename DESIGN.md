@@ -180,7 +180,9 @@ WCAG AA.
   Venues) is in the page and never needs one.
 - **Band photo:** at the top of a Band page, full column width, at most 288px tall (`max-h-72`, `object-cover`),
   8px radius, with the Band's name as its alt text. It's the site's own copy (≤800px WebP, saved at ingest), served
-  under the base path; never hot-linked.
+  under the base path; never hot-linked. A photo from Wikimedia Commons is a `<figure>` whose `<figcaption>` credits
+  it, as its licence requires: "Photo: <author>, <licence>, via Wikimedia Commons" in `text-xs ink-muted`, with the
+  licence and "Wikimedia Commons" (the photo's page) as running-text links. The edition's photos have no credit.
 - **Band links:** a Band's actions are its listening links, up to 3 free services then up to 3 paid ones,
   ranked by service in the backend (`app/band_links.py`), then its website. Spotify, SoundCloud and Bandcamp
   keep their brand-coloured pills; other services are outline pills, and paid ones say "(subscription)" in their

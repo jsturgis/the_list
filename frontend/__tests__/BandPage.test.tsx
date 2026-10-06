@@ -133,6 +133,31 @@ describe('BandDetail', () => {
     expect(screen.getByRole('img', { name: 'Locals' })).toHaveAttribute('src', '/images/bands/6-3f9c2a1b7e.webp')
   })
 
+  it('credits a Wikimedia Commons photo under it, linking the licence and the photo page', () => {
+    renderBand(makeBand({ id: 6, name: 'Locals', imageUrl: '/images/bands/6-3f9c2a1b7e.webp', imageCredit: {
+      author: 'S. Bollmann', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:Locals.jpg',
+    } }), [])
+    const caption = screen.getByRole('figure').querySelector('figcaption')!
+    expect(caption).toHaveTextContent('Photo: S. Bollmann, CC BY-SA 4.0, via Wikimedia Commons')
+    expect(within(caption).getByRole('link', { name: 'CC BY-SA 4.0' })).toHaveAttribute('href', 'https://creativecommons.org/licenses/by-sa/4.0')
+    expect(within(caption).getByRole('link', { name: 'Wikimedia Commons' }))
+      .toHaveAttribute('href', 'https://commons.wikimedia.org/wiki/File:Locals.jpg')
+  })
+
+  it('credits a Commons photo without a licence link or an author', () => {
+    renderBand(makeBand({ name: 'Locals', imageUrl: '/images/bands/6-a.webp', imageCredit: {
+      author: null, license: 'Public domain', licenseUrl: null, sourceUrl: 'https://commons.wikimedia.org/wiki/File:L.jpg',
+    } }), [])
+    expect(screen.getByRole('figure').querySelector('figcaption'))
+      .toHaveTextContent('Photo: unknown author, Public domain, via Wikimedia Commons')
+  })
+
+  it('shows the edition\'s photo without a credit', () => {
+    renderBand(makeBand({ name: 'Locals', imageUrl: 'https://example.com/locals.jpg', imageCredit: null }), [])
+    expect(screen.getByRole('figure').querySelector('figcaption')).toBeNull()
+  })
+
   it('leaves them out otherwise', () => {
     renderBand()
     expect(screen.queryByRole('img')).not.toBeInTheDocument()

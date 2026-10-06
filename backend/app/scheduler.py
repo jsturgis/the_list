@@ -22,6 +22,7 @@ from app.ingestion.images import check_image_urls
 from app.ingestion.joint_bands import joint_parts, split_joint_acts, split_joint_name
 from app.ingestion.links import check_links
 from app.ingestion.upsert import find_venue, known_region, upsert_shows
+from app.ingestion.wikimedia import commons_photo
 from app.models.act import Act
 from app.models.band import Band
 from app.models.ingestion_run import IngestionRun, IngestionStatus
@@ -141,17 +142,25 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                         band_cache[name] = None
                     else:
                         logger.info("ingestion: looking up genres for %s", name)
-                        band_cache[name] = await loop.run_in_executor(None, _enrich_band, name, False)
+                        found = await loop.run_in_executor(None, _enrich_band, name, False)
+                        # Its photo on Wikimedia Commons, through MusicBrainz's Wikidata link, with its credit.
+                        photo = await loop.run_in_executor(None, commons_photo, found.get("links") or [])
+                        band_cache[name] = {**found, "commons_photo": photo}
                 found = band_cache[name]
                 if found:
                     links = {k: v for k, v in found.items() if k.endswith("_url") and v}
                     links["mb_links"] = found.get("links") or []  # every MusicBrainz link, for app/band_links.py
+                    if photo := found.get("commons_photo"):
+                        # The Commons photo wins; the edition's is the fallback if the Commons one doesn't load.
+                        links.update(image_url=photo.url, image_credit=photo.credit,
+                                     fallback_image_url=enrichment.get("image_url"))
                     genres = found["genres"] if found["mb_genres"] else (enrichment["genres"] or found["genres"])
                     data["band_enrichment"][i] = (name, {**enrichment, **links, "genres": genres})
 
         # The edition's image URLs are often broken: keep (or repair) only those that load.
         image_urls = [d["venue_image_url"] for d in shows_data if d.get("venue_image_url")] + [
-            e["image_url"] for d in shows_data for _, e in d["band_enrichment"] if e.get("image_url")]
+            e[k] for d in shows_data for _, e in d["band_enrichment"] for k in ("image_url", "fallback_image_url")
+            if e.get(k)]
         if image_urls:
             checked = await loop.run_in_executor(None, check_image_urls, image_urls)
             for data in shows_data:
@@ -160,6 +169,11 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                 for _, enrichment in data["band_enrichment"]:
                     if enrichment.get("image_url"):
                         enrichment["image_url"] = checked.get(enrichment["image_url"])
+                    if not enrichment.get("image_url"):
+                        # A Commons photo that doesn't load: the edition's (uncredited) photo instead.
+                        fallback = enrichment.get("fallback_image_url")
+                        enrichment["image_url"] = checked.get(fallback) if fallback else None
+                        enrichment["image_credit"] = None
 
         # Skip links that don't work: domains that don't exist, missing pages (Bandcamp links aren't checked).
         links = _unsaved_links(db, shows_data)
@@ -192,7 +206,10 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
 
         # Photos are kept with the data: download each Band's that's still a remote URL into the images folder.
         bands = list({a.band.id: a.band for s in shows for a in s.acts}.values())
-        stored = await loop.run_in_executor(None, save_band_photos, bands, settings.images_path)
+        # The edition's photo for a Band whose Commons photo was chosen, in case that one turns out to be gone.
+        fallbacks = {name: e["fallback_image_url"] for d in shows_data for name, e in d["band_enrichment"]
+                     if e.get("image_credit") and e.get("fallback_image_url")}
+        stored = await loop.run_in_executor(None, save_band_photos, bands, settings.images_path, fallbacks)
         db.commit()
         if stored:
             logger.info("ingestion: saved %d band photos", stored)

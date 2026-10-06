@@ -31,6 +31,15 @@ class VenueType:
 
 
 @strawberry.type
+class PhotoCreditType:
+    """Who took a Band's Wikimedia Commons photo and its licence; the site shows it with the photo."""
+    author: str | None
+    license: str | None
+    license_url: str | None
+    source_url: str     # the photo's page on Wikimedia Commons
+
+
+@strawberry.type
 class BandLinkType:
     """One of a Band's links, grouped and ranked for the site (app/band_links.py)."""
     group: str      # listening | follow
@@ -50,6 +59,7 @@ class BandType:
     bandcamp_url: str | None
     website_url: str | None
     image_url: str | None
+    image_credit: PhotoCreditType | None
     is_local: bool | None
     description: str | None
     links: list[BandLinkType]

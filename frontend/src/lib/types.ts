@@ -25,6 +25,15 @@ export interface Venue {
   membershipRequired?: boolean | null
 }
 
+/** Who took a Band's Wikimedia Commons photo, and its licence: shown with the photo, as the licence requires. */
+export interface PhotoCredit {
+  author: string | null
+  license: string | null
+  licenseUrl: string | null
+  /** The photo's page on Wikimedia Commons. */
+  sourceUrl: string
+}
+
 /** One of a Band's links, grouped and ranked by the backend (app/band_links.py). */
 export interface BandLink {
   /** listening: up to 3 free services, then up to 3 paid; then follow. In that order. */
@@ -45,6 +54,8 @@ export interface Band {
   // From the formatted edition
   websiteUrl?: string | null
   imageUrl?: string | null
+  /** Set when the photo came from Wikimedia Commons. */
+  imageCredit?: PhotoCredit | null
   isLocal?: boolean | null
   // From the enriched export
   description?: string | null

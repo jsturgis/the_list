@@ -273,6 +273,7 @@ def _upsert_acts(db: Session, show: Show, data: dict) -> None:
             band.website_url = enrichment["website_url"]
         if enrichment.get("image_url") and not band.image_url:
             band.image_url = enrichment["image_url"]
+            band.image_credit = enrichment.get("image_credit")  # with its photo; None for the edition's
         if enrichment.get("description") and not band.description:
             band.description = enrichment["description"]
         if enrichment.get("mb_links") and not band.links:

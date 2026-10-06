@@ -4,7 +4,7 @@ import { href } from '@/lib/basePath'
 import ActionLinks, { ActionLink } from './ActionLinks'
 import PageHeader from './PageHeader'
 import SocialLinks from './SocialLinks'
-import type { Band, Show } from '@/lib/types'
+import type { Band, PhotoCredit, Show } from '@/lib/types'
 import BandShows from './BandShows'
 import SimilarBands from './SimilarBands'
 
@@ -29,9 +29,12 @@ export default function BandDetail({ band, upcomingShows, similarBands, bell }: 
   return (
     <article className="flex flex-col gap-6">
       {band.imageUrl && (
-        // A stored photo is a site path ("/images/bands/…"), served under the base path; others are remote URLs.
-        <img src={band.imageUrl.startsWith('/') ? href(band.imageUrl) : band.imageUrl} alt={band.name}
-             className="w-full max-h-72 object-cover rounded-lg" />
+        <figure className="flex flex-col gap-1.5">
+          {/* A stored photo is a site path ("/images/bands/…"), served under the base path; others are remote URLs. */}
+          <img src={band.imageUrl.startsWith('/') ? href(band.imageUrl) : band.imageUrl} alt={band.name}
+               className="w-full max-h-72 object-cover rounded-lg" />
+          {band.imageCredit && <PhotoCreditLine credit={band.imageCredit} />}
+        </figure>
       )}
 
       <PageHeader title={band.name} aside={bell} asideBesideTitle subtitle={band.description ?? undefined}>
@@ -74,5 +77,22 @@ export default function BandDetail({ band, upcomingShows, similarBands, bell }: 
 
       <SimilarBands bands={similarBands} />
     </article>
+  )
+}
+
+const creditLink = 'text-link underline underline-offset-2'
+
+/** "Photo: <author>, <licence>, via Wikimedia Commons", as a Commons photo's licence requires. */
+function PhotoCreditLine({ credit }: { credit: PhotoCredit }) {
+  return (
+    <figcaption className="text-xs text-ink-muted">
+      Photo: {credit.author ?? 'unknown author'}
+      {credit.license && (
+        <>, {credit.licenseUrl
+          ? <a href={credit.licenseUrl} target="_blank" rel="noopener noreferrer license" className={creditLink}>{credit.license}</a>
+          : credit.license}</>
+      )}
+      , via <a href={credit.sourceUrl} target="_blank" rel="noopener noreferrer" className={creditLink}>Wikimedia Commons</a>
+    </figcaption>
   )
 }
