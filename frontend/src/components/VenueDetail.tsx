@@ -1,4 +1,4 @@
-import type { ComponentType, SVGProps } from 'react'
+import type { ComponentType, ReactNode, SVGProps } from 'react'
 import {
   BanknotesIcon, BookOpenIcon, CameraIcon, GlobeAltIcon, IdentificationIcon, MapIcon, MapPinIcon, PhoneIcon, StarIcon, UserIcon,
 } from '@heroicons/react/20/solid'
@@ -24,9 +24,11 @@ interface Rule {
 interface VenueDetailProps {
   venue: Venue
   upcomingShows: Show[]
+  /** The alert heart (an island the Venue page passes in), on the title's line. */
+  heart?: ReactNode
 }
 
-export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) {
+export default function VenueDetail({ venue, upcomingShows, heart }: VenueDetailProps) {
   const rules: Rule[] = []
   if (venue.isSoberSpace) rules.push({ label: 'Sober space' })
   if (venue.isCashOnly) rules.push({ label: 'Cash only', icon: BanknotesIcon })
@@ -47,7 +49,7 @@ export default function VenueDetail({ venue, upcomingShows }: VenueDetailProps) 
         <img src={venue.imageUrl} alt={venue.name} className="w-full max-h-72 object-cover rounded-lg" />
       )}
 
-      <PageHeader title={venue.name} subtitle={[venue.city, region].filter(Boolean).join(' · ')}>
+      <PageHeader title={venue.name} aside={heart} subtitle={[venue.city, region].filter(Boolean).join(' · ')}>
         {rules.map(({ label, icon: Icon }) => (
           <span key={label} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-muted text-ink-soft">
             {Icon && <Icon className="size-3.5 shrink-0" />}

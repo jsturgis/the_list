@@ -1,6 +1,7 @@
 ---
 import type { GetStaticPaths } from 'astro'
 import Layout from '@/layouts/Layout.astro'
+import AlertHeart from '@/components/AlertHeart'
 import BackLink from '@/components/BackLink'
 import BandDetail from '@/components/BandDetail'
 import { siteData } from '@/lib/siteData.server'
@@ -20,5 +21,7 @@ const { band, upcomingShows, similarBands } = Astro.props
 
 <Layout>
   <BackLink slot="back" />
-  <BandDetail band={band} upcomingShows={upcomingShows} similarBands={similarBands} />
+  <BandDetail band={band} upcomingShows={upcomingShows} similarBands={similarBands}>
+    <AlertHeart slot="heart" client:idle kind="band" id={band.id} name={band.name} />
+  </BandDetail>
 </Layout>

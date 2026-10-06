@@ -211,6 +211,17 @@ def test_old_band_and_venue_links_still_match(db, shows, supabase):
     assert [s.headliner for s in email.sections[0].shows] == ["Counterparts"]
 
 
+def test_band_and_venue_alerts_match_by_id(db, shows, supabase):
+    drought = db.query(Band).filter_by(name="Drought").one()  # a support Act, not a headliner
+    chapel = shows["jazz"].venue_id
+    supabase.person("fan@example.com", ("Drought", f"bandId={drought.id}"), ("The Chapel", f"venueId={chapel}"),
+                    ("Not an id", "bandId=abc&genre=jazz"))
+    [email], _ = _run(db)
+    assert [[s.headliner for s in section.shows] for section in email.sections] == [
+        ["Counterparts"], ["Snarky Puppy"], ["Snarky Puppy"],
+    ]
+
+
 def test_at_most_25_shows_per_saved_filter_then_a_see_all_link(db, supabase):
     venue = _venue(db, "The Fillmore", city="San Francisco", region=Region.sf)
     for day in range(30):

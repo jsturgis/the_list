@@ -167,11 +167,21 @@ def filters_from_query(query: str) -> ShowFilters:
         is_free=True if params.get("free") == "1" else None,
         age_restriction=params.get("age"),
         genre=params.get("genre"),
+        band_id=_id(params.get("bandId")),
+        venue_id=_id(params.get("venueId")),
     )
 
 
+def _id(value: str | None) -> int | None:
+    """A Band or Venue id from a Saved Filter (`bandId=3`); anything that isn't a positive number is ignored,
+    as the frontend's buildFilters does."""
+    return int(value) if value and value.isdigit() and int(value) > 0 else None
+
+
 # Every URL param the Shows filter reads (frontend lib/filters FILTER_PARAMS).
-_FILTER_PARAMS = ("q", *_LEGACY_SEARCH_PARAMS, "region", "fromDate", "toDate", "priceMax", "free", "age", "genre")
+_FILTER_PARAMS = (
+    "q", *_LEGACY_SEARCH_PARAMS, "region", "fromDate", "toDate", "priceMax", "free", "age", "genre", "bandId", "venueId",
+)
 
 
 def canonical_query(query: str) -> str:

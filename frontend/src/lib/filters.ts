@@ -1,5 +1,5 @@
 import { REGION_LABELS, ageLabel, formatDateShort } from './format'
-import type { ShowFilters } from './types'
+import type { HomeShow, ShowFilters } from './types'
 
 /** Params that `q` replaced: `band` and `venue` were separate boxes before the combined search. */
 export const LEGACY_SEARCH_PARAMS = ['band', 'venue']
@@ -10,7 +10,10 @@ export function searchParam(params: URLSearchParams): string {
 }
 
 /** Every URL param the Shows filter reads (see buildFilters). */
-export const FILTER_PARAMS = ['q', ...LEGACY_SEARCH_PARAMS, 'region', 'fromDate', 'toDate', 'priceMax', 'free', 'age', 'genre']
+export const FILTER_PARAMS = ['q', ...LEGACY_SEARCH_PARAMS, 'region', 'fromDate', 'toDate', 'priceMax', 'free', 'age', 'genre', 'bandId', 'venueId']
+
+/** The params that pin the list to one Band or Venue, as a Band or Venue page's heart saves them. */
+export const PIN_PARAMS = ['bandId', 'venueId']
 
 /** The filter part of a Shows list URL's query string, as a Saved Filter stores it: other params are dropped. */
 export function filterQuery(params: URLSearchParams): string {
@@ -31,15 +34,19 @@ export function buildFilters(params: URLSearchParams): ShowFilters | null {
   if (params.get('free') === '1') f.isFree = true
   const age = params.get('age'); if (age) f.ageRestriction = age
   const genre = params.get('genre'); if (genre) f.genre = genre
+  const bandId = Number(params.get('bandId')); if (bandId > 0) f.bandId = bandId
+  const venueId = Number(params.get('venueId')); if (venueId > 0) f.venueId = venueId
   return Object.keys(f).length > 0 ? f : null
 }
 
 /**
  * A short name for a set of filters, suggested when saving them for an Alert:
- * "\"chapel\" · punk · SF · Free · 21+ · Up to $20 · Sat, Oct 3 – Sat, Oct 10". At most 80 characters.
+ * "\"chapel\" · punk · SF · Free · 21+ · Up to $20 · Sat, Oct 3 – Sat, Oct 10". At most 80 characters. `pinned`
+ * is the name of the Band or Venue a `bandId`/`venueId` picks, which the params alone can't tell.
  */
-export function describeFilters(params: URLSearchParams): string {
+export function describeFilters(params: URLSearchParams, pinned?: string): string {
   const parts: string[] = []
+  if (pinned && PIN_PARAMS.some(k => params.has(k))) parts.push(pinned)
   const search = searchParam(params).trim()
   if (search) parts.push(`"${search}"`)
   const genre = params.get('genre'); if (genre) parts.push(genre)
@@ -77,4 +84,23 @@ export function canonicalQuery(query: string): string {
 export function findSameFilter<T extends { query: string }>(saved: T[], query: string): T | undefined {
   const target = canonicalQuery(query)
   return saved.find(f => canonicalQuery(f.query) === target)
+}
+
+/** The one Band or Venue a `bandId`/`venueId` pins the list to, named from Shows that list it, if any do. */
+export interface Pinned {
+  param: 'bandId' | 'venueId'
+  /** Null when no listed Show has it (it has no Upcoming Shows matching the other filters). */
+  name: string | null
+}
+
+export function pinnedTo(params: URLSearchParams, shows: HomeShow[]): Pinned | null {
+  const filters = buildFilters(params)
+  if (filters?.bandId) {
+    const act = shows.flatMap(s => s.acts).find(a => a.band.id === filters.bandId)
+    return { param: 'bandId', name: act?.band.name ?? null }
+  }
+  if (filters?.venueId) {
+    return { param: 'venueId', name: shows.find(s => s.venue.id === filters.venueId)?.venue.name ?? null }
+  }
+  return null
 }

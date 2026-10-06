@@ -1,7 +1,7 @@
 import { ChevronRightIcon, InformationCircleIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Combobox from './Combobox'
-import { LEGACY_SEARCH_PARAMS, filterQuery, searchParam } from '@/lib/filters'
+import { LEGACY_SEARCH_PARAMS, filterQuery, searchParam, type Pinned } from '@/lib/filters'
 import { REGION_LABELS, ageLabel } from '@/lib/format'
 import { replaceQuery, useQuery } from '@/lib/navigation'
 import SaveFilterButton from './SaveFilterButton'
@@ -14,9 +14,11 @@ interface FilterBarProps {
   regions: string[]
   ages: string[]
   availableDates: string[]
+  /** The one Band or Venue the list is pinned to (an alert's link), if any. */
+  pinned?: Pinned | null
 }
 
-export default function FilterBar({ showCount, dbTotal, genres, regions, ages, availableDates }: FilterBarProps) {
+export default function FilterBar({ showCount, dbTotal, genres, regions, ages, availableDates, pinned = null }: FilterBarProps) {
   const searchParams = useQuery()
 
   const update = useCallback(
@@ -91,7 +93,9 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
     searchParams.has('priceMax') ||
     searchParams.has('free') ||
     searchParams.has('age') ||
-    searchParams.has('genre')
+    searchParams.has('genre') ||
+    searchParams.has('bandId') ||
+    searchParams.has('venueId')
 
   return (
     <div className="flex flex-col gap-3 p-4 bg-panel rounded-lg border border-line">
@@ -101,7 +105,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
           {showCount === null ? `Loading ${dbTotal} shows…` : `Showing ${showCount} of ${dbTotal} shows`}
         </p>
         <div className="flex items-center gap-4">
-          <SaveFilterButton query={filterQuery(searchParams)} />
+          <SaveFilterButton query={filterQuery(searchParams)} pinnedName={pinned?.name ?? undefined} />
           {hasFilters && (
             <button
               onClick={clearAll}
@@ -113,6 +117,23 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
           )}
         </div>
       </div>
+
+      {pinned && (
+        <p className="flex flex-wrap items-center gap-2 text-sm text-ink-soft">
+          {pinned.param === 'bandId' ? 'Shows with' : 'Shows at'}
+          <span className="inline-flex items-center gap-1 rounded-full bg-accent-chip py-0.5 pl-3 pr-1 font-semibold text-accent-chip-ink">
+            {pinned.name ?? (pinned.param === 'bandId' ? 'this Band' : 'this Venue')}
+            <button
+              type="button"
+              onClick={() => update(pinned.param, '')}
+              aria-label={`Show all shows, not only ${pinned.param === 'bandId' ? 'with' : 'at'} ${pinned.name ?? (pinned.param === 'bandId' ? 'this Band' : 'this Venue')}`}
+              className="rounded-full p-0.5 hover:bg-accent-soft"
+            >
+              <XMarkIcon className="size-4" aria-hidden="true" />
+            </button>
+          </span>
+        </p>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_1.5fr_1fr_auto] gap-3">
         <div className="flex flex-col gap-1">

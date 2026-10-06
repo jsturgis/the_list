@@ -111,6 +111,27 @@ describe('filterShows: band-or-venue search (test_search_*)', () => {
   })
 })
 
+describe('filterShows: one Band or Venue (test_band_id_filter / test_venue_id_filter)', () => {
+  it('bandId keeps Shows with that Band on any Act', () => {
+    const headline = show(), other = show()
+    const support = show({ acts: [
+      { position: 0, band: makeBand({ id: 900, name: 'Someone Else' }) },
+      { position: 1, band: headline.acts[0].band },
+    ] })
+    expect(ids(run([headline, other, support], { bandId: String(headline.acts[0].band.id) }))).toEqual([headline.id, support.id])
+  })
+
+  it('venueId keeps Shows at that Venue', () => {
+    const at = show({ venue: makeVenue({ id: 41, name: 'Gilman' }) }), elsewhere = show({ venue: makeVenue({ id: 42 }) })
+    expect(ids(run([at, elsewhere], { venueId: '41' }))).toEqual([at.id])
+  })
+
+  it('ignores an id that isn\'t a number', () => {
+    const a = show(), b = show()
+    expect(ids(run([a, b], { bandId: 'abc' }))).toEqual([a.id, b.id])
+  })
+})
+
 describe('filterShows: genre (test_filter_genre_*)', () => {
   it('excludes Shows whose Bands have no genre data', () => {
     const punk = show({ genres: ['punk'] }), unknown = show({ genres: [] }), jazz = show({ genres: ['jazz'] })

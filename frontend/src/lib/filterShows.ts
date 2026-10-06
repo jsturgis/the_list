@@ -24,6 +24,8 @@ export function filterShows<T extends HomeShow>(shows: T[], filters: ShowFilters
       if (f.priceMax !== undefined && !(s.priceMin !== null && s.priceMin <= f.priceMax)) return false
       if (f.isFree && !s.isFree) return false
       if (f.ageRestriction && s.ageRestriction !== f.ageRestriction) return false
+      if (f.bandId && !s.acts.some(a => a.band.id === f.bandId)) return false
+      if (f.venueId && s.venue.id !== f.venueId) return false
       return true
     })
     .sort((a, b) => a.date.localeCompare(b.date) || (a.doorTime ?? '').localeCompare(b.doorTime ?? ''))

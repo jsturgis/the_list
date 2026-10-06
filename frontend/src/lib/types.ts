@@ -129,4 +129,8 @@ export interface ShowFilters {
   priceMax?: number
   isFree?: boolean
   ageRestriction?: string
+  /** Shows with this Band among their Acts (a Band page's alert). */
+  bandId?: number
+  /** Shows at this Venue (a Venue page's alert). */
+  venueId?: number
 }
