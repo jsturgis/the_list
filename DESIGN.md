@@ -172,8 +172,8 @@ WCAG AA.
   (`motion-safe:animate-pulse`, so still for reduced motion). Headings that are already known stay real. Ghosts are
   `aria-hidden`; a visually hidden "Loading …" label stands in for screen readers. Static data (Shows, Bands,
   Venues) is in the page and never needs one.
-- **Alert heart (`AlertHeart`):** on Band and Venue pages, a round 40px icon button at the right of the title's
-  line. Off: outline heart, `surface` with a `line-strong` border, `ink-soft`. On: solid heart, `accent-chip` with
+- **Alert bell (`AlertBell`):** on Band and Venue pages, a round 40px icon button at the right of the title's
+  line. Off: outline bell, `surface` with a `line-strong` border, `ink-soft`. On: solid ringing bell, `accent-chip` with
   an `accent` border, `link`. Signed in, a press saves or deletes the alert for that Band or Venue (`aria-pressed`)
   with a toast; signed out, it opens the same kind of panel as Save search, asking for an email.
 - **Pinned list:** a Shows list pinned to one Band or Venue (an alert's link) says so above the filters: "Shows

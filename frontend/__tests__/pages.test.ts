@@ -107,8 +107,8 @@ describe('detail pages ship no React', () => {
 
   it('a Venue page lists its Upcoming Shows statically, marked by date for the browser to trim', async () => {
     const html = await render(VenuePage, { venue, upcomingShows: shows })
-    // The only island is the alert heart, which carries just the Venue's id and name; the list is plain HTML.
-    expect(islands(html).map(i => i.component)).toEqual(['AlertHeart'])
+    // The only island is the alert bell, which carries just the Venue's id and name; the list is plain HTML.
+    expect(islands(html).map(i => i.component)).toEqual(['AlertBell'])
     expect(islands(html)[0].props).not.toContain('upcomingShows')
     expect(html).toContain('data-upcoming-shows')
     expect(html).toContain('data-show-date="2026-10-03"')
@@ -117,7 +117,7 @@ describe('detail pages ship no React', () => {
 
   it('a Band page lists its Upcoming Shows statically, marked by date for the browser to trim', async () => {
     const html = await render(BandPage, { band, upcomingShows: shows, similarBands: [] })
-    expect(islands(html).map(i => i.component)).toEqual(['AlertHeart'])
+    expect(islands(html).map(i => i.component)).toEqual(['AlertBell'])
     expect(islands(html)[0].props).not.toContain('upcomingShows')
     expect(html).toContain('data-upcoming-shows-list')
     expect(html).toContain('data-show-date="2026-10-03"')

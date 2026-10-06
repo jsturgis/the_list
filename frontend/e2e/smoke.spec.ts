@@ -96,15 +96,15 @@ test.describe('on a phone', () => {
   })
 })
 
-test("a Band page's heart offers alerts for that Band; its link lists only that Band's Shows", async ({ page }) => {
+test("a Band page's bell offers alerts for that Band; its link lists only that Band's Shows", async ({ page }) => {
   let redirect = ''
   await page.route('https://e2e.invalid/auth/v1/otp**', async route => {
     redirect = new URL(route.request().url()).searchParams.get('redirect_to') ?? ''
     await route.fulfill({ json: {} })
   })
   await page.goto('bands/3/')
-  const heart = page.getByRole('button', { name: 'Get alerts for Static Bloom' })
-  await heart.click()
+  const bell = page.getByRole('button', { name: 'Get alerts for Static Bloom' })
+  await bell.click()
   await page.getByLabel('Email').fill('fan@example.com')
   await page.getByRole('button', { name: /email me a sign-in link/i }).click()
   await expect(page.getByText('Check your email for a sign-in link')).toBeVisible()
@@ -118,7 +118,7 @@ test("a Band page's heart offers alerts for that Band; its link lists only that 
   for (const row of await rows.all()) await expect(row.locator('xpath=ancestor::div[contains(@class,"relative")][1]')).toContainText('Static Bloom')
 })
 
-test("a Venue page has a heart for that Venue's alerts", async ({ page }) => {
+test("a Venue page has a bell for that Venue's alerts", async ({ page }) => {
   await page.goto('venues/2/')
   await expect(page.getByRole('button', { name: /^Get alerts for / })).toBeVisible()
 })
