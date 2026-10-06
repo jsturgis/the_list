@@ -36,25 +36,23 @@ export default function ShowRow({ show, filterQs = '', showVenue = true, heading
     .join(' · ')
 
   const date = showDate ? formatDateCompact(show.date) : null
-  // With a date, the lines under the Acts start under them, not under the date (48px date + 12px gap).
-  const underActs = date ? 'ml-15' : ''
   return (
+    // With a date, it's the first flex item, centred in the row; everything else stacks in a column beside it.
     <div
       data-recommended={show.isRecommended ? '' : undefined}
-      className={`relative flex flex-col gap-1 px-4 py-3 transition-colors sm:flex-row sm:gap-4 has-[[data-show-link]:focus-visible]:ring-2 has-[[data-show-link]:focus-visible]:ring-inset has-[[data-show-link]:focus-visible]:ring-focus-ring ${
-        date ? 'sm:items-center' : ''
-      } ${show.isRecommended ? 'bg-pick hover:bg-pick-hover' : 'hover:bg-surface-hover'}`}
+      className={`relative flex items-center gap-3 px-4 py-3 transition-colors has-[[data-show-link]:focus-visible]:ring-2 has-[[data-show-link]:focus-visible]:ring-inset has-[[data-show-link]:focus-visible]:ring-focus-ring ${
+        show.isRecommended ? 'bg-pick hover:bg-pick-hover' : 'hover:bg-surface-hover'
+      }`}
     >
-      <div className="min-w-0 flex-1">
-        {/* The date and the Acts side by side, centred on each other. */}
-        <div className="flex items-center gap-3">
-          {date && (
-            <time dateTime={show.date} className="flex w-12 shrink-0 flex-col items-center leading-tight uppercase">
-              <span className="text-[11px] font-semibold tracking-wide text-ink-muted">{date.weekday}</span>
-              <span className="whitespace-nowrap text-sm font-bold text-ink">{date.monthDay}</span>
-            </time>
-          )}
-          <div className="flex min-w-0 items-center gap-2">
+      {date && (
+        <time dateTime={show.date} className="flex w-12 shrink-0 flex-col items-center leading-tight uppercase">
+          <span className="text-[11px] font-semibold tracking-wide text-ink-muted">{date.weekday}</span>
+          <span className="whitespace-nowrap text-sm font-bold text-ink">{date.monthDay}</span>
+        </time>
+      )}
+      <div className={`flex min-w-0 flex-1 flex-col gap-1 self-stretch sm:flex-row sm:gap-4 ${date ? 'justify-center sm:items-center' : ''}`}>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
             <StatusBadge status={show.status} size="compact" />
             <Heading className="text-base leading-snug text-ink-muted">
               {show.isRecommended && <StarIcon aria-hidden="true" className="inline size-4 -mt-0.5 mr-1 text-pick-line" />}
@@ -69,32 +67,32 @@ export default function ShowRow({ show, filterQs = '', showVenue = true, heading
               {supports.length > 0 && <> with {supports.join(', ')}</>}
             </Heading>
           </div>
+          {showVenue && <p className="mt-0.5 text-sm text-ink-soft">{show.venue.name} · {show.venue.city}</p>}
         </div>
-        {showVenue && <p className={`mt-0.5 text-sm text-ink-soft ${underActs}`}>{show.venue.name} · {show.venue.city}</p>}
-      </div>
 
-      {/* Phone: details, flags, calendar links, one per line (order-*), under the Acts. From sm: details and
-          calendar icons on one line in a right-hand column, flags below. */}
-      <div className={`flex flex-col gap-1 sm:ml-0 sm:w-64 sm:shrink-0 sm:items-end sm:text-right ${underActs}`}>
-        <div className="contents sm:order-1 sm:flex sm:items-center sm:justify-end sm:gap-2">
-          {details && <span className="order-1 text-xs text-ink-muted sm:text-sm sm:text-ink-soft">{details}</span>}
-          {show.status === 'upcoming' && (
-            <span className="relative z-10 order-3 -ml-2 flex items-center gap-1 sm:-my-1 sm:-mr-2 sm:ml-0">
-              <a href={icsHref(show.id)} download={icsFilename(show)} aria-label="Add to calendar (.ics)"
-                 title="Add to calendar (.ics)" className={calendarLink}>
-                <ArrowDownTrayIcon aria-hidden="true" className="size-4" />
-                <span className="sm:sr-only">.ics</span>
-              </a>
-              <a href={googleCalendarUrl(show)} target="_blank" rel="noopener noreferrer"
-                 aria-label="Add to Google Calendar" title="Add to Google Calendar" className={calendarLink}>
-                <CalendarDaysIcon aria-hidden="true" className="size-4" />
-                <span className="sm:sr-only">Google Calendar</span>
-              </a>
-            </span>
-          )}
-        </div>
-        <div className="order-2 empty:hidden sm:flex sm:justify-end">
-          <Flags show={show} size="compact" />
+        {/* Phone: details, flags, calendar links, one per line (order-*). From sm: details and calendar icons on one
+            line in a right-hand column, flags below. */}
+        <div className="flex flex-col gap-1 sm:w-64 sm:shrink-0 sm:items-end sm:text-right">
+          <div className="contents sm:order-1 sm:flex sm:items-center sm:justify-end sm:gap-2">
+            {details && <span className="order-1 text-xs text-ink-muted sm:text-sm sm:text-ink-soft">{details}</span>}
+            {show.status === 'upcoming' && (
+              <span className="relative z-10 order-3 -ml-2 flex items-center gap-1 sm:-my-1 sm:-mr-2 sm:ml-0">
+                <a href={icsHref(show.id)} download={icsFilename(show)} aria-label="Add to calendar (.ics)"
+                   title="Add to calendar (.ics)" className={calendarLink}>
+                  <ArrowDownTrayIcon aria-hidden="true" className="size-4" />
+                  <span className="sm:sr-only">.ics</span>
+                </a>
+                <a href={googleCalendarUrl(show)} target="_blank" rel="noopener noreferrer"
+                   aria-label="Add to Google Calendar" title="Add to Google Calendar" className={calendarLink}>
+                  <CalendarDaysIcon aria-hidden="true" className="size-4" />
+                  <span className="sm:sr-only">Google Calendar</span>
+                </a>
+              </span>
+            )}
+          </div>
+          <div className="order-2 empty:hidden sm:flex sm:justify-end">
+            <Flags show={show} size="compact" />
+          </div>
         </div>
       </div>
     </div>

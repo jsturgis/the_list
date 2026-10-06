@@ -136,7 +136,8 @@ WCAG AA.
     Band pages use it with the Venue line.
   - *Compact date:* on Venue and Band pages, which have no date headings, each row starts with its date in a
     48px column: the weekday (`text-[11px]`, `ink-muted`) over the month and day (`text-sm` bold, `ink`), both
-    uppercase ("SAT / OCT 3"). The rows sit in one panel, by date then door time.
+    uppercase ("SAT / OCT 3"), centred vertically in the row at every size; the rest of the row stacks beside it.
+    The rows sit in one panel, by date then door time.
   - *Line 1:* status badge, then a star if it's a Steve's Pick, then the bold headliner and "with" the supports.
   - *Line 2:* Venue · city. No street address.
   - *Details:* door time · price · age, the flags, and the two calendar links (.ics and Google Calendar) for
