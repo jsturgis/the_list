@@ -148,7 +148,7 @@ function YourAlerts({ email, userId }: { email: string; userId: string }) {
       <Section
         title="Your alerts"
         headingId="your-alerts-list"
-        subtitle={savedFilters?.length ? `${savedFilters.length} of ${MAX_ALERTS} alerts` : undefined}
+        aside={savedFilters?.length ? `${savedFilters.length} of ${MAX_ALERTS} alerts` : undefined}
       >
       <div ref={list}>
       {savedFilters === null ? (

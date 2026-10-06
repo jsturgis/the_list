@@ -34,8 +34,8 @@ describe('Section', () => {
     expect(region).toHaveAttribute('data-upcoming-shows-list')
   })
 
-  it('puts a subtitle under the heading, outside the panel', () => {
-    render(<Section title="Your alerts" subtitle="3 of 20 alerts"><p>East Bay punk</p></Section>)
+  it('puts an aside on the heading\'s line, outside the panel', () => {
+    render(<Section title="Your alerts" aside="3 of 20 alerts"><p>East Bay punk</p></Section>)
     const subtitle = screen.getByText('3 of 20 alerts')
     expect(subtitle.previousElementSibling).toHaveTextContent('Your alerts')
     expect(subtitle.parentElement).not.toHaveTextContent('East Bay punk')
