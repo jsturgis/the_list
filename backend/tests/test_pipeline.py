@@ -19,9 +19,11 @@ from app.scheduler import _run_ingestion_async, run_daily_maintenance
 
 @pytest.fixture(autouse=True)
 def offline_musicbrainz():
-    """Every new Band is looked up on MusicBrainz at ingest: nobody is found unless a test patches it."""
+    """Every new Band is looked up on MusicBrainz at ingest: nobody is found, and no joint billing is split,
+    unless a test patches it."""
     with patch("app.scheduler._enrich_band", return_value={"genres": [], "mb_genres": False, "spotify_url": None,
-                                                           "soundcloud_url": None, "bandcamp_url": None}):
+                                                           "soundcloud_url": None, "bandcamp_url": None}), \
+         patch("app.scheduler.split_joint_name", side_effect=lambda name: [name]):
         yield
 
 # ── sample data ───────────────────────────────────────────────────────────────
@@ -256,6 +258,38 @@ async def test_pipeline_looks_up_only_bands_new_to_the_database(mock_batch, mock
     # Both Bands are saved now: Mystery Act still has no genre, but it was looked up once already.
     mock_band.assert_not_called()
     assert db.query(Band).filter(Band.name == "Mystery Act").one().genres == []
+
+
+_JOINT_EDITION = {
+    **_EDITION,
+    "events": [
+        _edition_event("Oct 5, 2026", "The Ritz", "San Jose",
+                       [("Dying Fetus And Sanguisugabogg", "Death Metal", ""), ("Belle and Sebastian", "Indie Pop", "")],
+                       "a/a $32 7pm"),
+    ],
+}
+
+
+def _joint(name):
+    return {"Dying Fetus And Sanguisugabogg": ["Dying Fetus", "Sanguisugabogg"]}.get(name, [name])
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=(_JOINT_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.split_joint_name", side_effect=_joint)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_splits_joint_billings_into_two_bands(mock_batch, mock_split, mock_venue, mock_fetch, db):
+    await _run_ingestion_async(db=db)
+
+    show = db.query(Show).one()
+    lineup = [(a.position, a.band.name) for a in sorted(show.acts, key=lambda a: a.position)]
+    assert lineup == [(0, "Dying Fetus"), (1, "Sanguisugabogg"), (2, "Belle and Sebastian")]
+    assert db.query(Band).filter(Band.name == "Sanguisugabogg").one().genres == ["death metal"]
+    # Only names that could be joint billings are checked; a second ingest checks nothing new.
+    assert sorted(c.args[0] for c in mock_split.call_args_list) == ["Belle and Sebastian", "Dying Fetus And Sanguisugabogg"]
+    mock_split.reset_mock()
+    await _run_ingestion_async(db=db)
+    assert [c.args[0] for c in mock_split.call_args_list] == ["Dying Fetus And Sanguisugabogg"]
 
 
 @patch("app.scheduler.fetch_latest_edition", return_value=(None, None))

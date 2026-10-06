@@ -320,6 +320,8 @@ Google Drive (public folder)
   └─ latest.json → newest formatted edition JSON
        └─ edition_shows()        → upsert-ready dict per show (details parsed, bands with genres/links)
             └─ Google Places     → only for venues not yet in the DB
+            └─ joint billings    → "Dying Fetus And Sanguisugabogg" becomes two bands, "Belle and Sebastian"
+                                   stays one (app/ingestion/joint_bands.py, decided on MusicBrainz)
             └─ MusicBrainz       → genres for new bands (not yet in the DB): curated genres, else the edition's
             └─ image URL check   → keep, repair (Wikimedia paths) or drop each image URL
                  └─ upsert_shows()   → Show, Venue, Band and Act rows
