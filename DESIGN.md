@@ -174,7 +174,8 @@ WCAG AA.
 - **Two widths, set by the layout** (`Layout`'s `width` prop), never by a page's components:
   - *wide:* the home page, the full `max-w-5xl` (1024px) with 16px side padding, for the filter bar and list.
   - *narrow (the default):* every other page (Show, Venue, Band, Alerts, Unsubscribe, 404) in one centred 672px
-    column (`max-w-2xl`, `w-full`). The Back link sits inside the column, above the page header.
+    column (`max-w-2xl`, `w-full`). The Back link sits above it at the full-width left edge (the layout's `back`
+    slot), lined up with the home page's content.
 - **Spacing** steps in 4px (Tailwind's scale). Blocks on a page (header, facts, sections) are 24px apart (`gap-6`). Rows have 12px vertical
   and 16px horizontal padding.
 - **Radius:** 8px (`rounded-lg`) for panels, cards and toasts; full pills (`rounded-full`) for buttons, inputs,

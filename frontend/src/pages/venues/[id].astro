@@ -16,6 +16,6 @@ const { venue, upcomingShows } = Astro.props
 ---
 
 <Layout>
-  <BackLink />
+  <BackLink slot="back" />
   <VenueDetail venue={venue} upcomingShows={upcomingShows} />
 </Layout>

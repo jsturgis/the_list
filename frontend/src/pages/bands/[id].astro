@@ -19,6 +19,6 @@ const { band, upcomingShows, similarBands } = Astro.props
 ---
 
 <Layout>
-  <BackLink />
+  <BackLink slot="back" />
   <BandDetail band={band} upcomingShows={upcomingShows} similarBands={similarBands} />
 </Layout>
