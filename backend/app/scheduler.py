@@ -112,13 +112,13 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                 venue_cache[key] = await loop.run_in_executor(None, _enrich_venue, name, city or "", street, False)
             _apply_venue_data(data, venue_cache[key])
 
-        # New Bands the edition has no genre for: look them up on MusicBrainz (no LLM), once per name.
+        # New Bands: look them up on MusicBrainz (no LLM), once per name. Its curated genres win over the
+        # edition's genre field, which is sometimes guessed from the name (Soulfly as "Soul / Funk / R&B");
+        # the edition's genre is the fallback, then MusicBrainz's tags. Links only fill gaps.
         # A Band already in the database was looked up when it was new, so it isn't tried again.
         band_cache: dict[str, dict | None] = {}
         for data in shows_data:
             for i, (name, enrichment) in enumerate(data["band_enrichment"]):
-                if enrichment["genres"]:
-                    continue
                 if name not in band_cache:
                     if db.query(Band.id).filter(Band.name == name).first():
                         band_cache[name] = None
@@ -127,8 +127,9 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                         band_cache[name] = await loop.run_in_executor(None, _enrich_band, name, False)
                 found = band_cache[name]
                 if found:
-                    filled = {k: v for k, v in found.items() if v and not enrichment.get(k)}
-                    data["band_enrichment"][i] = (name, {**enrichment, **filled})
+                    links = {k: v for k, v in found.items() if k.endswith("_url") and v and not enrichment.get(k)}
+                    genres = found["genres"] if found["mb_genres"] else (enrichment["genres"] or found["genres"])
+                    data["band_enrichment"][i] = (name, {**enrichment, **links, "genres": genres})
 
         # The edition's image URLs are often broken: keep (or repair) only those that load.
         image_urls = [d["venue_image_url"] for d in shows_data if d.get("venue_image_url")] + [

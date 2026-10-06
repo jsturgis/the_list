@@ -11,6 +11,13 @@ from app.pipeline.enrichment import _enrich_venue, enrich_show
 
 
 @pytest.fixture(autouse=True)
+def no_curated_genres():
+    """MusicBrainz's curated genres come from a separate web-service call: none unless a test says so."""
+    with patch("app.pipeline.enrichment._mb_genres", return_value=[]) as mock:
+        yield mock
+
+
+@pytest.fixture(autouse=True)
 def clear_venue_cache():
     _enrich_venue.cache_clear()
     yield
@@ -90,6 +97,19 @@ async def test_mb_hit_genres_set_no_genre_llm(mock_search, mock_lookup, mock_llm
     assert result["genres"] == ["indie rock", "shoegaze"]
     # LLM not used for genre extraction
     llm_instance.with_structured_output.assert_not_called()
+
+
+@patch("app.pipeline.enrichment._enrich_venue", return_value={})
+@patch("app.pipeline.enrichment._mb_lookup")
+@patch("app.pipeline.enrichment._mb_search")
+async def test_mb_curated_genres_win_over_tags(mock_search, mock_lookup, mock_venue, no_curated_genres):
+    """Soulfly's tags include junk ("vyrzukhisuc-artiest"); its curated genres don't."""
+    mock_search.return_value = _mb_artist()
+    mock_lookup.return_value = _mb_full(tags=[{"name": "vyrzukhisuc-artiest", "count": "9"}, {"name": "groove metal", "count": "8"}])
+    no_curated_genres.return_value = ["groove metal", "nu metal", "thrash metal", "alternative metal", "heavy metal", "metal"]
+    result = await enrich_show(_raw(bands=["Soulfly"]))
+    assert result["genres"] == ["groove metal", "nu metal", "thrash metal", "alternative metal", "heavy metal"]
+    assert result["band_enrichment"][0][1]["mb_genres"] is True
 
 
 @patch("app.pipeline.enrichment._enrich_venue", return_value={})
@@ -540,3 +560,23 @@ def test_band_enrichment_without_llm_uses_musicbrainz_only(mock_search, mock_loo
     mock_sc.assert_not_called()
     mock_bc.assert_not_called()
     mock_llm.assert_not_called()
+
+
+
+# ── MusicBrainz curated genres (web service) ──────────────────────────────────
+
+from app.pipeline.enrichment import _mb_genres as _real_mb_genres  # imported before the autouse patch applies
+
+
+def test_mb_genres_reads_the_web_service_most_votes_first():
+    resp = MagicMock()
+    resp.json.return_value = {"genres": [{"name": "nu metal", "count": 5}, {"name": "groove metal", "count": 8}]}
+    with patch("app.pipeline.enrichment.httpx.get", return_value=resp) as get, patch("app.pipeline.enrichment._time.sleep") as sleep:
+        assert _real_mb_genres("mbid-1") == ["groove metal", "nu metal"]
+    sleep.assert_called_once_with(1.0)  # paced to MusicBrainz's one request a second
+    assert get.call_args.kwargs["params"] == {"inc": "genres", "fmt": "json"}
+
+
+def test_mb_genres_is_empty_when_the_web_service_fails():
+    with patch("app.pipeline.enrichment.httpx.get", side_effect=Exception("down")), patch("app.pipeline.enrichment._time.sleep"):
+        assert _real_mb_genres("mbid-1") == []
