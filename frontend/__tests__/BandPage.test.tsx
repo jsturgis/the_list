@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import BandDetail from '@/components/BandDetail'
 import { pastShowsStyle } from '@/lib/pastShows'
@@ -53,7 +53,7 @@ describe('BandDetail', () => {
 
   it('renders band name', () => {
     renderBand()
-    expect(screen.getByRole('heading', { name: 'The Strokes' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'The Strokes' })).toBeInTheDocument()
   })
 
   it('renders genres', () => {
@@ -76,6 +76,20 @@ describe('BandDetail', () => {
     renderBand()
     const showLinks = screen.getAllByRole('link').filter(l => l.getAttribute('href')?.startsWith('/shows/'))
     expect(showLinks.map(l => l.getAttribute('href'))).toEqual(['/shows/1/', '/shows/2/'])
+  })
+
+  it('lists upcoming shows as Show rows under date headings, with the Venue', () => {
+    renderBand()
+    const region = screen.getByRole('region', { name: 'Upcoming Shows' })
+    expect(within(region).getAllByRole('heading', { level: 3 })).toHaveLength(2)  // one per date
+    const rows = within(region).getAllByRole('heading', { level: 4 })
+    expect(rows.map(h => h.querySelector('a')?.getAttribute('href'))).toEqual(['/shows/1/', '/shows/2/'])
+    expect(region).toHaveTextContent('Bottom of the Hill')
+  })
+
+  it('leaves out Upcoming Shows when there are none', () => {
+    renderBand(band, [])
+    expect(screen.queryByRole('region', { name: 'Upcoming Shows' })).not.toBeInTheDocument()
   })
 
   it('hides shows dated before today (Bay Area time)', () => {

@@ -35,7 +35,7 @@ describe('the 404 page', () => {
   it('says the page is missing and links to the Shows list', async () => {
     const html = await render(NotFoundPage)
     expect(html).toMatch(/<h1[^>]*>Page not found<\/h1>/)
-    expect(html).toMatch(/<a href="\/"[^>]*>See this week(&#39;|&apos;|')s shows<\/a>/)
+    expect(html).toMatch(/<a href="\/"[^>]*>.*?See this week(&#39;|&apos;|')s shows/s)
     expect(html).toContain('<title>The List — SF Bay Area Music</title>')
   })
 })

@@ -101,9 +101,12 @@ WCAG AA.
 
 | Role | Size | Weight | Notes |
 |---|---|---|---|
-| Page title (`h1`) | 24px (`text-2xl`); 30px (`text-3xl`) on detail pages | 800 | tracking −0.02em (global) |
-| Date heading on Show lists | 18px (`text-lg`) | 700 | sentence case, `ink`; `h2` on the home page, `h3` under a Venue's "Upcoming Shows" |
-| Section heading (Lineup, Venue, Upcoming Shows) | 16px (`text-base`) | 700 | |
+| Page title (`h1`) | 36px (`text-4xl`); 30px (`text-3xl`) on phones | 800 | tracking −0.02em (global); every page, through `PageHeader` |
+| Page subtitle | 18px (`text-lg`) | 400 | `ink-soft`, under the h1; an optional eyebrow above it is 14px `ink-muted` |
+| Section heading (`h2`: Lineup, Venue, Details, Upcoming Shows, Similar Bands…) | 24px (`text-2xl`) | 700 | through `Section` |
+| Date heading on the home page (`h2`) | 24px (`text-2xl`) | 700 | sentence case, `ink` |
+| Date heading inside a section (`h3`, a Venue's or Band's Upcoming Shows) | 20px (`text-xl`) | 700 | |
+| Lineup headliner | 20px (`text-xl`) | 700 | supports below at 16px |
 | Headliner in a Show row | 16px | 700 | `ink`; supports follow in `ink-muted`, prefixed "with"; a heading one level below the date |
 | Body | 16px / 14px (`text-sm`) | 400 | |
 | Meta: time · price · age, captions | 12–14px (`text-xs`/`text-sm`) | 400 | `ink-muted` or `ink-soft` |
@@ -120,6 +123,8 @@ WCAG AA.
   - *Quiet:* text-only in `ink-muted`, with an underline or a `muted` hover (Clear filters, Back).
 - **Inputs and selects:** `bg-field`, pill-shaped (`rounded-full`, `px-3`), `line-strong` border, `ink` text,
   `ink-faint` placeholders. Checkboxes keep the browser's shape, tinted with `accent-accent`.
+  A form's only field (the Alerts page's Email) can go without a visible label: its placeholder names it, and
+  `aria-label` gives it the same accessible name.
 - **Focus:** keyboard focus is a 2px `focus-ring` outline, offset 2px, on everything (a global rule; don't remove
   it with `outline-none` unless something else shows focus). Show rows ring the whole row in `focus-ring` instead.
   `focus-ring` is the text-safe green, because the accent itself is under 3:1 on light backgrounds.
@@ -127,7 +132,7 @@ WCAG AA.
   Genre controls, Free only, Advanced filters and Setup Alert.
 - **Show list item:**
   - Shows are listed as rows (`ShowRow`), not cards, in one `surface` panel per date (8px radius) with
-    `line-subtle` dividers. Venue pages use the same row without the Venue line.
+    `line-subtle` dividers. Venue pages use the same row without the Venue line; Band pages use it with the Venue line.
   - *Line 1:* status badge, then a star if it's a Steve's Pick, then the bold headliner and "with" the supports.
   - *Line 2:* Venue · city. No street address.
   - *Details:* door time · price · age, the flags, and the two calendar links (.ics and Google Calendar) for
@@ -145,17 +150,32 @@ WCAG AA.
   - Matinee: `info`
   - Pit Warning, Drink Tickets, No Re-entry: neutral, `muted` with `ink-soft`
   - Badges are small pills (`rounded-full`) that never wrap inside; a row of them wraps badge by badge.
-- **Detail pages (Show, Venue, Band):** a single readable column (`max-w-2xl`), with the h1 first and a Back link
-  above. Facts are set as icon + label rows in `ink-soft`. Upcoming Shows use the Show list item.
+- **Page header (`PageHeader`):** every page starts with one: an optional eyebrow (a Show's status and date), the
+  h1, an optional subtitle (`text-lg ink-soft`) and an optional row of chips.
+- **Sections (`Section`):** a `<section aria-labelledby>`: a 24px bold `h2` on the page, then the content in a
+  panel below it (`surface`, 8px radius, 20px padding), 12px apart. The heading is never inside the panel. `plain`
+  drops the panel for content that already sits in panels (date-grouped Show rows).
+- **Key facts (`FactList`):** a `<dl>` grid, three columns from `sm` and one per line on phones. Each fact has an
+  icon and a `text-xs ink-muted` label, over a `text-base font-semibold ink` value (Doors, Price, Ages).
+- **Actions (`ActionLinks`):** a wrapping row of pill links, 14px bold: primary (`bg-accent text-on-accent`, at
+  most one: Tickets), secondary (outline `line-strong`, `ink`), or brand colours for the
+  streaming services. External ones carry an outward-arrow icon.
+- **Detail pages (Show, Venue, Band):** in order: Back, `PageHeader`, key facts, actions, then `Section`s. A Show
+  has Lineup, Venue and Notes; a Venue has Details, About and Upcoming Shows; a Band has Upcoming Shows and
+  Similar Bands. Upcoming Shows on Venue and Band pages use the Show list item, grouped under 20px date headings.
 - **Banners:** `accent-soft` with `accent-soft-line` and `accent-soft-ink` (special events).
 - **Toasts:** `inverse` with `on-inverse`, 8px radius, at the bottom of the screen.
-- **Links:** `text-link` for links in running text, underlined on hover. Navigation links (header, Back) are
-  `ink-muted` and turn `ink-soft` on hover.
+- **Links:** links inside running text (a sentence) are `text-link underline underline-offset-2`, always
+  underlined, so colour isn't the only cue. Standalone links (rows, lists, the Venue name, facts) are underlined
+  on hover only. Navigation links (header, Back) are `ink-muted` and turn `ink-soft` on hover.
 
 ## 5. Layout Principles
 
-- **One column**, centred, `max-w-5xl` with 16px side padding. Detail and Alerts pages narrow to `max-w-2xl`.
-- **Spacing** steps in 4px (Tailwind's scale). Sections on a page are 24px apart (`gap-6`). Rows have 12px vertical
+- **Two widths, set by the layout** (`Layout`'s `width` prop), never by a page's components:
+  - *wide:* the home page, the full `max-w-5xl` (1024px) with 16px side padding, for the filter bar and list.
+  - *narrow (the default):* every other page (Show, Venue, Band, Alerts, Unsubscribe, 404) in one centred 672px
+    column (`max-w-2xl`, `w-full`). The Back link sits inside the column, above the page header.
+- **Spacing** steps in 4px (Tailwind's scale). Blocks on a page (header, facts, sections) are 24px apart (`gap-6`). Rows have 12px vertical
   and 16px horizontal padding.
 - **Radius:** 8px (`rounded-lg`) for panels, cards and toasts; full pills (`rounded-full`) for buttons, inputs,
   selects, chips, badges and small icon buttons. Hover backgrounds on list links (Similar Bands, a Band's Upcoming
@@ -197,7 +217,8 @@ list (`shadow-lg`), and toasts.
 
 - **Mobile first.** The `sm` breakpoint (640px) moves Show row details into a right-hand column, and the filter bar
   into a row of controls.
-- **On phones,** each Show list item stacks: headliner, Venue · city, details, flags, calendar links. The calendar
+- **On phones,** each Show list item stacks: headliner, Venue · city, details, flags, calendar links. The Setup
+  Alert panel spans the filter bar's full width instead of hanging off the button. The calendar
   links are labelled buttons, easy to tap.
 - **Touch targets** are at least 36px tall (`h-9` controls). Pills keep their full rounding at every size.
 
@@ -214,6 +235,12 @@ When you build or change UI in this repo:
    after, and put both sets in the PR.
 5. Keep the mechanisms in section 7 intact. The smoke tests cover them, and the axe checks (`e2e/a11y.spec.ts`)
    fail on serious or critical accessibility violations, including contrast, in both modes.
+6. **Every page** follows the same shell (`e2e/consistency.spec.ts` checks the first three):
+   - it uses the layout's width (narrow unless it's the Shows list), with no `max-w-*` of its own
+   - it opens with `PageHeader`, so its h1 matches every other page's (the 404 is centred, with a music-note
+     icon, but uses the same h1 and subtitle sizes)
+   - its sections are `Section`s, so their `h2`s match
+   - links in sentences are underlined; actions are `ActionLinks` pills, with at most one primary
 
 Example prompt: "Add a 'Free' filter chip to the filter bar, styled as a section 4 input: a `field` pill, `ink`
 text, accent focus ring. On phones it wraps under Search."

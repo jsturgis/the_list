@@ -1,6 +1,7 @@
 ---
 import Layout from '@/layouts/Layout.astro'
 import HomeShows from '@/components/HomeShows'
+import PageHeader from '@/components/PageHeader'
 import { PAGE_SIZE } from '@/components/ShowList'
 import { siteData } from '@/lib/siteData.server'
 
@@ -9,13 +10,12 @@ import { siteData } from '@/lib/siteData.server'
 const page = siteData().homePage(PAGE_SIZE)
 ---
 
-<Layout>
-  <div class="flex flex-col gap-6">
-    <h1 class="text-2xl font-bold">This Week&apos;s Shows</h1>
-    <p class="text-sm text-ink-muted -mt-5">
+<Layout width="wide">
+  <PageHeader title="This Week's Shows">
+    <Fragment slot="subtitle">
       {page.emailSubject ?? 'Upcoming Bay Area music'} — curated by{' '}
-      <a href="mailto:skoepke@stevelist.com" class="underline hover:text-ink-soft">Steve List</a>.
-    </p>
-    <HomeShows page={page} client:load />
-  </div>
+      <a href="mailto:skoepke@stevelist.com" class="text-link underline underline-offset-2">Steve List</a>.
+    </Fragment>
+  </PageHeader>
+  <HomeShows page={page} client:load />
 </Layout>
