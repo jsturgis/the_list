@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     musicbrainz_app_name: str = "the-list"
     musicbrainz_app_version: str = "0.1"
     musicbrainz_contact: str = "https://github.com/jsturgis/the_list"
+    # Last.fm, for genre tags (app/ingestion/lastfm.py); without a key Last.fm is skipped.
+    lastfm_api_key: str | None = None
 
     google_maps_api_key: str = ""
 
