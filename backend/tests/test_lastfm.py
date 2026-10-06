@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import httpx
 
-from app.ingestion.lastfm import lastfm_tags
+from app.ingestion.lastfm import lastfm_key_problem, lastfm_tags
 
 _API = "https://ws.audioscrobbler.com/2.0/"
 
@@ -99,3 +99,11 @@ def test_places_vocalists_and_decades_are_not_genres():
     tags = lastfm_tags("X", None, api_key="k", client=_client(lambda p: _tags(
         "american", "punk", "USA", "female vocalists", "80s", "Bay Area", "hardcore", "UK")))
     assert tags == ["punk", "hardcore"]
+
+
+def test_the_key_check_reports_a_rejected_or_missing_key():
+    invalid = {"error": 10, "message": "Invalid API key - You must be granted a valid key by last.fm"}
+    assert "error 10" in lastfm_key_problem("bad", client=_client(lambda p: httpx.Response(403, json=invalid)))
+    assert lastfm_key_problem("good", client=_client(lambda p: _tags("pop"))) is None
+    assert lastfm_key_problem("good", client=_client(lambda p: _NOT_FOUND)) is None   # a known key, unknown artist
+    assert lastfm_key_problem("") == "LASTFM_API_KEY isn't set"

@@ -292,7 +292,7 @@ redirects there.
   a run takes the Bands not yet looked up (those on Upcoming Shows first), stops after **max minutes** (default
   300, under the 6-hour job limit) or **limit** Bands, commits to `data` and starts a deploy-only Deploy. Run it
   again until its commit message says none are still to do. Discogs' rate limit (one request a second) sets
-  the pace. It needs `LASTFM_API_KEY` and both Discogs keys, and won't start without them. A service that's
+  the pace. It needs `LASTFM_API_KEY` and both Discogs keys, and checks first that Last.fm and Discogs accept them. A service that's
   down mid-run returns nothing, and those Bands are still marked looked up. Locally (with the keys in `backend/.env`):
   `docker compose exec api python -m app.cli backfill --limit 20`.
 - **Updating the data by hand**: commit a new `the_list.db` and `faiss/` to the `data` branch, then run

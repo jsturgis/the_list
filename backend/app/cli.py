@@ -52,13 +52,15 @@ def alerts(dry_run: bool, only: str | None) -> None:
 def backfill(max_minutes: float, limit: int | None) -> None:
     """Look existing Bands up on the services until done, out of time or at the limit (see app/ingestion/backfill)."""
     from app.ingestion.backfill import run_backfill
+    from app.ingestion.discogs import discogs_key_problem
+    from app.ingestion.lastfm import lastfm_key_problem
 
-    # Without these a Band would be marked looked up with nothing from Last.fm or Discogs, and never asked again.
-    missing = [name for name, value in (("LASTFM_API_KEY", settings.lastfm_api_key),
-                                        ("DISCOGS_CONSUMER_KEY", settings.discogs_consumer_key),
-                                        ("DISCOGS_CONSUMER_SECRET", settings.discogs_consumer_secret)) if not value]
-    if missing:
-        sys.exit(f"backfill: set {', '.join(missing)} first")
+    # The lookups treat a missing or rejected key as "nothing found", so the Bands would be marked looked up with
+    # nothing from Last.fm or Discogs and never asked again: check the keys work before looking anything up.
+    problems = [p for p in (lastfm_key_problem(), discogs_key_problem()) if p]
+    if problems:
+        sys.exit("backfill: " + "; ".join(problems))
+
     db = SessionLocal()
     try:
         result = asyncio.run(run_backfill(db, settings.images_path, max_minutes=max_minutes, limit=limit))
