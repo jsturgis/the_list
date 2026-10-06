@@ -26,6 +26,13 @@ describe('ShowList', () => {
       expect(screen.getByText(`Showing ${shows.length} of ${shows.length} shows`)).toBeInTheDocument()
     })
 
+    it('lists each date\'s Shows as a list, one item per Show', () => {
+      render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
+      const items = screen.getAllByRole('list').flatMap(l => within(l).queryAllByRole('listitem'))
+      expect(items).toHaveLength(screen.getAllByRole('link').filter(a => a.hasAttribute('data-show-link')).length)
+      expect(items.length).toBeGreaterThan(0)
+    })
+
     it('has no separate Steve\'s Picks section', () => {
       render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
       // A Pick's own row is named "Steve's pick: …"; there's no section heading for Picks.

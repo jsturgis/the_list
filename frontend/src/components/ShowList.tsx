@@ -114,9 +114,9 @@ export default function ShowList({ shows: listed, showCount, dbTotal = 0, filter
                   <h2 className="text-2xl font-bold text-ink mb-2">
                     {formatDateLong(date)}
                   </h2>
-                  <div className="flex flex-col divide-y divide-line-subtle overflow-hidden rounded-lg bg-surface">
-                    {(byDate.get(date) ?? []).map(show => <ShowRow key={show.id} show={show} filterQs={filtersKey} />)}
-                  </div>
+                  <ul className="flex flex-col divide-y divide-line-subtle overflow-hidden rounded-lg bg-surface">
+                    {(byDate.get(date) ?? []).map(show => <li key={show.id}><ShowRow show={show} filterQs={filtersKey} /></li>)}
+                  </ul>
                 </div>
               ))}
             </div>

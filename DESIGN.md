@@ -105,7 +105,6 @@ WCAG AA.
 | Page subtitle | 18px (`text-lg`) | 400 | `ink-soft`, under the h1; an optional eyebrow above it is 14px `ink-muted` |
 | Section heading (`h2`: Lineup, Venue, Details, Upcoming Shows, Similar Bands…) | 24px (`text-2xl`) | 700 | through `Section` |
 | Date heading on the home page (`h2`) | 24px (`text-2xl`) | 700 | sentence case, `ink` |
-| Date heading inside a section (`h3`, a Venue's or Band's Upcoming Shows) | 20px (`text-xl`) | 700 | |
 | Lineup headliner | 20px (`text-xl`) | 700 | supports below at 16px |
 | Headliner in a Show row | 16px | 700 | `ink`; supports follow in `ink-muted`, prefixed "with"; a heading one level below the date |
 | Body | 16px / 14px (`text-sm`) | 400 | |
@@ -132,8 +131,13 @@ WCAG AA.
   controls, Free only and Advanced filters, then a closing row below them, set off by a `line-subtle` rule, with
   Clear filters (quiet) and **Save search** (primary, at the right; on phones it spans the row).
 - **Show list item:**
-  - Shows are listed as rows (`ShowRow`), not cards, in one `surface` panel per date (8px radius) with
-    `line-subtle` dividers. Venue pages use the same row without the Venue line; Band pages use it with the Venue line.
+  - Shows are listed as rows (`ShowRow`), not cards, each in an `<li>` of a `<ul>`: on the home page one `surface`
+    panel per date (8px radius) with `line-subtle` dividers. Venue pages use the same row without the Venue line;
+    Band pages use it with the Venue line.
+  - *Compact date:* on Venue and Band pages, which have no date headings, each row starts with its date in a
+    48px column: the weekday (`text-[11px]`, `ink-muted`) over the month and day (`text-sm` bold, `ink`), both
+    uppercase ("SAT / OCT 3"), centred vertically in the row at every size; the rest of the row stacks beside it.
+    The rows sit in one panel, by date then door time.
   - *Line 1:* status badge, then a star if it's a Steve's Pick, then the bold headliner and "with" the supports.
   - *Line 2:* Venue · city. No street address.
   - *Details:* door time · price · age, the flags, and the two calendar links (.ics and Google Calendar) for
@@ -159,15 +163,16 @@ WCAG AA.
 - **Sections (`Section`):** a `<section aria-labelledby>`: a 24px bold `h2` on the page, then the content in a
   panel below it (`surface`, 8px radius, 20px padding), 12px apart. The heading, and an optional note at the right
   end of its line in `text-sm ink-muted` ("3 of 20 alerts"), are never inside the panel. `plain` drops the panel
-  for content that already sits in panels (date-grouped Show rows).
+  for content that already sits in panels (lists of Show rows).
 - **Key facts (`FactList`):** a `<dl>` grid, three columns from `sm` and one per line on phones. Each fact has an
   icon and a `text-xs ink-muted` label, over a `text-base font-semibold ink` value (Doors, Price, Ages).
 - **Actions (`ActionLinks`):** a wrapping row of pill links, 14px bold: primary (`bg-accent text-on-accent`, at
   most one: Tickets), secondary (outline `line-strong`, `ink`), or brand colours for the
   streaming services. External ones carry an outward-arrow icon.
 - **Detail pages (Show, Venue, Band):** in order: Back, `PageHeader`, key facts, actions, then `Section`s. A Show
-  has Lineup, Venue and Notes; a Venue has Details, About and Upcoming Shows; a Band has Upcoming Shows and
-  Similar Bands. Upcoming Shows on Venue and Band pages use the Show list item, grouped under 20px date headings.
+  has Lineup, Venue and Notes; a Venue has Details, Upcoming Shows and About; a Band has Upcoming Shows and
+  Similar Bands. Upcoming Shows on Venue and Band pages are one panel of Show list items, each with its compact
+  date, with no date headings.
 - **Loading (`Ghost`):** anything waiting on Supabase (who's signed in, their alerts and weekly email setting, an
   unsubscribe) shows ghost placeholders: `line`-coloured bars in the shape of the content to come, pulsing
   (`motion-safe:animate-pulse`, so still for reduced motion). Headings that are already known stay real. Ghosts are
@@ -197,7 +202,8 @@ WCAG AA.
 - **Radius:** 8px (`rounded-lg`) for panels, cards and toasts; full pills (`rounded-full`) for buttons, inputs,
   selects, chips, badges and small icon buttons. Hover backgrounds on list links (Similar Bands, a Band's Upcoming
   Shows) and floating lists (the Genre options) are 8px.
-- **Lists group by date.** Date headings sit above each date's panel, and Steve's Picks come first within a date.
+- **The home list groups by date.** Date headings sit above each date's panel, and Steve's Picks come first
+  within a date. Venue and Band pages list fewer Shows, so they put the date in each row instead.
 
 ## 6. Depth & Elevation
 
@@ -224,7 +230,8 @@ list (`shadow-lg`), and toasts.
 
 **Mechanisms a restyle must keep:**
 - Pages are static HTML, with React only where a page is interactive (ADR 0004).
-- Show lists mark each date group (or Show) with `data-show-date="YYYY-MM-DD"`, and Venue and Band lists use
+- Show lists mark each date group (home) or each Show's `<li>` (Venue and Band pages) with
+  `data-show-date="YYYY-MM-DD"`, and Venue and Band lists use
   `data-upcoming-shows-list` / `data-upcoming-shows` / `data-upcoming-shows-empty`, so the inline `<head>` CSS can
   hide Shows that have passed (`lib/pastShows`).
 - The home page's first page carries `data-home-first-page`.

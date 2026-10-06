@@ -98,13 +98,13 @@ export default function VenueDetail({ venue, upcomingShows, bell }: VenueDetailP
         </Section>
       )}
 
+      <VenueShowRows shows={upcomingShows} />
+
       {venue.description && (
         <Section title="About">
           <p className="text-base text-ink-soft leading-relaxed">{venue.description}</p>
         </Section>
       )}
-
-      <VenueShowRows shows={upcomingShows} />
     </article>
   )
 }

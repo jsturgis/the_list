@@ -12,9 +12,17 @@ describe('ShowRow', () => {
     expect(showLink()).toHaveAttribute('href', '/shows/42/')
   })
 
-  it('can sit one level deeper, under a Venue page\'s date headings', () => {
+  it('can sit one level deeper, under date headings', () => {
     render(<ShowRow show={makeShow()} headingLevel={4} />)
     expect(screen.getByRole('heading', { level: 4, name: /Test Band/ })).toBeInTheDocument()
+  })
+
+  it('starts with its compact date when asked', () => {
+    const { container, rerender } = render(<ShowRow show={makeShow({ date: '2026-10-03' })} />)
+    expect(container.querySelector('time')).toBeNull()
+    rerender(<ShowRow show={makeShow({ date: '2026-10-03' })} showDate />)
+    expect(container.querySelector('time')).toHaveTextContent('SatOct 3')
+    expect(container.querySelector('time')).toHaveAttribute('dateTime', '2026-10-03')
   })
 
   it('carries the Shows list filters to the Show page', () => {
