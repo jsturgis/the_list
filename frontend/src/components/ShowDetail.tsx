@@ -60,9 +60,9 @@ export default function ShowDetail({ show }: ShowDetailProps) {
       )}
 
       <PageHeader
-        eyebrow={
+        eyebrow={show.status === 'cancelled' || show.status === 'postponed' ? <StatusBadge status={show.status} size="detail" /> : undefined}
+        aside={
           <>
-            <StatusBadge status={show.status} size="detail" />
             <span>{formatDateLongYear(show.date)}</span>
             {upcoming && (
               <span className="flex items-center">

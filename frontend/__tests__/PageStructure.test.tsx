@@ -13,6 +13,12 @@ describe('PageHeader', () => {
     expect(header).toHaveTextContent(/^Fri, Oct 9Static Bloomat The FillmoreLocal$/)
   })
 
+  it('puts the aside on the title\'s line', () => {
+    render(<PageHeader title="Neon Harbor" aside={<span>Saturday, October 3, 2026</span>} />)
+    const title = screen.getByRole('heading', { level: 1, name: 'Neon Harbor' })
+    expect(title.nextElementSibling).toHaveTextContent('Saturday, October 3, 2026')
+  })
+
   it('leaves out what it isn\'t given', () => {
     render(<PageHeader title="Your alerts" />)
     expect(screen.getByRole('banner')).toHaveTextContent(/^Your alerts$/)
