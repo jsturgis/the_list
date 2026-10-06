@@ -34,10 +34,10 @@ describe('A list pinned to one Band or Venue', () => {
     await waitFor(() => expect(window.location.search).toBe('?region=sf'))
   })
 
-  it('names a Setup Alert after the Band', async () => {
+  it('names a Save search after the Band', async () => {
     replaceQuery('bandId=3')
     render(<FilterBar {...props} pinned={{ param: 'bandId', name: 'Neon Harbor' }} />)
-    fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /save search/i }))
     expect(screen.getByLabelText('Name')).toHaveValue('Neon Harbor')
   })
 })
@@ -45,27 +45,27 @@ describe('A list pinned to one Band or Venue', () => {
 describe('Save control', () => {
   it('is unavailable until a filter is set', async () => {
     render(<FilterBar {...props} />)
-    expect(await screen.findByRole('button', { name: /setup alert/i })).toBeDisabled()
+    expect(await screen.findByRole('button', { name: /save search/i })).toBeDisabled()
   })
 
   it('suggests a name made from the filters', async () => {
     replaceQuery('genre=punk&region=east_bay')
     render(<FilterBar {...props} />)
-    fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /save search/i }))
     expect(screen.getByLabelText('Name')).toHaveValue('punk · East Bay')
   })
 
   it('names every kind of filter in the suggestion', async () => {
     replaceQuery('q=chapel&genre=punk&region=sf&free=1&age=21%2B&priceMax=20&fromDate=2026-10-03&toDate=2026-10-10')
     render(<FilterBar {...props} />)
-    fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /save search/i }))
     expect(screen.getByLabelText('Name')).toHaveValue('"chapel" · punk · SF · Free · 21+ · Up to $20 · Sat, Oct 3 – Sat, Oct 10')
   })
 
   it('asks a signed-out visitor for their email and sends a sign-in link that saves the search', async () => {
     replaceQuery('genre=punk&region=east_bay&utm_source=x')
     render(<FilterBar {...props} />)
-    fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /save search/i }))
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'East Bay punk' } })
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'fan@example.com' } })
@@ -87,7 +87,7 @@ describe('Save control', () => {
     fake.current!.state.email = 'fan@example.com'
     replaceQuery('genre=punk&region=east_bay')
     render(<FilterBar {...props} />)
-    fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /save search/i }))
 
     expect(screen.queryByLabelText('Email')).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'East Bay punk' } })
@@ -105,7 +105,7 @@ describe('Save control', () => {
     fake.current!.state.insertError = { message: 'You can save up to 20 filters. Delete one to save another.' }
     replaceQuery('genre=punk')
     render(<FilterBar {...props} />)
-    fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /save search/i }))
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Punk' } })
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }))
 
@@ -113,7 +113,7 @@ describe('Save control', () => {
   })
 })
 
-describe('Setup Alert limit', () => {
+describe('Save search limit', () => {
   const savedFilters = (n: number) =>
     Array.from({ length: n }, (_, i) => ({ id: `f${i}`, name: `Alert ${i}`, query: `genre=metal-${i}`, created_at: '2026-10-01T00:00:00Z' }))
 
@@ -122,7 +122,7 @@ describe('Setup Alert limit', () => {
     fake.current!.state.savedFilters = savedFilters(2)
     replaceQuery('genre=punk')
     render(<FilterBar {...props} />)
-    fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /save search/i }))
     expect(await screen.findByText('2 of 20 alerts used')).toBeInTheDocument()
   })
 
@@ -131,7 +131,7 @@ describe('Setup Alert limit', () => {
     fake.current!.state.savedFilters = savedFilters(20)
     replaceQuery('genre=punk')
     render(<FilterBar {...props} />)
-    fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /save search/i }))
 
     expect(await screen.findByText(/you have 20 alerts, the most allowed/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled()
@@ -139,7 +139,7 @@ describe('Setup Alert limit', () => {
   })
 })
 
-describe('Setup Alert duplicates', () => {
+describe('Save search duplicates', () => {
   const saved = (name: string, query: string) => ({ id: name, name, query, created_at: '2026-10-01T00:00:00Z' })
 
   it('won\'t set up an alert the visitor already has, whatever order the filters are in', async () => {
@@ -147,7 +147,7 @@ describe('Setup Alert duplicates', () => {
     fake.current!.state.savedFilters = [saved('East Bay punk', 'genre=punk&region=east_bay')]
     replaceQuery('region=east_bay&genre=punk')
     render(<FilterBar {...props} />)
-    fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /save search/i }))
 
     expect(await screen.findByText(/you already have an alert for these filters/i)).toHaveTextContent('“East Bay punk”')
     expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled()
@@ -159,7 +159,7 @@ describe('Setup Alert duplicates', () => {
     fake.current!.state.savedFilters = [saved('Chapel', 'q=The+Chapel')]
     replaceQuery('q=the%20chapel')
     render(<FilterBar {...props} />)
-    fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /save search/i }))
     expect(await screen.findByText(/you already have an alert for these filters/i)).toBeInTheDocument()
   })
 
@@ -168,7 +168,7 @@ describe('Setup Alert duplicates', () => {
     fake.current!.state.savedFilters = [saved('East Bay punk', 'genre=punk&region=east_bay')]
     replaceQuery('genre=punk')
     render(<FilterBar {...props} />)
-    fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /save search/i }))
     expect(await screen.findByText('1 of 20 alerts used')).toBeInTheDocument()
     expect(screen.queryByText(/already have an alert/i)).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^save$/i })).toBeEnabled()
@@ -180,7 +180,7 @@ describe('Save control dismissing', () => {
     fake.current!.state.email = 'fan@example.com'
     replaceQuery('genre=punk')
     render(<FilterBar {...props} />)
-    fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /save search/i }))
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Punk' } })
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }))
     return findToast()
@@ -189,7 +189,7 @@ describe('Save control dismissing', () => {
   it('moves focus into the form, and back to the button on Escape', async () => {
     replaceQuery('genre=punk')
     render(<FilterBar {...props} />)
-    const button = await screen.findByRole('button', { name: /setup alert/i })
+    const button = await screen.findByRole('button', { name: /save search/i })
     fireEvent.click(button)
     expect(screen.getByLabelText('Name')).toHaveFocus()
     fireEvent.keyDown(screen.getByLabelText('Name'), { key: 'Escape' })
@@ -200,15 +200,15 @@ describe('Save control dismissing', () => {
   it('closes when focus leaves the form, so it never stays open behind the keyboard', async () => {
     replaceQuery('genre=punk')
     render(<FilterBar {...props} />)
-    fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /save search/i }))
     const outside = screen.getByLabelText('Search')
     fireEvent.focusOut(screen.getByLabelText('Name'), { relatedTarget: outside })
     expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
   })
 
-  it('keeps focus on the Setup Alert button after saving, and after dismissing the toast', async () => {
+  it('keeps focus on the Save search button after saving, and after dismissing the toast', async () => {
     await openSaved()
-    const button = screen.getByRole('button', { name: /setup alert/i })
+    const button = screen.getByRole('button', { name: /save search/i })
     expect(button).toHaveFocus()
     screen.getByRole('button', { name: /dismiss/i }).focus()
     fireEvent.click(screen.getByRole('button', { name: /dismiss/i }))
@@ -218,11 +218,11 @@ describe('Save control dismissing', () => {
   it('closes the form with Escape or a click outside it', async () => {
     replaceQuery('genre=punk')
     render(<FilterBar {...props} />)
-    fireEvent.click(await screen.findByRole('button', { name: /setup alert/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /save search/i }))
     fireEvent.keyDown(screen.getByLabelText('Name'), { key: 'Escape' })
     expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /setup alert/i }))
+    fireEvent.click(screen.getByRole('button', { name: /save search/i }))
     fireEvent.mouseDown(screen.getByText(/showing 10 of 100/i))
     expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
   })
@@ -240,6 +240,6 @@ describe('Save control without Supabase configured', () => {
     replaceQuery('genre=punk')
     render(<FilterBar {...props} />)
     await waitFor(() => expect(screen.getByText(/showing 10 of 100/i)).toBeInTheDocument())
-    expect(screen.queryByRole('button', { name: /setup alert/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /save search/i })).not.toBeInTheDocument()
   })
 })

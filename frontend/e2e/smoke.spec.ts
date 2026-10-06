@@ -83,11 +83,12 @@ test.describe('on a phone', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390)  // no sideways scroll
   })
 
-  test('the Setup Alert panel spans the filter bar and stays on screen', async ({ page }) => {
+  test('the Save search panel spans the filter bar and stays on screen', async ({ page }) => {
     await page.goto('./?region=east_bay')
-    await page.getByRole('button', { name: /setup alert/i }).click()
+    await page.getByRole('button', { name: /save search/i }).click()
     const panel = (await page.locator('form:has(#save-filter-name)').boundingBox())!
-    const bar = (await page.getByRole('status').locator('..').boundingBox())!
+    // The filter bar's last row, where the button sits.
+    const bar = (await page.getByRole('button', { name: /save search/i }).locator('xpath=ancestor::div[contains(@class, "border-t")][1]').boundingBox())!
     expect(Math.round(panel.x)).toBe(Math.round(bar.x))
     expect(Math.round(panel.width)).toBe(Math.round(bar.width))
     expect(panel.x).toBeGreaterThanOrEqual(0)

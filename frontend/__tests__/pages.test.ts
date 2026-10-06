@@ -135,12 +135,12 @@ describe('the home page', () => {
     expect(html).toContain('data-show-date="2026-10-03"')
   })
 
-  it('has the Setup Alert button only on builds with the Supabase settings, so it never appears and then goes', async () => {
+  it('has the Save search button only on builds with the Supabase settings, so it never appears and then goes', async () => {
     vi.stubEnv('PUBLIC_SUPABASE_URL', '')
-    expect(await render(HomePage)).not.toContain('Setup Alert')
+    expect(await render(HomePage)).not.toContain('Save search')
     vi.stubEnv('PUBLIC_SUPABASE_URL', 'https://example.supabase.co')
     vi.stubEnv('PUBLIC_SUPABASE_ANON_KEY', 'sb_publishable_test')
-    expect(await render(HomePage)).toContain('Setup Alert')
+    expect(await render(HomePage)).toContain('Save search')
   })
 
   it('hydrates one island, the Shows list', async () => {

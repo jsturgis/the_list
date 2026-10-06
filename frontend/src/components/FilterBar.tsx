@@ -5,6 +5,7 @@ import { LEGACY_SEARCH_PARAMS, filterQuery, searchParam, type Pinned } from '@/l
 import { REGION_LABELS, ageLabel } from '@/lib/format'
 import { replaceQuery, useQuery } from '@/lib/navigation'
 import SaveFilterButton from './SaveFilterButton'
+import { alertsAvailable } from '@/lib/supabase'
 
 interface FilterBarProps {
   /** Null while the Shows load. */
@@ -99,24 +100,10 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
 
   return (
     <div className="flex flex-col gap-3 p-4 bg-panel rounded-lg border border-line">
-      <div className="relative flex items-center justify-between">
-        {/* A polite live region: screen readers hear the new count as filters and search change. */}
-        <p role="status" aria-live="polite" aria-atomic="true" className="text-sm font-medium text-ink">
-          {showCount === null ? `Loading ${dbTotal} shows…` : `Showing ${showCount} of ${dbTotal} shows`}
-        </p>
-        <div className="flex items-center gap-4">
-          <SaveFilterButton query={filterQuery(searchParams)} pinnedName={pinned?.name ?? undefined} />
-          {hasFilters && (
-            <button
-              onClick={clearAll}
-              className="inline-flex items-center gap-0.5 text-xs text-ink-muted hover:text-ink-soft underline"
-            >
-              <XMarkIcon className="size-3.5 shrink-0" />
-              Clear filters
-            </button>
-          )}
-        </div>
-      </div>
+      {/* A polite live region: screen readers hear the new count as filters and search change. */}
+      <p role="status" aria-live="polite" aria-atomic="true" className="text-sm font-medium text-ink">
+        {showCount === null ? `Loading ${dbTotal} shows…` : `Showing ${showCount} of ${dbTotal} shows`}
+      </p>
 
       {pinned && (
         <p className="flex flex-wrap items-center gap-2 text-sm text-ink-soft">
@@ -289,6 +276,22 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
           </div>
         )}
       </div>
+
+      {/* The actions on what's set above. The Save search panel opens below this row. */}
+      {(hasFilters || alertsAvailable()) && (
+      <div className="relative flex items-center justify-end gap-4 border-t border-line-subtle pt-3">
+        {hasFilters && (
+          <button
+            onClick={clearAll}
+            className="inline-flex shrink-0 items-center gap-0.5 text-xs text-ink-muted hover:text-ink-soft underline"
+          >
+            <XMarkIcon className="size-3.5 shrink-0" />
+            Clear filters
+          </button>
+        )}
+        <SaveFilterButton query={filterQuery(searchParams)} pinnedName={pinned?.name ?? undefined} />
+      </div>
+      )}
     </div>
   )
 }

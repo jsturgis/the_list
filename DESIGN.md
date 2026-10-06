@@ -117,9 +117,9 @@ WCAG AA.
 
 - **Buttons**
   - *Primary:* `bg-accent` / `text-on-accent`, pill (`rounded-full`), uppercase label. One per view, for
-    the main action (Email me a sign-in link, Save).
+    the main action (Save search, Email me a sign-in link, Save).
   - *Neutral:* `bg-strong` / `text-on-inverse`.
-  - *Outline:* `border-accent`, `text-link` on `surface` (Setup Alert).
+  - *Outline:* `border-accent`, `text-link` on `surface`.
   - *Quiet:* text-only in `ink-muted`, with an underline or a `muted` hover (Clear filters, Back).
 - **Inputs and selects:** `bg-field`, pill-shaped (`rounded-full`, `px-3`), `line-strong` border, `ink` text,
   `ink-faint` placeholders. Checkboxes keep the browser's shape, tinted with `accent-accent`.
@@ -128,8 +128,9 @@ WCAG AA.
 - **Focus:** keyboard focus is a 2px `focus-ring` outline, offset 2px, on everything (a global rule; don't remove
   it with `outline-none` unless something else shows focus). Show rows ring the whole row in `focus-ring` instead.
   `focus-ring` is the text-safe green, because the accent itself is under 3:1 on light backgrounds.
-- **Filter bar:** a `panel` block (8px radius) above the list, holding the Shows count, the Region, Search and
-  Genre controls, Free only, Advanced filters and Setup Alert.
+- **Filter bar:** a `panel` block (8px radius) above the list: the Shows count, the Region, Search and Genre
+  controls, Free only and Advanced filters, then a closing row below them, set off by a `line-subtle` rule, with
+  Clear filters (quiet) and **Save search** (primary, at the right; on phones it spans the row).
 - **Show list item:**
   - Shows are listed as rows (`ShowRow`), not cards, in one `surface` panel per date (8px radius) with
     `line-subtle` dividers. Venue pages use the same row without the Venue line; Band pages use it with the Venue line.
@@ -174,7 +175,7 @@ WCAG AA.
 - **Alert bell (`AlertBell`):** on Band and Venue pages, a round 40px icon button at the right of the title's
   line. Off: outline bell, `surface` with a `line-strong` border, `ink-soft`. On: solid ringing bell, `accent-chip` with
   an `accent` border, `link`. Signed in, a press saves or deletes the alert for that Band or Venue (`aria-pressed`)
-  with a toast; signed out, it opens the same kind of panel as Setup Alert, asking for an email.
+  with a toast; signed out, it opens the same kind of panel as Save search, asking for an email.
 - **Pinned list:** a Shows list pinned to one Band or Venue (an alert's link) says so above the filters: "Shows
   with" or "Shows at", then the name as an `accent-chip` pill with a × that removes it.
 - **Banners:** `accent-soft` with `accent-soft-line` and `accent-soft-ink` (special events).
@@ -200,7 +201,7 @@ WCAG AA.
 ## 6. Depth & Elevation
 
 Flat. Depth comes from the surface steps, darkest to lightest in dark mode: `page`, `surface` / `panel`, `field`.
-Hover lifts a row to `surface-hover`. The only shadows are on floating things: the Setup Alert panel and the Genre
+Hover lifts a row to `surface-hover`. The only shadows are on floating things: the Save search panel and the Genre
 list (`shadow-lg`), and toasts.
 
 ## 7. Do's and Don'ts
