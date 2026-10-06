@@ -153,7 +153,8 @@ WCAG AA.
   - Badges are small pills (`rounded-full`) that never wrap inside; a row of them wraps badge by badge.
 - **Page header (`PageHeader`):** every page starts with one: an optional eyebrow (a Show's Cancelled or Postponed
   badge), the h1 with an optional aside at the right of its line (a Show's date and calendar icons, `text-sm
-  ink-muted`; it wraps under the title on phones), an optional subtitle (`text-lg ink-soft`) and an optional row
+  ink-muted`; it wraps under the title on phones; a Band or Venue page's alert bell instead stays beside the
+  title, centred on its first line, however many lines the title wraps to), an optional subtitle (`text-lg ink-soft`) and an optional row
   of chips.
 - **Sections (`Section`):** a `<section aria-labelledby>`: a 24px bold `h2` on the page, then the content in a
   panel below it (`surface`, 8px radius, 20px padding), 12px apart. The heading, and an optional note at the right

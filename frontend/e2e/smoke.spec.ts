@@ -118,6 +118,21 @@ test("a Band page's bell offers alerts for that Band; its link lists only that B
   for (const row of await rows.all()) await expect(row.locator('xpath=ancestor::div[contains(@class,"relative")][1]')).toContainText('Static Bloom')
 })
 
+for (const [label, width] of [['desktop', 1280], ['phone', 390]] as const) {
+  test(`the alert bell stays centred on a long title's first line (${label})`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 })
+    await page.goto('bands/3/')
+    const title = page.getByRole('heading', { level: 1 })
+    await title.evaluate(h => { h.textContent = 'Static Bloom and the Extremely Long Band Name That Wraps Onto Several Lines' })
+    const bell = page.getByRole('button', { name: /^Get alerts for / })
+    const t = (await title.boundingBox())!, b = (await bell.boundingBox())!
+    const line = parseFloat(await title.evaluate(h => getComputedStyle(h).lineHeight))
+    expect(t.height).toBeGreaterThan(line * 1.5)                                // the title did wrap
+    expect(Math.abs(b.y + b.height / 2 - (t.y + line / 2))).toBeLessThanOrEqual(1)  // centred on line one
+    expect(b.x).toBeGreaterThan(t.x + t.width)                                   // still beside it, at the right
+  })
+}
+
 test("a Venue page has a bell for that Venue's alerts", async ({ page }) => {
   await page.goto('venues/2/')
   await expect(page.getByRole('button', { name: /^Get alerts for / })).toBeVisible()
