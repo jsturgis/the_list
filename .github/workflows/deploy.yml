@@ -85,6 +85,7 @@ jobs:
           OLLAMA_BASE_URL: http://localhost:11434
           DRIVE_LATEST_FILE_ID: ${{ vars.DRIVE_LATEST_FILE_ID }}
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
         run: |
           alembic upgrade head
           python -m app.cli ingest

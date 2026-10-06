@@ -15,8 +15,8 @@ removed) in a [public Google Drive folder](https://drive.google.com/drive/folder
 2. **Parses** each show's details (prices, age restrictions, times, and flags: `*` recommended, `$` will
    sell out, etc.)
 3. **Enriches** new venues with Google Maps Places (address, lat/lng, place ID), takes new bands' genres
-   and links from MusicBrainz, the source of truth (the edition's are the fallback; MusicBrainz tags come
-   last for genres), and keeps only image URLs and links that work
+   and links from MusicBrainz and Last.fm, the source of truth (the edition's are used only when every
+   service has nothing), and keeps only image URLs and links that work
 4. **Stores** shows, bands, venues, and acts in SQLite (Alembic-managed schema)
 5. **Indexes** band and show embeddings in FAISS for Similar Bands (Ollama `nomic-embed-text`)
 6. **Exports** the data to static JSON and builds an Astro static site with region, band, venue, genre,
@@ -148,6 +148,7 @@ Set these in `backend/.env` for local runs. The Deploy workflow sets its own (se
 |---|---|
 | `DRIVE_LATEST_FILE_ID` | Drive file id of the public `latest.json` pointer (see Drive setup below) |
 | `GOOGLE_MAPS_API_KEY` | Venue enrichment (address, lat/lng, place ID) |
+| `LASTFM_API_KEY` | Last.fm tags as new bands' genres when MusicBrainz has none (optional; without it Last.fm is skipped) |
 
 ### Paths and services
 
@@ -277,8 +278,8 @@ redirects there.
 - **A failed ingest** fails the run: the `data` branch is left untouched and nothing is deployed.
   GitHub emails you about failed scheduled runs (Settings → Notifications → Actions).
 - **Settings**: Pages source must be **GitHub Actions** (Settings → Pages). The ingest uses the
-  `GOOGLE_MAPS_API_KEY` secret and the `DRIVE_LATEST_FILE_ID` repository variable (Settings → Secrets
-  and variables → Actions). No Anthropic key: ingestion makes no LLM calls.
+  `GOOGLE_MAPS_API_KEY` and `LASTFM_API_KEY` secrets and the `DRIVE_LATEST_FILE_ID` repository variable
+  (Settings → Secrets and variables → Actions). No Anthropic key: ingestion makes no LLM calls.
 - **Updating the data by hand**: commit a new `the_list.db` and `faiss/` to the `data` branch, then run
   the workflow with **Skip ingestion**.
 - **Rolling back**: revert the bad commit on the `data` branch (`git revert <sha>` on a checkout of
@@ -325,7 +326,9 @@ Google Drive (public folder)
             └─ Google Places     → only for venues not yet in the DB
             └─ joint billings    → "Dying Fetus And Sanguisugabogg" becomes two bands, "Belle and Sebastian"
                                    stays one (app/ingestion/joint_bands.py, decided on MusicBrainz)
-            └─ MusicBrainz       → genres and links for new bands (not yet in the DB), over the edition's
+            └─ MusicBrainz       → genres and links for new bands (not yet in the DB), over the edition's;
+                                   genres: MusicBrainz's curated ones, Last.fm's tags (app/ingestion/lastfm.py),
+                                   MusicBrainz's free-form tags, and only then the edition's
                  └─ Wikimedia      → the band's photo on Commons through its Wikidata link, with its credit
                                      (app/ingestion/wikimedia.py), over the edition's photo
             └─ image URL check   → keep, repair (Wikimedia paths) or drop each image URL

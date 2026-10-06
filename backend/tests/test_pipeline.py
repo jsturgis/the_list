@@ -25,7 +25,8 @@ def offline_musicbrainz():
                                                            "soundcloud_url": None, "bandcamp_url": None}), \
          patch("app.scheduler.split_joint_name", side_effect=lambda name: [name]), \
          patch("app.scheduler.save_band_photos", return_value=0), \
-         patch("app.scheduler.commons_photo", return_value=None):  # no downloads or Commons unless a test asks
+         patch("app.scheduler.commons_photo", return_value=None), \
+         patch("app.scheduler.lastfm_tags", return_value=[]):  # no downloads, Commons or Last.fm unless a test asks
         yield
 
 # ── sample data ───────────────────────────────────────────────────────────────
@@ -248,13 +249,51 @@ async def test_pipeline_takes_genres_from_musicbrainz_then_the_edition(mock_batc
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler._enrich_band", side_effect=_musicbrainz)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
-async def test_pipeline_prefers_the_editions_genre_to_musicbrainz_tags(mock_batch, mock_band, mock_venue, mock_fetch, db):
+async def test_pipeline_uses_the_editions_genre_only_when_every_service_has_none(mock_batch, mock_band, mock_venue,
+                                                                                  mock_fetch, db):
     await _run_ingestion_async(db=db)
 
-    # Uniform has only tags on MusicBrainz ("seen live"…): the edition's "Noise Rock" is kept.
-    assert db.query(Band).filter(Band.name == "Uniform").one().genres == ["noise rock"]
-    # Mdou Moctar isn't on MusicBrainz: the edition's genres.
+    # Uniform has only free-form tags on MusicBrainz: they still beat the edition's "Noise Rock".
+    assert db.query(Band).filter(Band.name == "Uniform").one().genres == ["seen live", "noise"]
+    # Mdou Moctar isn't on MusicBrainz or Last.fm: only then the edition's genres.
     assert db.query(Band).filter(Band.name == "Mdou Moctar").one().genres == ["tuareg rock", "psych"]
+
+
+def _musicbrainz_tags_only(name, use_llm=True):
+    found = {
+        "Chat Pile": {**_NOT_ON_MUSICBRAINZ, "genres": ["seen live"], "mbid": "chat-pile-mbid"},  # tags, no genres
+        "Uniform": {**_NOT_ON_MUSICBRAINZ, "genres": ["noise"], "mbid": "uniform-mbid"},
+    }
+    return found.get(name, _NOT_ON_MUSICBRAINZ)
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=(_NO_GENRE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler._enrich_band", side_effect=_musicbrainz_tags_only)
+@patch("app.scheduler.lastfm_tags", side_effect=lambda name, mbid: {"Chat Pile": ["noise rock", "sludge metal"]}.get(name, []))
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_takes_last_fm_tags_when_musicbrainz_has_no_curated_genres(
+        mock_batch, mock_lastfm, mock_band, mock_venue, mock_fetch, db):
+    await _run_ingestion_async(db=db)
+
+    genres = {b.name: b.genres for b in db.query(Band)}
+    assert genres["Chat Pile"] == ["noise rock", "sludge metal"]  # Last.fm's, over MusicBrainz's free-form tags
+    assert genres["Uniform"] == ["noise"]                         # MusicBrainz's tags, over the edition's
+    assert genres["Deafheaven"] == ["blackgaze"]                  # nothing anywhere else: the edition's, last
+    assert genres["Mystery Act"] == []                            # nowhere
+    # Asked for every Band without curated MusicBrainz genres, once each, with the MusicBrainz id.
+    assert sorted(c.args for c in mock_lastfm.call_args_list) == [
+        ("Chat Pile", "chat-pile-mbid"), ("Deafheaven", None), ("Mdou Moctar", None), ("Mystery Act", None),
+        ("Uniform", "uniform-mbid")]
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=(_NO_GENRE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler._enrich_band", side_effect=_musicbrainz_tags_only)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_falls_back_to_musicbrainz_tags_when_last_fm_has_none(mock_batch, mock_band, mock_venue, mock_fetch, db):
+    await _run_ingestion_async(db=db)  # Last.fm stubbed to nothing by default
+    assert db.query(Band).filter(Band.name == "Chat Pile").one().genres == ["seen live"]
 
 
 @patch("app.scheduler.fetch_latest_edition", return_value=(_NO_GENRE_EDITION, _SAMPLE_FETCH[1]))

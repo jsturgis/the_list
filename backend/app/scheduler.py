@@ -20,6 +20,7 @@ from app.ingestion.edition import edition_meta, edition_shows
 from app.ingestion.enriched import merge_enriched
 from app.ingestion.images import check_image_urls
 from app.ingestion.joint_bands import joint_parts, split_joint_acts, split_joint_name
+from app.ingestion.lastfm import lastfm_tags
 from app.ingestion.links import check_links
 from app.ingestion.upsert import find_venue, known_region, upsert_shows
 from app.ingestion.wikimedia import commons_photo
@@ -129,12 +130,14 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
             for name, halves in await loop.run_in_executor(None, split_joint_acts, data, split):
                 logger.info("ingestion: %r is a joint billing: %s", name, " + ".join(halves))
 
-        # New Bands: look them up on MusicBrainz (no LLM), once per name. MusicBrainz is the source of truth;
-        # the edition, whose genres are sometimes guessed from the name (Soulfly as "Soul / Funk / R&B"), is the
-        # fallback. Genres: MusicBrainz's curated genres, else the edition's, else MusicBrainz's free-form tags.
+        # New Bands: look them up on MusicBrainz (no LLM), once per name. The services are the source of truth;
+        # the edition, whose genres are sometimes guessed from the name (Soulfly as "Soul / Funk / R&B"), is used
+        # only when every service has nothing. Genres: MusicBrainz's curated genres, else Last.fm's tags, else
+        # MusicBrainz's free-form tags, else the edition's.
         # Links: each one MusicBrainz has, else the edition's.
         # A Band already in the database was looked up when it was new, so it isn't tried again.
         band_cache: dict[str, dict | None] = {}
+        lastfm_cache: dict[str, list[str]] = {}
         for data in shows_data:
             for i, (name, enrichment) in enumerate(data["band_enrichment"]):
                 if name not in band_cache:
@@ -154,7 +157,14 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                         # The Commons photo wins; the edition's is the fallback if the Commons one doesn't load.
                         links.update(image_url=photo.url, image_credit=photo.credit,
                                      fallback_image_url=enrichment.get("image_url"))
-                    genres = found["genres"] if found["mb_genres"] else (enrichment["genres"] or found["genres"])
+                    # Genres: MusicBrainz's curated ones, else Last.fm's tags (asked only then, once per name), else
+                    # MusicBrainz's free-form tags, and only when every service has none, the edition's.
+                    if found["mb_genres"]:
+                        genres = found["genres"]
+                    else:
+                        if name not in lastfm_cache:
+                            lastfm_cache[name] = await loop.run_in_executor(None, lastfm_tags, name, found.get("mbid"))
+                        genres = lastfm_cache[name] or found["genres"] or enrichment["genres"]
                     data["band_enrichment"][i] = (name, {**enrichment, **links, "genres": genres})
 
         # The edition's image URLs are often broken: keep (or repair) only those that load.

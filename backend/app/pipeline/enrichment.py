@@ -146,7 +146,8 @@ def _enrich_band(name: str, use_llm: bool = True) -> dict:
     """
     artist = _mb_search(name)
     if artist is None:
-        return {"genres": [], "mb_genres": False, "spotify_url": None, "soundcloud_url": None, "bandcamp_url": None,
+        return {"genres": [], "mb_genres": False, "mbid": None, "spotify_url": None, "soundcloud_url": None,
+                "bandcamp_url": None,
                 "website_url": None, "links": []}
 
     full = _mb_lookup(artist["id"])
@@ -179,7 +180,7 @@ def _enrich_band(name: str, use_llm: bool = True) -> dict:
             website_url = target
 
     if not use_llm:
-        return {"genres": genres, "mb_genres": bool(curated), "spotify_url": spotify_url,
+        return {"genres": genres, "mb_genres": bool(curated), "mbid": artist["id"], "spotify_url": spotify_url,
                 "soundcloud_url": soundcloud_url, "bandcamp_url": bandcamp_url, "website_url": website_url,
                 "links": links}
 
@@ -200,6 +201,7 @@ def _enrich_band(name: str, use_llm: bool = True) -> dict:
     return {
         "genres": genres,
         "mb_genres": bool(curated),
+        "mbid": artist["id"],
         "spotify_url": spotify_url,
         "soundcloud_url": soundcloud_url,
         "bandcamp_url": bandcamp_url,
