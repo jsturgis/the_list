@@ -97,6 +97,7 @@ frontend:
 
 ```bash
 docker compose run --rm -v "$PWD/frontend/export:/export" api python -m app.cli export --out /export
+rm -rf frontend/public/images && cp -R data/images frontend/public/images   # Band photos, if any
 cd frontend && npm run dev     # http://localhost:3000/the_list/
 ```
 
@@ -154,6 +155,7 @@ Set these in `backend/.env` for local runs. The Deploy workflow sets its own (se
 |---|---|---|
 | `DATABASE_URL` | `sqlite:///./the_list.db` | SQLite URL; Docker Compose sets `sqlite:////app/data/the_list.db` |
 | `FAISS_INDEX_PATH` | `./data/faiss` | Docker Compose sets `/app/data/faiss` |
+| `IMAGES_PATH` | `./data/images` | Band photos saved at ingest (`bands/<id>-<hash>.webp`); Docker Compose's `data` volume holds them at `/app/data/images` |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | URL of your Ollama instance |
 
 ### Optional
@@ -249,15 +251,16 @@ redirects there.
   (`PAGES_BASE_PATH`, `PAGES_SITE_URL`): `""` and `https://list.sturgis.me` with the domain, `/the_list` and
   `https://jsturgis.github.io/the_list` without it. Local builds default to `/the_list`.
 
-- **The `data` branch** is an orphan branch holding the SQLite database (`the_list.db`) and the FAISS
-  index (`faiss/`). `main` never contains data files. It keeps only its newest 4 commits (the current
+- **The `data` branch** is an orphan branch holding the SQLite database (`the_list.db`), the FAISS
+  index (`faiss/`) and Band photos (`images/`). `main` never contains data files. It keeps only its newest 4 commits (the current
   data plus 3 to roll back to): after each ingest, older history is squashed into the oldest kept
   commit and the branch is force-pushed (`.github/scripts/prune-history.sh`).
 - **The Deploy workflow** (`.github/workflows/deploy.yml`) has three stages:
   1. **Ingest**: runs `python -m app.cli ingest` against the `data` branch's database (with an Ollama
-     service container for embeddings) and commits the changed database and index back to `data`.
+     service container for embeddings) and commits the changed database, index and Band photos back to
+     `data`.
   2. **Build and deploy**: checks out `main` and the `data` branch, runs `python -m app.cli export`,
-     builds the static site and deploys it to Pages.
+     copies `images/` into the site's static files, builds the static site and deploys it to Pages.
   3. **Alerts**: after a successful ingest and deploy only, runs `python -m app.cli alerts`. That emails
      each person whose Saved Filters match Upcoming Shows (see [Weekly Alerts](#weekly-alerts)). It never
      runs on deploy-only runs. If it fails, the site stays deployed and the run shows red.
@@ -325,6 +328,8 @@ Google Drive (public folder)
             └─ MusicBrainz       → genres and links for new bands (not yet in the DB), over the edition's
             └─ image URL check   → keep, repair (Wikimedia paths) or drop each image URL
                  └─ upsert_shows()   → Show, Venue, Band and Act rows
+                      └─ band photos     → download each band photo still at a remote URL, resize to ≤800px
+                                           WebP, save to the images folder (app/ingestion/band_photos.py)
                       └─ embed + index in FAISS
 ```
 

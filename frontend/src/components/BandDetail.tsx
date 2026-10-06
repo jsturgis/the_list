@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { GlobeAltIcon, MapPinIcon, MusicalNoteIcon } from '@heroicons/react/20/solid'
+import { href } from '@/lib/basePath'
 import ActionLinks, { ActionLink } from './ActionLinks'
 import PageHeader from './PageHeader'
 import SocialLinks from './SocialLinks'
@@ -28,7 +29,9 @@ export default function BandDetail({ band, upcomingShows, similarBands, bell }: 
   return (
     <article className="flex flex-col gap-6">
       {band.imageUrl && (
-        <img src={band.imageUrl} alt={band.name} className="w-full max-h-72 object-cover rounded-lg" />
+        // A stored photo is a site path ("/images/bands/…"), served under the base path; others are remote URLs.
+        <img src={band.imageUrl.startsWith('/') ? href(band.imageUrl) : band.imageUrl} alt={band.name}
+             className="w-full max-h-72 object-cover rounded-lg" />
       )}
 
       <PageHeader title={band.name} aside={bell} asideBesideTitle subtitle={band.description ?? undefined}>

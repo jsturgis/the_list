@@ -396,7 +396,7 @@ def test_edition_extra_fields_are_exposed(db, client):
     s = _show(db, v, is_sold_out=True, ticket_provider="ticketweb", is_benefit=True, benefit_cause="food drive",
               special_event="Fest", is_matinee=True)
     b = _band(db, "Local Heroes")
-    b.image_url, b.website_url, b.is_local = "img.jpg", "https://heroes.com", True
+    b.image_url, b.website_url, b.is_local = "https://img.example/heroes.jpg", "https://heroes.com", True
     _act(db, s, b)
 
     data = _gql(client, """{ shows { isSoldOut ticketProvider isBenefit benefitCause specialEvent isMatinee
@@ -407,4 +407,4 @@ def test_edition_extra_fields_are_exposed(db, client):
     assert (show["isSoldOut"], show["ticketProvider"], show["isBenefit"], show["benefitCause"],
             show["specialEvent"], show["isMatinee"]) == (True, "ticketweb", True, "food drive", "Fest", True)
     assert show["venue"] == {"neighborhood": "Mission", "isCashOnly": True, "instagram": "@venue", "isSoberSpace": None}
-    assert show["acts"][0]["band"] == {"imageUrl": "img.jpg", "websiteUrl": "https://heroes.com", "isLocal": True}
+    assert show["acts"][0]["band"] == {"imageUrl": "https://img.example/heroes.jpg", "websiteUrl": "https://heroes.com", "isLocal": True}

@@ -23,7 +23,8 @@ def offline_musicbrainz():
     unless a test patches it."""
     with patch("app.scheduler._enrich_band", return_value={"genres": [], "mb_genres": False, "spotify_url": None,
                                                            "soundcloud_url": None, "bandcamp_url": None}), \
-         patch("app.scheduler.split_joint_name", side_effect=lambda name: [name]):
+         patch("app.scheduler.split_joint_name", side_effect=lambda name: [name]), \
+         patch("app.scheduler.save_band_photos", return_value=0):  # no photo downloads unless a test asks
         yield
 
 # ── sample data ───────────────────────────────────────────────────────────────
@@ -425,6 +426,63 @@ async def test_pipeline_saves_only_images_that_load(mock_batch, mock_images, moc
     assert db.query(Band).filter(Band.name == "Deafheaven").one().image_url == "https://example.com/real-path.jpg"
     assert db.query(Venue).filter(Venue.name == "Bottom of the Hill").one().image_url is None
     assert sorted(mock_images.call_args.args[0]) == ["https://example.com/made-up-venue.jpg", "https://example.com/wrong-path.jpg"]
+
+
+def _photo_client(routes):
+    """httpx.Client stand-in for the photo downloads: canned responses by URL, 404 otherwise."""
+    import httpx
+
+    real = httpx.Client
+    return lambda **kw: real(transport=httpx.MockTransport(lambda req: routes.get(str(req.url), httpx.Response(404))))
+
+
+def _jpeg_bytes():
+    import io
+
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", (1200, 800), (40, 90, 160)).save(buf, "JPEG")
+    return buf.getvalue()
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.check_image_urls", side_effect=lambda urls: {u: u for u in urls})
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_saves_band_photos_with_the_data(mock_batch, mock_images, mock_venue, mock_fetch, db, tmp_path,
+                                                        monkeypatch):
+    import httpx
+
+    from app.ingestion import band_photos
+    monkeypatch.setattr(settings, "images_path", str(tmp_path))
+    monkeypatch.setattr(band_photos.httpx, "Client", _photo_client(
+        {"https://example.com/wrong-path.jpg": httpx.Response(200, content=_jpeg_bytes())}))
+
+    with patch("app.scheduler.save_band_photos", band_photos.save_band_photos):
+        await _run_ingestion_async(db=db)
+
+    deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
+    assert deafheaven.image_url.startswith(f"bands/{deafheaven.id}-") and deafheaven.image_url.endswith(".webp")
+    assert (tmp_path / deafheaven.image_url).is_file()
+    # The Venue's photo isn't downloaded: only Band photos are kept with the data.
+    assert db.query(Venue).filter(Venue.name == "Bottom of the Hill").one().image_url == "https://example.com/made-up-venue.jpg"
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.check_image_urls", side_effect=lambda urls: {u: u for u in urls})
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_drops_a_band_photo_that_cannot_be_downloaded(mock_batch, mock_images, mock_venue, mock_fetch,
+                                                                     db, tmp_path, monkeypatch):
+    from app.ingestion import band_photos
+    monkeypatch.setattr(settings, "images_path", str(tmp_path))
+    monkeypatch.setattr(band_photos.httpx, "Client", _photo_client({}))  # every download 404s
+
+    with patch("app.scheduler.save_band_photos", band_photos.save_band_photos):
+        await _run_ingestion_async(db=db)
+
+    assert db.query(Band).filter(Band.name == "Deafheaven").one().image_url is None
+    assert not any(tmp_path.rglob("*.webp"))
 
 
 @patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)

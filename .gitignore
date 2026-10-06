@@ -27,3 +27,6 @@ frontend/export/
 frontend/e2e/.site/
 frontend/test-results/
 frontend/playwright-report/
+
+# Band photos copied from the data branch (or the e2e fixtures) at build time
+frontend/public/images/

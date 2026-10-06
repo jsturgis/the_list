@@ -14,6 +14,8 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./the_list.db"
     faiss_index_path: str = "./data/faiss"
+    # Band photos, kept with the data (app/ingestion/band_photos.py); on the data branch next to the database.
+    images_path: str = "./data/images"
 
     musicbrainz_app_name: str = "the-list"
     musicbrainz_app_version: str = "0.1"
