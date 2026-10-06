@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { mapsHref, telHref, ticketProviderLabel } from '@/lib/format'
+import { formatDateCompact, mapsHref, telHref, ticketProviderLabel } from '@/lib/format'
+
+describe('formatDateCompact', () => {
+  it('splits a date into weekday and month-day', () => {
+    expect(formatDateCompact('2026-10-03')).toEqual({ weekday: 'Sat', monthDay: 'Oct 3' })
+    expect(formatDateCompact('2026-12-31')).toEqual({ weekday: 'Thu', monthDay: 'Dec 31' })
+  })
+})
 
 describe('ticketProviderLabel', () => {
   it('names the known providers', () => {

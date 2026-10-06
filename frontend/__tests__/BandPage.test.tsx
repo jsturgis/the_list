@@ -78,11 +78,14 @@ describe('BandDetail', () => {
     expect(showLinks.map(l => l.getAttribute('href'))).toEqual(['/shows/1/', '/shows/2/'])
   })
 
-  it('lists upcoming shows as Show rows under date headings, with the Venue', () => {
+  it('lists upcoming shows as Show rows, each with its compact date and the Venue', () => {
     renderBand()
     const region = screen.getByRole('region', { name: 'Upcoming Shows' })
-    expect(within(region).getAllByRole('heading', { level: 3 })).toHaveLength(2)  // one per date
-    const rows = within(region).getAllByRole('heading', { level: 4 })
+    expect([...region.querySelectorAll('time')].map(t => t.textContent)).toEqual(['SatOct 3', 'MonOct 5'])
+    // A real list: one item per Show, each marked with its date for the past-date CSS.
+    const items = within(within(region).getByRole('list')).getAllByRole('listitem')
+    expect(items.map(li => li.getAttribute('data-show-date'))).toEqual(['2026-10-03', '2026-10-05'])
+    const rows = within(region).getAllByRole('heading', { level: 3 })  // no date headings between
     expect(rows.map(h => h.querySelector('a')?.getAttribute('href'))).toEqual(['/shows/1/', '/shows/2/'])
     expect(region).toHaveTextContent('Bottom of the Hill')
   })

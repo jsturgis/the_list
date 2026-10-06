@@ -62,6 +62,15 @@ export function formatDateShort(dateStr: string): string {
   return DATE_SHORT.format(parseDate(dateStr))
 }
 
+const WEEKDAY = new Intl.DateTimeFormat('en-US', { weekday: 'short' })
+const MONTH_DAY = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
+
+/** A Show row's compact date, in two parts: "2026-10-03" -> { weekday: 'Sat', monthDay: 'Oct 3' }. */
+export function formatDateCompact(dateStr: string): { weekday: string; monthDay: string } {
+  const d = parseDate(dateStr)
+  return { weekday: WEEKDAY.format(d), monthDay: MONTH_DAY.format(d) }
+}
+
 export function formatTime(timeStr: string | null): string | null {
   if (!timeStr) return null
   const [h, m] = timeStr.split(':').map(Number)

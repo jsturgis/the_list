@@ -1,35 +1,24 @@
 import Section from './Section'
 import ShowRow from './ShowRow'
-import { formatDateLong } from '@/lib/format'
 import type { Show } from '@/lib/types'
 
 /**
- * A Venue's Upcoming Shows as compact rows grouped by date. Pages are built weekly, so the page's CSS hides dates
- * before today (Bay Area time), and shows "No upcoming shows." when none are left (lib/pastShows).
+ * A Venue's Upcoming Shows as one list of Show rows, each starting with its compact date. Pages are built weekly,
+ * so the page's CSS hides Shows dated before today (Bay Area time), and shows "No upcoming shows." when none are
+ * left (lib/pastShows).
  */
 export default function VenueShowRows({ shows }: { shows: Show[] }) {
-  const byDate = new Map<string, Show[]>()
-  for (const s of shows) byDate.set(s.date, [...(byDate.get(s.date) ?? []), s])
-
+  const sorted = shows.slice().sort((a, b) => a.date.localeCompare(b.date) || (a.doorTime ?? '').localeCompare(b.doorTime ?? ''))
   return (
     <div data-upcoming-shows="">
       {shows.length > 0 && (
         <Section title="Upcoming Shows" headingId="venue-upcoming-shows" plain data-upcoming-shows-list="">
-          <div className="flex flex-col gap-6">
-            {Array.from(byDate.keys()).sort().map(date => (
-              <div key={date} data-show-date={date}>
-                <h3 className="text-xl font-bold text-ink mb-2">
-                  {formatDateLong(date)}
-                </h3>
-                <div className="flex flex-col divide-y divide-line-subtle overflow-hidden rounded-lg bg-surface">
-                  {(byDate.get(date) ?? [])
-                    .slice()
-                    .sort((a, b) => (a.doorTime ?? '').localeCompare(b.doorTime ?? ''))
-                    .map(show => <ShowRow key={show.id} show={show} showVenue={false} headingLevel={4} />)}
-                </div>
-              </div>
+          <ul className="flex flex-col divide-y divide-line-subtle overflow-hidden rounded-lg bg-surface">
+            {sorted.map(show => (
+              // The date on the list item, so the page's CSS hides the whole item once it has passed.
+              <li key={show.id} data-show-date={show.date}><ShowRow show={show} showVenue={false} showDate /></li>
             ))}
-          </div>
+          </ul>
         </Section>
       )}
       {/* Shown by the page's CSS too, when every Show listed has passed (lib/pastShows). */}

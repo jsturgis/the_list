@@ -69,7 +69,7 @@ describe('VenueDetail', () => {
     expect(screen.queryByText(/Usual ages/)).not.toBeInTheDocument()
   })
 
-  it('lists upcoming shows grouped by date, hiding dates before today (Bay Area time)', () => {
+  it('lists upcoming shows, each with its compact date, hiding dates before today (Bay Area time)', () => {
     renderVenue(venue, [
       show(1, '2026-09-30', 'Yesterday Band'), show(2, '2026-10-01', 'Tonight Band'), show(3, '2026-10-04', 'Weekend Band'),
     ])
@@ -77,7 +77,18 @@ describe('VenueDetail', () => {
     expect(within(list).getByText('Tonight Band')).toBeInTheDocument()
     expect(within(list).getByText('Weekend Band')).toBeInTheDocument()
     expect(within(list).getByText('Yesterday Band')).not.toBeVisible()
-    expect(within(list).getByText(/Thursday, October 1/i)).toBeInTheDocument()
+    // Rows are headed by their headliners, with no date headings between them (the past row is hidden).
+    expect(within(list).getAllByRole('heading', { level: 3 }).map(h => h.textContent)).toEqual(['Tonight Band', 'Weekend Band'])
+    const tonight = within(list).getByText('Tonight Band').closest('[data-show-date]')!
+    expect(tonight).toHaveAttribute('data-show-date', '2026-10-01')
+    expect(tonight.querySelector('time')).toHaveAttribute('dateTime', '2026-10-01')
+    expect(tonight.querySelector('time')).toHaveTextContent('ThuOct 1')
+  })
+
+  it('lists About after Upcoming Shows', () => {
+    renderVenue({ ...venue, description: 'All-ages, volunteer-run punk club.' }, [show(3, '2026-10-04', 'Weekend Band')])
+    const sections = screen.getAllByRole('heading', { level: 2 }).map(h => h.textContent)
+    expect(sections.indexOf('About')).toBe(sections.indexOf('Upcoming Shows') + 1)
   })
 
   it('says so when there are no upcoming shows', () => {
