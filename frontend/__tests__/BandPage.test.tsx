@@ -216,6 +216,16 @@ describe('BandDetail', () => {
     expect(screen.getByRole('img', { name: 'Locals' })).toHaveAttribute('src', '/images/bands/6-3f9c2a1b7e.webp')
   })
 
+  it('anchors the cropped photo (banner and circle alike) at its focal point', () => {
+    renderBand(makeBand({ id: 6, name: 'Locals', imageUrl: '/images/bands/6-3f9c2a1b7e.webp', imageFocus: { x: 12.5, y: 0 } }), [])
+    expect(screen.getByRole('img', { name: 'Locals' })).toHaveStyle({ objectPosition: '12.5% 0%' })
+  })
+
+  it('anchors a photo without a focal point a little above centre', () => {
+    renderBand(makeBand({ id: 6, name: 'Locals', imageUrl: '/images/bands/6-3f9c2a1b7e.webp', imageFocus: null }), [])
+    expect(screen.getByRole('img', { name: 'Locals' })).toHaveStyle({ objectPosition: '50% 35%' })
+  })
+
   it('credits a Wikimedia Commons photo under it, linking the licence and the photo page', () => {
     renderBand(makeBand({ id: 6, name: 'Locals', imageUrl: '/images/bands/6-3f9c2a1b7e.webp', imageCredit: {
       source: 'Wikimedia Commons', author: 'S. Bollmann', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0',

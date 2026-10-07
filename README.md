@@ -33,6 +33,7 @@ removed) in a [public Google Drive folder](https://drive.google.com/drive/folder
 | Enrichment | Google Maps Places API, MusicBrainz API; Claude Haiku 4.5 only for the manual venue re-enrichment job |
 | Embeddings | Ollama `nomic-embed-text` (dim=768) |
 | Vector search | FAISS `IndexIDMap(IndexFlatL2)` |
+| Photo focal points | OpenCV's YuNet face detector (`opencv-python-headless`; the model, `face_detection_yunet_2023mar.onnx` from the [OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet), is MIT-licensed and vendored in `backend/app/ingestion/yunet/` with its licence) |
 | Source | Formatted edition JSON on Google Drive (public link, `latest.json` pointer) |
 | Frontend | Astro static site with React islands, Tailwind; Vitest, React Testing Library, MSW, Playwright |
 | Hosting | GitHub Pages, built and deployed by GitHub Actions |
@@ -189,7 +190,7 @@ Set these in `backend/.env` for local runs. The Deploy workflow sets its own (se
 ```
 backend/
   app/
-    cli.py           # python -m app.cli ingest | export | alerts | backfill
+    cli.py           # python -m app.cli ingest | export | alerts | backfill | photo-focus
     scheduler.py     # ingestion pipeline and daily maintenance (run by `cli ingest`)
     export.py        # static JSON export for the frontend
     catalog.py       # filter options, Similar Bands, latest subject (shared by API and export)
@@ -304,6 +305,22 @@ redirects there.
   only genres. A tag in MusicBrainz's genre list (`app/ingestion/genres.txt`) or a known shorthand is kept; any
   other is judged once by the `tev1:0.8b` decision model on Ollama, and the answer is stored in the `genre_tags`
   table. To overrule it, edit that row on the `data` branch (`is_genre`, and `decided_by = 'hand'`).
+- **Photo focal points** (`app/ingestion/photo_focus.py`): each Band photo the ingest or backfill stores gets a
+  focal point (`bands.image_focus`) from the faces in it, and the site crops the photo around it. Photos stored
+  before focal points need one run of `python -m app.cli photo-focus`, which works them out from the files in
+  `images/` (no network; it only looks at Bands without one, commits every 100, and can be run again; `--all`
+  redoes every photo). To run it on the `data` branch, from a checkout of `main`:
+
+  ```bash
+  git fetch origin data
+  git worktree add -B data ../the_list-data origin/data
+  docker compose build api        # the image needs opencv-python-headless
+  docker compose run --rm --no-deps -v "$PWD/../the_list-data:/data" \
+    -e DATABASE_URL=sqlite:////data/the_list.db -e IMAGES_PATH=/data/images \
+    api sh -c "alembic upgrade head && python -m app.cli photo-focus"
+  cd ../the_list-data && git add the_list.db && git commit -m "Focal points for stored Band photos" && git push origin data
+  gh workflow run deploy.yml -f skip_ingest=true
+  ```
 - **Updating the data by hand**: commit a new `the_list.db` and `faiss/` to the `data` branch, then run
   the workflow with **Skip ingestion**.
 - **Rolling back**: revert the bad commit on the `data` branch (`git revert <sha>` on a checkout of
@@ -360,7 +377,8 @@ Google Drive (public folder)
             └─ image URL check   → keep, repair (Wikimedia paths) or drop each image URL
                  └─ upsert_shows()   → Show, Venue, Band and Act rows
                       └─ band photos     → download each band photo still at a remote URL, resize to ≤800px
-                                           WebP, save to the images folder (app/ingestion/band_photos.py)
+                                           WebP, save to the images folder (app/ingestion/band_photos.py),
+                                           with its focal point from the faces in it (photo_focus.py)
                       └─ embed + index in FAISS
 ```
 

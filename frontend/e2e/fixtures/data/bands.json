@@ -9,7 +9,7 @@
     "soundcloudUrl": null,
     "bandcampUrl": null,
     "websiteUrl": "https://neonharbor.example/",
-    "imageUrl": "/images/bands/1-5bcaec467f.webp",
+    "imageUrl": "/images/bands/1-13f8ed7f5b.webp",
     "isLocal": null,
     "description": null,
     "similar": [
@@ -94,7 +94,11 @@
         "name": "Jun Park",
         "active": false
       }
-    ]
+    ],
+    "imageFocus": {
+      "x": 0.5,
+      "y": 0.0
+    }
   },
   {
     "id": 2,
@@ -114,7 +118,8 @@
     ],
     "links": [],
     "imageCredit": null,
-    "members": []
+    "members": [],
+    "imageFocus": null
   },
   {
     "id": 3,
@@ -134,7 +139,8 @@
     ],
     "links": [],
     "imageCredit": null,
-    "members": []
+    "members": [],
+    "imageFocus": null
   },
   {
     "id": 4,
@@ -152,7 +158,8 @@
     "similar": [],
     "links": [],
     "imageCredit": null,
-    "members": []
+    "members": [],
+    "imageFocus": null
   },
   {
     "id": 5,
@@ -170,7 +177,8 @@
     "similar": [],
     "links": [],
     "imageCredit": null,
-    "members": []
+    "members": [],
+    "imageFocus": null
   },
   {
     "id": 6,
@@ -188,7 +196,8 @@
     "similar": [],
     "links": [],
     "imageCredit": null,
-    "members": []
+    "members": [],
+    "imageFocus": null
   },
   {
     "id": 7,
@@ -241,6 +250,10 @@
       "licenseUrl": null,
       "sourceUrl": "https://www.discogs.com/artist/7-Redwood-Sirens"
     },
-    "members": []
+    "members": [],
+    "imageFocus": {
+      "x": 50.0,
+      "y": 35.0
+    }
   }
 ]

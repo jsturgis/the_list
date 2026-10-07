@@ -25,6 +25,12 @@ export interface Venue {
   membershipRequired?: boolean | null
 }
 
+/** A photo's focal point, in percent of its width and height: applied as CSS `object-position: x% y%`. */
+export interface ImageFocus {
+  x: number
+  y: number
+}
+
 /** Where a Band's photo came from, who took it and its licence: shown with the photo. */
 export interface PhotoCredit {
   /** "Wikimedia Commons" or "Discogs". */
@@ -65,6 +71,8 @@ export interface Band {
   imageUrl?: string | null
   /** Set when the photo came from a service (Wikimedia Commons or Discogs); not for the edition's. */
   imageCredit?: PhotoCredit | null
+  /** Where to anchor the photo when it's cropped, from the faces in it; none for a photo not yet looked at. */
+  imageFocus?: ImageFocus | null
   isLocal?: boolean | null
   // From the enriched export
   description?: string | null

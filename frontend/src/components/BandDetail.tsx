@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { MapPinIcon } from '@heroicons/react/20/solid'
 import { href } from '@/lib/basePath'
+import { objectPosition } from '@/lib/photoFocus'
 import ActionLinks from './ActionLinks'
 import BandMembers from './BandMembers'
 import ListeningLink from './ListeningLink'
@@ -62,7 +63,9 @@ function BandPhoto({ band, imageUrl }: { band: Band, imageUrl: string }) {
   return (
     <figure className="contents">
       {/* A stored photo is a site path ("/images/bands/…"), served under the base path; others are remote URLs. */}
+      {/* Both crops (the circle and the banner) are anchored at the photo's focal point, so they keep its faces. */}
       <img src={imageUrl.startsWith('/') ? href(imageUrl) : imageUrl} alt={band.name}
+           style={{ objectPosition: objectPosition(band.imageFocus) }}
            className={`size-16 shrink-0 rounded-full object-cover sm:h-auto sm:max-h-72 sm:w-full sm:basis-full sm:rounded-lg ${band.imageCredit ? '' : 'sm:mb-6'}`} />
       {band.imageCredit && <PhotoCreditLine credit={band.imageCredit} />}
     </figure>

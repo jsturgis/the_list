@@ -8,6 +8,7 @@ import PageHeader from './PageHeader'
 import Section from './Section'
 import VenueShowRows from './VenueShowRows'
 import { REGION_LABELS, mapsHref, telHref } from '@/lib/format'
+import { objectPosition } from '@/lib/photoFocus'
 
 const AGE_POLICY: Record<string, string> = { all_ages: 'All ages', varies: 'Varies by show' }
 
@@ -46,7 +47,9 @@ export default function VenueDetail({ venue, upcomingShows, bell }: VenueDetailP
   return (
     <article className="flex flex-col gap-6">
       {venue.imageUrl && (
-        <img src={venue.imageUrl} alt={venue.name} className="w-full max-h-72 object-cover rounded-lg" />
+        // A Venue's photo is a remote URL from the edition, never looked at for faces: it takes the default anchor.
+        <img src={venue.imageUrl} alt={venue.name} style={{ objectPosition: objectPosition() }}
+             className="w-full max-h-72 object-cover rounded-lg" />
       )}
 
       <PageHeader title={venue.name} aside={bell} asideBesideTitle subtitle={[venue.city, region].filter(Boolean).join(' · ')}>
