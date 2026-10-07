@@ -67,13 +67,52 @@ describe('BandDetail', () => {
 
   it('shows the listening links in the order given: free services, then paid ones', () => {
     renderBand(makeBand({ links: [
-      link('listening', 'spotify', 'Spotify'), link('listening', 'soundcloud', 'SoundCloud'),
+      link('listening', 'spotify', 'Spotify'), link('listening', 'audiomack', 'Audiomack'),
       link('listening', 'apple_music', 'Apple Music', true),
     ] }), [])
-    const buttons = screen.getAllByRole('link').filter(a => /Spotify|SoundCloud|Apple Music/.test(a.textContent ?? ''))
-    expect(buttons.map(a => a.textContent)).toEqual(['Spotify', 'SoundCloud', 'Apple Music'])
-    expect(buttons[0]).toHaveAttribute('href', 'https://spotify.example/the-strokes')
-    expect(buttons[2]).toHaveAttribute('title', 'Apple Music (subscription)')
+    const buttons = screen.getAllByRole('link').filter(a => /Spotify|Audiomack|Apple Music/.test(a.textContent + (a.getAttribute('aria-label') ?? '')))
+    expect(buttons.map(a => a.getAttribute('href'))).toEqual([
+      'https://spotify.example/the-strokes', 'https://audiomack.example/the-strokes', 'https://apple_music.example/the-strokes',
+    ])
+  })
+
+  it('names each logo button "Listen on <service>", marking paid ones, and opens it in a new tab', () => {
+    renderBand(makeBand({ links: [
+      link('listening', 'spotify', 'Spotify'), link('listening', 'youtube_music', 'YouTube Music'),
+      link('listening', 'bandcamp', 'Bandcamp'), link('listening', 'soundcloud', 'SoundCloud'),
+      link('listening', 'deezer', 'Deezer'), link('listening', 'apple_music', 'Apple Music', true),
+      link('listening', 'tidal', 'Tidal', true), link('listening', 'qobuz', 'Qobuz', true),
+    ] }), [])
+    const names = [
+      'Listen on Spotify', 'Listen on YouTube Music', 'Listen on Bandcamp', 'Listen on SoundCloud', 'Listen on Deezer',
+      'Listen on Apple Music (subscription)', 'Listen on Tidal (subscription)', 'Listen on Qobuz (subscription)',
+    ]
+    for (const name of names) {
+      const button = screen.getByRole('link', { name })
+      expect(button).toHaveAttribute('target', '_blank')
+      expect(button).toHaveAttribute('rel', 'noopener noreferrer')
+      expect(button).toHaveAttribute('title', name)  // the tooltip, for a logo without a label
+      expect(button.textContent).toBe('')  // the logo alone
+    }
+    expect(screen.getByRole('link', { name: 'Listen on Tidal (subscription)' })).toHaveAttribute('href', 'https://tidal.example/the-strokes')
+  })
+
+  it("shows Qobuz's black wordmark in light mode and its white one in dark mode", () => {
+    renderBand(makeBand({ links: [link('listening', 'qobuz', 'Qobuz', true)] }), [])
+    const button = screen.getByRole('link', { name: 'Listen on Qobuz (subscription)' })
+    expect(button.querySelector('img')).toHaveAttribute('src', '/icons/qobuz-light.png')
+    const dark = button.querySelector('source')
+    expect(dark).toHaveAttribute('media', '(prefers-color-scheme: dark)')
+    expect(dark).toHaveAttribute('srcset', '/icons/qobuz-dark.png')
+  })
+
+  it('keeps a labelled button for a service without a logo', () => {
+    renderBand(makeBand({ links: [
+      link('listening', 'audiomack', 'Audiomack'), link('listening', 'amazon_music', 'Amazon Music', true),
+    ] }), [])
+    expect(screen.getByRole('link', { name: 'Audiomack' })).toHaveAttribute('href', 'https://audiomack.example/the-strokes')
+    expect(screen.getByRole('link', { name: 'Audiomack' })).toHaveAttribute('target', '_blank')
+    expect(screen.getByRole('link', { name: 'Amazon Music' })).toHaveAttribute('title', 'Amazon Music (subscription)')
   })
 
   it('lists members under Members: current ones, then former ones under "Formerly"', () => {

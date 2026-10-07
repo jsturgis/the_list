@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
-import { GlobeAltIcon, MapPinIcon, MusicalNoteIcon } from '@heroicons/react/20/solid'
+import { GlobeAltIcon, MapPinIcon } from '@heroicons/react/20/solid'
 import { href } from '@/lib/basePath'
 import ActionLinks, { ActionLink } from './ActionLinks'
 import BandMembers from './BandMembers'
+import ListeningLink from './ListeningLink'
 import PageHeader from './PageHeader'
 import SocialLinks from './SocialLinks'
 import type { Band, PhotoCredit, Show } from '@/lib/types'
@@ -15,13 +16,6 @@ interface BandDetailProps {
   similarBands: Band[]
   /** The alert bell (an island the Band page passes in), on the title's line. */
   bell?: ReactNode
-}
-
-// The three services with a brand-coloured button; the rest are outline buttons.
-const BRAND: Record<string, string> = {
-  spotify: 'bg-green-700 hover:bg-green-800 text-white',
-  soundcloud: 'bg-orange-700 hover:bg-orange-800 text-white',
-  bandcamp: 'bg-teal-700 hover:bg-teal-800 text-white',
 }
 
 export default function BandDetail({ band, upcomingShows, similarBands, bell }: BandDetailProps) {
@@ -44,20 +38,9 @@ export default function BandDetail({ band, upcomingShows, similarBands, bell }: 
 
       {(listening.length > 0 || band.websiteUrl) && (
         <ActionLinks>
-          {listening.map(link => (
-            <ActionLink
-              key={link.service}
-              href={link.url}
-              icon={MusicalNoteIcon}
-              external
-              {...(BRAND[link.service] ? { kind: 'custom', className: BRAND[link.service] } : { kind: 'secondary' })}
-              title={link.paid ? `${link.label} (subscription)` : undefined}
-            >
-              {link.label}
-            </ActionLink>
-          ))}
+          {listening.map(link => <ListeningLink key={link.service} link={link} />)}
           {band.websiteUrl && (
-            <ActionLink href={band.websiteUrl} kind="custom" icon={GlobeAltIcon} external className="bg-strong text-on-inverse hover:bg-strong-hover">
+            <ActionLink href={band.websiteUrl} kind="custom" icon={GlobeAltIcon} external className="min-h-11 bg-strong text-on-inverse hover:bg-strong-hover">
               Website
             </ActionLink>
           )}

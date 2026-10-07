@@ -69,6 +69,13 @@ Use these tokens through Tailwind's colour utilities (`bg-surface`, `text-ink-mu
 | `inverse-muted` | Muted text on toasts | `#b3b3b3` | `#666666` |
 | `strong` | The neutral filled button (Website) | `#121212` | `#ffffff` |
 | `strong-hover` | Its hover | `#2a2a2a` | `#e0e0e0` |
+| **Streaming services** | | | |
+| `spotify` | The Spotify logo on its listening button (one shade darker in light mode, for 3:1) | `#189a46` | `#1db954` |
+| `youtube-music` | The YouTube Music logo | `#ff0000` | `#ff0000` |
+| `bandcamp` | The Bandcamp logo | `#408294` | `#408294` |
+| `soundcloud` | The SoundCloud logo | `#ff3300` | `#ff3300` |
+| `deezer` | The Deezer logo | `#a238ff` | `#a238ff` |
+| `apple-music` | The Apple Music logo | `#fa243c` | `#fa243c` |
 | **Status** | | | |
 | `danger` | Cancelled, Sold out, errors | `red-700` | `red-400` |
 | `danger-soft` | Their badge background | `red-100` | `color-mix(in oklab, red-900 40%, transparent)` |
@@ -87,9 +94,10 @@ Use these tokens through Tailwind's colour utilities (`bg-surface`, `text-ink-mu
 - each `-soft` background with its own text token (`danger-soft` with `danger`, …)
 - `accent-soft` with `accent-soft-ink`, and `accent-chip` with `accent-chip-ink`
 
-**Brand colours we don't own:** the Spotify, SoundCloud and Bandcamp buttons on Band pages keep those services' own
-hues, so people recognise them, one shade darker (`green-700`, `orange-700`, `teal-700`) so their white labels pass
-WCAG AA.
+**Brand colours we don't own:** a Band's listening buttons show each streaming service's logo in its own hue, so
+people recognise them: the `spotify`, `youtube-music`, `bandcamp`, `soundcloud`, `deezer` and `apple-music` tokens, each at
+least 3:1 on `surface` and `muted` (Spotify's own green is darker in light mode to get there). Tidal's
+black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black and a white version.
 
 ## 3. Typography Rules
 
@@ -173,8 +181,8 @@ WCAG AA.
 - **Key facts (`FactList`):** a `<dl>` grid, three columns from `sm` and one per line on phones. Each fact has an
   icon and a `text-xs ink-muted` label, over a `text-base font-semibold ink` value (Doors, Price, Ages).
 - **Actions (`ActionLinks`):** a wrapping row of pill links, 14px bold: primary (`bg-accent text-on-accent`, at
-  most one: Tickets), secondary (outline `line-strong`, `ink`), or brand colours for the
-  streaming services. External ones carry an outward-arrow icon.
+  most one: Tickets), or secondary (outline `line-strong`, `ink`). External ones carry an
+  outward-arrow icon. A Band's listening links sit in the same row as logo buttons (below).
 - **Detail pages (Show, Venue, Band):** in order: Back, `PageHeader`, key facts, actions, then `Section`s. A Show
   has Lineup, Venue and Notes; a Venue has Details, Upcoming Shows and About; a Band has Upcoming Shows, Members, Social
   and Similar Bands. Upcoming Shows on Venue and Band pages are one panel of Show list items, each with its compact
@@ -188,21 +196,30 @@ WCAG AA.
   `object-cover`), 8px radius, with the Band's name as its alt text. On phones the same `<img>` is a 64px circle
   (`size-16 rounded-full object-cover`) at the left of the name, 16px from it and centred on the name however many
   lines it wraps to, through `PageHeader`'s `media`; its credit is on its own line under the photo and name. A Band
-  without a photo has no circle; its name sits as on every other page. It's the site's own copy (≤800px WebP, saved at ingest), served
-  under the base path; never hot-linked. A photo from Wikimedia Commons is a `<figure>` whose `<figcaption>` credits
-  it, as its licence requires: "Photo: <author>, <licence>, via Wikimedia Commons" in `text-xs ink-muted`, with the
-  licence and "Wikimedia Commons" (the photo's page) as running-text links. A photo from Discogs reads "Photo via
-  Discogs", linking the artist's Discogs page. The edition's photos have no credit.
+  without a photo has no circle; its name sits as on every other page. It's the site's own copy (≤800px WebP,
+  saved at ingest), served under the base path; never hot-linked. A photo from Wikimedia Commons is a `<figure>`
+  whose `<figcaption>` credits it, as its licence requires: "Photo: <author>, <licence>, via Wikimedia Commons" in
+  `text-xs ink-muted`, with the licence and "Wikimedia Commons" (the photo's page) as running-text links. A photo
+  from Discogs reads "Photo via Discogs", linking the artist's Discogs page. The edition's photos have no credit.
 - **Band members (`BandMembers`):** a **Members** section after Upcoming Shows, from Discogs: current members as a
   wrapping list of `text-sm` semibold `ink` names, then a `text-xs ink-muted` "Formerly" label over a wrapping list
   of past members in `ink-soft`. Each is a real `<ul>`, named "Current members" and "Formerly". Hidden without
   members; a Band that has split up shows only "Formerly".
 - **Band links:** a Band's actions are its listening links, up to 3 free services then up to 3 paid ones,
-  ranked by service in the backend (`app/band_links.py`), then its website. Spotify, SoundCloud and Bandcamp
-  keep their brand-coloured pills; other services are outline pills, and paid ones say "(subscription)" in their
-  title. Its social profiles (Instagram, Facebook, X, TikTok, Bluesky, YouTube) sit in a **Social** section
-  (`SocialLinks`): a wrapping list of bold `ink` links, underlined on hover. No tour-date links (Songkick,
-  Bandsintown) or reference links (Wikipedia, AllMusic, Discogs, Last.fm).
+  ranked by service in the backend (`app/band_links.py`), then its website. On a Band page the whole row is at
+  least 44px tall.
+  - *Logo buttons (`ListeningLink`):* Spotify, YouTube Music, Bandcamp, SoundCloud, Deezer, Apple Music, Tidal and Qobuz show their
+    logo alone: a 24px logo (Simple Icons paths, inline SVG) in its brand token, centred in a round 44×44px
+    outline button (`surface`, `line-strong` border, `muted` on hover). Qobuz's wordmark is wider, so its button is
+    a 44px-tall pill; it's an image (`public/icons/qobuz-light.png`, black, and `qobuz-dark.png`, white, swapped by
+    `prefers-color-scheme` in a `<picture>`). Each button is a link that opens in a new tab, named "Listen on
+    <service>" (with " (subscription)" for paid ones) by `aria-label`, and the same text is its tooltip.
+  - *Other services* (Audiomack, Amazon Music) keep a labelled outline pill with a music-note icon; paid
+    ones say "(subscription)" in their title.
+  - Streaming logos are only ever used on their own service's link.
+  - A Band's social profiles (Instagram, Facebook, X, TikTok, Bluesky, YouTube) sit in a **Social** section
+    (`SocialLinks`): a wrapping list of bold `ink` links, underlined on hover. No tour-date links (Songkick,
+    Bandsintown) or reference links (Wikipedia, AllMusic, Discogs, Last.fm).
 - **Alert bell (`AlertBell`):** on Band and Venue pages, a round 40px icon button at the right of the title's
   line. Off: outline bell, `surface` with a `line-strong` border, `ink-soft`. On: solid ringing bell, `accent-chip` with
   an `accent` border, `link`. Signed in, a press saves or deletes the alert for that Band or Venue (`aria-pressed`)
@@ -269,7 +286,7 @@ list (`shadow-lg`), and toasts.
 - **On phones,** each Show list item stacks: headliner, Venue · city, details, flags, calendar links. The Setup
   Alert panel spans the filter bar's full width instead of hanging off the button. The calendar
   links are labelled buttons, easy to tap.
-- **Touch targets** are at least 36px tall (`h-9` controls). Pills keep their full rounding at every size.
+- **Touch targets** are at least 36px tall (`h-9` controls); a Band's listening links are 44px. Pills keep their full rounding at every size.
 
 ## 9. Agent Prompt Guide
 
