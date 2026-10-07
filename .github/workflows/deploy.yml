@@ -57,12 +57,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /home/runner/.ollama
-          key: ollama-nomic-embed-text-v1
+          key: ollama-nomic-embed-text-tev1-0.8b-v1
 
-      - name: Pull the embedding model
+      - name: Pull the embedding and genre models
         run: |
           until curl -sf http://localhost:11434/api/version > /dev/null; do sleep 2; done
           curl -sf http://localhost:11434/api/pull -d '{"model": "nomic-embed-text", "stream": false}'
+          # The genre model (app/ingestion/genre_filter.py): judges whether a tag outside the vocabulary is a genre.
+          curl -sf http://localhost:11434/api/pull -d '{"model": "tev1:0.8b", "stream": false}'
           # The container writes as root; let the cache step read the files.
           sudo chown -R "$USER" /home/runner/.ollama
 

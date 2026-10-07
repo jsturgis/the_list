@@ -18,6 +18,13 @@ from app.scheduler import _run_ingestion_async, run_daily_maintenance
 
 
 @pytest.fixture(autouse=True)
+def genre_model(no_genre_model):
+    """The genre model, judging the tags here outside the vocabulary: "seen live" isn't a genre, the rest are."""
+    no_genre_model.side_effect = lambda tag: 0.02 if tag == "seen live" else 0.9
+    return no_genre_model
+
+
+@pytest.fixture(autouse=True)
 def offline_musicbrainz():
     """Every new Band is looked up on MusicBrainz at ingest: nobody is found, and no joint billing is split,
     unless a test patches it."""
@@ -255,8 +262,9 @@ async def test_pipeline_uses_the_editions_genre_only_when_every_service_has_none
                                                                                   mock_fetch, db):
     await _run_ingestion_async(db=db)
 
-    # Uniform has only free-form tags on MusicBrainz: they still beat the edition's "Noise Rock".
-    assert db.query(Band).filter(Band.name == "Uniform").one().genres == ["seen live", "noise"]
+    # Uniform has only free-form tags on MusicBrainz: its genres among them still beat the edition's "Noise Rock"
+    # ("seen live" isn't a genre, app/ingestion/genre_filter.py).
+    assert db.query(Band).filter(Band.name == "Uniform").one().genres == ["noise"]
     # Mdou Moctar isn't on MusicBrainz or Last.fm: only then the edition's genres.
     assert db.query(Band).filter(Band.name == "Mdou Moctar").one().genres == ["tuareg rock", "psych"]
 
@@ -295,7 +303,9 @@ async def test_pipeline_takes_last_fm_tags_when_musicbrainz_has_no_curated_genre
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
 async def test_pipeline_falls_back_to_musicbrainz_tags_when_last_fm_has_none(mock_batch, mock_band, mock_venue, mock_fetch, db):
     await _run_ingestion_async(db=db)  # Last.fm stubbed to nothing by default
-    assert db.query(Band).filter(Band.name == "Chat Pile").one().genres == ["seen live"]
+    assert db.query(Band).filter(Band.name == "Uniform").one().genres == ["noise"]
+    # Only the genres among them: Chat Pile's one tag, "seen live", isn't, and the edition has none.
+    assert db.query(Band).filter(Band.name == "Chat Pile").one().genres == []
 
 
 @patch("app.scheduler.fetch_latest_edition", return_value=(_NO_GENRE_EDITION, _SAMPLE_FETCH[1]))
@@ -774,3 +784,15 @@ async def test_pipeline_checks_only_links_it_would_save(mock_batch, mock_venue, 
 
     # Every link is saved now, so nothing is checked again.
     no_link_checks.assert_not_called()
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=(_NO_GENRE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler._enrich_band", side_effect=_musicbrainz_tags_only)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_keeps_tags_unfiltered_when_the_genre_model_is_down(
+        mock_batch, mock_band, mock_venue, mock_fetch, db, genre_model):
+    genre_model.side_effect = None
+    genre_model.return_value = None          # Ollama can't be reached
+    await _run_ingestion_async(db=db)        # the ingest still runs
+    assert db.query(Band).filter(Band.name == "Chat Pile").one().genres == ["seen live"]  # kept, for a recheck

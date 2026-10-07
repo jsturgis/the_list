@@ -11,6 +11,10 @@ class Settings(BaseSettings):
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_embedding_model: str = "nomic-embed-text"
+    # The decision model that judges whether a tag outside the genre vocabulary is a genre (app/ingestion/genre_filter.py),
+    # and the probability from which its answer counts as yes. Needs Ollama 0.35 or later.
+    genre_model: str = "tev1:0.8b"
+    genre_model_threshold: float = 0.5
 
     database_url: str = "sqlite:///./the_list.db"
     faiss_index_path: str = "./data/faiss"

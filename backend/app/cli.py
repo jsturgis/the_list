@@ -49,20 +49,23 @@ def alerts(dry_run: bool, only: str | None) -> None:
         db.close()
 
 
-def backfill(max_minutes: float, limit: int | None) -> None:
+def backfill(max_minutes: float, limit: int | None, recheck: bool = False) -> None:
     """Look existing Bands up on the services until done, out of time or at the limit (see app/ingestion/backfill)."""
-    from app.ingestion.backfill import run_backfill
+    from app.ingestion.backfill import recheck_genres, run_backfill
     from app.ingestion.discogs import discogs_key_problem
+    from app.ingestion.genre_filter import genre_model_problem
     from app.ingestion.lastfm import lastfm_key_problem
 
-    # The lookups treat a missing or rejected key as "nothing found", so the Bands would be marked looked up with
-    # nothing from Last.fm or Discogs and never asked again: check the keys work before looking anything up.
-    problems = [p for p in (lastfm_key_problem(), discogs_key_problem()) if p]
+    # The lookups treat a missing or rejected key as "nothing found", and an unreachable genre model as "not a genre",
+    # so the Bands would be marked looked up without them and never asked again: check all three work first.
+    problems = [p for p in (lastfm_key_problem(), discogs_key_problem(), genre_model_problem()) if p]
     if problems:
         sys.exit("backfill: " + "; ".join(problems))
 
     db = SessionLocal()
     try:
+        if recheck:
+            print(f"backfill: {recheck_genres(db)} bands with tags that aren't genres, to look up again")
         result = asyncio.run(run_backfill(db, settings.images_path, max_minutes=max_minutes, limit=limit))
     finally:
         db.close()
@@ -82,6 +85,8 @@ def main(argv: list[str] | None = None) -> None:
     backfill_cmd = commands.add_parser("backfill", help="look existing Bands up on the services (resumable)")
     backfill_cmd.add_argument("--max-minutes", type=float, default=300, help="stop after this long (default 300)")
     backfill_cmd.add_argument("--limit", type=int, default=None, help="look up at most this many Bands")
+    backfill_cmd.add_argument("--recheck-genres", action="store_true",
+                              help="first mark Bands whose genres hold a tag that isn't one, to look them up again")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -98,7 +103,7 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "alerts":
         alerts(dry_run=args.dry_run, only=args.only)
     elif args.command == "backfill":
-        backfill(max_minutes=args.max_minutes, limit=args.limit)
+        backfill(max_minutes=args.max_minutes, limit=args.limit, recheck=args.recheck_genres)
 
 
 if __name__ == "__main__":

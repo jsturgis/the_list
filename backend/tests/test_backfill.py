@@ -11,12 +11,13 @@ from PIL import Image
 
 from app.clock import local_today
 from app.ingestion import backfill
-from app.ingestion.backfill import pending_bands, run_backfill
+from app.ingestion.backfill import pending_bands, recheck_genres, run_backfill
 from app.ingestion.band_photos import is_stored
 from app.ingestion.discogs import DiscogsArtist
 from app.ingestion.wikimedia import CommonsPhoto
 from app.models.act import Act
 from app.models.band import Band
+from app.models.genre_tag import GenreTag
 from app.models.show import Show
 from app.models.venue import Region, Venue
 
@@ -196,3 +197,51 @@ async def test_a_failed_band_keeps_its_old_photo_file_and_the_new_one_is_removed
     db.refresh(soulfly)
     assert result["failed"] == 1 and soulfly.image_url == "bands/1-old.webp" and old.exists()
     assert [p.name for p in old.parent.iterdir()] == ["1-old.webp"]
+
+
+async def test_tags_that_arent_genres_are_left_out(db, services, no_genre_model):
+    _band(db, "Cross Checked", genres=["hardcore"])
+    db.commit()
+    services.lastfm.return_value = ["youth crew", "seen live", "united states"]
+    no_genre_model.side_effect = lambda tag: {"youth crew": 0.8, "seen live": 0.02, "united states": 0.03}[tag]
+
+    await _run(db, services)
+
+    assert db.query(Band).one().genres == ["youth crew"]
+    assert db.query(GenreTag).count() == 3                 # each judged once, for next time
+
+
+def test_recheck_marks_bands_with_tags_that_arent_genres(db, no_genre_model):
+    no_genre_model.side_effect = lambda tag: {"egg punk": 0.83, "united states": 0.04}[tag]
+    done = datetime(2026, 10, 7)
+    clean = _band(db, "Clean", genres=["punk", "egg punk"], enriched_at=done)
+    places = _band(db, "Places", genres=["punk", "united states"], enriched_at=done)
+    pending = _band(db, "Pending", genres=["seen live"])          # not looked up yet: left alone
+    db.commit()
+
+    assert recheck_genres(db) == 1
+
+    assert clean.enriched_at == done and places.enriched_at is None and pending.enriched_at is None
+    assert db.query(GenreTag).count() == 2
+
+
+async def test_when_the_genre_model_goes_down_bands_are_left_for_the_next_run(db, services, no_genre_model):
+    _band(db, "A"), _band(db, "B")
+    db.commit()
+    services.lastfm.return_value = ["egg punk"]                  # outside the vocabulary: the model is needed
+
+    result = await _run(db, services)
+
+    assert (result["looked_up"], result["failed"], result["remaining"]) == (0, 2, 2)
+    assert no_genre_model.call_count == 1                        # not asked again after it failed
+
+
+async def test_a_rechecked_band_with_only_tags_that_arent_genres_loses_them(db, services, no_genre_model):
+    no_genre_model.side_effect = lambda tag: 0.02
+    band = _band(db, "Tagged", genres=["seen live", "finnish"])  # the services still have nothing better
+    db.commit()
+
+    await _run(db, services)
+
+    db.refresh(band)
+    assert band.genres == [] and band.enriched_at is not None

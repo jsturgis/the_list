@@ -16,6 +16,7 @@ from app.config import settings
 from app.database import SessionLocal
 from app.ingestion.band_photos import save_band_photos
 from app.ingestion.band_sources import photo_candidates, service_genres
+from app.ingestion.genre_filter import GenreFilter
 from app.ingestion.discogs import discogs_artist, discogs_genres
 from app.ingestion.drive import fetch_latest_edition
 from app.ingestion.edition import edition_meta, edition_shows
@@ -141,6 +142,8 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
         # A Band already in the database was looked up when it was new, so it isn't tried again.
         band_cache: dict[str, dict | None] = {}
         genre_cache: dict[str, list[str]] = {}  # each new Band's genres from the services, asked once
+        # Keeps only genres. If the genre model is down, unknown tags are kept this run rather than lost for good.
+        genre_filter = GenreFilter.load(db, keep_unknown=True)
         # For the run's stats: the new Bands that took their genres or links from the edition (app/ingestion/ingest_stats).
         edition_genres: dict[str, list[str]] = {}
         edition_links: dict[str, dict[str, str]] = {}
@@ -172,8 +175,9 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                     # every service has none, the edition's.
                     if name not in genre_cache:
                         genre_cache[name] = await loop.run_in_executor(
-                            None, service_genres, name, found, lastfm_tags, discogs_genres)
-                    genres = genre_cache[name] or enrichment["genres"]
+                            None, service_genres, name, found, lastfm_tags, discogs_genres, genre_filter.keep)
+                    genres = genre_cache[name] or await loop.run_in_executor(
+                        None, genre_filter.keep, enrichment["genres"])
                     # First Show wins, as in the upsert, which only fills a Band's empty fields.
                     if genres and not genre_cache[name]:
                         edition_genres.setdefault(name, genres)
@@ -221,6 +225,7 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
         shows = upsert_shows(db, shows_data)
         run.shows_upserted = len(shows)
         run.shows_new = db.query(Show).count() - shows_before
+        genre_filter.save(db)  # the tags judged this run, kept for next time
         db.commit()
         logger.info("ingestion: upserted %d shows (%d new)", len(shows), run.shows_new)
 

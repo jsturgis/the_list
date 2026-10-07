@@ -55,9 +55,12 @@ docker compose up --build
 
 The API starts at `http://localhost:8000/graphql`. Tables are created automatically on first boot. The SQLite DB and FAISS indices are persisted in `./data/` on the host.
 
-**Pull the Ollama embedding model** (one-time, needed for the full pipeline):
+**Pull the Ollama models** (one-time, needed for the full pipeline): the embedding model, and the genre model that
+judges whether a tag is a genre (`app/ingestion/genre_filter.py`; needs Ollama 0.35 or later, so
+`docker compose pull ollama` first if yours is older):
 ```bash
 docker compose exec ollama ollama pull nomic-embed-text
+docker compose exec ollama ollama pull tev1:0.8b
 ```
 
 **Run an ingest by hand** (maintenance, then the newest edition from Drive; the API server doesn't
@@ -292,9 +295,15 @@ redirects there.
   a run takes the Bands not yet looked up (those on Upcoming Shows first), stops after **max minutes** (default
   300, under the 6-hour job limit) or **limit** Bands, commits to `data` and starts a deploy-only Deploy. Run it
   again until its commit message says none are still to do. Discogs' rate limit (one request a second) sets
-  the pace. It needs `LASTFM_API_KEY` and both Discogs keys, and checks first that Last.fm and Discogs accept them. A service that's
+  the pace. It needs `LASTFM_API_KEY` and both Discogs keys and the genre model, and checks first that Last.fm and
+  Discogs accept the keys and the model answers. Tick **recheck genres** (`--recheck-genres`) to first mark the
+  Bands whose stored genres hold a tag that isn't a genre, so the run looks them up again. A service that's
   down mid-run returns nothing, and those Bands are still marked looked up. Locally (with the keys in `backend/.env`):
   `docker compose exec api python -m app.cli backfill --limit 20`.
+- **Genres are filtered** (`app/ingestion/genre_filter.py`): Last.fm's tags and MusicBrainz's free-form tags keep
+  only genres. A tag in MusicBrainz's genre list (`app/ingestion/genres.txt`) or a known shorthand is kept; any
+  other is judged once by the `tev1:0.8b` decision model on Ollama, and the answer is stored in the `genre_tags`
+  table. To overrule it, edit that row on the `data` branch (`is_genre`, and `decided_by = 'hand'`).
 - **Updating the data by hand**: commit a new `the_list.db` and `faiss/` to the `data` branch, then run
   the workflow with **Skip ingestion**.
 - **Rolling back**: revert the bad commit on the `data` branch (`git revert <sha>` on a checkout of

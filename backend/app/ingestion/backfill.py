@@ -7,6 +7,9 @@ on Upcoming Shows first (they're the ones on the site), and stops at a time budg
 carries on. A Band whose genres change is re-embedded for Similar Bands. One Band's failure is logged and left for
 the next run; it never stops the others.
 
+Genres are filtered to genres (app/ingestion/genre_filter.py) as at ingest; `python -m app.cli backfill
+--recheck-genres` first marks the Bands whose stored genres hold a tag that isn't one, to look them up again.
+
 Run it with `python -m app.cli backfill` (the Backfill workflow does, on the data branch).
 """
 from __future__ import annotations
@@ -25,6 +28,7 @@ from app.clock import local_today
 from app.ingestion.band_photos import _USER_AGENT, is_stored, save_band_photo
 from app.ingestion.band_sources import photo_candidates, service_genres
 from app.ingestion.discogs import discogs_artist, discogs_genres
+from app.ingestion.genre_filter import GenreFilter
 from app.ingestion.lastfm import lastfm_tags
 from app.ingestion.wikimedia import commons_photo
 from app.models.act import Act
@@ -66,7 +70,7 @@ def _photo(band: Band, candidates: list[dict], images_dir: Path, client: httpx.C
     return True
 
 
-def backfill_band(band: Band, images_dir: Path, client: httpx.Client) -> bool:
+def backfill_band(band: Band, images_dir: Path, client: httpx.Client, genre_filter: GenreFilter | None = None) -> bool:
     """Look one Band up on the services and update it; True if its genres changed (it needs re-embedding).
 
     It gets enriched_at unless its service photo couldn't be downloaded right now (it's tried again next run)."""
@@ -75,7 +79,9 @@ def backfill_band(band: Band, images_dir: Path, client: httpx.Client) -> bool:
     found = {**found, "commons_photo": commons_photo(mb_links), "discogs": discogs_artist(band.name, mb_links)}
     artist = found["discogs"]
 
-    genres = service_genres(band.name, found, lastfm_tags, discogs_genres) or band.genres
+    keep = genre_filter.keep if genre_filter else (lambda tags: tags)
+    # What the Band has is the fallback, and only its genres: a Band rechecked for tags that aren't genres loses them.
+    genres = service_genres(band.name, found, lastfm_tags, discogs_genres, keep) or keep(band.genres or [])
     changed = genres != band.genres
     band.genres = genres
     if mb_links:
@@ -95,6 +101,21 @@ def _delete(images_dir: Path, photo: str | None, keep: str | None) -> None:
         (images_dir / photo).unlink(missing_ok=True)
 
 
+def recheck_genres(db: Session) -> int:
+    """Mark for the next backfill every looked-up Band with a genre that isn't one (app/ingestion/genre_filter.py),
+    so it's looked up again with tags filtered. Returns how many were marked. Judges each unknown tag once."""
+    genre_filter = GenreFilter.load(db)
+    marked = 0
+    for band in db.query(Band).filter(Band.enriched_at.is_not(None)).order_by(Band.id):
+        if not all(genre_filter.is_genre(tag) for tag in band.genres or []):
+            band.enriched_at = None
+            marked += 1
+    genre_filter.save(db)
+    db.commit()
+    logger.info("backfill: %d bands have tags that aren't genres; marked to look up again", marked)
+    return marked
+
+
 async def run_backfill(db: Session, images_dir: str | Path, max_minutes: float = 300, limit: int | None = None) -> dict:
     """Backfill pending Bands until done, out of time or at `limit`. Commits after each Band."""
     deadline = time.monotonic() + max_minutes * 60
@@ -102,16 +123,18 @@ async def run_backfill(db: Session, images_dir: str | Path, max_minutes: float =
     loop = asyncio.get_event_loop()
     looked_up = failed = 0
     pending = pending_bands(db)
+    genre_filter = GenreFilter.load(db)
     with httpx.Client(timeout=20, follow_redirects=True, headers={"User-Agent": _USER_AGENT}) as client:
         for band in pending:
             if time.monotonic() >= deadline or (limit is not None and looked_up + failed >= limit):
                 break
             old_photo = band.image_url
             try:
-                changed = await loop.run_in_executor(None, backfill_band, band, images_dir, client)
+                changed = await loop.run_in_executor(None, backfill_band, band, images_dir, client, genre_filter)
                 new_photo = band.image_url
                 if changed:
                     await embed_and_index_band(db, band)
+                genre_filter.save(db)
                 db.commit()
                 looked_up += 1
                 _delete(images_dir, old_photo, keep=new_photo)    # the photo it replaced, now nothing points at it
