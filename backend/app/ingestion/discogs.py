@@ -149,3 +149,27 @@ def discogs_genres(artist_id: int, client: httpx.Client | None = None,
     finally:
         if own_client:
             client.close()
+
+
+def discogs_key_problem(key: str | None = None, secret: str | None = None,
+                        client: httpx.Client | None = None) -> str | None:
+    """Why Discogs won't take the consumer key and secret (missing or rejected), or None when it does. Like
+    lastfm_key_problem: the lookups treat a rejected key as no match, so a long run checks first."""
+    creds = _credentials(key, secret)
+    if creds is None:
+        return "DISCOGS_CONSUMER_KEY and DISCOGS_CONSUMER_SECRET aren't both set"
+    own_client = client is None
+    if client is not None:
+        client.headers.update({"User-Agent": _USER_AGENT, "Authorization": f"Discogs key={creds[0]}, secret={creds[1]}"})
+    client = client or _client(*creds)
+    try:
+        response = client.get(f"{_API}/database/search", params={"type": "artist", "q": "Cher", "per_page": 1})
+        if response.status_code in (401, 403):
+            return f"Discogs rejected DISCOGS_CONSUMER_KEY/SECRET ({response.status_code}: {response.text[:200]})"
+        response.raise_for_status()
+        return None
+    except Exception as e:
+        return f"couldn't check the Discogs keys with Discogs: {e}"
+    finally:
+        if own_client:
+            client.close()

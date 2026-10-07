@@ -5,7 +5,7 @@ import httpx
 import pytest
 
 from app.ingestion import discogs
-from app.ingestion.discogs import discogs_artist, discogs_genres
+from app.ingestion.discogs import discogs_artist, discogs_genres, discogs_key_problem
 
 _API = "https://api.discogs.com"
 _LINKS = [{"type": "discogs", "url": "https://www.discogs.com/artist/252431-Dying-Fetus"}]
@@ -114,3 +114,11 @@ def test_genres_are_empty_on_errors_or_without_masters():
     assert discogs_genres(252431, client=_client({}), **_CREDS) == []
     assert discogs_genres(252431, client=_client({"/artists/252431/releases": {"releases": []}}), **_CREDS) == []
     assert discogs_genres(252431, client=_client({}, fail=True), **_CREDS) == []
+
+
+def test_the_key_check_reports_rejected_or_missing_keys():
+    rejected = httpx.Client(transport=httpx.MockTransport(
+        lambda r: httpx.Response(401, json={"message": "Invalid consumer key/secret."})))
+    assert "401" in discogs_key_problem(client=rejected, **_CREDS)
+    assert discogs_key_problem(client=_client({"/database/search": {"results": []}}), **_CREDS) is None
+    assert "aren't both set" in discogs_key_problem(key="", secret="")

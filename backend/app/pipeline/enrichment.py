@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import socket
 import time as _time
 from functools import lru_cache
 from typing import Optional
@@ -22,6 +23,9 @@ musicbrainzngs.set_useragent(
     settings.musicbrainz_contact,
 )
 musicbrainzngs.set_rate_limit(True)
+# musicbrainzngs opens its requests with no timeout of its own (it takes the socket default, none), so one
+# MusicBrainz request that stops answering would hang a run for good. httpx clients set their own, unaffected.
+socket.setdefaulttimeout(30)
 
 _PLACES_FIELD_MASK = "places.formattedAddress,places.addressComponents,places.location,places.websiteUri,places.id,places.nationalPhoneNumber,places.rating,places.utcOffsetMinutes"
 _WIKI_HEADERS = {"User-Agent": "the-list/1.0 (https://github.com/jsturgis/the_list) python-httpx"}

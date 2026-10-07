@@ -68,3 +68,26 @@ def lastfm_tags(name: str, mbid: str | None, api_key: str | None = None, client:
     finally:
         if own_client:
             client.close()
+
+
+def lastfm_key_problem(api_key: str | None = None, client: httpx.Client | None = None) -> str | None:
+    """Why Last.fm won't take the API key (missing, invalid, suspended), or None when it does. lastfm_tags turns a
+    rejected key into no tags like any failure, so a long run checks first rather than missing every Band's tags."""
+    api_key = api_key if api_key is not None else settings.lastfm_api_key
+    if not api_key:
+        return "LASTFM_API_KEY isn't set"
+    own_client = client is None
+    client = client or httpx.Client(timeout=20, headers={"User-Agent": _USER_AGENT})
+    try:
+        response = client.get(_API, params={"method": "artist.getinfo", "api_key": api_key, "format": "json",
+                                            "artist": "Cher"})
+        data = response.json()
+        if "error" in data and data["error"] != _NOT_FOUND:
+            return f"Last.fm rejected LASTFM_API_KEY (error {data['error']}: {data.get('message')})"
+        response.raise_for_status()
+        return None
+    except Exception as e:
+        return f"couldn't check LASTFM_API_KEY with Last.fm: {e}"
+    finally:
+        if own_client:
+            client.close()

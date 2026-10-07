@@ -612,3 +612,10 @@ def test_mb_genres_reads_the_web_service_most_votes_first():
 def test_mb_genres_is_empty_when_the_web_service_fails():
     with patch("app.pipeline.enrichment.httpx.get", side_effect=Exception("down")), patch("app.pipeline.enrichment._time.sleep"):
         assert _real_mb_genres("mbid-1") == []
+
+
+def test_musicbrainz_requests_cant_hang_forever():
+    import socket
+
+    import app.pipeline.enrichment  # noqa: F401  (sets the default when imported)
+    assert socket.getdefaulttimeout() == 30

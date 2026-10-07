@@ -74,6 +74,8 @@ jobs:
         run: pip install -r backend/requirements.txt
 
       - name: Backfill
+        # A step timeout (unlike the job's) fails just this step, so the Bands looked up so far are still committed.
+        timeout-minutes: 330
         working-directory: backend
         env:
           DATABASE_URL: sqlite:///${{ github.workspace }}/data/the_list.db
