@@ -16,7 +16,7 @@ from app.clock import local_today
 from app.embeddings.search import find_similar_shows
 from app.fuzzy_search import matches_search
 from app.graphql.types import (
-    ActType, BandLinkType, BandMemberType, BandType, FilterOptionsType, PhotoCreditType, IngestionRunType, ShowFilters, ShowType, VenueType,
+    ActType, BandLinkType, BandMemberType, BandType, FilterOptionsType, ImageFocusType, PhotoCreditType, IngestionRunType, ShowFilters, ShowType, VenueType,
 )
 from app.models.act import Act
 from app.models.band import Band
@@ -67,6 +67,7 @@ def _band(b: Band) -> BandType:
         image_url=site_path(b.image_url),
         # Credits saved before photos could come from Discogs are all Wikimedia Commons ones.
         image_credit=PhotoCreditType(**{"source": "Wikimedia Commons", **b.image_credit}) if b.image_credit else None,
+        image_focus=ImageFocusType(x=b.image_focus["x"], y=b.image_focus["y"]) if b.image_focus else None,
         is_local=b.is_local,
         description=b.description,
         links=[BandLinkType(**dataclasses.asdict(link)) for link in band_links(

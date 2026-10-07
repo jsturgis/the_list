@@ -55,14 +55,14 @@ def _photo(band: Band, candidates: list[dict], images_dir: Path, client: httpx.C
     ingest). False when a service photo couldn't be downloaded right now: the Band is left to try again next run.
 
     A stored photo it replaces isn't deleted here; the caller deletes it once the Band is committed."""
-    had = band.image_url, band.image_credit
+    had = band.image_url, band.image_credit, band.image_focus
     for candidate in candidates:
         # Pointed at the candidate, the Band loses it only if it's gone (as at ingest), so a temporary failure shows.
         band.image_url, band.image_credit = candidate["url"], candidate["credit"]
         if save_band_photo(band, candidate["url"], images_dir, client):
             return True
         retry = band.image_url is not None
-        band.image_url, band.image_credit = had
+        band.image_url, band.image_credit, band.image_focus = had  # the photo first: setting it clears the focus
         if retry:
             return False
     if band.image_url and not is_stored(band.image_url):

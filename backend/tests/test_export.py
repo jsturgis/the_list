@@ -60,7 +60,7 @@ def data(db):
                              {"type": "social network", "url": "https://www.instagram.com/headliner/"}])
     support = _band(db, "Support", genres=["noise"], image_url="bands/2-3f9c2a1b7e.webp", image_credit={
         "author": "S. Bollmann", "license": "CC BY-SA 4.0", "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
-        "source_url": "https://commons.wikimedia.org/wiki/File:Support.jpg"})
+        "source_url": "https://commons.wikimedia.org/wiki/File:Support.jpg"}, image_focus={"x": 18.5, "y": 0.0})
     past_band = _band(db, "Past Band")
     similar_unexported = _band(db, "Not Playing", embedding=VEC)
     tonight = _show(db, fillmore, 0, [headliner, support], door_time=time(20), price_min=15.0, price_max=20.0,
@@ -122,6 +122,9 @@ def test_venue_and_band_fields(exported, data):
         "source": "Wikimedia Commons", "author": "S. Bollmann", "license": "CC BY-SA 4.0", "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
         "sourceUrl": "https://commons.wikimedia.org/wiki/File:Support.jpg"}
     assert headliner["imageCredit"] is None  # no Commons photo
+    # Where the site anchors the photo when it crops it (object-position); none without a stored photo.
+    assert support["imageFocus"] == {"x": 18.5, "y": 0.0}
+    assert headliner["imageFocus"] is None
     assert headliner["members"] == [{"name": "Ana", "active": True}, {"name": "Bo", "active": False}]
     assert support["members"] == []
     # Links are exported grouped and ranked, camelCased like the rest.

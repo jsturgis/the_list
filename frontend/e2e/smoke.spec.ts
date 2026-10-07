@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs'
 import type { Page } from '@playwright/test'
+import type { Band } from '../src/lib/types'
 import { expect, test } from './fixtures'
 
 // Smoke tests of the static site built from e2e/fixtures/data, with "today" frozen at 2026-10-01.
@@ -217,6 +219,21 @@ test("on desktop a Band's photo spans the column above its name, credited under 
   expect(c.y + c.height).toBeLessThan(t.y)
   expect(await photo.evaluate(img => getComputedStyle(img).borderTopLeftRadius)).toBe('8px')
 })
+
+// Neon Harbor's fixture photo has its face at the top left, which a centred crop cuts off.
+const neonHarbor = (JSON.parse(readFileSync('e2e/fixtures/data/bands.json', 'utf8')) as Band[])  // run from frontend/
+  .find(b => b.id === 1)!
+for (const [device, width] of [['desktop banner', 1280], ['phone circle', 375]] as const) {
+  test(`a Band's photo is cropped around its focal point (${device})`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 })
+    await page.goto('bands/1/')
+    const photo = page.getByRole('img', { name: 'Neon Harbor' })
+    const { x, y } = neonHarbor.imageFocus!
+    expect([x, y]).toEqual([0.5, 0])
+    expect(await photo.evaluate(img => getComputedStyle(img).objectFit)).toBe('cover')
+    expect(await photo.evaluate(img => getComputedStyle(img).objectPosition)).toBe(`${x}% ${y}%`)
+  })
+}
 
 for (const scheme of ['light', 'dark'] as const) {
   test(`a Band's listening links are logo buttons, 44px or more, that fit a phone (${scheme})`, async ({ page }) => {

@@ -4,8 +4,9 @@ import json
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import Boolean, DateTime, LargeBinary, String, Text, TypeDecorator, func
+from sqlalchemy import Boolean, DateTime, LargeBinary, String, Text, TypeDecorator, event, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm.base import NEVER_SET, NO_VALUE
 
 from app.database import Base
 
@@ -49,6 +50,10 @@ class Band(Base):
     # license_url, source_url}; None for the edition's photos. The site shows it with the photo. Credits saved
     # before photos could come from Discogs have no source: they're Wikimedia Commons ones.
     image_credit: Mapped[Optional[dict]] = mapped_column(JSONDict)
+    # Where to anchor the stored photo when the site crops it: {"x", "y"} in percent, applied as CSS object-position
+    # (app/ingestion/photo_focus.py). Set when a photo is stored; None for a remote or no photo, or one stored before
+    # focal points (python -m app.cli photo-focus fills those in). It goes with its photo: see _photo_changed.
+    image_focus: Mapped[Optional[dict]] = mapped_column(JSONDict)
     is_local: Mapped[Optional[bool]] = mapped_column(Boolean)
     # From the enriched export: what the Band is ("Bilingual metal band from Fairfield ...")
     description: Mapped[Optional[str]] = mapped_column(Text)
@@ -65,3 +70,11 @@ class Band(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
     acts: Mapped[List["Act"]] = relationship(back_populates="band")
+
+
+@event.listens_for(Band.image_url, "set", active_history=True)
+def _photo_changed(band: Band, value, old, initiator) -> None:
+    """A focal point belongs to its photo: a changed or cleared photo loses it (save_band_photo sets the new one).
+    Setting a new Band's photo, before it has one, leaves the focal point it's given alone."""
+    if old not in (NO_VALUE, NEVER_SET) and value != old:
+        band.image_focus = None

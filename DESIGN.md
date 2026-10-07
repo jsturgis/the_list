@@ -199,7 +199,13 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
   (`size-16 rounded-full object-cover`) at the left of the name, 16px from it and centred on the name however many
   lines it wraps to, through `PageHeader`'s `media`; its credit is on its own line under the photo and name. A Band
   without a photo has no circle; its name sits as on every other page. It's the site's own copy (≤800px WebP,
-  saved at ingest), served under the base path; never hot-linked. A photo from Wikimedia Commons is a `<figure>`
+  saved at ingest), served under the base path; never hot-linked. Both crops are anchored at the photo's focal
+  point (`imageFocus`), an inline `object-position: x% y%`: worked out at ingest from the faces in it
+  (`backend/app/ingestion/photo_focus.py`), so the circle and the banner keep faces whole rather than cutting
+  them off at the centre. A photo without one (no face, or not looked at yet) is anchored at `50% 35%`: centred
+  across, a little above the middle, where heads tend to be (`src/lib/photoFocus.ts`). A Venue's photo, a remote
+  URL never looked at, takes the same default. If the banner's or circle's size changes, update the crop sizes in
+  `photo_focus.py` (`BANNER_ASPECT`) too. A photo from Wikimedia Commons is a `<figure>`
   whose `<figcaption>` credits it, as its licence requires: "Photo: <author>, <licence>, via Wikimedia Commons" in
   `text-xs ink-muted`, with the licence and "Wikimedia Commons" (the photo's page) as running-text links. A photo
   from Discogs reads "Photo via Discogs", linking the artist's Discogs page. The edition's photos have no credit.

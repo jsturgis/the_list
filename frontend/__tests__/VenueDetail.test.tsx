@@ -45,6 +45,11 @@ describe('VenueDetail', () => {
     expect(screen.getByRole('img', { name: 'The Catalyst' })).toHaveAttribute('src', 'https://example.com/catalyst.jpg')
   })
 
+  it('anchors the cropped photo a little above centre (Venue photos have no focal point)', () => {
+    renderVenue()
+    expect(screen.getByRole('img', { name: 'The Catalyst' })).toHaveStyle({ objectPosition: '50% 35%' })
+  })
+
   it('shows the usual age policy', () => {
     renderVenue()
     expect(screen.getByText(/Varies by show/)).toBeInTheDocument()
