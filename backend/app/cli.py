@@ -6,6 +6,8 @@
     python -m app.cli alerts --dry-run                    # print them instead
     python -m app.cli alerts --only me@example.com        # send only to one person (a test)
     python -m app.cli backfill --max-minutes 300          # look existing Bands up on the services (resumable)
+    python -m app.cli photo-focus                         # focal points for stored Band photos without one
+    python -m app.cli photo-focus --all                   # ... or for every stored Band photo
 """
 from __future__ import annotations
 
@@ -73,6 +75,19 @@ def backfill(max_minutes: float, limit: int | None, recheck: bool = False) -> No
           f"{result['remaining']} still to do")
 
 
+def photo_focus(recompute: bool) -> None:
+    """Work out the focal point of stored Band photos from the files in the images folder (no network)."""
+    from app.ingestion.band_photos import fill_photo_focus
+
+    db = SessionLocal()
+    try:
+        counts = fill_photo_focus(db, settings.images_path, recompute=recompute)
+    finally:
+        db.close()
+    print(f"photo-focus: {counts['bands']} bands ({counts['with_faces']} photos with faces, {counts['faces']} faces); "
+          f"{counts['skipped']} skipped (photo missing or unreadable)")
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -87,6 +102,8 @@ def main(argv: list[str] | None = None) -> None:
     backfill_cmd.add_argument("--limit", type=int, default=None, help="look up at most this many Bands")
     backfill_cmd.add_argument("--recheck-genres", action="store_true",
                               help="first mark Bands whose genres hold a tag that isn't one, to look them up again")
+    focus_cmd = commands.add_parser("photo-focus", help="work out the focal point of stored Band photos (no network)")
+    focus_cmd.add_argument("--all", action="store_true", help="every stored photo, not only those without a focal point")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -104,6 +121,8 @@ def main(argv: list[str] | None = None) -> None:
         alerts(dry_run=args.dry_run, only=args.only)
     elif args.command == "backfill":
         backfill(max_minutes=args.max_minutes, limit=args.limit, recheck=args.recheck_genres)
+    elif args.command == "photo-focus":
+        photo_focus(recompute=args.all)
 
 
 if __name__ == "__main__":

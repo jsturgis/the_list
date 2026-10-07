@@ -2,13 +2,17 @@
 from __future__ import annotations
 
 import io
+from pathlib import Path
 
 import httpx
 import pytest
 from PIL import Image
 
 from app.ingestion.band_photos import MAX_WIDTH, is_stored, save_band_photo, site_path
+from app.ingestion.photo_focus import DEFAULT
 from app.models.band import Band
+
+FACE = Path(__file__).parent / "fixtures" / "face.jpg"  # NASA's astronaut photo, public domain (test_photo_focus.py)
 
 
 def _jpeg(width=1600, height=900, color=(200, 30, 30)) -> bytes:
@@ -229,3 +233,70 @@ def test_a_gone_photo_falls_back_down_the_list_with_each_ones_credit(tmp_path, m
     routes[edition] = httpx.Response(200, content=_jpeg(color=(9, 9, 9)))
     assert band_photos.save_band_photos([band2], tmp_path, fallbacks={band2.name: fallbacks[band.name]}) == 1
     assert is_stored(band2.image_url) and band2.image_credit is None             # the edition's, uncredited
+
+
+# The focal point (app/ingestion/photo_focus.py) goes with the photo
+
+def _face_photo(left: int) -> bytes:
+    """A wide photo with a real face (tests/fixtures/face.jpg) pasted `left` pixels in."""
+    canvas = Image.new("RGB", (1600, 900), (40, 40, 60))
+    with Image.open(FACE) as face:
+        canvas.paste(face.convert("RGB").resize((320, 320)), (left, 80))
+    buf = io.BytesIO()
+    canvas.save(buf, "JPEG")
+    return buf.getvalue()
+
+
+def test_a_stored_photo_gets_its_focal_point(tmp_path):
+    url = "https://img.example/singer.jpg"
+    band = _band(image_url=url)
+    save_band_photo(band, url, tmp_path, _client({url: httpx.Response(200, content=_face_photo(0))}))
+    assert band.image_focus["x"] < 20 and band.image_focus["y"] < 25   # the face, top left
+
+    plain = _band(8)
+    save_band_photo(plain, url, tmp_path, _client({url: httpx.Response(200, content=_jpeg())}))
+    assert plain.image_focus == DEFAULT                                 # no face
+
+
+def test_a_new_photo_brings_its_own_focal_point(tmp_path):
+    left, right = "https://img.example/left.jpg", "https://img.example/right.jpg"
+    client = _client({left: httpx.Response(200, content=_face_photo(0)),
+                      right: httpx.Response(200, content=_face_photo(1280))})
+    band = _band()
+    save_band_photo(band, left, tmp_path, client)
+    assert band.image_focus["x"] < 20
+    save_band_photo(band, right, tmp_path, client)
+    assert band.image_focus["x"] > 80
+
+
+def test_a_photo_that_goes_takes_its_focal_point_with_it(tmp_path):
+    url = "https://img.example/gone.jpg"
+    band = Band(id=7, name="Redwood Sirens", image_url=url, image_focus={"x": 10.0, "y": 20.0})
+    save_band_photo(band, url, tmp_path, _client({url: httpx.Response(404)}))
+    assert band.image_url is None and band.image_focus is None
+
+
+def test_a_failed_focal_point_doesnt_lose_the_photo(tmp_path, monkeypatch):
+    from app.ingestion import band_photos
+    monkeypatch.setattr(band_photos, "photo_focus_of", lambda data: (_ for _ in ()).throw(RuntimeError("cv2")))
+    url = "https://img.example/x.jpg"
+    band = _band()
+    assert save_band_photo(band, url, tmp_path, _client({url: httpx.Response(200, content=_jpeg())})) is True
+    assert is_stored(band.image_url) and band.image_focus is None   # the photo-focus command tries again
+
+
+def test_changing_or_clearing_a_saved_bands_photo_clears_its_focal_point(db):
+    band = Band(name="Saved", genres=[], image_url="bands/1-a.webp", image_focus={"x": 10.0, "y": 20.0})
+    db.add(band)
+    db.commit()
+    band.image_url = "bands/1-a.webp"                      # the same photo: kept
+    assert band.image_focus == {"x": 10.0, "y": 20.0}
+    db.commit()
+    band.image_url = "bands/1-b.webp"                      # after a commit, not loaded yet: still noticed
+    assert band.image_focus is None
+    band.image_focus = {"x": 1.0, "y": 2.0}
+    db.commit()
+    band.image_url = None
+    db.commit()
+    db.refresh(band)
+    assert band.image_focus is None

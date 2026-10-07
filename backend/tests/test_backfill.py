@@ -129,6 +129,23 @@ async def test_a_commons_photo_replaces_the_old_stored_one(db, services):
     assert not old.exists()
 
 
+async def test_a_new_photo_gets_its_focal_point_and_a_failed_one_keeps_the_old(db, services):
+    replaced = _band(db, "Soulfly", image_url="bands/1-old.webp", image_focus={"x": 10.0, "y": 20.0})
+    kept = _band(db, "Kept", image_url="bands/2-old.webp", image_focus={"x": 30.0, "y": 40.0})
+    db.commit()
+    services.mb.side_effect = lambda name, use_llm=True: {**_not_on_musicbrainz(name), "links": [{"type": "x", "url": name}]}
+    # Soulfly's Commons photo downloads (a plain one: no face); Kept's is gone, so it keeps what it had.
+    services.routes[_COMMONS.url] = httpx.Response(200, content=_jpeg())
+    services.commons.side_effect = lambda links: _COMMONS if links[0]["url"] == "Soulfly" else CommonsPhoto(
+        "https://upload.wikimedia.org/gone.jpg", _COMMONS.credit)
+
+    await _run(db, services)
+
+    db.refresh(replaced), db.refresh(kept)
+    assert replaced.image_url != "bands/1-old.webp" and replaced.image_focus == {"x": 50.0, "y": 35.0}
+    assert kept.image_url == "bands/2-old.webp" and kept.image_focus == {"x": 30.0, "y": 40.0}
+
+
 async def test_when_every_service_photo_fails_the_band_keeps_its_photo(db, services):
     soulfly = _band(db, "Soulfly", image_url="https://edition.example/soulfly.jpg")
     db.commit()

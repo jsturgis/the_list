@@ -3,7 +3,9 @@ folder on the data branch (settings.images_path), so the site serves its own cop
 
 A stored photo is named by Band id and a short hash of its content ("bands/728-3f9c2a1b7e.webp"), so a changed
 photo gets a new name and caches never show a stale one. The Band's image_url holds that path, relative to the
-images folder; site_path() turns it into the site's URL. A replaced photo's old file is deleted.
+images folder; site_path() turns it into the site's URL. A replaced photo's old file is deleted. A stored photo
+gets its focal point (image_focus, app/ingestion/photo_focus.py), from the faces in it, so the site crops around
+them; a photo that changes or goes takes its focal point with it.
 
 A photo that's gone (404/410), isn't an image, or is too big counts as none. A temporary failure (rate limit,
 server error, timeout) keeps the remote URL, so the next ingest tries again.
@@ -17,7 +19,9 @@ from pathlib import Path
 
 import httpx
 from PIL import Image, ImageOps, UnidentifiedImageError
+from sqlalchemy.orm import Session
 
+from app.ingestion.photo_focus import detect_faces, focus_for, photo_focus_of
 from app.models.band import Band
 
 logger = logging.getLogger(__name__)
@@ -55,6 +59,15 @@ def _webp(data: bytes) -> bytes | None:
             img.save(out, "WEBP", quality=_QUALITY, method=6)
             return out.getvalue()
     except (UnidentifiedImageError, Image.DecompressionBombError, OSError, ValueError):
+        return None
+
+
+def _focus(data: bytes, band: Band) -> dict | None:
+    """The stored photo's focal point; None if it can't be worked out (python -m app.cli photo-focus tries again)."""
+    try:
+        return photo_focus_of(data)
+    except Exception:
+        logger.warning("band photos: couldn't find the focal point of %s's photo", band.name, exc_info=True)
         return None
 
 
@@ -100,6 +113,7 @@ def save_band_photo(band: Band, url: str, images_dir: str | Path, client: httpx.
     (images_dir / relative).write_bytes(data)
     old = band.image_url
     band.image_url = relative
+    band.image_focus = _focus(data, band)
     if is_stored(old) and old != relative:
         (images_dir / old).unlink(missing_ok=True)
     return True
@@ -133,3 +147,36 @@ def save_band_photos(bands: list[Band], images_dir: str | Path, fallbacks: dict[
             except Exception:
                 logger.warning("band photos: skipped %s", band.name, exc_info=True)
     return stored
+
+
+def fill_photo_focus(db: Session, images_dir: str | Path, recompute: bool = False, batch_size: int = 100) -> dict[str, int]:
+    """Give every Band with a stored photo and no focal point its focal point, from its file in the images folder
+    (`recompute`: every Band with a stored photo). No network. The same photo always gets the same point, so running
+    it again changes nothing; it commits every `batch_size` Bands, so a stopped run keeps what it did.
+
+    Returns how many Bands it gave a focal point, how many of those photos have faces and how many faces in all, and
+    how many it skipped because the photo's file is missing or unreadable (they're left without one)."""
+    images_dir = Path(images_dir)
+    query = db.query(Band).filter(Band.image_url.is_not(None))
+    if not recompute:
+        query = query.filter(Band.image_focus.is_(None))
+    bands = [b for b in query.order_by(Band.id) if is_stored(b.image_url)]
+    counts = {"bands": 0, "with_faces": 0, "faces": 0, "skipped": 0}
+    for done, band in enumerate(bands, 1):
+        try:
+            with Image.open(images_dir / band.image_url) as image:
+                image.load()
+                faces = detect_faces(image)
+                band.image_focus = focus_for(faces, image.width, image.height)
+        except (OSError, UnidentifiedImageError, ValueError):
+            logger.warning("photo focus: skipped %s: can't read %s", band.name, band.image_url)
+            counts["skipped"] += 1
+            continue
+        counts["bands"] += 1
+        counts["with_faces"] += bool(faces)
+        counts["faces"] += len(faces)
+        if done % batch_size == 0:
+            db.commit()
+    db.commit()
+    logger.info("photo focus: %(bands)d bands (%(with_faces)d with faces, %(faces)d faces); %(skipped)d skipped", counts)
+    return counts

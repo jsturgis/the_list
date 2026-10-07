@@ -77,3 +77,19 @@ def test_backfill_can_first_recheck_genres(capsys):
         main(["backfill", "--recheck-genres"])
     recheck.assert_called_once()
     assert "2 bands with tags that aren't genres" in capsys.readouterr().out
+
+
+def test_photo_focus_fills_in_missing_focal_points(capsys):
+    counts = {"bands": 12, "with_faces": 9, "faces": 15, "skipped": 1}
+    with patch("app.ingestion.band_photos.fill_photo_focus", return_value=counts) as fill, patch("app.cli.SessionLocal"):
+        main(["photo-focus"])
+    assert fill.call_args.kwargs == {"recompute": False}
+    assert "12 bands (9 photos with faces, 15 faces); 1 skipped" in capsys.readouterr().out
+
+
+def test_photo_focus_all_recomputes_every_stored_photo():
+    with patch("app.ingestion.band_photos.fill_photo_focus", return_value={"bands": 0, "with_faces": 0, "faces": 0,
+                                                                           "skipped": 0}) as fill, \
+         patch("app.cli.SessionLocal"):
+        main(["photo-focus", "--all"])
+    assert fill.call_args.kwargs == {"recompute": True}

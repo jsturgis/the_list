@@ -41,6 +41,13 @@ class PhotoCreditType:
 
 
 @strawberry.type
+class ImageFocusType:
+    """Where to anchor a Band's photo when the site crops it, in percent: CSS object-position (app/ingestion/photo_focus.py)."""
+    x: float
+    y: float
+
+
+@strawberry.type
 class BandMemberType:
     """One of a Band's members, from Discogs."""
     name: str
@@ -68,6 +75,7 @@ class BandType:
     website_url: str | None
     image_url: str | None
     image_credit: PhotoCreditType | None
+    image_focus: ImageFocusType | None
     is_local: bool | None
     description: str | None
     links: list[BandLinkType]
