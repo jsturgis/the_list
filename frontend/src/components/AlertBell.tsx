@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { BellIcon as BellOutline } from '@heroicons/react/24/outline'
 import { BellAlertIcon as BellSolid } from '@heroicons/react/24/solid'
+import { FIELD } from '@/lib/field'
 import { href } from '@/lib/basePath'
 import { findSameFilter } from '@/lib/filters'
 import { MAX_ALERTS, alertsAvailable, alertsPageUrl, supabase, type SavedFilter } from '@/lib/supabase'
@@ -22,7 +23,6 @@ async function loadAlerts(): Promise<{ list: SavedFilter[] | null; error: string
   return error ? { list: null, error: error.message } : { list: data as SavedFilter[], error: null }
 }
 
-const INPUT = 'h-9 rounded-full border border-line-strong bg-field text-sm px-3 text-ink placeholder:text-ink-faint'
 const BUTTON = 'h-9 rounded-full bg-accent px-4 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50'
 
 /**
@@ -148,7 +148,7 @@ export default function AlertBell({ kind, id, name }: AlertBellProps) {
             placeholder="Email"
             value={email}
             onChange={e => setEmail(e.target.value)}
-            className={INPUT}
+            className={`${FIELD} px-3`}
           />
           <button type="submit" disabled={busy} className={BUTTON}>
             Email me a sign-in link

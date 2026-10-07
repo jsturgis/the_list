@@ -1,6 +1,7 @@
 import { ChevronRightIcon, InformationCircleIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Combobox from './Combobox'
+import { FIELD } from '@/lib/field'
 import { LEGACY_SEARCH_PARAMS, filterQuery, searchParam, type Pinned } from '@/lib/filters'
 import { REGION_LABELS, ageLabel } from '@/lib/format'
 import { replaceQuery, useQuery } from '@/lib/navigation'
@@ -131,7 +132,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
             id="filter-region"
             value={searchParams.get('region') ?? ''}
             onChange={e => update('region', e.target.value)}
-            className="h-9 rounded-full border border-line-strong bg-field text-sm px-3 py-1.5 text-ink"
+            className={`${FIELD} px-3`}
           >
             <option value="">All Regions</option>
             {regions.map(r => (
@@ -154,7 +155,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
               placeholder="Search bands & venues…"
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
-              className="h-9 w-full rounded-full border border-line-strong bg-field text-sm pl-8 pr-3 py-1.5 text-ink placeholder:text-ink-faint"
+              className={`${FIELD} w-full pl-8 pr-3`}
             />
           </div>
         </div>
@@ -221,7 +222,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
                 min={availableDates[0] ?? ''}
                 max={searchParams.get('toDate') || availableDates[availableDates.length - 1] || ''}
                 onChange={e => update('fromDate', e.target.value)}
-                className="h-9 rounded-full border border-line-strong bg-field text-sm px-3 py-1.5 text-ink"
+                className={`${FIELD} px-3`}
               />
             </div>
 
@@ -236,7 +237,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
                 min={searchParams.get('fromDate') || availableDates[0] || ''}
                 max={availableDates[availableDates.length - 1] ?? ''}
                 onChange={e => update('toDate', e.target.value)}
-                className="h-9 rounded-full border border-line-strong bg-field text-sm px-3 py-1.5 text-ink"
+                className={`${FIELD} px-3`}
               />
             </div>
 
@@ -248,7 +249,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
                 id="filter-age"
                 value={searchParams.get('age') ?? ''}
                 onChange={e => update('age', e.target.value)}
-                className="h-9 rounded-full border border-line-strong bg-field text-sm px-3 py-1.5 text-ink"
+                className={`${FIELD} px-3`}
               >
                 <option value="">Any Age</option>
                 {ages.map(a => (
@@ -270,7 +271,7 @@ export default function FilterBar({ showCount, dbTotal, genres, regions, ages, a
                 placeholder="e.g. 20"
                 value={searchParams.get('priceMax') ?? ''}
                 onChange={e => update('priceMax', e.target.value)}
-                className="h-9 rounded-full border border-line-strong bg-field text-sm px-3 py-1.5 text-ink placeholder:text-ink-faint"
+                className={`${FIELD} px-3`}
               />
             </div>
           </div>

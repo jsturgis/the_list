@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState, type FormEvent } from 'react'
 import { BellIcon } from '@heroicons/react/16/solid'
+import { FIELD } from '@/lib/field'
 import { href } from '@/lib/basePath'
 import { describeFilters, findSameFilter } from '@/lib/filters'
 import { MAX_ALERTS, alertsAvailable, alertsPageUrl, supabase } from '@/lib/supabase'
@@ -7,7 +8,6 @@ import { usePopover } from '@/lib/usePopover'
 import { useSession } from '@/lib/useSession'
 import Toast from './Toast'
 
-const INPUT = 'h-9 rounded-full border border-line-strong bg-field text-sm px-3 text-ink placeholder:text-ink-faint'
 const BUTTON = 'h-9 rounded-full bg-accent px-4 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50'
 
 type Done = 'linkSent' | 'saved'
@@ -119,7 +119,7 @@ export default function SaveFilterButton({ query, pinnedName }: { query: string;
               placeholder="e.g. East Bay punk"
               value={name}
               onChange={e => setName(e.target.value)}
-              className={INPUT}
+              className={`${FIELD} px-3`}
             />
           </div>
           {session.status === 'signedIn' ? (
@@ -163,7 +163,7 @@ export default function SaveFilterButton({ query, pinnedName }: { query: string;
                   autoComplete="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  className={INPUT}
+                  className={`${FIELD} px-3`}
                 />
               </div>
               <button type="submit" disabled={sending} className={BUTTON}>
