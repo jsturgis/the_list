@@ -161,6 +161,63 @@ test("a Band's stored photo loads from the site, under its base path", async ({ 
   await expect(page.getByRole('figure')).toHaveText('Photo via Discogs')
 })
 
+const LONG_NAME = 'Neon Harbor and the Extremely Long Band Name That Wraps Onto Several Lines'
+
+for (const name of ['Neon Harbor', LONG_NAME]) {
+  test(`on phones a Band's photo is a circle left of its name, centred on it, credited below (${name.length} chars)`, async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 800 })
+    await page.goto('bands/1/')
+    const title = page.getByRole('heading', { level: 1 })
+    if (name !== 'Neon Harbor') await title.evaluate((h, n) => { h.textContent = n }, name)
+    const photo = page.getByRole('img', { name: 'Neon Harbor' })
+    await expect(photo).toBeVisible()
+    const p = (await photo.boundingBox())!, t = (await title.boundingBox())!
+    const radius = parseFloat(await photo.evaluate(img => getComputedStyle(img).borderTopLeftRadius))
+    expect(Math.abs(p.width - p.height)).toBeLessThanOrEqual(0.5)             // square…
+    expect(radius).toBeGreaterThanOrEqual(p.width / 2)                       // …and round
+    expect(p.width).toBeGreaterThanOrEqual(56)
+    expect(p.width).toBeLessThanOrEqual(72)
+    expect(p.x + p.width).toBeLessThan(t.x)                                  // left of the name
+    expect(Math.abs((p.y + p.height / 2) - (t.y + t.height / 2))).toBeLessThanOrEqual(2)  // centred on it
+    if (name !== 'Neon Harbor') expect(t.height).toBeGreaterThan(p.height)  // the long name did wrap
+    // The credit stays visible, on its own line under the photo and name.
+    const credit = page.getByRole('figure').locator('figcaption')
+    await expect(credit).toBeVisible()
+    await expect(credit.getByRole('link', { name: 'Wikimedia Commons' })).toBeVisible()
+    const c = (await credit.boundingBox())!
+    expect(c.y).toBeGreaterThanOrEqual(Math.max(p.y + p.height, t.y + t.height))
+    // The bell stays centred on the name's first line.
+    const bell = (await page.getByRole('button', { name: /^Get alerts for / }).boundingBox())!
+    const line = parseFloat(await title.evaluate(h => getComputedStyle(h).lineHeight))
+    expect(Math.abs(bell.y + bell.height / 2 - (t.y + line / 2))).toBeLessThanOrEqual(1)
+  })
+}
+
+test('on phones a Discogs photo keeps its credit, and a Band without a photo has no picture', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 })
+  await page.goto('bands/7/')
+  await expect(page.getByRole('figure').locator('figcaption')).toBeVisible()
+  await expect(page.getByRole('figure').getByRole('link', { name: 'Discogs' })).toBeVisible()
+  await page.goto('bands/3/')
+  await expect(page.getByRole('heading', { level: 1, name: 'Static Bloom' })).toBeVisible()
+  await expect(page.locator('main header img')).toHaveCount(0)
+  await expect(page.getByRole('figure')).toHaveCount(0)
+})
+
+test("on desktop a Band's photo spans the column above its name, credited under it", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto('bands/1/')
+  const photo = page.getByRole('img', { name: 'Neon Harbor' })
+  await expect.poll(() => photo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBeGreaterThan(0)
+  const p = (await photo.boundingBox())!, t = (await page.getByRole('heading', { level: 1 }).boundingBox())!
+  const c = (await page.getByRole('figure').locator('figcaption').boundingBox())!
+  expect(p.width).toBe(672)                         // the narrow column's width
+  expect(p.x).toBe(t.x)
+  expect(p.y + p.height).toBeLessThanOrEqual(c.y)   // photo, then credit, then name
+  expect(c.y + c.height).toBeLessThan(t.y)
+  expect(await photo.evaluate(img => getComputedStyle(img).borderTopLeftRadius)).toBe('8px')
+})
+
 test("a Venue page has a bell for that Venue's alerts", async ({ page }) => {
   await page.goto('venues/2/')
   await expect(page.getByRole('button', { name: /^Get alerts for / })).toBeVisible()

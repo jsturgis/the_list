@@ -11,6 +11,11 @@ interface PageHeaderProps {
    * Venue page's alert bell), instead of letting it wrap under the title.
    */
   asideBesideTitle?: boolean
+  /**
+   * A picture at the start of the title's line (a Band's photo), centred on the title however many lines it wraps
+   * to. It sets its own size by breakpoint, and can take its own line above the title (full width, from `sm`).
+   */
+  media?: ReactNode
   /** A line below the title, e.g. "at The Fillmore · San Francisco". */
   subtitle?: ReactNode
   /** Chips or badges under the subtitle (genres, "Local", a Venue's rules). */
@@ -18,24 +23,31 @@ interface PageHeaderProps {
 }
 
 /** Every page's header (DESIGN.md, "Page header"): the one h1 style, with an optional eyebrow and subtitle. */
-export default function PageHeader({ eyebrow, title, aside, asideBesideTitle = false, subtitle, children }: PageHeaderProps) {
+export default function PageHeader({ eyebrow, title, aside, asideBesideTitle = false, media, subtitle, children }: PageHeaderProps) {
+  const titleRow = aside && asideBesideTitle ? (
+    <div className="relative flex items-start justify-between gap-4">
+      <h1 className="min-w-0 text-3xl text-ink [overflow-wrap:anywhere] sm:text-4xl">{title}</h1>
+      {/* One title line tall (36px, 40px from `sm`, as text-3xl / text-4xl set it), so the aside centres on it. */}
+      <div className="flex h-9 shrink-0 items-center sm:h-10">{aside}</div>
+    </div>
+  ) : aside ? (
+    <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+      <h1 className="text-3xl text-ink sm:text-4xl">{title}</h1>
+      <div className="flex items-center gap-2 text-sm text-ink-muted">{aside}</div>
+    </div>
+  ) : (
+    <h1 className="text-3xl text-ink sm:text-4xl">{title}</h1>
+  )
   return (
     <header className="flex flex-col gap-2">
       {eyebrow && <div className="flex flex-wrap items-center gap-2 text-sm text-ink-muted">{eyebrow}</div>}
-      {aside && asideBesideTitle ? (
-        <div className="relative flex items-start justify-between gap-4">
-          <h1 className="min-w-0 text-3xl text-ink [overflow-wrap:anywhere] sm:text-4xl">{title}</h1>
-          {/* One title line tall (36px, 40px from `sm`, as text-3xl / text-4xl set it), so the aside centres on it. */}
-          <div className="flex h-9 shrink-0 items-center sm:h-10">{aside}</div>
+      {media ? (
+        // The media, then the title (with its aside), on one line, the media centred on the title's block.
+        <div className="flex flex-wrap items-center gap-x-4">
+          {media}
+          <div className="min-w-0 flex-1">{titleRow}</div>
         </div>
-      ) : aside ? (
-        <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-          <h1 className="text-3xl text-ink sm:text-4xl">{title}</h1>
-          <div className="flex items-center gap-2 text-sm text-ink-muted">{aside}</div>
-        </div>
-      ) : (
-        <h1 className="text-3xl text-ink sm:text-4xl">{title}</h1>
-      )}
+      ) : titleRow}
       {subtitle && <p className="text-lg text-ink-soft">{subtitle}</p>}
       {children && <div className="flex flex-wrap items-center gap-2 pt-1">{children}</div>}
     </header>

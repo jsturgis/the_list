@@ -190,6 +190,29 @@ describe('BandDetail', () => {
     expect(screen.getByRole('figure').querySelector('figcaption')).toBeNull()
   })
 
+  it('gives assistive tech the photo once, in the header beside the name, with its credit', () => {
+    renderBand(makeBand({ name: 'Locals', imageUrl: '/images/bands/6-d.webp', imageCredit: {
+      source: 'Discogs', author: null, license: null, licenseUrl: null, sourceUrl: 'https://www.discogs.com/artist/6-Locals',
+    } }), [])
+    const photos = screen.getAllByRole('img', { name: 'Locals' })
+    expect(photos).toHaveLength(1)
+    const heading = screen.getByRole('heading', { level: 1, name: 'Locals' })
+    // One header holds the photo and the name (phones show them as one row); nothing hides the photo or its credit.
+    expect(heading.closest('header')).toContainElement(photos[0])
+    const caption = screen.getByRole('figure').querySelector('figcaption')!
+    expect(caption).toBeVisible()
+    expect(caption.closest('[aria-hidden="true"]')).toBeNull()
+    expect(photos[0].closest('[aria-hidden="true"]')).toBeNull()
+  })
+
+  it('has no photo, figure or credit for a Band without a photo', () => {
+    renderBand(makeBand({ name: 'Locals', imageUrl: null, imageCredit: null }), [])
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(screen.queryByRole('figure')).not.toBeInTheDocument()
+    expect(screen.queryByText(/^Photo/)).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Locals' })).toBeInTheDocument()
+  })
+
   it('leaves them out otherwise', () => {
     renderBand()
     expect(screen.queryByRole('img')).not.toBeInTheDocument()

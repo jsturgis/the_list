@@ -29,16 +29,8 @@ export default function BandDetail({ band, upcomingShows, similarBands, bell }: 
   const listening = (band.links ?? []).filter(l => l.group === 'listening')
   return (
     <article className="flex flex-col gap-6">
-      {band.imageUrl && (
-        <figure className="flex flex-col gap-1.5">
-          {/* A stored photo is a site path ("/images/bands/…"), served under the base path; others are remote URLs. */}
-          <img src={band.imageUrl.startsWith('/') ? href(band.imageUrl) : band.imageUrl} alt={band.name}
-               className="w-full max-h-72 object-cover rounded-lg" />
-          {band.imageCredit && <PhotoCreditLine credit={band.imageCredit} />}
-        </figure>
-      )}
-
-      <PageHeader title={band.name} aside={bell} asideBesideTitle subtitle={band.description ?? undefined}>
+      <PageHeader title={band.name} aside={bell} asideBesideTitle subtitle={band.description ?? undefined}
+                  media={band.imageUrl && <BandPhoto band={band} imageUrl={band.imageUrl} />}>
         {band.isLocal && (
           <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-accent-chip text-accent-chip-ink">
             <MapPinIcon className="size-3.5 shrink-0" />
@@ -83,7 +75,25 @@ export default function BandDetail({ band, upcomingShows, similarBands, bell }: 
   )
 }
 
+/**
+ * The Band's photo, one <img> laid out by breakpoint: on phones a 64px circle at the left of the name, its credit on
+ * a line under them; from `sm`, full column width above the name, its credit under it (DESIGN.md, "Band photo").
+ * The <figure> is `display: contents`, so the photo and credit are PageHeader's title-line items.
+ */
+function BandPhoto({ band, imageUrl }: { band: Band, imageUrl: string }) {
+  return (
+    <figure className="contents">
+      {/* A stored photo is a site path ("/images/bands/…"), served under the base path; others are remote URLs. */}
+      <img src={imageUrl.startsWith('/') ? href(imageUrl) : imageUrl} alt={band.name}
+           className={`size-16 shrink-0 rounded-full object-cover sm:h-auto sm:max-h-72 sm:w-full sm:basis-full sm:rounded-lg ${band.imageCredit ? '' : 'sm:mb-6'}`} />
+      {band.imageCredit && <PhotoCreditLine credit={band.imageCredit} />}
+    </figure>
+  )
+}
+
 const creditLink = 'text-link underline underline-offset-2'
+// Under the photo from `sm`; on phones, on its own line under the photo and the name.
+const creditLine = 'order-last mt-2 basis-full text-xs text-ink-muted sm:order-none sm:mt-1.5 sm:mb-6'
 
 /**
  * "Photo: <author>, <licence>, via Wikimedia Commons", as a Commons photo's licence requires; "Photo via Discogs"
@@ -92,13 +102,13 @@ const creditLink = 'text-link underline underline-offset-2'
 function PhotoCreditLine({ credit }: { credit: PhotoCredit }) {
   if (credit.source === 'Discogs') {
     return (
-      <figcaption className="text-xs text-ink-muted">
+      <figcaption className={creditLine}>
         Photo via <a href={credit.sourceUrl} target="_blank" rel="noopener noreferrer" className={creditLink}>Discogs</a>
       </figcaption>
     )
   }
   return (
-    <figcaption className="text-xs text-ink-muted">
+    <figcaption className={creditLine}>
       Photo: {credit.author ?? 'unknown author'}
       {credit.license && (
         <>, {credit.licenseUrl
