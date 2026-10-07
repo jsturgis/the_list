@@ -181,6 +181,15 @@ for (const scheme of ['light', 'dark'] as const) {
   })
 }
 
+test('a listening service without a logo keeps a labelled button beside the logo buttons', async ({ page }) => {
+  await page.goto('bands/7/')
+  await expect(page.getByRole('link', { name: /^Listen on / })).toHaveText(['', ''])
+  await expect(page.getByRole('link', { name: 'Listen on Bandcamp' })).toHaveAttribute('href', 'https://redwoodsirens.bandcamp.com')
+  await expect(page.getByRole('link', { name: 'Listen on SoundCloud' })).toHaveAttribute('href', 'https://soundcloud.com/redwood-sirens')
+  await expect(page.getByRole('link', { name: 'Deezer' })).toHaveText('Deezer')
+  await expect(page.getByRole('link', { name: 'Amazon Music' })).toHaveAttribute('title', 'Amazon Music (subscription)')
+})
+
 test("a Venue page has a bell for that Venue's alerts", async ({ page }) => {
   await page.goto('venues/2/')
   await expect(page.getByRole('button', { name: /^Get alerts for / })).toBeVisible()

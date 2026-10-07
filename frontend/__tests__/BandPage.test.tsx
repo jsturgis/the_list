@@ -67,23 +67,24 @@ describe('BandDetail', () => {
 
   it('shows the listening links in the order given: free services, then paid ones', () => {
     renderBand(makeBand({ links: [
-      link('listening', 'spotify', 'Spotify'), link('listening', 'soundcloud', 'SoundCloud'),
+      link('listening', 'spotify', 'Spotify'), link('listening', 'deezer', 'Deezer'),
       link('listening', 'apple_music', 'Apple Music', true),
     ] }), [])
-    const buttons = screen.getAllByRole('link').filter(a => /Spotify|SoundCloud|Apple Music/.test(a.textContent + (a.getAttribute('aria-label') ?? '')))
+    const buttons = screen.getAllByRole('link').filter(a => /Spotify|Deezer|Apple Music/.test(a.textContent + (a.getAttribute('aria-label') ?? '')))
     expect(buttons.map(a => a.getAttribute('href'))).toEqual([
-      'https://spotify.example/the-strokes', 'https://soundcloud.example/the-strokes', 'https://apple_music.example/the-strokes',
+      'https://spotify.example/the-strokes', 'https://deezer.example/the-strokes', 'https://apple_music.example/the-strokes',
     ])
   })
 
   it('names each logo button "Listen on <service>", marking paid ones, and opens it in a new tab', () => {
     renderBand(makeBand({ links: [
       link('listening', 'spotify', 'Spotify'), link('listening', 'youtube_music', 'YouTube Music'),
-      link('listening', 'bandcamp', 'Bandcamp'), link('listening', 'apple_music', 'Apple Music', true),
+      link('listening', 'bandcamp', 'Bandcamp'), link('listening', 'soundcloud', 'SoundCloud'),
+      link('listening', 'apple_music', 'Apple Music', true),
       link('listening', 'tidal', 'Tidal', true), link('listening', 'qobuz', 'Qobuz', true),
     ] }), [])
     const names = [
-      'Listen on Spotify', 'Listen on YouTube Music', 'Listen on Bandcamp',
+      'Listen on Spotify', 'Listen on YouTube Music', 'Listen on Bandcamp', 'Listen on SoundCloud',
       'Listen on Apple Music (subscription)', 'Listen on Tidal (subscription)', 'Listen on Qobuz (subscription)',
     ]
     for (const name of names) {
@@ -107,11 +108,11 @@ describe('BandDetail', () => {
 
   it('keeps a labelled button for a service without a logo', () => {
     renderBand(makeBand({ links: [
-      link('listening', 'soundcloud', 'SoundCloud'), link('listening', 'deezer', 'Deezer'),
+      link('listening', 'deezer', 'Deezer'), link('listening', 'audiomack', 'Audiomack'),
       link('listening', 'amazon_music', 'Amazon Music', true),
     ] }), [])
-    expect(screen.getByRole('link', { name: 'SoundCloud' })).toHaveAttribute('href', 'https://soundcloud.example/the-strokes')
-    expect(screen.getByRole('link', { name: 'Deezer' })).toHaveAttribute('target', '_blank')
+    expect(screen.getByRole('link', { name: 'Deezer' })).toHaveAttribute('href', 'https://deezer.example/the-strokes')
+    expect(screen.getByRole('link', { name: 'Audiomack' })).toHaveAttribute('target', '_blank')
     expect(screen.getByRole('link', { name: 'Amazon Music' })).toHaveAttribute('title', 'Amazon Music (subscription)')
   })
 

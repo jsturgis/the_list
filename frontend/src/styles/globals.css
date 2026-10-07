@@ -17,7 +17,7 @@
  *   surface-hover, field-active              hover on a card; the highlighted option in a list
  *   inverse, strong                          dark-on-light surfaces: toasts, the neutral filled button
  *   danger, warning, success, info, hot      status colours: text, and a -soft background for badges
- *   spotify, youtube-music, bandcamp, …      streaming services' logo colours on a Band's listening links
+ *   spotify, bandcamp, soundcloud, …         streaming services' logo colours on a Band's listening links
  */
 :root {
   --page: #f6f6f6;
@@ -62,6 +62,7 @@
   --spotify: #189a46; /* Spotify's #1db954 is 2.6:1 on white */
   --youtube-music: #ff0000;
   --bandcamp: #408294;
+  --soundcloud: #ff3300;
   --apple-music: #fa243c;
 
   --danger: --theme(--color-red-700 inline); /* not 600: red-600 on red-100 is 3.9:1, below WCAG AA */
@@ -119,6 +120,7 @@
     --spotify: #1db954;
     --youtube-music: #ff0000;
     --bandcamp: #408294;
+    --soundcloud: #ff3300;
     --apple-music: #fa243c;
 
     --danger: --theme(--color-red-400 inline);
@@ -176,6 +178,7 @@
   --color-spotify: var(--spotify);
   --color-youtube-music: var(--youtube-music);
   --color-bandcamp: var(--bandcamp);
+  --color-soundcloud: var(--soundcloud);
   --color-apple-music: var(--apple-music);
 
   --color-danger: var(--danger);

@@ -6,7 +6,7 @@ const KINDS = {
   primary: 'bg-accent text-on-accent hover:bg-accent-hover',
   /** Other actions (calendar, Wikipedia). */
   secondary: 'border border-line-strong bg-surface text-ink hover:bg-muted',
-  /** Colours given by the caller (SoundCloud's brand colour, the neutral Website button). */
+  /** Colours given by the caller (the neutral Website button). */
   custom: '',
 }
 

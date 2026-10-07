@@ -73,6 +73,7 @@ Use these tokens through Tailwind's colour utilities (`bg-surface`, `text-ink-mu
 | `spotify` | The Spotify logo on its listening button (one shade darker in light mode, for 3:1) | `#189a46` | `#1db954` |
 | `youtube-music` | The YouTube Music logo | `#ff0000` | `#ff0000` |
 | `bandcamp` | The Bandcamp logo | `#408294` | `#408294` |
+| `soundcloud` | The SoundCloud logo | `#ff3300` | `#ff3300` |
 | `apple-music` | The Apple Music logo | `#fa243c` | `#fa243c` |
 | **Status** | | | |
 | `danger` | Cancelled, Sold out, errors | `red-700` | `red-400` |
@@ -93,10 +94,9 @@ Use these tokens through Tailwind's colour utilities (`bg-surface`, `text-ink-mu
 - `accent-soft` with `accent-soft-ink`, and `accent-chip` with `accent-chip-ink`
 
 **Brand colours we don't own:** a Band's listening buttons show each streaming service's logo in its own hue, so
-people recognise them: the `spotify`, `youtube-music`, `bandcamp` and `apple-music` tokens, each at least 3:1 on
-`surface` and `muted` (Spotify's own green is darker in light mode to get there). Tidal's black-and-white logo takes
-`ink`, and Qobuz's wordmark is an image with a black and a white version. SoundCloud, which has no logo button,
-keeps its brand-coloured pill, one shade darker (`orange-700`) so its white label passes WCAG AA.
+people recognise them: the `spotify`, `youtube-music`, `bandcamp`, `soundcloud` and `apple-music` tokens, each at
+least 3:1 on `surface` and `muted` (Spotify's own green is darker in light mode to get there). Tidal's
+black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black and a white version.
 
 ## 3. Typography Rules
 
@@ -174,8 +174,8 @@ keeps its brand-coloured pill, one shade darker (`orange-700`) so its white labe
 - **Key facts (`FactList`):** a `<dl>` grid, three columns from `sm` and one per line on phones. Each fact has an
   icon and a `text-xs ink-muted` label, over a `text-base font-semibold ink` value (Doors, Price, Ages).
 - **Actions (`ActionLinks`):** a wrapping row of pill links, 14px bold: primary (`bg-accent text-on-accent`, at
-  most one: Tickets), secondary (outline `line-strong`, `ink`), or a brand colour (SoundCloud). External ones carry
-  an outward-arrow icon. A Band's listening links sit in the same row as logo buttons (below).
+  most one: Tickets), or secondary (outline `line-strong`, `ink`). External ones carry an
+  outward-arrow icon. A Band's listening links sit in the same row as logo buttons (below).
 - **Detail pages (Show, Venue, Band):** in order: Back, `PageHeader`, key facts, actions, then `Section`s. A Show
   has Lineup, Venue and Notes; a Venue has Details, Upcoming Shows and About; a Band has Upcoming Shows, Members, Social
   and Similar Bands. Upcoming Shows on Venue and Band pages are one panel of Show list items, each with its compact
@@ -198,17 +198,18 @@ keeps its brand-coloured pill, one shade darker (`orange-700`) so its white labe
 - **Band links:** a Band's actions are its listening links, up to 3 free services then up to 3 paid ones,
   ranked by service in the backend (`app/band_links.py`), then its website. On a Band page the whole row is at
   least 44px tall.
-  - *Logo buttons (`ListeningLink`):* Spotify, YouTube Music, Bandcamp, Apple Music, Tidal and Qobuz show their
+  - *Logo buttons (`ListeningLink`):* Spotify, YouTube Music, Bandcamp, SoundCloud, Apple Music, Tidal and Qobuz show their
     logo alone: a 24px logo (Simple Icons paths, inline SVG) in its brand token, centred in a round 44×44px
     outline button (`surface`, `line-strong` border, `muted` on hover). Qobuz's wordmark is wider, so its button is
     a 44px-tall pill; it's an image (`public/icons/qobuz-light.png`, black, and `qobuz-dark.png`, white, swapped by
     `prefers-color-scheme` in a `<picture>`). Each button is a link that opens in a new tab, named "Listen on
     <service>" (with " (subscription)" for paid ones) by `aria-label`, and the same text is its tooltip.
-  - *Other services* (SoundCloud, Deezer, Audiomack, Amazon Music) keep a labelled pill with a music-note icon:
-    SoundCloud's brand colour, the rest outline pills; paid ones say "(subscription)" in their title.
-  - Streaming logos are only ever used on their own service's link. Its social profiles (Instagram, Facebook, X, TikTok, Bluesky, YouTube) sit in a **Social** section
-  (`SocialLinks`): a wrapping list of bold `ink` links, underlined on hover. No tour-date links (Songkick,
-  Bandsintown) or reference links (Wikipedia, AllMusic, Discogs, Last.fm).
+  - *Other services* (Deezer, Audiomack, Amazon Music) keep a labelled outline pill with a music-note icon; paid
+    ones say "(subscription)" in their title.
+  - Streaming logos are only ever used on their own service's link.
+  - A Band's social profiles (Instagram, Facebook, X, TikTok, Bluesky, YouTube) sit in a **Social** section
+    (`SocialLinks`): a wrapping list of bold `ink` links, underlined on hover. No tour-date links (Songkick,
+    Bandsintown) or reference links (Wikipedia, AllMusic, Discogs, Last.fm).
 - **Alert bell (`AlertBell`):** on Band and Venue pages, a round 40px icon button at the right of the title's
   line. Off: outline bell, `surface` with a `line-strong` border, `ink-soft`. On: solid ringing bell, `accent-chip` with
   an `accent` border, `link`. Signed in, a press saves or deletes the alert for that Band or Venue (`aria-pressed`)

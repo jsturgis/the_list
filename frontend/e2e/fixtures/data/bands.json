@@ -218,6 +218,20 @@
         "label": "SoundCloud",
         "url": "https://soundcloud.com/redwood-sirens",
         "paid": false
+      },
+      {
+        "group": "listening",
+        "service": "deezer",
+        "label": "Deezer",
+        "url": "https://www.deezer.com/artist/7",
+        "paid": false
+      },
+      {
+        "group": "listening",
+        "service": "amazon_music",
+        "label": "Amazon Music",
+        "url": "https://music.amazon.com/artists/redwoodsirens",
+        "paid": true
       }
     ],
     "imageCredit": {
