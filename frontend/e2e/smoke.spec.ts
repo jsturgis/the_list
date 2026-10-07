@@ -241,11 +241,21 @@ for (const scheme of ['light', 'dark'] as const) {
 test('a listening service without a logo keeps a labelled button beside the logo buttons', async ({ page }) => {
   await page.goto('bands/7/')
   await expect(page.getByRole('link', { name: /^Listen on / })).toHaveText(['', '', ''])
+  await expect(page.getByRole('link', { name: 'Listen on Amazon Music (subscription)' })).toHaveAttribute('href', 'https://music.amazon.com/artists/redwoodsirens')
   await expect(page.getByRole('link', { name: 'Listen on Bandcamp' })).toHaveAttribute('href', 'https://redwoodsirens.bandcamp.com')
   await expect(page.getByRole('link', { name: 'Listen on SoundCloud' })).toHaveAttribute('href', 'https://soundcloud.com/redwood-sirens')
-  await expect(page.getByRole('link', { name: 'Listen on Deezer' })).toHaveAttribute('href', 'https://www.deezer.com/artist/7')
-  await expect(page.getByRole('link', { name: 'Amazon Music' })).toHaveText('Amazon Music')
-  await expect(page.getByRole('link', { name: 'Amazon Music' })).toHaveAttribute('title', 'Amazon Music (subscription)')
+  await expect(page.getByRole('link', { name: 'Audiomack' })).toHaveText('Audiomack')
+  await expect(page.getByRole('link', { name: 'Audiomack' })).toHaveAttribute('href', 'https://audiomack.com/redwood-sirens')
+  // Its website is under Social, the section's only link: the Band has no social profiles.
+  const social = page.getByRole('region', { name: 'Social' })
+  await expect(social.getByRole('link')).toHaveText(['Website'])
+  await expect(social.getByRole('link', { name: 'Website' })).toHaveAttribute('href', 'https://redwoodsirens.example/')
+})
+
+test("a Band's website leads its Social links", async ({ page }) => {
+  await page.goto('bands/1/')
+  await expect(page.getByRole('region', { name: 'Social' }).getByRole('link')).toHaveText(['Website', 'Instagram', 'YouTube'])
+  await expect(page.getByRole('link', { name: 'Website' })).toHaveCount(1)
 })
 
 test("a Venue page has a bell for that Venue's alerts", async ({ page }) => {

@@ -81,11 +81,13 @@ describe('BandDetail', () => {
       link('listening', 'spotify', 'Spotify'), link('listening', 'youtube_music', 'YouTube Music'),
       link('listening', 'bandcamp', 'Bandcamp'), link('listening', 'soundcloud', 'SoundCloud'),
       link('listening', 'deezer', 'Deezer'), link('listening', 'apple_music', 'Apple Music', true),
-      link('listening', 'tidal', 'Tidal', true), link('listening', 'qobuz', 'Qobuz', true),
+      link('listening', 'amazon_music', 'Amazon Music', true), link('listening', 'tidal', 'Tidal', true),
+      link('listening', 'qobuz', 'Qobuz', true),
     ] }), [])
     const names = [
       'Listen on Spotify', 'Listen on YouTube Music', 'Listen on Bandcamp', 'Listen on SoundCloud', 'Listen on Deezer',
-      'Listen on Apple Music (subscription)', 'Listen on Tidal (subscription)', 'Listen on Qobuz (subscription)',
+      'Listen on Apple Music (subscription)', 'Listen on Amazon Music (subscription)', 'Listen on Tidal (subscription)',
+      'Listen on Qobuz (subscription)',
     ]
     for (const name of names) {
       const button = screen.getByRole('link', { name })
@@ -108,11 +110,12 @@ describe('BandDetail', () => {
 
   it('keeps a labelled button for a service without a logo', () => {
     renderBand(makeBand({ links: [
-      link('listening', 'audiomack', 'Audiomack'), link('listening', 'amazon_music', 'Amazon Music', true),
+      link('listening', 'audiomack', 'Audiomack'), link('listening', 'napster', 'Napster', true),
     ] }), [])
     expect(screen.getByRole('link', { name: 'Audiomack' })).toHaveAttribute('href', 'https://audiomack.example/the-strokes')
     expect(screen.getByRole('link', { name: 'Audiomack' })).toHaveAttribute('target', '_blank')
-    expect(screen.getByRole('link', { name: 'Amazon Music' })).toHaveAttribute('title', 'Amazon Music (subscription)')
+    // Any service the site has no logo for, paid ones marked in the tooltip.
+    expect(screen.getByRole('link', { name: 'Napster' })).toHaveAttribute('title', 'Napster (subscription)')
   })
 
   it('lists members under Members: current ones, then former ones under "Formerly"', () => {
@@ -148,8 +151,26 @@ describe('BandDetail', () => {
     expect(within(region).queryByText('Spotify')).not.toBeInTheDocument()  // listening links are buttons above
   })
 
-  it('has no Social section without social profiles', () => {
-    renderBand(makeBand({ links: [link('listening', 'spotify', 'Spotify')] }), [])
+  it('lists the website first under Social, not with the listening links', () => {
+    renderBand(makeBand({ websiteUrl: 'https://thestrokes.example/', links: [
+      link('listening', 'spotify', 'Spotify'), link('follow', 'instagram', 'Instagram'),
+    ] }), [])
+    const region = screen.getByRole('region', { name: 'Social' })
+    expect(within(region).getAllByRole('listitem').map(li => li.textContent)).toEqual(['Website', 'Instagram'])
+    const website = within(region).getByRole('link', { name: 'Website' })
+    expect(website).toHaveAttribute('href', 'https://thestrokes.example/')
+    expect(website).toHaveAttribute('target', '_blank')
+    expect(screen.getAllByRole('link', { name: /website/i })).toHaveLength(1)
+  })
+
+  it('has a Social section with only the website for a Band without social profiles', () => {
+    renderBand(makeBand({ websiteUrl: 'https://thestrokes.example/', links: [link('listening', 'spotify', 'Spotify')] }), [])
+    const region = screen.getByRole('region', { name: 'Social' })
+    expect(within(region).getAllByRole('listitem').map(li => li.textContent)).toEqual(['Website'])
+  })
+
+  it('has no Social section without social profiles or a website', () => {
+    renderBand(makeBand({ websiteUrl: null, links: [link('listening', 'spotify', 'Spotify')] }), [])
     expect(screen.queryByRole('region', { name: 'Social' })).not.toBeInTheDocument()
   })
 

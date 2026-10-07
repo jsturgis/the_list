@@ -53,6 +53,8 @@ const PAIRS: [text: string, background: string, use: string, min: number][] = [
   ['deezer', 'muted', 'Deezer logo on its listening button, hovered', 3],
   ['apple-music', 'surface', 'Apple Music logo on its listening button', 3],
   ['apple-music', 'muted', 'Apple Music logo on its listening button, hovered', 3],
+  ['amazon-music', 'surface', 'Amazon Music logo on its listening button', 3],
+  ['amazon-music', 'muted', 'Amazon Music logo on its listening button, hovered', 3],
   ['ink', 'surface', 'Tidal logo on its listening button', 3],
   ['ink', 'muted', 'Tidal logo on its listening button, hovered', 3],
 ]

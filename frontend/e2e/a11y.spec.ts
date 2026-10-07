@@ -24,7 +24,7 @@ const STATES: [string, string, (page: Page) => Promise<void>][] = [
     await page.getByRole('button', { name: 'Get alerts for Static Bloom' }).click()
     await expect(page.getByLabel('Email')).toBeVisible()
   }],
-  ['Band page with logo buttons and labelled pills', 'bands/7/', page => expect(page.getByRole('link', { name: 'Amazon Music' })).toBeVisible()],
+  ['Band page with logo buttons and labelled pills', 'bands/7/', page => expect(page.getByRole('link', { name: 'Audiomack' })).toBeVisible()],
   ['Show page, Cancelled', 'shows/107/', page => expect(page.getByText('Cancelled')).toBeVisible()],
   ['Show page, Postponed', 'shows/108/', page => expect(page.getByText('Postponed')).toBeVisible()],
   ['Venue page', 'venues/2/', page => expect(page.getByRole('heading', { name: 'Upcoming Shows' })).toBeVisible()],
