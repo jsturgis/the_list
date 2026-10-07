@@ -171,8 +171,9 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
 - **Page header (`PageHeader`):** every page starts with one: an optional eyebrow (a Show's Cancelled or Postponed
   badge), the h1 with an optional aside at the right of its line (a Show's date and calendar icons, `text-sm
   ink-muted`; it wraps under the title on phones; a Band or Venue page's alert bell instead stays beside the
-  title, centred on its first line, however many lines the title wraps to), an optional subtitle (`text-lg
-  ink-soft`) and an optional row of chips.
+  title, centred on its first line, however many lines the title wraps to), an optional picture at the start of
+  the title's line (`media`: a Band's photo, see below), an optional subtitle (`text-lg ink-soft`) and an optional
+  row of chips.
 - **Sections (`Section`):** a `<section aria-labelledby>`: a 24px bold `h2` on the page, then the content in a
   panel below it (`surface`, 8px radius, 20px padding), 12px apart. The heading, and an optional note at the right
   end of its line in `text-sm ink-muted` ("3 of 20 alerts"), are never inside the panel. `plain` drops the panel
@@ -191,12 +192,15 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
   (`motion-safe:animate-pulse`, so still for reduced motion). Headings that are already known stay real. Ghosts are
   `aria-hidden`; a visually hidden "Loading …" label stands in for screen readers. Static data (Shows, Bands,
   Venues) is in the page and never needs one.
-- **Band photo:** at the top of a Band page, full column width, at most 288px tall (`max-h-72`, `object-cover`),
-  8px radius, with the Band's name as its alt text. It's the site's own copy (≤800px WebP, saved at ingest), served
-  under the base path; never hot-linked. A photo from Wikimedia Commons is a `<figure>` whose `<figcaption>` credits
-  it, as its licence requires: "Photo: <author>, <licence>, via Wikimedia Commons" in `text-xs ink-muted`, with the
-  licence and "Wikimedia Commons" (the photo's page) as running-text links. A photo from Discogs reads "Photo via
-  Discogs", linking the artist's Discogs page. The edition's photos have no credit.
+- **Band photo:** from `sm`, at the top of a Band page, full column width, at most 288px tall (`max-h-72`,
+  `object-cover`), 8px radius, with the Band's name as its alt text. On phones the same `<img>` is a 64px circle
+  (`size-16 rounded-full object-cover`) at the left of the name, 16px from it and centred on the name however many
+  lines it wraps to, through `PageHeader`'s `media`; its credit is on its own line under the photo and name. A Band
+  without a photo has no circle; its name sits as on every other page. It's the site's own copy (≤800px WebP,
+  saved at ingest), served under the base path; never hot-linked. A photo from Wikimedia Commons is a `<figure>`
+  whose `<figcaption>` credits it, as its licence requires: "Photo: <author>, <licence>, via Wikimedia Commons" in
+  `text-xs ink-muted`, with the licence and "Wikimedia Commons" (the photo's page) as running-text links. A photo
+  from Discogs reads "Photo via Discogs", linking the artist's Discogs page. The edition's photos have no credit.
 - **Band members (`BandMembers`):** a **Members** section after Upcoming Shows, from Discogs: current members as a
   wrapping list of `text-sm` semibold `ink` names, then a `text-xs ink-muted` "Formerly" label over a wrapping list
   of past members in `ink-soft`. Each is a real `<ul>`, named "Current members" and "Formerly". Hidden without
