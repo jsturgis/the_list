@@ -39,6 +39,8 @@ const pastShowsScript =
     <meta name="description" content={description} />
     {noindex && <meta name="robots" content="noindex" />}
     <link rel="icon" href={href('/favicon.ico')} sizes="any" />
+    <link rel="icon" href={href('/favicon.png')} type="image/png" sizes="512x512" />
+    <link rel="apple-touch-icon" href={href('/favicon.png')} />
     <!-- Figtree (DESIGN.md): preload the Latin file so text renders in it from the start, not after a swap. -->
     <link rel="preload" href={figtreeLatin} as="font" type="font/woff2" crossorigin />
     <script is:inline set:html={pastShowsScript} />
