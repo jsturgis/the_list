@@ -15,6 +15,10 @@ on:
         description: Look up at most this many Bands (blank for no limit)
         type: string
         default: ''
+      recheck_genres:
+        description: First mark Bands whose genres hold a tag that isn't a genre, to look them up again
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -55,12 +59,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /home/runner/.ollama
-          key: ollama-nomic-embed-text-v1
+          key: ollama-nomic-embed-text-tev1-0.8b-v1
 
-      - name: Pull the embedding model
+      - name: Pull the embedding and genre models
         run: |
           until curl -sf http://localhost:11434/api/version > /dev/null; do sleep 2; done
           curl -sf http://localhost:11434/api/pull -d '{"model": "nomic-embed-text", "stream": false}'
+          # The genre model (app/ingestion/genre_filter.py): judges whether a tag outside the vocabulary is a genre.
+          curl -sf http://localhost:11434/api/pull -d '{"model": "tev1:0.8b", "stream": false}'
           sudo chown -R "$USER" /home/runner/.ollama
 
       - name: Set up Python 3.12
@@ -87,9 +93,10 @@ jobs:
           DISCOGS_CONSUMER_SECRET: ${{ secrets.DISCOGS_CONSUMER_SECRET }}
           MAX_MINUTES: ${{ inputs.max_minutes }}
           LIMIT: ${{ inputs.limit }}
+          RECHECK: ${{ inputs.recheck_genres && '--recheck-genres' || '' }}
         run: |
           alembic upgrade head
-          python -m app.cli backfill --max-minutes "$MAX_MINUTES" ${LIMIT:+--limit "$LIMIT"} | tee "$RUNNER_TEMP/message"
+          python -m app.cli backfill --max-minutes "$MAX_MINUTES" ${LIMIT:+--limit "$LIMIT"} $RECHECK | tee "$RUNNER_TEMP/message"
 
       - name: Commit the data
         # Even after a failed backfill step: each Band was committed to the database as it was looked up.

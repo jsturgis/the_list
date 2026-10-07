@@ -27,6 +27,13 @@ def no_link_checks():
         yield check
 
 
+@pytest.fixture(autouse=True)
+def no_genre_model():
+    """The genre model runs on Ollama; tests answer for it (None: it can't be reached) unless they say otherwise."""
+    with patch("app.ingestion.genre_filter.ask_model", return_value=None) as ask:
+        yield ask
+
+
 @pytest.fixture
 def db():
     session = _TestingSession()

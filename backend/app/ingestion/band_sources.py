@@ -3,7 +3,8 @@ Bands) so the two can't drift apart. The services come first; the edition (or, i
 already has, mostly edition data) is only ever the last fallback.
 
 Genres: MusicBrainz's curated genres, else Last.fm's tags, else Discogs' genres and styles, else MusicBrainz's
-free-form tags, else the edition's. Photos: Wikimedia Commons, else Discogs, else the edition's.
+free-form tags, else the edition's; only ever those that are genres
+(app/ingestion/genre_filter.py). Photos: Wikimedia Commons, else Discogs, else the edition's.
 """
 from __future__ import annotations
 
@@ -14,18 +15,21 @@ from app.ingestion.wikimedia import CommonsPhoto
 
 
 def service_genres(name: str, found: dict, lastfm: Callable[[str, str | None], list[str]],
-                   discogs: Callable[[int], list[str]]) -> list[str]:
+                   discogs: Callable[[int], list[str]],
+                   keep: Callable[[list[str]], list[str]] = lambda tags: tags) -> list[str]:
     """A Band's genres from the services, in order; [] when none has any (the caller falls back to the edition).
 
     `found` is its MusicBrainz lookup (with its Discogs artist under "discogs"). Last.fm and Discogs are asked only
-    when what comes before them has nothing; `lastfm` and `discogs` are the lookups to use.
+    when what comes before them has nothing; `lastfm` and `discogs` are the lookups to use. `keep` picks the genres
+    among them (GenreFilter.keep), so a source with only tags that aren't genres counts as having none.
+    MusicBrainz's curated genres are its genre list, so they always are.
     """
     if found.get("mb_genres"):
         return found["genres"]
-    if tags := lastfm(name, found.get("mbid")):
+    if tags := keep(lastfm(name, found.get("mbid"))):
         return tags
     artist = found.get("discogs")
-    return (discogs(artist.id) if artist else []) or found.get("genres") or []
+    return (keep(discogs(artist.id)) if artist else []) or keep(found.get("genres") or [])
 
 
 def photo_candidates(commons: CommonsPhoto | None, artist: DiscogsArtist | None,
