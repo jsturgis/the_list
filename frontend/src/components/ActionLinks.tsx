@@ -6,7 +6,7 @@ const KINDS = {
   primary: 'bg-accent text-on-accent hover:bg-accent-hover',
   /** Other actions (calendar, Wikipedia). */
   secondary: 'border border-line-strong bg-surface text-ink hover:bg-muted',
-  /** Colours given by the caller (streaming services' brand colours, the neutral Website button). */
+  /** Colours given by the caller (the neutral Website button). */
   custom: '',
 }
 
@@ -36,5 +36,5 @@ export function ActionLink({ kind = 'secondary', icon: Icon, external = false, c
 
 /** A row of ActionLinks, wrapping on narrow screens. */
 export default function ActionLinks({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap gap-2">{children}</div>
+  return <div className="flex flex-wrap items-center gap-2">{children}</div>
 }

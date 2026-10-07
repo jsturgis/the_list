@@ -45,6 +45,7 @@ const PAGES = [
   ['show', 'shows/102/'],
   ['venue', 'venues/2/'],
   ['band', 'bands/1/'],
+  ['band-fallback', 'bands/7/'],
   ['alerts', 'alerts/'],
   ['unsubscribe', 'alerts/unsubscribe/'],
   ['not-found', 'shows/99999/'],

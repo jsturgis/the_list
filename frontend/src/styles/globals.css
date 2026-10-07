@@ -17,6 +17,7 @@
  *   surface-hover, field-active              hover on a card; the highlighted option in a list
  *   inverse, strong                          dark-on-light surfaces: toasts, the neutral filled button
  *   danger, warning, success, info, hot      status colours: text, and a -soft background for badges
+ *   spotify, bandcamp, soundcloud, …         streaming services' logo colours on a Band's listening links
  */
 :root {
   --page: #f6f6f6;
@@ -56,6 +57,14 @@
   --inverse-muted: #b3b3b3;
   --strong: #121212;
   --strong-hover: #2a2a2a;
+
+  /* Streaming services' logo colours (Band pages): their brand hues, at least 3:1 on surface and muted. */
+  --spotify: #189a46; /* Spotify's #1db954 is 2.6:1 on white */
+  --youtube-music: #ff0000;
+  --bandcamp: #408294;
+  --soundcloud: #ff3300;
+  --deezer: #a238ff;
+  --apple-music: #fa243c;
 
   --danger: --theme(--color-red-700 inline); /* not 600: red-600 on red-100 is 3.9:1, below WCAG AA */
   --danger-soft: --theme(--color-red-100 inline);
@@ -109,6 +118,13 @@
     --strong: #ffffff;
     --strong-hover: #e0e0e0;
 
+    --spotify: #1db954;
+    --youtube-music: #ff0000;
+    --bandcamp: #408294;
+    --soundcloud: #ff3300;
+    --deezer: #a238ff;
+    --apple-music: #fa243c;
+
     --danger: --theme(--color-red-400 inline);
     --danger-soft: color-mix(in oklab, --theme(--color-red-900 inline) 40%, transparent);
     --warning: --theme(--color-yellow-400 inline);
@@ -160,6 +176,13 @@
   --color-inverse-muted: var(--inverse-muted);
   --color-strong: var(--strong);
   --color-strong-hover: var(--strong-hover);
+
+  --color-spotify: var(--spotify);
+  --color-youtube-music: var(--youtube-music);
+  --color-bandcamp: var(--bandcamp);
+  --color-soundcloud: var(--soundcloud);
+  --color-deezer: var(--deezer);
+  --color-apple-music: var(--apple-music);
 
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
