@@ -26,6 +26,13 @@
       },
       {
         "group": "listening",
+        "service": "youtube_music",
+        "label": "YouTube Music",
+        "url": "https://music.youtube.com/channel/neonharbor",
+        "paid": false
+      },
+      {
+        "group": "listening",
         "service": "bandcamp",
         "label": "Bandcamp",
         "url": "https://neonharbor.bandcamp.com/",
@@ -36,6 +43,20 @@
         "service": "apple_music",
         "label": "Apple Music",
         "url": "https://music.apple.com/us/artist/neon-harbor/1",
+        "paid": true
+      },
+      {
+        "group": "listening",
+        "service": "tidal",
+        "label": "Tidal",
+        "url": "https://tidal.com/browse/artist/1",
+        "paid": true
+      },
+      {
+        "group": "listening",
+        "service": "qobuz",
+        "label": "Qobuz",
+        "url": "https://www.qobuz.com/us-en/interpreter/neon-harbor/1",
         "paid": true
       },
       {

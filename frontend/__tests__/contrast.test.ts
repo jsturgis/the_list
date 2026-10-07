@@ -41,6 +41,16 @@ const PAIRS: [text: string, background: string, use: string, min: number][] = [
   ['focus-ring', 'panel', 'focus outline in the filter panel', 3],
   ['focus-ring', 'field', 'focus outline against a form field', 3],
   ['focus-ring', 'pick', "focused Steve's Pick row", 3],
+  ['spotify', 'surface', 'Spotify logo on its listening button', 3],
+  ['spotify', 'muted', 'Spotify logo on its listening button, hovered', 3],
+  ['youtube-music', 'surface', 'YouTube Music logo on its listening button', 3],
+  ['youtube-music', 'muted', 'YouTube Music logo on its listening button, hovered', 3],
+  ['bandcamp', 'surface', 'Bandcamp logo on its listening button', 3],
+  ['bandcamp', 'muted', 'Bandcamp logo on its listening button, hovered', 3],
+  ['apple-music', 'surface', 'Apple Music logo on its listening button', 3],
+  ['apple-music', 'muted', 'Apple Music logo on its listening button, hovered', 3],
+  ['ink', 'surface', 'Tidal logo on its listening button', 3],
+  ['ink', 'muted', 'Tidal logo on its listening button, hovered', 3],
 ]
 
 const TRANSLUCENT_ON_SURFACE = new Set(['pick', 'accent-soft', 'accent-chip', 'danger-soft', 'warning-soft', 'success-soft', 'info-soft', 'hot-soft'])

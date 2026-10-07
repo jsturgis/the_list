@@ -161,6 +161,26 @@ test("a Band's stored photo loads from the site, under its base path", async ({ 
   await expect(page.getByRole('figure')).toHaveText('Photo via Discogs')
 })
 
+for (const scheme of ['light', 'dark'] as const) {
+  test(`a Band's listening links are logo buttons, 44px or more, that fit a phone (${scheme})`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: scheme })
+    await page.setViewportSize({ width: 320, height: 800 })
+    await page.goto('bands/1/')
+    const buttons = page.getByRole('link', { name: /^Listen on / })
+    await expect(buttons).toHaveCount(6)
+    for (const button of await buttons.all()) {
+      const box = await button.boundingBox()
+      expect(box!.width).toBeGreaterThanOrEqual(44)
+      expect(box!.height).toBeGreaterThanOrEqual(44)
+    }
+    // Qobuz's wordmark is an image under the base path: the white one in dark mode.
+    const qobuz = page.getByRole('link', { name: 'Listen on Qobuz (subscription)' }).locator('img')
+    await expect.poll(() => qobuz.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBeGreaterThan(0)
+    expect(await qobuz.evaluate((img: HTMLImageElement) => new URL(img.currentSrc).pathname)).toBe(`/the_list/icons/qobuz-${scheme}.png`)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320)
+  })
+}
+
 test("a Venue page has a bell for that Venue's alerts", async ({ page }) => {
   await page.goto('venues/2/')
   await expect(page.getByRole('button', { name: /^Get alerts for / })).toBeVisible()
