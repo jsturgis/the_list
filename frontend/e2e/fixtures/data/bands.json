@@ -8,7 +8,7 @@
     "spotifyUrl": "https://open.spotify.com/artist/neonharbor",
     "soundcloudUrl": null,
     "bandcampUrl": null,
-    "websiteUrl": null,
+    "websiteUrl": "https://neonharbor.example/",
     "imageUrl": "/images/bands/1-5bcaec467f.webp",
     "isLocal": null,
     "description": null,
@@ -199,7 +199,7 @@
     "spotifyUrl": null,
     "soundcloudUrl": "https://soundcloud.com/redwood-sirens",
     "bandcampUrl": "https://redwoodsirens.bandcamp.com",
-    "websiteUrl": null,
+    "websiteUrl": "https://redwoodsirens.example/",
     "imageUrl": "/images/bands/7-3ac90f4cb6.webp",
     "isLocal": null,
     "description": null,
@@ -221,9 +221,9 @@
       },
       {
         "group": "listening",
-        "service": "deezer",
-        "label": "Deezer",
-        "url": "https://www.deezer.com/artist/7",
+        "service": "audiomack",
+        "label": "Audiomack",
+        "url": "https://audiomack.com/redwood-sirens",
         "paid": false
       },
       {

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
-import { GlobeAltIcon, MapPinIcon } from '@heroicons/react/20/solid'
+import { MapPinIcon } from '@heroicons/react/20/solid'
 import { href } from '@/lib/basePath'
-import ActionLinks, { ActionLink } from './ActionLinks'
+import ActionLinks from './ActionLinks'
 import BandMembers from './BandMembers'
 import ListeningLink from './ListeningLink'
 import PageHeader from './PageHeader'
@@ -44,14 +44,9 @@ export default function BandDetail({ band, upcomingShows, similarBands, bell }: 
         ))}
       </PageHeader>
 
-      {(listening.length > 0 || band.websiteUrl) && (
+      {listening.length > 0 && (
         <ActionLinks>
           {listening.map(link => <ListeningLink key={link.service} link={link} />)}
-          {band.websiteUrl && (
-            <ActionLink href={band.websiteUrl} kind="custom" icon={GlobeAltIcon} external className="min-h-11 bg-strong text-on-inverse hover:bg-strong-hover">
-              Website
-            </ActionLink>
-          )}
         </ActionLinks>
       )}
 
@@ -59,7 +54,7 @@ export default function BandDetail({ band, upcomingShows, similarBands, bell }: 
 
       <BandMembers members={band.members ?? []} />
 
-      <SocialLinks links={band.links ?? []} />
+      <SocialLinks links={band.links ?? []} websiteUrl={band.websiteUrl} />
 
       <SimilarBands bands={similarBands} />
     </article>

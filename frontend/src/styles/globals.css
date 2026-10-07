@@ -65,6 +65,7 @@
   --soundcloud: #ff3300;
   --deezer: #a238ff;
   --apple-music: #fa243c;
+  --amazon-music: #168f95; /* Amazon Music's #34d1d9 is 1.9:1 on white */
 
   --danger: --theme(--color-red-700 inline); /* not 600: red-600 on red-100 is 3.9:1, below WCAG AA */
   --danger-soft: --theme(--color-red-100 inline);
@@ -124,6 +125,7 @@
     --soundcloud: #ff3300;
     --deezer: #a238ff;
     --apple-music: #fa243c;
+    --amazon-music: #34d1d9;
 
     --danger: --theme(--color-red-400 inline);
     --danger-soft: color-mix(in oklab, --theme(--color-red-900 inline) 40%, transparent);
@@ -183,6 +185,7 @@
   --color-soundcloud: var(--soundcloud);
   --color-deezer: var(--deezer);
   --color-apple-music: var(--apple-music);
+  --color-amazon-music: var(--amazon-music);
 
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
