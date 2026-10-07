@@ -74,6 +74,7 @@ Use these tokens through Tailwind's colour utilities (`bg-surface`, `text-ink-mu
 | `youtube-music` | The YouTube Music logo | `#ff0000` | `#ff0000` |
 | `bandcamp` | The Bandcamp logo | `#408294` | `#408294` |
 | `soundcloud` | The SoundCloud logo | `#ff3300` | `#ff3300` |
+| `deezer` | The Deezer logo | `#a238ff` | `#a238ff` |
 | `apple-music` | The Apple Music logo | `#fa243c` | `#fa243c` |
 | **Status** | | | |
 | `danger` | Cancelled, Sold out, errors | `red-700` | `red-400` |
@@ -94,7 +95,7 @@ Use these tokens through Tailwind's colour utilities (`bg-surface`, `text-ink-mu
 - `accent-soft` with `accent-soft-ink`, and `accent-chip` with `accent-chip-ink`
 
 **Brand colours we don't own:** a Band's listening buttons show each streaming service's logo in its own hue, so
-people recognise them: the `spotify`, `youtube-music`, `bandcamp`, `soundcloud` and `apple-music` tokens, each at
+people recognise them: the `spotify`, `youtube-music`, `bandcamp`, `soundcloud`, `deezer` and `apple-music` tokens, each at
 least 3:1 on `surface` and `muted` (Spotify's own green is darker in light mode to get there). Tidal's
 black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black and a white version.
 
@@ -198,13 +199,13 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
 - **Band links:** a Band's actions are its listening links, up to 3 free services then up to 3 paid ones,
   ranked by service in the backend (`app/band_links.py`), then its website. On a Band page the whole row is at
   least 44px tall.
-  - *Logo buttons (`ListeningLink`):* Spotify, YouTube Music, Bandcamp, SoundCloud, Apple Music, Tidal and Qobuz show their
+  - *Logo buttons (`ListeningLink`):* Spotify, YouTube Music, Bandcamp, SoundCloud, Deezer, Apple Music, Tidal and Qobuz show their
     logo alone: a 24px logo (Simple Icons paths, inline SVG) in its brand token, centred in a round 44×44px
     outline button (`surface`, `line-strong` border, `muted` on hover). Qobuz's wordmark is wider, so its button is
     a 44px-tall pill; it's an image (`public/icons/qobuz-light.png`, black, and `qobuz-dark.png`, white, swapped by
     `prefers-color-scheme` in a `<picture>`). Each button is a link that opens in a new tab, named "Listen on
     <service>" (with " (subscription)" for paid ones) by `aria-label`, and the same text is its tooltip.
-  - *Other services* (Deezer, Audiomack, Amazon Music) keep a labelled outline pill with a music-note icon; paid
+  - *Other services* (Audiomack, Amazon Music) keep a labelled outline pill with a music-note icon; paid
     ones say "(subscription)" in their title.
   - Streaming logos are only ever used on their own service's link.
   - A Band's social profiles (Instagram, Facebook, X, TikTok, Bluesky, YouTube) sit in a **Social** section

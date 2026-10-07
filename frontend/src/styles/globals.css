@@ -63,6 +63,7 @@
   --youtube-music: #ff0000;
   --bandcamp: #408294;
   --soundcloud: #ff3300;
+  --deezer: #a238ff;
   --apple-music: #fa243c;
 
   --danger: --theme(--color-red-700 inline); /* not 600: red-600 on red-100 is 3.9:1, below WCAG AA */
@@ -121,6 +122,7 @@
     --youtube-music: #ff0000;
     --bandcamp: #408294;
     --soundcloud: #ff3300;
+    --deezer: #a238ff;
     --apple-music: #fa243c;
 
     --danger: --theme(--color-red-400 inline);
@@ -179,6 +181,7 @@
   --color-youtube-music: var(--youtube-music);
   --color-bandcamp: var(--bandcamp);
   --color-soundcloud: var(--soundcloud);
+  --color-deezer: var(--deezer);
   --color-apple-music: var(--apple-music);
 
   --color-danger: var(--danger);

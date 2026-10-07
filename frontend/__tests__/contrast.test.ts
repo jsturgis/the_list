@@ -49,6 +49,8 @@ const PAIRS: [text: string, background: string, use: string, min: number][] = [
   ['bandcamp', 'muted', 'Bandcamp logo on its listening button, hovered', 3],
   ['soundcloud', 'surface', 'SoundCloud logo on its listening button', 3],
   ['soundcloud', 'muted', 'SoundCloud logo on its listening button, hovered', 3],
+  ['deezer', 'surface', 'Deezer logo on its listening button', 3],
+  ['deezer', 'muted', 'Deezer logo on its listening button, hovered', 3],
   ['apple-music', 'surface', 'Apple Music logo on its listening button', 3],
   ['apple-music', 'muted', 'Apple Music logo on its listening button, hovered', 3],
   ['ink', 'surface', 'Tidal logo on its listening button', 3],
