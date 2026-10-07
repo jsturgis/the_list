@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { FIELD } from '@/lib/field'
 
 interface ComboboxProps {
   id: string
@@ -10,9 +11,6 @@ interface ComboboxProps {
   placeholder?: string
   'aria-describedby'?: string
 }
-
-const inputClass =
-  'w-full h-9 rounded-full border border-line-strong bg-field text-sm px-3 py-1.5 text-ink placeholder:text-ink-faint'
 
 /**
  * Text input with a filterable suggestion list rendered at the input's width (ARIA combobox pattern).
@@ -112,7 +110,7 @@ export default function Combobox({ id, options, value, onChange, placeholder, ..
         onClick={() => setOpen(true)}
         onBlur={close}
         onKeyDown={onKeyDown}
-        className={inputClass}
+        className={`${FIELD} w-full px-3`}
       />
       {open && (
         <ul

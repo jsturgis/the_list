@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { TrashIcon } from '@heroicons/react/16/solid'
+import { FIELD } from '@/lib/field'
 import { href } from '@/lib/basePath'
 import { MAX_ALERTS, alertsPageUrl, supabase, type SavedFilter } from '@/lib/supabase'
 import { findSameFilter } from '@/lib/filters'
@@ -250,7 +251,7 @@ function SignInByEmail() {
           placeholder="Email"
           value={email}
           onChange={e => setEmail(e.target.value)}
-          className="h-9 rounded-full border border-line-strong bg-field text-sm px-3 text-ink placeholder:text-ink-faint"
+          className={`${FIELD} px-3`}
         />
         <button
           type="submit"

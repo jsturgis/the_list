@@ -111,6 +111,7 @@ WCAG AA.
 | Meta: time · price · age, captions | 12–14px (`text-xs`/`text-sm`) | 400 | `ink-muted` or `ink-soft` |
 | Badges (flags, statuses) | 12px | 600 | statuses uppercase |
 | Button labels | as the button | 700 | UPPERCASE, tracking 0.1em (global for `<button>`) |
+| Form fields (text, email, number, date, select, textarea) | 16px (`text-base`), never smaller | 400 | iOS Safari zooms the page in on a focused field under 16px |
 
 ## 4. Component Stylings
 
@@ -121,7 +122,11 @@ WCAG AA.
   - *Outline:* `border-accent`, `text-link` on `surface`.
   - *Quiet:* text-only in `ink-muted`, with an underline or a `muted` hover (Clear filters, Back).
 - **Inputs and selects:** `bg-field`, pill-shaped (`rounded-full`, `px-3`), `line-strong` border, `ink` text,
-  `ink-faint` placeholders. Checkboxes keep the browser's shape, tinted with `accent-accent`.
+  `ink-faint` placeholders, 36px tall (`h-9`). Every field uses the shared `FIELD` class (`src/lib/field.ts`), plus
+  its padding. Field text is **at least 16px** (`text-base`): iOS Safari zooms the page in on a focused field with
+  smaller text, so never give a field `text-sm`, and never stop the zoom in the viewport meta (`maximum-scale`,
+  `user-scalable=no`), which takes pinch zoom away. `e2e/form-controls.spec.ts` checks every field.
+  Checkboxes keep the browser's shape, tinted with `accent-accent`.
   A form's only field (the Alerts page's Email) can go without a visible label: its placeholder names it, and
   `aria-label` gives it the same accessible name.
 - **Focus:** keyboard focus is a 2px `focus-ring` outline, offset 2px, on everything (a global rule; don't remove
