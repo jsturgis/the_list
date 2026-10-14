@@ -42,7 +42,7 @@ async function signedInWithAlerts(page: Page) {
 }
 
 test('the first Tab reaches "Skip to content", which moves focus to the page content', async ({ page }) => {
-  await page.goto('shows/102/')
+  await page.goto('shows/neon-harbor-2026-10-03/')
   await page.keyboard.press('Tab')
   const skip = page.getByRole('link', { name: 'Skip to content' })
   await expect(skip).toBeFocused()
@@ -115,7 +115,7 @@ test('keyboard only: open a Show, then a Band, then go back', async ({ page }) =
   await page.goto('./')
   await tabTo(page, page.locator('main [data-show-link]').first())
   await page.keyboard.press('Enter')
-  await expect(page).toHaveURL(/\/shows\/102\/$/)
+  await expect(page).toHaveURL(/\/shows\/neon-harbor-2026-10-03\/$/)
 
   await tabTo(page, page.getByRole('main').getByRole('link', { name: 'Static Bloom' }))
   await page.keyboard.press('Enter')
@@ -124,7 +124,7 @@ test('keyboard only: open a Show, then a Band, then go back', async ({ page }) =
 
   await tabTo(page, page.getByRole('link', { name: 'Back' }))
   await page.keyboard.press('Enter')
-  await expect(page).toHaveURL(/\/shows\/102\/$/)
+  await expect(page).toHaveURL(/\/shows\/neon-harbor-2026-10-03\/$/)
 })
 
 test('keyboard only: delete an alert', async ({ page }) => {

@@ -179,3 +179,9 @@ def test_a_band_slug_is_unique_among_every_band_not_only_the_exported(db, data, 
 
 def test_venues_are_exported_with_their_slugs(exported, data):
     assert {v["id"]: v["slug"] for v in exported["venues"]} == {data["fillmore"].id: "the-fillmore", data["chapel"].id: "the-chapel"}
+
+
+def test_shows_are_exported_with_their_slugs(exported, data):
+    slugs = {s["id"]: s["slug"] for s in exported["shows"]}
+    tonight, later = local_today(), local_today() + timedelta(days=7)
+    assert slugs == {data["tonight"].id: f"headliner-{tonight.isoformat()}", data["later"].id: f"support-{later.isoformat()}"}

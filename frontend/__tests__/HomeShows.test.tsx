@@ -23,7 +23,7 @@ const band = (id: number, name: string): ExportBand => ({
   isLocal: null, description: null, similar: [],
 })
 const show = (id: number, date: string, bandId: number, extra: Partial<ExportShow> = {}): ExportShow => ({
-  id, date, doorTime: '20:00:00', setTime: null, priceMin: 15, priceMax: 15, isFree: false, ageRestriction: 'a/a',
+  id, slug: `show-${id}`, date, doorTime: '20:00:00', setTime: null, priceMin: 15, priceMax: 15, isFree: false, ageRestriction: 'a/a',
   status: 'upcoming', isRecommended: false, willSellOut: false, isPit: false, isDrinkTickets: false,
   isNoReentry: false, notes: null, isMatinee: false, isSoldOut: false, ticketProvider: null, ticketUrl: null, isBenefit: false,
   benefitCause: null, specialEvent: null, venueId: 1, acts: [[bandId, 0]], ...extra,

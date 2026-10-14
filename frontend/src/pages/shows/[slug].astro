@@ -1,0 +1,23 @@
+---
+import type { GetStaticPaths } from 'astro'
+import Layout from '@/layouts/Layout.astro'
+import BackLink from '@/components/BackLink'
+import ShowDetail from '@/components/ShowDetail'
+import { href } from '@/lib/basePath'
+import { siteData } from '@/lib/siteData.server'
+
+// One static page per exported Show at its slug, and one at its id (/shows/102/), its permanent URL, redirecting to
+// the slug; anything else is the 404 page. The page looks the Show up from its URL (Astro's routing guide).
+export const getStaticPaths = (() =>
+  siteData().showIds().flatMap(id => [{ params: { slug: siteData().show(Number(id))!.slug } }, { params: { slug: id } }])
+) satisfies GetStaticPaths
+
+const { slug } = Astro.params
+const show = siteData().showBySlug(slug)
+if (!show) return Astro.redirect(href(`/shows/${siteData().show(Number(slug))!.slug}/`), 301)
+---
+
+<Layout>
+  <BackLink slot="back" />
+  <ShowDetail show={show} />
+</Layout>

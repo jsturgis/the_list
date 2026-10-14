@@ -1,7 +1,7 @@
 """Static JSON export: the data contract between the backend and the static frontend.
 
 Writes four files to a directory:
-  shows.json   Shows from today (Bay Area time) that aren't Past, each with `venueId` and
+  shows.json   Shows from today (Bay Area time) that aren't Past, each with its page `slug`, `venueId` and
                `acts` as [bandId, position] (plus the act's note, when it has one)
   venues.json  Venues referenced by those Shows, each with its page `slug`
   bands.json   Bands referenced by those Shows, each with its page `slug` (app.slugs) and up to six `similar`
@@ -57,15 +57,15 @@ def export(db: Session, out_dir: str | Path) -> dict[str, int]:
     venues = {s.venue.id: s.venue for s in shows}
     bands = {a.band.id: a.band for s in shows for a in s.acts}
 
+    slugs = site_slugs(db)
     show_rows = []
     for s in shows:
-        row = dataclasses.asdict(_show(s))
+        row = dataclasses.asdict(_show(s)) | {"slug": slugs.shows[s.id]}
         del row["venue"], row["acts"]
         row["venue_id"] = s.venue_id
         row["acts"] = [[a.band_id, a.position] + ([a.note] if a.note else []) for a in s.acts]
         show_rows.append(row)
 
-    slugs = site_slugs(db)
     band_rows = []
     for band in sorted(bands.values(), key=lambda b: b.id):
         row = dataclasses.asdict(_band(band)) | {"slug": slugs.bands[band.id]}

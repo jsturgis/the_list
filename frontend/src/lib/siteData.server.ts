@@ -16,6 +16,7 @@ export interface ExportData {
    */
   exportDay: string
   show(id: number): Show | undefined
+  showBySlug(slug: string): Show | undefined
   venue(id: number): ExportVenue | undefined
   venueBySlug(slug: string): ExportVenue | undefined
   band(id: number): ExportBand | undefined
@@ -58,6 +59,7 @@ export function readExport(dir: string = DEFAULT_DATA_DIR): ExportData {
   const meta = readJson<ExportMeta>(dir, 'meta')
 
   const showById = new Map(shows.map(s => [s.id, s]))
+  const showBySlug = new Map(shows.map(s => [s.slug, s]))
   const venueById = new Map(venues.map(v => [v.id, v]))
   const venueBySlug = new Map(venues.map(v => [v.slug, v]))
   const bandById = new Map(bands.map(b => [b.id, b]))
@@ -74,6 +76,7 @@ export function readExport(dir: string = DEFAULT_DATA_DIR): ExportData {
     meta,
     exportDay: from,
     show: id => showById.get(id),
+    showBySlug: slug => showBySlug.get(slug),
     venue: id => venueById.get(id),
     venueBySlug: slug => venueBySlug.get(slug),
     band: id => bandById.get(id),

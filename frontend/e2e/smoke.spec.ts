@@ -284,7 +284,7 @@ test('a Show card opens the Show page', async ({ page }) => {
   await page.goto('./')
   await showCards(page).first().click()
 
-  await expect(page).toHaveURL(/\/the_list\/shows\/102\/$/)
+  await expect(page).toHaveURL(/\/the_list\/shows\/neon-harbor-2026-10-03\/$/)
   await expect(page.getByRole('heading', { level: 1, name: 'Neon Harbor' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Lineup' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Venue' })).toBeVisible()
@@ -304,8 +304,14 @@ test("a Venue's numeric URL, from before Venue pages had slugs, opens its page",
   await expect(page.getByRole('heading', { level: 1, name: '924 Gilman Street' })).toBeVisible()
 })
 
-test('a Band link opens the Band page', async ({ page }) => {
+test("a Show's numeric URL, as in Alerts and calendar entries from before Show pages had slugs, opens its page", async ({ page }) => {
   await page.goto('shows/102/')
+  await expect(page).toHaveURL(/\/the_list\/shows\/neon-harbor-2026-10-03\/$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Neon Harbor' })).toBeVisible()
+})
+
+test('a Band link opens the Band page', async ({ page }) => {
+  await page.goto('shows/neon-harbor-2026-10-03/')
   await page.getByTestId('act-name').filter({ hasText: 'Neon Harbor' }).click()
 
   await expect(page).toHaveURL(/\/the_list\/bands\/neon-harbor\/$/)
@@ -314,7 +320,7 @@ test('a Band link opens the Band page', async ({ page }) => {
   await expect(page.getByRole('dialog')).toHaveCount(0)
 
   await page.goBack()
-  await expect(page).toHaveURL(/\/the_list\/shows\/102\/$/)
+  await expect(page).toHaveURL(/\/the_list\/shows\/neon-harbor-2026-10-03\/$/)
   await expect(page.getByRole('heading', { level: 1, name: 'Neon Harbor' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Lineup' })).toBeVisible()
 })
@@ -329,7 +335,7 @@ test('a Band URL loaded directly renders the full Band page', async ({ page }) =
 })
 
 test('the Venue link opens the Venue page with its upcoming Shows', async ({ page }) => {
-  await page.goto('shows/103/')
+  await page.goto('shows/gilman-youth-2026-10-03/')
   await page.getByRole('main').getByRole('link', { name: '924 Gilman Street' }).first().click()
 
   await expect(page).toHaveURL(/\/the_list\/venues\/924-gilman-street\/$/)
@@ -470,7 +476,7 @@ test("a Show row's calendar links: a static .ics file and a Google Calendar even
 })
 
 test('the Show page links the same .ics file', async ({ page }) => {
-  await page.goto('shows/102/')
+  await page.goto('shows/neon-harbor-2026-10-03/')
   await expect(page.getByRole('link', { name: 'Add to calendar' })).toHaveAttribute('href', '/the_list/calendar/102.ics')
 })
 

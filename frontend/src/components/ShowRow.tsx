@@ -57,7 +57,7 @@ export default function ShowRow({ show, filterQs = '', showVenue = true, heading
             <Heading className="text-base leading-snug text-ink-muted">
               {show.isRecommended && <StarIcon aria-hidden="true" className="inline size-4 -mt-0.5 mr-1 text-pick-line" />}
               <a
-                href={href(filterQs ? `/shows/${show.id}/?${filterQs}` : `/shows/${show.id}/`)}
+                href={href(filterQs ? `/shows/${show.slug}/?${filterQs}` : `/shows/${show.slug}/`)}
                 data-show-link=""
                 className="font-bold text-ink outline-none after:absolute after:inset-0 after:content-['']"
               >

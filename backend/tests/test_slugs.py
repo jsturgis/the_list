@@ -1,6 +1,7 @@
 """Tests for page slugs: the names in Band, Venue and Show page URLs."""
 from __future__ import annotations
 
+from datetime import date
 from types import SimpleNamespace
 
 from app.slugs import assign
@@ -57,3 +58,33 @@ def test_venue_slugs_follow_the_same_rules_with_their_own_kind():
 def test_a_band_and_a_venue_can_share_a_slug():
     slugs = assign(bands=[band(1, "The Chapel")], venues=[venue(1, "The Chapel")])
     assert (slugs.bands, slugs.venues) == ({1: "the-chapel"}, {1: "the-chapel"})
+
+
+def show(id, date, venue_id, *band_ids):
+    return SimpleNamespace(id=id, date=date, venue_id=venue_id,
+                           acts=[SimpleNamespace(band_id=b, position=p) for p, b in enumerate(band_ids)])
+
+
+BANDS = [band(1, "Deafheaven"), band(2, "Uniform"), band(3, "DEAFHEAVEN!")]
+VENUES = [venue(1, "Bottom of the Hill"), venue(2, "The Chapel")]
+
+
+def test_a_show_slug_is_its_headliners_slug_and_date():
+    slugs = assign(bands=BANDS, venues=VENUES, shows=[show(10, date(2026, 10, 1), 1, 1, 2), show(11, date(2026, 10, 2), 1, 3)])
+    # The headliner's own slug, so two Bands that share a name stay apart.
+    assert slugs.shows == {10: "deafheaven-2026-10-01", 11: "deafheaven-3-2026-10-02"}
+
+
+def test_a_show_without_acts_is_show_and_its_date():
+    assert assign(venues=VENUES, shows=[show(10, date(2026, 10, 1), 1)]).shows == {10: "show-2026-10-01"}
+
+
+def test_shows_with_one_headliner_on_one_date_get_their_venues():
+    slugs = assign(bands=BANDS, venues=VENUES, shows=[show(10, date(2026, 10, 1), 2, 1), show(11, date(2026, 10, 1), 1, 1)])
+    assert slugs.shows == {10: "deafheaven-the-chapel-2026-10-01", 11: "deafheaven-bottom-of-the-hill-2026-10-01"}
+
+
+def test_shows_with_one_headliner_at_one_venue_on_one_date_get_their_ids_after_the_first():
+    # An early and a late show.
+    slugs = assign(bands=BANDS, venues=VENUES, shows=[show(12, date(2026, 10, 1), 1, 1), show(10, date(2026, 10, 1), 1, 1)])
+    assert slugs.shows == {10: "deafheaven-bottom-of-the-hill-2026-10-01", 12: "deafheaven-bottom-of-the-hill-2026-10-01-12"}

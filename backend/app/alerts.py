@@ -25,6 +25,7 @@ from app.config import settings
 from app.graphql.queries import query_shows
 from app.graphql.types import ShowFilters
 from app.models.show import Show
+from app.slugs import site_slugs
 
 logger = logging.getLogger(__name__)
 
@@ -227,7 +228,7 @@ def _age(show: Show) -> str | None:
     return None if age in (None, "unknown") else ("All Ages" if age == "a/a" else age)
 
 
-def _show_line(show: Show, site: str) -> ShowLine:
+def _show_line(show: Show, site: str, slug: str) -> ShowLine:
     names = [a.band.name for a in sorted(show.acts, key=lambda a: a.position)]
     return ShowLine(
         show_id=show.id,
@@ -245,7 +246,7 @@ def _show_line(show: Show, site: str) -> ShowLine:
         is_pick=bool(show.is_recommended),
         sold_out=bool(show.is_sold_out),
         will_sell_out=bool(show.will_sell_out),
-        url=f"{site}/shows/{show.id}/",
+        url=f"{site}/shows/{slug}/",
     )
 
 
@@ -385,6 +386,7 @@ def unsubscribe_url(site: str, token: str) -> str:
 def build_alerts(db: Session, subscribers: list[Subscriber], site: str) -> list[AlertEmail]:
     """One Alert per person whose Saved Filters match any Upcoming Shows; nothing for the rest."""
     emails = []
+    slugs = site_slugs(db).shows
     cache: dict[str, list[Show]] = {}  # people often save the same filters
     for person in subscribers:
         sections = []
@@ -399,7 +401,7 @@ def build_alerts(db: Session, subscribers: list[Subscriber], site: str) -> list[
                 cache[saved.query] = _matching_shows(db, saved.query)
             matches = cache[saved.query]
             if matches:
-                sections.append(Section(saved.name, [_show_line(s, site) for s in matches[:SHOWS_PER_FILTER]],
+                sections.append(Section(saved.name, [_show_line(s, site, slugs[s.id]) for s in matches[:SHOWS_PER_FILTER]],
                                         len(matches), f"{site}/?{saved.query}", frozenset(s.id for s in matches)))
         if sections:
             unsubscribe = unsubscribe_url(site, person.unsubscribe_token)

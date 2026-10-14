@@ -7,9 +7,9 @@ const showLink = () => screen.getByRole('link', { name: /Test Band/ })
 
 describe('ShowRow', () => {
   it('names the headliner in a heading that links to the Show page', () => {
-    render(<ShowRow show={makeShow({ id: 42 })} />)
+    render(<ShowRow show={makeShow({ id: 42, date: '2026-10-03' })} />)
     expect(screen.getByRole('heading', { level: 3, name: /Test Band/ })).toBeInTheDocument()
-    expect(showLink()).toHaveAttribute('href', '/shows/42/')
+    expect(showLink()).toHaveAttribute('href', '/shows/test-band-2026-10-03/')
   })
 
   it('can sit one level deeper, under date headings', () => {
@@ -26,8 +26,8 @@ describe('ShowRow', () => {
   })
 
   it('carries the Shows list filters to the Show page', () => {
-    render(<ShowRow show={makeShow({ id: 42 })} filterQs="region=sf" />)
-    expect(showLink()).toHaveAttribute('href', '/shows/42/?region=sf')
+    render(<ShowRow show={makeShow({ id: 42, date: '2026-10-03' })} filterQs="region=sf" />)
+    expect(showLink()).toHaveAttribute('href', '/shows/test-band-2026-10-03/?region=sf')
   })
 
   it('lists the supports after "with"', () => {

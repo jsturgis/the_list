@@ -35,6 +35,7 @@ export const makeBand = (overrides: Partial<Band> = {}): Band => ({
 
 export const makeShow = (overrides: Partial<Show> = {}): Show => ({
   id: 1,
+  slug: `${(overrides.acts ?? [{ band: makeBand() }])[0]?.band.slug ?? 'show'}-${overrides.date ?? '2026-10-03'}`,
   date: '2026-10-03',
   doorTime: '19:00:00',
   setTime: '20:00:00',

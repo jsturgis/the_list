@@ -9,7 +9,7 @@ import { formatPrice, formatTime } from './format'
 import type { Show, Venue } from './types'
 
 /** What a calendar event needs of a Show: a full Show, or the home page's trimmed one. */
-export type CalendarShow = Pick<Show, 'id' | 'date' | 'doorTime' | 'setTime' | 'priceMin' | 'priceMax' | 'isFree' | 'ageRestriction'> & {
+export type CalendarShow = Pick<Show, 'id' | 'slug' | 'date' | 'doorTime' | 'setTime' | 'priceMin' | 'priceMax' | 'isFree' | 'ageRestriction'> & {
   venue: Pick<Venue, 'name' | 'city' | 'address'>
   acts: { position: number; band: { name: string } }[]
 }
@@ -59,7 +59,7 @@ interface CalendarEvent {
 
 function showEvent(show: CalendarShow, siteUrl: string): CalendarEvent {
   const acts = show.acts.slice().sort((a, b) => a.position - b.position).map(a => a.band.name)
-  const url = `${siteUrl}/shows/${show.id}/`
+  const url = `${siteUrl}/shows/${show.slug}/`
   const times = [show.doorTime && `Doors ${formatTime(show.doorTime)}`, show.setTime && `Set ${formatTime(show.setTime)}`]
     .filter(Boolean).join(' · ')
   const price = formatPrice(show.priceMin, show.priceMax, show.isFree)

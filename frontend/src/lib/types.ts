@@ -95,6 +95,8 @@ export interface Act {
 
 export interface Show {
   id: number
+  /** Its page's URL segment, from its headliner and date (/shows/neon-harbor-2026-10-03/): unique among Shows. */
+  slug: string
   date: string
   doorTime: string | null
   setTime: string | null

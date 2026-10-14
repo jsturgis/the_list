@@ -7,10 +7,9 @@ import HomePage from '@/pages/index.astro'
 import NotFoundPage from '@/pages/404.astro'
 import AlertsPage from '@/pages/alerts/index.astro'
 import UnsubscribePage from '@/pages/alerts/unsubscribe.astro'
-import ShowPage from '@/pages/shows/[id].astro'
+import ShowRoute, { getStaticPaths as showPaths } from '@/pages/shows/[slug].astro'
 import VenueRoute, { getStaticPaths as venuePaths } from '@/pages/venues/[slug].astro'
 import BandRoute, { getStaticPaths as bandPaths } from '@/pages/bands/[slug].astro'
-import { makeBand, makeShow, makeVenue } from './fixtures'
 
 let container: AstroContainer
 
@@ -24,6 +23,7 @@ type Page = Parameters<AstroContainer['renderToString']>[0]
 // A page that can redirect (from its numeric URL) has a return type the container's typing doesn't allow for.
 const BandPage = BandRoute as unknown as Page
 const VenuePage = VenueRoute as unknown as Page
+const ShowPage = ShowRoute as unknown as Page
 const render = (page: Page, props: Record<string, unknown> = {}) => container.renderToString(page, { props })
 
 /** The React islands on a rendered page: the component each one loads, and its serialised props. */
@@ -73,27 +73,21 @@ describe('the header', () => {
   })
 })
 
+// Built from the e2e fixture export (SITE_DATA_DIR): Neon Harbor and 924 Gilman Street both have Shows on Oct 3 and 5.
 describe('detail pages ship no React', () => {
-  const venue = makeVenue({ id: 2, name: '924 Gilman Street' })
-  const band = makeBand({ id: 1, name: 'Neon Harbor' })
-  const shows = [
-    makeShow({ id: 102, date: '2026-10-03', venue, acts: [{ position: 0, band }] }),
-    makeShow({ id: 105, date: '2026-10-05', venue, acts: [{ position: 0, band }] }),
-  ]
-
   it('a Show page has no islands', async () => {
-    const html = await render(ShowPage, { show: shows[0] })
+    const html = await container.renderToString(ShowPage, { params: { slug: 'neon-harbor-2026-10-03' } })
     expect(html).toContain('Neon Harbor')
     expect(islands(html)).toEqual([])
   })
 
   it('marks the page as running JavaScript before it renders, so lists can wait to be trimmed', async () => {
-    const html = await render(ShowPage, { show: shows[0] })
+    const html = await container.renderToString(ShowPage, { params: { slug: 'neon-harbor-2026-10-03' } })
     expect(html).toMatch(/<head>.*<script>.*document\.documentElement\.dataset\.js = ''.*<\/script>.*<\/head>/s)
   })
 
   it("hides Shows that have passed with CSS written by an inline <head> script, from the export's day", async () => {
-    const html = await render(ShowPage, { show: shows[0] })
+    const html = await container.renderToString(ShowPage, { params: { slug: 'neon-harbor-2026-10-03' } })
     const head = html.match(/<head>(.*)<\/head>/s)![1]
     const script = head.match(/<script>(document\.head\.append\(.*?\}\)\))<\/script>/s)![1]
     // Run it as the browser would, on Oct 4 (the fixture export was made on Sep 30), with just enough document.
@@ -165,6 +159,22 @@ describe('page URLs', () => {
     const response = await container.renderToResponse(VenuePage, { params: { slug: '2' } })
     expect(response.status).toBe(301)
     expect(response.headers.get('location')).toBe('/venues/924-gilman-street/')
+  })
+
+  it('builds each Show page at its headliner and date, and its numeric URL too', async () => {
+    const built = await params(showPaths)
+    expect(built).toEqual(expect.arrayContaining(['neon-harbor-2026-10-03', '102', 'gilman-youth-2026-10-03', '103']))
+  })
+
+  it("renders a Show's page at its slug", async () => {
+    const html = await container.renderToString(ShowPage, { params: { slug: 'neon-harbor-2026-10-03' } })
+    expect(html).toMatch(/<h1[^>]*>Neon Harbor<\/h1>/)
+  })
+
+  it("redirects a Show's numeric URL to its slug", async () => {
+    const response = await container.renderToResponse(ShowPage, { params: { slug: '102' } })
+    expect(response.status).toBe(301)
+    expect(response.headers.get('location')).toBe('/shows/neon-harbor-2026-10-03/')
   })
 })
 
