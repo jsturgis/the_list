@@ -38,6 +38,7 @@ const pastShowsScript =
     <title>{title}</title>
     <meta name="description" content={description} />
     {noindex && <meta name="robots" content="noindex" />}
+    {!noindex && Astro.site && <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />}
     <link rel="icon" href={href('/favicon.ico')} sizes="any" />
     <link rel="icon" href={href('/favicon.png')} type="image/png" sizes="512x512" />
     <link rel="apple-touch-icon" href={href('/favicon.png')} />

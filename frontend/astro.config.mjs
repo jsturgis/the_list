@@ -1,5 +1,6 @@
 import { defineConfig } from 'astro/config'
 import react from '@astrojs/react'
+import sitemap from '@astrojs/sitemap'
 import tailwindcss from '@tailwindcss/vite'
 
 // The Deploy workflow passes the base path and URL GitHub Pages reports (actions/configure-pages): "" and
@@ -16,7 +17,8 @@ export default defineConfig({
   // Every page is a directory index (bands/10/index.html), so refreshing any URL loads it.
   trailingSlash: 'always',
   build: { format: 'directory' },
-  integrations: [react()],
+  // sitemap-index.xml lists every page for search engines (robots.txt points to it), but not the noindex ones.
+  integrations: [react(), sitemap({ filter: page => !page.includes('/alerts/unsubscribe/') })],
   vite: { plugins: [tailwindcss()] },
   // localhost:3000/the_list/alerts/** is on Supabase's sign-in redirect allow-list (ADR 0003).
   server: { port: 3000 },
