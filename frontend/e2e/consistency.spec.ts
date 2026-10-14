@@ -7,7 +7,7 @@ import { expect, test } from './fixtures'
 const NARROW: [name: string, path: string][] = [
   ['Show page', 'shows/102/'],
   ['Venue page', 'venues/2/'],
-  ['Band page', 'bands/1/'],
+  ['Band page', 'bands/neon-harbor/'],
   ['Alerts page', 'alerts/'],
   ['Unsubscribe page', 'alerts/unsubscribe/'],
   ['not-found page', 'shows/99999/'],

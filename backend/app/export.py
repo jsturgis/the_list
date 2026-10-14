@@ -4,7 +4,8 @@ Writes four files to a directory:
   shows.json   Shows from today (Bay Area time) that aren't Past, each with `venueId` and
                `acts` as [bandId, position] (plus the act's note, when it has one)
   venues.json  Venues referenced by those Shows
-  bands.json   Bands referenced by those Shows, each with up to six `similar` Band ids (exported only)
+  bands.json   Bands referenced by those Shows, each with its page `slug` (app.slugs) and up to six `similar`
+               Band ids (exported only)
   meta.json    generation time, latest email subject, filter options, count of Upcoming Shows
 
 Field names and values come from the GraphQL mappers (camelCased), so the export can't drift from
@@ -21,6 +22,7 @@ from sqlalchemy.orm import Session, joinedload
 from strawberry.utils.str_converters import to_camel_case
 
 from app import catalog
+from app.slugs import site_slugs
 from app.clock import local_today
 from app.graphql.queries import _band, _show, _venue
 from app.models.act import Act
@@ -63,9 +65,10 @@ def export(db: Session, out_dir: str | Path) -> dict[str, int]:
         row["acts"] = [[a.band_id, a.position] + ([a.note] if a.note else []) for a in s.acts]
         show_rows.append(row)
 
+    slugs = site_slugs(db)
     band_rows = []
     for band in sorted(bands.values(), key=lambda b: b.id):
-        row = dataclasses.asdict(_band(band))
+        row = dataclasses.asdict(_band(band)) | {"slug": slugs.bands[band.id]}
         # Over-fetch so that dropping Bands outside the export still leaves up to six.
         row["similar"] = [bid for bid in catalog.similar_band_ids(db, band, k=SIMILAR_BANDS * 2)
                           if bid in bands][:SIMILAR_BANDS]

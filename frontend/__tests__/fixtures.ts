@@ -18,9 +18,13 @@ export const makeVenue = (overrides: Partial<Venue> = {}): Venue => ({
   ...overrides,
 })
 
+/** A plain name's slug, as the export's (backend app/slugs.py) would be. */
+const slugOf = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+
 export const makeBand = (overrides: Partial<Band> = {}): Band => ({
   id: 1,
   name: 'Test Band',
+  slug: slugOf(overrides.name ?? 'Test Band'),
   genres: ['indie rock', 'alternative'],
   spotifyUrl: 'https://open.spotify.com/artist/abc',
   soundcloudUrl: null,

@@ -2,6 +2,7 @@ import { defineConfig } from 'astro/config'
 import react from '@astrojs/react'
 import sitemap from '@astrojs/sitemap'
 import tailwindcss from '@tailwindcss/vite'
+import { inSitemap } from './src/lib/sitemap'
 
 // The Deploy workflow passes the base path and URL GitHub Pages reports (actions/configure-pages): "" and
 // https://list.sturgis.me with the custom domain, "/the_list" and https://jsturgis.github.io/the_list
@@ -17,8 +18,8 @@ export default defineConfig({
   // Every page is a directory index (bands/10/index.html), so refreshing any URL loads it.
   trailingSlash: 'always',
   build: { format: 'directory' },
-  // sitemap-index.xml lists every page for search engines (robots.txt points to it), but not the noindex ones.
-  integrations: [react(), sitemap({ filter: page => !page.includes('/alerts/unsubscribe/') })],
+  // sitemap-index.xml lists the pages for search engines (robots.txt points to it), not the noindex ones.
+  integrations: [react(), sitemap({ filter: inSitemap })],
   vite: { plugins: [tailwindcss()] },
   // localhost:3000/the_list/alerts/** is on Supabase's sign-in redirect allow-list (ADR 0003).
   server: { port: 3000 },

@@ -9,7 +9,7 @@ import AlertsPage from '@/pages/alerts/index.astro'
 import UnsubscribePage from '@/pages/alerts/unsubscribe.astro'
 import ShowPage from '@/pages/shows/[id].astro'
 import VenuePage from '@/pages/venues/[id].astro'
-import BandPage from '@/pages/bands/[id].astro'
+import BandRoute, { getStaticPaths as bandPaths } from '@/pages/bands/[slug].astro'
 import { makeBand, makeShow, makeVenue } from './fixtures'
 
 let container: AstroContainer
@@ -21,6 +21,8 @@ beforeAll(async () => {
 afterEach(() => vi.unstubAllEnvs())
 
 type Page = Parameters<AstroContainer['renderToString']>[0]
+// A page that can redirect (from its numeric URL) has a return type the container's typing doesn't allow for.
+const BandPage = BandRoute as unknown as Page
 const render = (page: Page, props: Record<string, unknown> = {}) => container.renderToString(page, { props })
 
 /** The React islands on a rendered page: the component each one loads, and its serialised props. */
@@ -116,11 +118,36 @@ describe('detail pages ship no React', () => {
   })
 
   it('a Band page lists its Upcoming Shows statically, marked by date for the browser to trim', async () => {
-    const html = await render(BandPage, { band, upcomingShows: shows, similarBands: [] })
+    const html = await container.renderToString(BandPage, { params: { slug: 'neon-harbor' } })
     expect(islands(html).map(i => i.component)).toEqual(['AlertBell'])
     expect(islands(html)[0].props).not.toContain('upcomingShows')
     expect(html).toContain('data-upcoming-shows-list')
     expect(html).toContain('data-show-date="2026-10-03"')
+  })
+})
+
+// Built from the e2e fixture export (SITE_DATA_DIR).
+describe('page URLs', () => {
+  const params = async (paths: () => unknown) =>
+    ((await paths()) as { params: Record<string, string> }[]).map(p => Object.values(p.params)[0])
+
+  it('builds each Band page at its slug, and its numeric URL too', async () => {
+    const built = await params(bandPaths)
+    expect(built).toContain('neon-harbor')
+    expect(built).toContain('1')
+    expect(built).toContain('redwood-sirens')
+    expect(built).toContain('7')
+  })
+
+  it("renders a Band's page at its slug", async () => {
+    const html = await container.renderToString(BandPage, { params: { slug: 'neon-harbor' } })
+    expect(html).toMatch(/<h1[^>]*>Neon Harbor<\/h1>/)
+  })
+
+  it("redirects a Band's numeric URL to its slug", async () => {
+    const response = await container.renderToResponse(BandPage, { params: { slug: '1' } })
+    expect(response.status).toBe(301)
+    expect(response.headers.get('location')).toBe('/bands/neon-harbor/')
   })
 })
 

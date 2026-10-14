@@ -62,6 +62,8 @@ export interface BandLink {
 export interface Band {
   id: number
   name: string
+  /** Its page's URL segment, from its name (/bands/neon-harbor/): unique among Bands. */
+  slug: string
   genres: string[]
   spotifyUrl: string | null
   soundcloudUrl: string | null

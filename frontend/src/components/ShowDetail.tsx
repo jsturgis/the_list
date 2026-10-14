@@ -103,7 +103,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
           {acts.map(act => (
             <li key={act.band.id} className={act.position === 0 ? 'text-xl' : 'text-base'}>
               <BandLink
-                bandId={act.band.id}
+                slug={act.band.slug}
                 className={`${act.position === 0 ? 'font-bold' : 'font-normal'} hover:underline text-ink`}
               >
                 <span data-testid="act-name">{act.band.name}</span>

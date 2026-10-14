@@ -49,9 +49,9 @@ describe('ShowDetail', () => {
 
   it('links each act to its band page', () => {
     render(<ShowDetail show={show} />)
-    expect(screen.getByRole('link', { name: /Headliner Act/i })).toHaveAttribute('href', '/bands/1/')
-    expect(screen.getByRole('link', { name: /Support One/i })).toHaveAttribute('href', '/bands/2/')
-    expect(screen.getByRole('link', { name: /Opener/i })).toHaveAttribute('href', '/bands/3/')
+    expect(screen.getByRole('link', { name: /Headliner Act/i })).toHaveAttribute('href', '/bands/headliner-act/')
+    expect(screen.getByRole('link', { name: /Support One/i })).toHaveAttribute('href', '/bands/support-one/')
+    expect(screen.getByRole('link', { name: /Opener/i })).toHaveAttribute('href', '/bands/opener/')
   })
 
   it('renders venue address', () => {

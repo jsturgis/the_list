@@ -76,7 +76,7 @@ test.describe('on a phone', () => {
   test.use({ viewport: { width: 390, height: 844 } })
 
   test("a Band page's alert panel spans the column and stays on screen", async ({ page }) => {
-    await page.goto('bands/3/')
+    await page.goto('bands/static-bloom/')
     await page.getByRole('button', { name: 'Get alerts for Static Bloom' }).click()
     const panel = (await page.locator('form:has(input[type=email])').boundingBox())!
     const column = (await page.getByRole('heading', { level: 1 }).locator('xpath=ancestor::*[parent::main][1]').boundingBox())!
@@ -104,7 +104,7 @@ test("a Band page's bell offers alerts for that Band; its link lists only that B
     redirect = new URL(route.request().url()).searchParams.get('redirect_to') ?? ''
     await route.fulfill({ json: {} })
   })
-  await page.goto('bands/3/')
+  await page.goto('bands/static-bloom/')
   const bell = page.getByRole('button', { name: 'Get alerts for Static Bloom' })
   await bell.click()
   await page.getByLabel('Email').fill('fan@example.com')
@@ -123,7 +123,7 @@ test("a Band page's bell offers alerts for that Band; its link lists only that B
 for (const [label, width] of [['desktop', 1280], ['phone', 390]] as const) {
   test(`the alert bell stays centred on a long title's first line (${label})`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 })
-    await page.goto('bands/3/')
+    await page.goto('bands/static-bloom/')
     const title = page.getByRole('heading', { level: 1 })
     await title.evaluate(h => { h.textContent = 'Static Bloom and the Extremely Long Band Name That Wraps Onto Several Lines' })
     const bell = page.getByRole('button', { name: /^Get alerts for / })
@@ -138,7 +138,7 @@ for (const [label, width] of [['desktop', 1280], ['phone', 390]] as const) {
 for (const [label, width] of [['desktop', 1280], ['phone', 390]] as const) {
   test(`Venue and Band rows centre the compact date in the row (${label})`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
-    for (const path of ['venues/2/', 'bands/1/']) {
+    for (const path of ['venues/2/', 'bands/neon-harbor/']) {
       await page.goto(path)
       const rows = await page.getByRole('region', { name: 'Upcoming Shows' }).getByRole('listitem').all()
       expect(rows.length).toBeGreaterThan(0)
@@ -152,14 +152,14 @@ for (const [label, width] of [['desktop', 1280], ['phone', 390]] as const) {
 }
 
 test("a Band's stored photo loads from the site, under its base path", async ({ page }) => {
-  await page.goto('bands/1/')
+  await page.goto('bands/neon-harbor/')
   const photo = page.getByRole('img', { name: 'Neon Harbor' })
   await expect(photo).toHaveAttribute('src', /^\/the_list\/images\/bands\/1-[0-9a-f]{10}\.webp$/)
   await expect.poll(() => photo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBeGreaterThan(0)
   // A Wikimedia Commons photo carries its credit.
   await expect(page.getByRole('figure')).toContainText('Photo: S. Bollmann, CC BY-SA 4.0, via Wikimedia Commons')
   // A Discogs photo says so.
-  await page.goto('bands/7/')
+  await page.goto('bands/redwood-sirens/')
   await expect(page.getByRole('figure')).toHaveText('Photo via Discogs')
 })
 
@@ -168,7 +168,7 @@ const LONG_NAME = 'Neon Harbor and the Extremely Long Band Name That Wraps Onto 
 for (const name of ['Neon Harbor', LONG_NAME]) {
   test(`on phones a Band's photo is a circle left of its name, centred on it, credited below (${name.length} chars)`, async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 })
-    await page.goto('bands/1/')
+    await page.goto('bands/neon-harbor/')
     const title = page.getByRole('heading', { level: 1 })
     if (name !== 'Neon Harbor') await title.evaluate((h, n) => { h.textContent = n }, name)
     const photo = page.getByRole('img', { name: 'Neon Harbor' })
@@ -197,10 +197,10 @@ for (const name of ['Neon Harbor', LONG_NAME]) {
 
 test('on phones a Discogs photo keeps its credit, and a Band without a photo has no picture', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 })
-  await page.goto('bands/7/')
+  await page.goto('bands/redwood-sirens/')
   await expect(page.getByRole('figure').locator('figcaption')).toBeVisible()
   await expect(page.getByRole('figure').getByRole('link', { name: 'Discogs' })).toBeVisible()
-  await page.goto('bands/3/')
+  await page.goto('bands/static-bloom/')
   await expect(page.getByRole('heading', { level: 1, name: 'Static Bloom' })).toBeVisible()
   await expect(page.locator('main header img')).toHaveCount(0)
   await expect(page.getByRole('figure')).toHaveCount(0)
@@ -208,7 +208,7 @@ test('on phones a Discogs photo keeps its credit, and a Band without a photo has
 
 test("on desktop a Band's photo spans the column above its name, credited under it", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 })
-  await page.goto('bands/1/')
+  await page.goto('bands/neon-harbor/')
   const photo = page.getByRole('img', { name: 'Neon Harbor' })
   await expect.poll(() => photo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBeGreaterThan(0)
   const p = (await photo.boundingBox())!, t = (await page.getByRole('heading', { level: 1 }).boundingBox())!
@@ -226,7 +226,7 @@ const neonHarbor = (JSON.parse(readFileSync('e2e/fixtures/data/bands.json', 'utf
 for (const [device, width] of [['desktop banner', 1280], ['phone circle', 375]] as const) {
   test(`a Band's photo is cropped around its focal point (${device})`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 })
-    await page.goto('bands/1/')
+    await page.goto('bands/neon-harbor/')
     const photo = page.getByRole('img', { name: 'Neon Harbor' })
     const { x, y } = neonHarbor.imageFocus!
     expect([x, y]).toEqual([0.5, 0])
@@ -239,7 +239,7 @@ for (const scheme of ['light', 'dark'] as const) {
   test(`a Band's listening links are logo buttons, 44px or more, that fit a phone (${scheme})`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: scheme })
     await page.setViewportSize({ width: 320, height: 800 })
-    await page.goto('bands/1/')
+    await page.goto('bands/neon-harbor/')
     const buttons = page.getByRole('link', { name: /^Listen on / })
     await expect(buttons).toHaveCount(6)
     for (const button of await buttons.all()) {
@@ -256,7 +256,7 @@ for (const scheme of ['light', 'dark'] as const) {
 }
 
 test('a listening service without a logo keeps a labelled button beside the logo buttons', async ({ page }) => {
-  await page.goto('bands/7/')
+  await page.goto('bands/redwood-sirens/')
   await expect(page.getByRole('link', { name: /^Listen on / })).toHaveText(['', '', ''])
   await expect(page.getByRole('link', { name: 'Listen on Amazon Music (subscription)' })).toHaveAttribute('href', 'https://music.amazon.com/artists/redwoodsirens')
   await expect(page.getByRole('link', { name: 'Listen on Bandcamp' })).toHaveAttribute('href', 'https://redwoodsirens.bandcamp.com')
@@ -270,7 +270,7 @@ test('a listening service without a logo keeps a labelled button beside the logo
 })
 
 test("a Band's website leads its Social links", async ({ page }) => {
-  await page.goto('bands/1/')
+  await page.goto('bands/neon-harbor/')
   await expect(page.getByRole('region', { name: 'Social' }).getByRole('link')).toHaveText(['Website', 'Instagram', 'YouTube'])
   await expect(page.getByRole('link', { name: 'Website' })).toHaveCount(1)
 })
@@ -292,11 +292,17 @@ test('a Show card opens the Show page', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Add to calendar' })).toBeVisible()
 })
 
+test("a Band's numeric URL, from before Band pages had slugs, opens its page", async ({ page }) => {
+  await page.goto('bands/1/')
+  await expect(page).toHaveURL(/\/the_list\/bands\/neon-harbor\/$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Neon Harbor' })).toBeVisible()
+})
+
 test('a Band link opens the Band page', async ({ page }) => {
   await page.goto('shows/102/')
   await page.getByTestId('act-name').filter({ hasText: 'Neon Harbor' }).click()
 
-  await expect(page).toHaveURL(/\/the_list\/bands\/1\/$/)
+  await expect(page).toHaveURL(/\/the_list\/bands\/neon-harbor\/$/)
   await expect(page.getByRole('heading', { level: 1, name: 'Neon Harbor' })).toBeVisible()
   await expect(page.getByTestId('similar-bands')).toContainText('Fog City Ramblers')
   await expect(page.getByRole('dialog')).toHaveCount(0)
@@ -308,7 +314,7 @@ test('a Band link opens the Band page', async ({ page }) => {
 })
 
 test('a Band URL loaded directly renders the full Band page', async ({ page }) => {
-  await page.goto('bands/1/')
+  await page.goto('bands/neon-harbor/')
 
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.getByRole('heading', { level: 1, name: 'Neon Harbor' })).toBeVisible()
@@ -353,7 +359,7 @@ test("a Venue's Upcoming Shows still show if the page script fails to load", asy
 test("a Band's Upcoming Shows still show if the page script throws", async ({ page }) => {
   await page.route('**/_astro/*.js', route =>
     route.fulfill({ contentType: 'text/javascript', body: 'throw new Error("broken build")' }))
-  await page.goto('bands/1/')
+  await page.goto('bands/neon-harbor/')
 
   await expect(page.getByRole('heading', { name: 'Upcoming Shows' })).toBeVisible()
 })
@@ -424,7 +430,7 @@ test.describe('Shows whose date has passed since the build', () => {
 
   test("leave a Band page without an Upcoming Shows section when none are left", async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-10-06T12:00:00-07:00'))
-    await page.goto('bands/1/')
+    await page.goto('bands/neon-harbor/')
     await expect(page.getByRole('heading', { level: 1, name: 'Neon Harbor' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Upcoming Shows' })).toBeHidden()
     await expect(page.getByTestId('similar-bands')).toBeVisible()

@@ -297,15 +297,15 @@ describe('BandDetail', () => {
 
   it('lists the precomputed Similar Bands', () => {
     renderBand()
-    expect(screen.getByRole('link', { name: /LCD Soundsystem/ })).toHaveAttribute('href', '/bands/10/')
+    expect(screen.getByRole('link', { name: /LCD Soundsystem/ })).toHaveAttribute('href', '/bands/lcd-soundsystem/')
   })
 })
 
 describe('SimilarBands', () => {
   it('links each similar band to its page, with its first genres', () => {
     render(<SimilarBands bands={similar} />)
-    expect(screen.getByRole('link', { name: /LCD Soundsystem/i })).toHaveAttribute('href', '/bands/10/')
-    expect(screen.getByRole('link', { name: /Interpol/i })).toHaveAttribute('href', '/bands/11/')
+    expect(screen.getByRole('link', { name: /LCD Soundsystem/i })).toHaveAttribute('href', '/bands/lcd-soundsystem/')
+    expect(screen.getByRole('link', { name: /Interpol/i })).toHaveAttribute('href', '/bands/interpol/')
     expect(screen.getByText('post-punk, indie rock')).toBeInTheDocument()
   })
 

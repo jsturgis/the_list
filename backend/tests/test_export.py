@@ -159,3 +159,19 @@ def test_an_act_note_is_exported_as_a_third_element(db, data, tmp_path):
         export(db, tmp_path)
     shows = {s["id"]: s for s in json.loads((tmp_path / "shows.json").read_text())}
     assert shows[data["tonight"].id]["acts"] == [[data["headliner"].id, 0], [data["support"].id, 1, "Greg Ginn, Max Zanelly"]]
+
+
+def test_bands_are_exported_with_their_slugs(exported, data):
+    slugs = {b["id"]: b["slug"] for b in exported["bands"]}
+    assert slugs == {data["headliner"].id: "headliner", data["support"].id: "support"}
+
+
+def test_a_band_slug_is_unique_among_every_band_not_only_the_exported(db, data, tmp_path):
+    # "Past Band" isn't exported (its only Show has passed), but it was first with the slug, so it keeps it.
+    twin = _band(db, "Past Band!")
+    _show(db, data["chapel"], 3, [twin])
+    db.commit()
+    with patch("app.catalog.find_similar_bands", return_value=[]):
+        export(db, tmp_path)
+    bands = {b["id"]: b for b in json.loads((tmp_path / "bands.json").read_text())}
+    assert bands[twin.id]["slug"] == f"past-band-{twin.id}"

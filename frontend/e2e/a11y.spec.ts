@@ -19,12 +19,12 @@ const STATES: [string, string, (page: Page) => Promise<void>][] = [
     await expect(page.getByLabel('Email')).toBeVisible()
   }],
   ['Show page', 'shows/102/', page => expect(page.getByRole('heading', { name: 'Lineup' })).toBeVisible()],
-  ['Band page', 'bands/1/', page => expect(page.getByTestId('similar-bands')).toBeVisible()],
-  ['Band page, alert bell panel open', 'bands/3/', async page => {
+  ['Band page', 'bands/neon-harbor/', page => expect(page.getByTestId('similar-bands')).toBeVisible()],
+  ['Band page, alert bell panel open', 'bands/static-bloom/', async page => {
     await page.getByRole('button', { name: 'Get alerts for Static Bloom' }).click()
     await expect(page.getByLabel('Email')).toBeVisible()
   }],
-  ['Band page with logo buttons and labelled pills', 'bands/7/', page => expect(page.getByRole('link', { name: 'Audiomack' })).toBeVisible()],
+  ['Band page with logo buttons and labelled pills', 'bands/redwood-sirens/', page => expect(page.getByRole('link', { name: 'Audiomack' })).toBeVisible()],
   ['Show page, Cancelled', 'shows/107/', page => expect(page.getByText('Cancelled')).toBeVisible()],
   ['Show page, Postponed', 'shows/108/', page => expect(page.getByText('Postponed')).toBeVisible()],
   ['Venue page', 'venues/2/', page => expect(page.getByRole('heading', { name: 'Upcoming Shows' })).toBeVisible()],
