@@ -4,7 +4,7 @@ Derived from the current names each time they're needed, never stored: the expor
 Alert emails link with them. Each is unique among every Band (Venue, Show) in the database, not only those
 exported, so a slug doesn't move to another Band as Shows come and go, and an Alert links the slug the export has.
 Shows that share a slug share a date, so they're deleted together. A renamed Band gets a new slug; its numeric URL
-(/bands/12/) redirects to whatever the slug is now, so that's the permanent link.
+(/bands/12/) always redirects to whatever the slug is now, so it's the link that never changes.
 """
 from __future__ import annotations
 

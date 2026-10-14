@@ -5,13 +5,13 @@ import AlertBell from '@/components/AlertBell'
 import BackLink from '@/components/BackLink'
 import BandDetail from '@/components/BandDetail'
 import { href } from '@/lib/basePath'
+import { slugAndIdPaths } from '@/lib/pagePaths'
 import { siteData } from '@/lib/siteData.server'
 
-// One static page per exported Band at its slug, and one at its id (/bands/12/), its permanent URL, redirecting to
+// One static page per exported Band at its slug, and one at its id (/bands/12/), which never changes, redirecting to
 // the slug; anything else is the 404 page. The page looks the Band up from its URL (Astro's routing guide).
 export const getStaticPaths = (() =>
-  siteData().bandIds().flatMap(id => [{ params: { slug: siteData().band(Number(id))!.slug } }, { params: { slug: id } }])
-) satisfies GetStaticPaths
+  slugAndIdPaths(siteData().bandIds(), id => siteData().band(id)!.slug)) satisfies GetStaticPaths
 
 const { slug } = Astro.params
 const band = siteData().bandBySlug(slug)

@@ -310,6 +310,34 @@ test("a Show's numeric URL, as in Alerts and calendar entries from before Show p
   await expect(page.getByRole('heading', { level: 1, name: 'Neon Harbor' })).toBeVisible()
 })
 
+// The e2e build's site is the GitHub Pages one (astro.config.mjs).
+const SITE = 'https://jsturgis.github.io/the_list'
+const pages = [['bands', '1', 'neon-harbor'], ['venues', '2', '924-gilman-street'], ['shows', '102', 'neon-harbor-2026-10-03']]
+
+test('a page at its slug names that URL as canonical', async ({ page }) => {
+  for (const [kind, , slug] of pages) {
+    await page.goto(`${kind}/${slug}/`)
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', `${SITE}/${kind}/${slug}/`)
+  }
+})
+
+test('a numeric URL is a redirect page for search engines: noindex, canonical at the slug', async ({ page }) => {
+  for (const [kind, id, slug] of pages) {
+    const html = await (await page.request.get(`${kind}/${id}/`)).text()
+    expect(html, kind).toContain('<meta name="robots" content="noindex">')
+    expect(html, kind).toContain(`<link rel="canonical" href="${SITE}/${kind}/${slug}/">`)
+    expect(html, kind).toContain(`<meta http-equiv="refresh" content="0;url=/the_list/${kind}/${slug}/">`)
+  }
+})
+
+test('a slug or id that matches nothing is the 404 page', async ({ page }) => {
+  for (const path of ['bands/no-such-band/', 'venues/9999/', 'shows/no-such-show-2026-10-03/']) {
+    const response = await page.goto(path)
+    expect(response?.status(), path).toBe(404)
+    await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
+  }
+})
+
 test('a Band link opens the Band page', async ({ page }) => {
   await page.goto('shows/neon-harbor-2026-10-03/')
   await page.getByTestId('act-name').filter({ hasText: 'Neon Harbor' }).click()

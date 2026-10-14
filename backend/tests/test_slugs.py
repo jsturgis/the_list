@@ -88,3 +88,12 @@ def test_shows_with_one_headliner_at_one_venue_on_one_date_get_their_ids_after_t
     # An early and a late show.
     slugs = assign(bands=BANDS, venues=VENUES, shows=[show(12, date(2026, 10, 1), 1, 1), show(10, date(2026, 10, 1), 1, 1)])
     assert slugs.shows == {10: "deafheaven-bottom-of-the-hill-2026-10-01", 12: "deafheaven-bottom-of-the-hill-2026-10-01-12"}
+
+
+def test_show_slugs_are_the_same_whatever_order_the_shows_come_in():
+    shows = [show(12, date(2026, 10, 1), 1, 1), show(10, date(2026, 10, 1), 1, 1), show(11, date(2026, 10, 1), 2, 1),
+             show(13, date(2026, 10, 2), 1, 2)]
+    expected = {10: "deafheaven-bottom-of-the-hill-2026-10-01", 11: "deafheaven-the-chapel-2026-10-01",
+                12: "deafheaven-bottom-of-the-hill-2026-10-01-12", 13: "uniform-2026-10-02"}
+    assert assign(bands=BANDS, venues=VENUES, shows=shows).shows == expected
+    assert assign(bands=BANDS, venues=VENUES, shows=shows[::-1]).shows == expected
