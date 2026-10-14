@@ -8,7 +8,7 @@ import NotFoundPage from '@/pages/404.astro'
 import AlertsPage from '@/pages/alerts/index.astro'
 import UnsubscribePage from '@/pages/alerts/unsubscribe.astro'
 import ShowPage from '@/pages/shows/[id].astro'
-import VenuePage from '@/pages/venues/[id].astro'
+import VenueRoute, { getStaticPaths as venuePaths } from '@/pages/venues/[slug].astro'
 import BandRoute, { getStaticPaths as bandPaths } from '@/pages/bands/[slug].astro'
 import { makeBand, makeShow, makeVenue } from './fixtures'
 
@@ -23,6 +23,7 @@ afterEach(() => vi.unstubAllEnvs())
 type Page = Parameters<AstroContainer['renderToString']>[0]
 // A page that can redirect (from its numeric URL) has a return type the container's typing doesn't allow for.
 const BandPage = BandRoute as unknown as Page
+const VenuePage = VenueRoute as unknown as Page
 const render = (page: Page, props: Record<string, unknown> = {}) => container.renderToString(page, { props })
 
 /** The React islands on a rendered page: the component each one loads, and its serialised props. */
@@ -108,7 +109,7 @@ describe('detail pages ship no React', () => {
   })
 
   it('a Venue page lists its Upcoming Shows statically, marked by date for the browser to trim', async () => {
-    const html = await render(VenuePage, { venue, upcomingShows: shows })
+    const html = await container.renderToString(VenuePage, { params: { slug: '924-gilman-street' } })
     // The only island is the alert bell, which carries just the Venue's id and name; the list is plain HTML.
     expect(islands(html).map(i => i.component)).toEqual(['AlertBell'])
     expect(islands(html)[0].props).not.toContain('upcomingShows')
@@ -148,6 +149,22 @@ describe('page URLs', () => {
     const response = await container.renderToResponse(BandPage, { params: { slug: '1' } })
     expect(response.status).toBe(301)
     expect(response.headers.get('location')).toBe('/bands/neon-harbor/')
+  })
+
+  it('builds each Venue page at its slug, and its numeric URL too', async () => {
+    const built = await params(venuePaths)
+    expect(built).toEqual(expect.arrayContaining(['the-fillmore', '1', '924-gilman-street', '2', 'the-catalyst', '3']))
+  })
+
+  it("renders a Venue's page at its slug", async () => {
+    const html = await container.renderToString(VenuePage, { params: { slug: '924-gilman-street' } })
+    expect(html).toMatch(/<h1[^>]*>924 Gilman Street<\/h1>/)
+  })
+
+  it("redirects a Venue's numeric URL to its slug", async () => {
+    const response = await container.renderToResponse(VenuePage, { params: { slug: '2' } })
+    expect(response.status).toBe(301)
+    expect(response.headers.get('location')).toBe('/venues/924-gilman-street/')
   })
 })
 

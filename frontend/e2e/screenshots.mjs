@@ -43,7 +43,7 @@ const base = `http://127.0.0.1:${port}/the_list/`
 const PAGES = [
   ['home', ''],
   ['show', 'shows/102/'],
-  ['venue', 'venues/2/'],
+  ['venue', 'venues/924-gilman-street/'],
   ['band', 'bands/neon-harbor/'],
   ['band-fallback', 'bands/redwood-sirens/'],
   ['alerts', 'alerts/'],

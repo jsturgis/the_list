@@ -138,7 +138,7 @@ for (const [label, width] of [['desktop', 1280], ['phone', 390]] as const) {
 for (const [label, width] of [['desktop', 1280], ['phone', 390]] as const) {
   test(`Venue and Band rows centre the compact date in the row (${label})`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
-    for (const path of ['venues/2/', 'bands/neon-harbor/']) {
+    for (const path of ['venues/924-gilman-street/', 'bands/neon-harbor/']) {
       await page.goto(path)
       const rows = await page.getByRole('region', { name: 'Upcoming Shows' }).getByRole('listitem').all()
       expect(rows.length).toBeGreaterThan(0)
@@ -276,7 +276,7 @@ test("a Band's website leads its Social links", async ({ page }) => {
 })
 
 test("a Venue page has a bell for that Venue's alerts", async ({ page }) => {
-  await page.goto('venues/2/')
+  await page.goto('venues/924-gilman-street/')
   await expect(page.getByRole('button', { name: /^Get alerts for / })).toBeVisible()
 })
 
@@ -296,6 +296,12 @@ test("a Band's numeric URL, from before Band pages had slugs, opens its page", a
   await page.goto('bands/1/')
   await expect(page).toHaveURL(/\/the_list\/bands\/neon-harbor\/$/)
   await expect(page.getByRole('heading', { level: 1, name: 'Neon Harbor' })).toBeVisible()
+})
+
+test("a Venue's numeric URL, from before Venue pages had slugs, opens its page", async ({ page }) => {
+  await page.goto('venues/2/')
+  await expect(page).toHaveURL(/\/the_list\/venues\/924-gilman-street\/$/)
+  await expect(page.getByRole('heading', { level: 1, name: '924 Gilman Street' })).toBeVisible()
 })
 
 test('a Band link opens the Band page', async ({ page }) => {
@@ -326,7 +332,7 @@ test('the Venue link opens the Venue page with its upcoming Shows', async ({ pag
   await page.goto('shows/103/')
   await page.getByRole('main').getByRole('link', { name: '924 Gilman Street' }).first().click()
 
-  await expect(page).toHaveURL(/\/the_list\/venues\/2\/$/)
+  await expect(page).toHaveURL(/\/the_list\/venues\/924-gilman-street\/$/)
   await expect(page.getByRole('heading', { level: 1, name: '924 Gilman Street' })).toBeVisible()
   const upcoming = page.getByRole('region', { name: 'Upcoming Shows' })
   await expect(upcoming.locator('a[href*="/shows/"]')).toHaveCount(2)
@@ -349,7 +355,7 @@ test('a failed data load shows an error', async ({ page }) => {
 
 test("a Venue's Upcoming Shows still show if the page script fails to load", async ({ page }) => {
   await page.route('**/_astro/*.js', route => route.abort())
-  await page.goto('venues/2/')
+  await page.goto('venues/924-gilman-street/')
 
   const upcoming = page.getByRole('region', { name: 'Upcoming Shows' })
   await expect(upcoming).toBeVisible()
@@ -418,7 +424,7 @@ test.describe('Shows whose date has passed since the build', () => {
 
   test("are hidden from a Venue page, which says so when none are left", async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-10-04T12:00:00-07:00'))
-    await page.goto('venues/2/')
+    await page.goto('venues/924-gilman-street/')
     const upcoming = page.getByRole('region', { name: 'Upcoming Shows' })
     await expect(upcoming.locator('a[href*="/shows/"]:visible')).toHaveCount(1)  // Oct 5; Oct 3 hidden
 

@@ -27,7 +27,7 @@ A geographic grouping of cities used for filtering: SF · East Bay · North Bay 
 _Avoid_: Area, zone, neighborhood
 
 **Slug**:
-The name in a Band's page URL (`/bands/neon-harbor/`): its name lowercased, without accents or punctuation, "&" read as "and", words joined by hyphens. Unique among every Band in the database: where two names give one slug, the Band with the lowest id keeps it and the others get their id after it (`the-ocean-2210`); a name with nothing left is `band-{id}`, and one that's all digits gets `band-` before it, as it would read as an id. Slugs follow the current names, so a renamed Band gets a new one; its numeric URL (`/bands/12/`) is the permanent link and redirects to the slug.
+The name in a Band's or Venue's page URL (`/bands/neon-harbor/`, `/venues/924-gilman-street/`): its name lowercased, without accents or punctuation, "&" read as "and", words joined by hyphens. Unique among every Band (Venue) in the database: where two names give one slug, the one with the lowest id keeps it and the others get their id after it (`the-ocean-2210`); a name with nothing left is `band-{id}` (`venue-{id}`), and one that's all digits gets `band-` (`venue-`) before it, as it would read as an id. Slugs follow the current names, so a renamed Band gets a new one; its numeric URL (`/bands/12/`) is the permanent link and redirects to the slug.
 _Avoid_: Permalink, handle
 
 ### Show status

@@ -3,7 +3,7 @@
 Writes four files to a directory:
   shows.json   Shows from today (Bay Area time) that aren't Past, each with `venueId` and
                `acts` as [bandId, position] (plus the act's note, when it has one)
-  venues.json  Venues referenced by those Shows
+  venues.json  Venues referenced by those Shows, each with its page `slug`
   bands.json   Bands referenced by those Shows, each with its page `slug` (app.slugs) and up to six `similar`
                Band ids (exported only)
   meta.json    generation time, latest email subject, filter options, count of Upcoming Shows
@@ -83,7 +83,8 @@ def export(db: Session, out_dir: str | Path) -> dict[str, int]:
 
     files = {
         "shows": show_rows,
-        "venues": [dataclasses.asdict(_venue(v)) for v in sorted(venues.values(), key=lambda v: v.id)],
+        "venues": [dataclasses.asdict(_venue(v)) | {"slug": slugs.venues[v.id]}
+                   for v in sorted(venues.values(), key=lambda v: v.id)],
         "bands": band_rows,
         "meta": meta,
     }

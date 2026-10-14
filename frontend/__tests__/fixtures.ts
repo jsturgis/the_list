@@ -1,8 +1,12 @@
 import type { Show, Band, Venue } from '@/lib/types'
 
+/** A plain name's slug, as the export's (backend app/slugs.py) would be. */
+const slugOf = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+
 export const makeVenue = (overrides: Partial<Venue> = {}): Venue => ({
   id: 1,
   name: 'The Fillmore',
+  slug: slugOf(overrides.name ?? 'The Fillmore'),
   address: '1805 Geary Blvd, San Francisco, CA 94115',
   city: 'San Francisco',
   region: 'sf',
@@ -17,9 +21,6 @@ export const makeVenue = (overrides: Partial<Venue> = {}): Venue => ({
   wikipediaUrl: null,
   ...overrides,
 })
-
-/** A plain name's slug, as the export's (backend app/slugs.py) would be. */
-const slugOf = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
 export const makeBand = (overrides: Partial<Band> = {}): Band => ({
   id: 1,

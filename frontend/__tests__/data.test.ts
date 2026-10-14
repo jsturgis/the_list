@@ -3,7 +3,7 @@ import { bayAreaToday, homeShows, hydrateShows } from '@/lib/data'
 import type { ExportBand, ExportShow, ExportVenue } from '@/lib/types'
 
 const venue: ExportVenue = {
-  id: 1, name: 'The Fillmore', address: '1805 Geary Blvd', city: 'San Francisco', region: 'sf', websiteUrl: null,
+  id: 1, name: 'The Fillmore', slug: 'the-fillmore', address: '1805 Geary Blvd', city: 'San Francisco', region: 'sf', websiteUrl: null,
   latitude: null, longitude: null, timezone: null, phone: null, googleRating: null, googlePlaceId: 'ChIJ',
   description: null, wikipediaUrl: null, neighborhood: 'Western Addition', venueType: null, nearestTransit: null,
   instagram: null, imageUrl: null, defaultAgeRestriction: null, isSoberSpace: null, isCashOnly: null,

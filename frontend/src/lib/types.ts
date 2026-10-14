@@ -1,6 +1,8 @@
 export interface Venue {
   id: number
   name: string
+  /** Its page's URL segment, from its name (/venues/924-gilman-street/): unique among Venues. */
+  slug: string
   address: string | null
   city: string
   region: string

@@ -43,3 +43,17 @@ def test_a_suffixed_slug_never_takes_another_bands_slug():
 def test_an_all_digit_slug_gets_the_kind_before_it_so_it_isnt_taken_for_an_id():
     # /bands/311/ is Band 311's numeric URL, redirecting to its slug.
     assert assign(bands=[band(1, "311"), band(2, "The 1975")]).bands == {1: "band-311", 2: "the-1975"}
+
+
+venue = band  # a Venue needs only an id and a name too
+
+
+def test_venue_slugs_follow_the_same_rules_with_their_own_kind():
+    slugs = assign(venues=[venue(2, "924 Gilman Street"), venue(5, "Bottom of the Hill"), venue(9, "Bottom of the Hill"),
+                           venue(11, "???"), venue(12, "1015")]).venues
+    assert slugs == {2: "924-gilman-street", 5: "bottom-of-the-hill", 9: "bottom-of-the-hill-9", 11: "venue-11", 12: "venue-1015"}
+
+
+def test_a_band_and_a_venue_can_share_a_slug():
+    slugs = assign(bands=[band(1, "The Chapel")], venues=[venue(1, "The Chapel")])
+    assert (slugs.bands, slugs.venues) == ({1: "the-chapel"}, {1: "the-chapel"})

@@ -175,3 +175,7 @@ def test_a_band_slug_is_unique_among_every_band_not_only_the_exported(db, data, 
         export(db, tmp_path)
     bands = {b["id"]: b for b in json.loads((tmp_path / "bands.json").read_text())}
     assert bands[twin.id]["slug"] == f"past-band-{twin.id}"
+
+
+def test_venues_are_exported_with_their_slugs(exported, data):
+    assert {v["id"]: v["slug"] for v in exported["venues"]} == {data["fillmore"].id: "the-fillmore", data["chapel"].id: "the-chapel"}

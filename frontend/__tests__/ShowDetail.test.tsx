@@ -186,10 +186,10 @@ describe('ShowDetail', () => {
     expect(screen.queryByText(/Benefit/)).not.toBeInTheDocument()
   })
 
-  it('links to the venue, marked to keep the current filters', () => {
+  it('links to the venue by its slug, marked to keep the current filters', () => {
     render(<ShowDetail show={show} />)
     for (const link of screen.getAllByRole('link', { name: 'The Fillmore' })) {
-      expect(link).toHaveAttribute('href', `/venues/${show.venue.id}/`)
+      expect(link).toHaveAttribute('href', '/venues/the-fillmore/')
       expect(link).toHaveAttribute('data-keep-filters')
     }
   })

@@ -6,7 +6,7 @@ import { readExport } from '@/lib/siteData.server'
 import type { ExportBand, ExportShow, ExportVenue } from '@/lib/types'
 
 const venue = (id: number, name: string): ExportVenue => ({
-  id, name, address: null, city: 'San Francisco', region: 'sf', websiteUrl: null, latitude: null, longitude: null,
+  id, name, slug: name.toLowerCase(), address: null, city: 'San Francisco', region: 'sf', websiteUrl: null, latitude: null, longitude: null,
   timezone: null, phone: null, googleRating: null, googlePlaceId: null, description: null, wikipediaUrl: null,
   neighborhood: null, venueType: null, nearestTransit: null, instagram: null, imageUrl: null,
   defaultAgeRestriction: null, isSoberSpace: null, isCashOnly: null, membershipRequired: null,

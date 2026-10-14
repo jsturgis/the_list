@@ -1,7 +1,7 @@
 """Page slugs: the names in the site's Band, Venue and Show page URLs (/bands/deafheaven/).
 
 Derived from the current names each time they're needed, never stored: the export writes them for the site and the
-Alert emails link with them. Each is unique among every Band (Venue, Show) in the database, not only those exported,
+Alert emails link with them. Each is unique among every Band (Venue) in the database, not only those exported,
 so a slug doesn't move to another Band as Shows come and go. A renamed Band gets a new slug; its numeric URL
 (/bands/12/) redirects to whatever the slug is now, so that's the permanent link.
 """
@@ -15,11 +15,13 @@ from typing import Iterable
 from sqlalchemy.orm import Session
 
 from app.models.band import Band
+from app.models.venue import Venue
 
 
 @dataclass(frozen=True)
 class Slugs:
     bands: dict[int, str] = field(default_factory=dict)
+    venues: dict[int, str] = field(default_factory=dict)
 
 
 def slugify(name: str) -> str:
@@ -54,10 +56,14 @@ def _wanted(kind: str, id_: int, name: str) -> str:
     return f"{kind}-{slug}" if slug.isdigit() else slug
 
 
-def assign(bands: Iterable = ()) -> Slugs:
-    return Slugs(bands=_unique({b.id: _wanted("band", b.id, b.name) for b in bands}))
+def assign(bands: Iterable = (), venues: Iterable = ()) -> Slugs:
+    """The slugs of these Bands and Venues (anything with an `id` and a `name`), each unique among its kind."""
+    return Slugs(
+        bands=_unique({b.id: _wanted("band", b.id, b.name) for b in bands}),
+        venues=_unique({v.id: _wanted("venue", v.id, v.name) for v in venues}),
+    )
 
 
 def site_slugs(db: Session) -> Slugs:
-    """The slugs of every Band in the database."""
-    return assign(bands=db.query(Band.id, Band.name).all())
+    """The slugs of every Band and Venue in the database."""
+    return assign(bands=db.query(Band.id, Band.name).all(), venues=db.query(Venue.id, Venue.name).all())

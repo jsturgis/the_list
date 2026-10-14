@@ -119,7 +119,7 @@ test('keyboard only: open a Show, then a Band, then go back', async ({ page }) =
 
   await tabTo(page, page.getByRole('main').getByRole('link', { name: 'Static Bloom' }))
   await page.keyboard.press('Enter')
-  await expect(page).toHaveURL(/\/bands\/3\/$/)
+  await expect(page).toHaveURL(/\/bands\/static-bloom\/$/)
   await expect(page.getByRole('heading', { level: 1, name: 'Static Bloom' })).toBeVisible()
 
   await tabTo(page, page.getByRole('link', { name: 'Back' }))
