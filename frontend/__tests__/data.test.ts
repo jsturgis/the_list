@@ -3,18 +3,18 @@ import { bayAreaToday, homeShows, hydrateShows } from '@/lib/data'
 import type { ExportBand, ExportShow, ExportVenue } from '@/lib/types'
 
 const venue: ExportVenue = {
-  id: 1, name: 'The Fillmore', address: '1805 Geary Blvd', city: 'San Francisco', region: 'sf', websiteUrl: null,
+  id: 1, name: 'The Fillmore', slug: 'the-fillmore', address: '1805 Geary Blvd', city: 'San Francisco', region: 'sf', websiteUrl: null,
   latitude: null, longitude: null, timezone: null, phone: null, googleRating: null, googlePlaceId: 'ChIJ',
   description: null, wikipediaUrl: null, neighborhood: 'Western Addition', venueType: null, nearestTransit: null,
   instagram: null, imageUrl: null, defaultAgeRestriction: null, isSoberSpace: null, isCashOnly: null,
   membershipRequired: null,
 }
 const band = (id: number, name: string): ExportBand => ({
-  id, name, genres: ['punk'], spotifyUrl: null, soundcloudUrl: null, bandcampUrl: null, links: [], imageCredit: null, imageFocus: null, members: [],
+  id, name, slug: name.toLowerCase(), genres: ['punk'], spotifyUrl: null, soundcloudUrl: null, bandcampUrl: null, links: [], imageCredit: null, imageFocus: null, members: [],
   websiteUrl: null, imageUrl: null, isLocal: null, description: null, similar: [],
 })
 const show = (id: number, date: string, status = 'upcoming', acts: ExportShow['acts'] = [[10, 0], [11, 1]]): ExportShow => ({
-  id, date, doorTime: '20:00:00', setTime: null, priceMin: 15, priceMax: 20, isFree: false, ageRestriction: '21+',
+  id, slug: `show-${id}`, date, doorTime: '20:00:00', setTime: null, priceMin: 15, priceMax: 20, isFree: false, ageRestriction: '21+',
   status, isRecommended: false, willSellOut: false, isPit: false, isDrinkTickets: false, isNoReentry: false,
   notes: null, isMatinee: false, isSoldOut: false, ticketProvider: null, ticketUrl: null, isBenefit: false, benefitCause: null,
   specialEvent: null, venueId: 1, acts,

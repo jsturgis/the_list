@@ -98,7 +98,8 @@
     "imageFocus": {
       "x": 0.5,
       "y": 0.0
-    }
+    },
+    "slug": "neon-harbor"
   },
   {
     "id": 2,
@@ -119,7 +120,8 @@
     "links": [],
     "imageCredit": null,
     "members": [],
-    "imageFocus": null
+    "imageFocus": null,
+    "slug": "fog-city-ramblers"
   },
   {
     "id": 3,
@@ -140,7 +142,8 @@
     "links": [],
     "imageCredit": null,
     "members": [],
-    "imageFocus": null
+    "imageFocus": null,
+    "slug": "static-bloom"
   },
   {
     "id": 4,
@@ -159,7 +162,8 @@
     "links": [],
     "imageCredit": null,
     "members": [],
-    "imageFocus": null
+    "imageFocus": null,
+    "slug": "gilman-youth"
   },
   {
     "id": 5,
@@ -178,7 +182,8 @@
     "links": [],
     "imageCredit": null,
     "members": [],
-    "imageFocus": null
+    "imageFocus": null,
+    "slug": "tidepool-choir"
   },
   {
     "id": 6,
@@ -197,7 +202,8 @@
     "links": [],
     "imageCredit": null,
     "members": [],
-    "imageFocus": null
+    "imageFocus": null,
+    "slug": "ghost-of-yesterday"
   },
   {
     "id": 7,
@@ -254,6 +260,7 @@
     "imageFocus": {
       "x": 50.0,
       "y": 35.0
-    }
+    },
+    "slug": "redwood-sirens"
   }
 ]

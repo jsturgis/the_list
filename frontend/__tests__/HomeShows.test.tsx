@@ -13,17 +13,17 @@ import type { ExportBand, ExportShow, ExportVenue, ExportMeta } from '@/lib/type
 
 const TODAY = '2026-10-01'
 const venue = (id: number, name: string, neighborhood: string | null = null): ExportVenue => ({
-  id, name, address: null, city: 'San Francisco', region: 'sf', websiteUrl: null, latitude: null, longitude: null,
+  id, name, slug: name.toLowerCase(), address: null, city: 'San Francisco', region: 'sf', websiteUrl: null, latitude: null, longitude: null,
   timezone: null, phone: null, googleRating: null, googlePlaceId: null, description: null, wikipediaUrl: null,
   neighborhood, venueType: null, nearestTransit: null, instagram: null, imageUrl: null, defaultAgeRestriction: null,
   isSoberSpace: null, isCashOnly: null, membershipRequired: null,
 })
 const band = (id: number, name: string): ExportBand => ({
-  id, name, genres: [], spotifyUrl: null, soundcloudUrl: null, bandcampUrl: null, links: [], imageCredit: null, imageFocus: null, members: [], websiteUrl: null, imageUrl: null,
+  id, name, slug: name.toLowerCase(), genres: [], spotifyUrl: null, soundcloudUrl: null, bandcampUrl: null, links: [], imageCredit: null, imageFocus: null, members: [], websiteUrl: null, imageUrl: null,
   isLocal: null, description: null, similar: [],
 })
 const show = (id: number, date: string, bandId: number, extra: Partial<ExportShow> = {}): ExportShow => ({
-  id, date, doorTime: '20:00:00', setTime: null, priceMin: 15, priceMax: 15, isFree: false, ageRestriction: 'a/a',
+  id, slug: `show-${id}`, date, doorTime: '20:00:00', setTime: null, priceMin: 15, priceMax: 15, isFree: false, ageRestriction: 'a/a',
   status: 'upcoming', isRecommended: false, willSellOut: false, isPit: false, isDrinkTickets: false,
   isNoReentry: false, notes: null, isMatinee: false, isSoldOut: false, ticketProvider: null, ticketUrl: null, isBenefit: false,
   benefitCause: null, specialEvent: null, venueId: 1, acts: [[bandId, 0]], ...extra,

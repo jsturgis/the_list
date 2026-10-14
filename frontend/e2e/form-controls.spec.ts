@@ -12,7 +12,7 @@ const STATES: [string, string, (page: Page) => Promise<void>, number][] = [
     await page.getByRole('button', { name: /save search/i }).click()
     await expect(page.getByLabel('Email')).toBeVisible()
   }, 2],
-  ['Band page, alert bell panel', 'bands/3/', async page => {
+  ['Band page, alert bell panel', 'bands/static-bloom/', async page => {
     await page.getByRole('button', { name: 'Get alerts for Static Bloom' }).click()
     await expect(page.getByLabel('Email')).toBeVisible()
   }, 1],

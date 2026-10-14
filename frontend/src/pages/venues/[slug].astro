@@ -1,0 +1,27 @@
+---
+import type { GetStaticPaths } from 'astro'
+import Layout from '@/layouts/Layout.astro'
+import AlertBell from '@/components/AlertBell'
+import BackLink from '@/components/BackLink'
+import VenueDetail from '@/components/VenueDetail'
+import { href } from '@/lib/basePath'
+import { slugAndIdPaths } from '@/lib/pagePaths'
+import { siteData } from '@/lib/siteData.server'
+
+// One static page per exported Venue at its slug, and one at its id (/venues/2/), which never changes, redirecting to
+// the slug; anything else is the 404 page. The page looks the Venue up from its URL (Astro's routing guide).
+export const getStaticPaths = (() =>
+  slugAndIdPaths(siteData().venueIds(), id => siteData().venue(id)!.slug)) satisfies GetStaticPaths
+
+const { slug } = Astro.params
+const venue = siteData().venueBySlug(slug)
+if (!venue) return Astro.redirect(href(`/venues/${siteData().venue(Number(slug))!.slug}/`), 301)
+const upcomingShows = siteData().venueShows(venue.id)
+---
+
+<Layout>
+  <BackLink slot="back" />
+  <VenueDetail venue={venue} upcomingShows={upcomingShows}>
+    <AlertBell slot="bell" client:idle kind="venue" id={venue.id} name={venue.name} />
+  </VenueDetail>
+</Layout>

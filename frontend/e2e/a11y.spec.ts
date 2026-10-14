@@ -18,16 +18,16 @@ const STATES: [string, string, (page: Page) => Promise<void>][] = [
     await page.getByRole('button', { name: /save search/i }).click()
     await expect(page.getByLabel('Email')).toBeVisible()
   }],
-  ['Show page', 'shows/102/', page => expect(page.getByRole('heading', { name: 'Lineup' })).toBeVisible()],
-  ['Band page', 'bands/1/', page => expect(page.getByTestId('similar-bands')).toBeVisible()],
-  ['Band page, alert bell panel open', 'bands/3/', async page => {
+  ['Show page', 'shows/neon-harbor-2026-10-03/', page => expect(page.getByRole('heading', { name: 'Lineup' })).toBeVisible()],
+  ['Band page', 'bands/neon-harbor/', page => expect(page.getByTestId('similar-bands')).toBeVisible()],
+  ['Band page, alert bell panel open', 'bands/static-bloom/', async page => {
     await page.getByRole('button', { name: 'Get alerts for Static Bloom' }).click()
     await expect(page.getByLabel('Email')).toBeVisible()
   }],
-  ['Band page with logo buttons and labelled pills', 'bands/7/', page => expect(page.getByRole('link', { name: 'Audiomack' })).toBeVisible()],
-  ['Show page, Cancelled', 'shows/107/', page => expect(page.getByText('Cancelled')).toBeVisible()],
-  ['Show page, Postponed', 'shows/108/', page => expect(page.getByText('Postponed')).toBeVisible()],
-  ['Venue page', 'venues/2/', page => expect(page.getByRole('heading', { name: 'Upcoming Shows' })).toBeVisible()],
+  ['Band page with logo buttons and labelled pills', 'bands/redwood-sirens/', page => expect(page.getByRole('link', { name: 'Audiomack' })).toBeVisible()],
+  ['Show page, Cancelled', 'shows/redwood-sirens-2026-10-06/', page => expect(page.getByText('Cancelled')).toBeVisible()],
+  ['Show page, Postponed', 'shows/ghost-of-yesterday-2026-10-07/', page => expect(page.getByText('Postponed')).toBeVisible()],
+  ['Venue page', 'venues/924-gilman-street/', page => expect(page.getByRole('heading', { name: 'Upcoming Shows' })).toBeVisible()],
   ['not-found page', 'shows/99999/', page => expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()],
   ['Alerts page, signed out', 'alerts/', page => expect(page.getByRole('button', { name: /sign-in link/i })).toBeVisible()],
   ['Unsubscribe page', 'alerts/unsubscribe/', page => expect(page.getByRole('heading', { level: 1 })).toBeVisible()],

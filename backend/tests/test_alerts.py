@@ -167,8 +167,10 @@ def test_each_show_gives_date_headliner_venue_city_and_link(db, shows, supabase)
 
     jazz = shows["jazz"]
     day = jazz.date
-    assert f"{day:%a, %b} {day.day} · Snarky Puppy\n  The Chapel · San Francisco\n  Free\n  {SITE}/shows/{jazz.id}/\n" in email.text
-    assert f'href="{SITE}/shows/{jazz.id}/"' in email.html
+    # The Show's page, at its slug: the headliner and date.
+    url = f"{SITE}/shows/snarky-puppy-{day.isoformat()}/"
+    assert f"{day:%a, %b} {day.day} · Snarky Puppy\n  The Chapel · San Francisco\n  Free\n  {url}\n" in email.text
+    assert f'href="{url}"' in email.html
     assert f"{SITE}/alerts/" in email.text and f'href="{SITE}/alerts/"' in email.html  # manage your alerts
     assert email.html.startswith("<!doctype html>") and "</html>" in email.html  # a whole document, ready to send
 
@@ -189,7 +191,7 @@ def test_each_show_gives_support_acts_doors_price_age_and_marks(db, supabase):
             f"  The Independent · San Francisco\n"
             f"  Doors 7:30 PM · $15–$20 · 21+\n"
             f"  Steve's Pick · Sold out · Will sell out\n"
-            f"  {SITE}/shows/{show.id}/\n") in email.text
+            f"  {SITE}/shows/headliner-{day.isoformat()}/\n") in email.text
     for part in ("Headliner</a>", "with Two, Three, Four + 2 more", "Doors 7:30 PM · $15–$20 · 21+",
                  "Steve&#x27;s Pick", "Sold out", "Will sell out", f">{day:%a}<", f">{day:%b} {day.day}<"):
         assert part in email.html, part

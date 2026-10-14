@@ -42,10 +42,10 @@ const base = `http://127.0.0.1:${port}/the_list/`
 /** [file name, path, optional step before the screenshot] */
 const PAGES = [
   ['home', ''],
-  ['show', 'shows/102/'],
-  ['venue', 'venues/2/'],
-  ['band', 'bands/1/'],
-  ['band-fallback', 'bands/7/'],
+  ['show', 'shows/neon-harbor-2026-10-03/'],
+  ['venue', 'venues/924-gilman-street/'],
+  ['band', 'bands/neon-harbor/'],
+  ['band-fallback', 'bands/redwood-sirens/'],
   ['alerts', 'alerts/'],
   ['unsubscribe', 'alerts/unsubscribe/'],
   ['not-found', 'shows/99999/'],

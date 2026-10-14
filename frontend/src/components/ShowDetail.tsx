@@ -79,7 +79,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
           </>
         }
         title={acts[0]?.band.name ?? 'Unknown'}
-        subtitle={<>at <VenueLink venueId={show.venue.id} className="text-link underline underline-offset-2">{show.venue.name}</VenueLink> · {show.venue.city}</>}
+        subtitle={<>at <VenueLink slug={show.venue.slug} className="text-link underline underline-offset-2">{show.venue.name}</VenueLink> · {show.venue.city}</>}
       />
 
       <div className="flex flex-col gap-4 rounded-lg bg-surface p-5">
@@ -103,7 +103,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
           {acts.map(act => (
             <li key={act.band.id} className={act.position === 0 ? 'text-xl' : 'text-base'}>
               <BandLink
-                bandId={act.band.id}
+                slug={act.band.slug}
                 className={`${act.position === 0 ? 'font-bold' : 'font-normal'} hover:underline text-ink`}
               >
                 <span data-testid="act-name">{act.band.name}</span>
@@ -116,7 +116,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
 
       <Section title="Venue">
         <div className="flex flex-col gap-1.5 text-sm text-ink-soft">
-          <VenueLink venueId={show.venue.id} className="w-fit text-base font-semibold text-ink hover:underline">{show.venue.name}</VenueLink>
+          <VenueLink slug={show.venue.slug} className="w-fit text-base font-semibold text-ink hover:underline">{show.venue.name}</VenueLink>
           {show.venue.address && (
             <a
               href={mapsHref(show.venue)}

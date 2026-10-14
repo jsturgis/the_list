@@ -26,6 +26,10 @@ _Avoid_: Location, space, club
 A geographic grouping of cities used for filtering: SF · East Bay · North Bay · South Bay · Santa Cruz.
 _Avoid_: Area, zone, neighborhood
 
+**Slug**:
+The name in a Band's, Venue's or Show's page URL (`/bands/neon-harbor/`, `/venues/924-gilman-street/`): its name lowercased, without accents or punctuation, "&" read as "and", words joined by hyphens. Unique among every Band (Venue) in the database: where two names give one slug, the one with the lowest id keeps it and the others get their id after it (`the-ocean-2210`); a name with nothing left is `band-{id}` (`venue-{id}`), and one that's all digits gets `band-` (`venue-`) before it, as it would read as an id. A Show's slug is its headliner's slug and its date (`/shows/neon-harbor-2026-10-03/`; `show-{date}` without Acts); Shows that share one get their Venue's slug before the date, and then, like an early and a late show, their id after it. Slugs follow the current names, so a renamed Band gets a new one; its numeric URL (`/bands/12/`) never changes and always redirects to the slug.
+_Avoid_: Permalink, handle
+
 ### Show status
 
 **Upcoming**:

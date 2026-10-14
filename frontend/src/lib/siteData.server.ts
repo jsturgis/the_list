@@ -16,8 +16,11 @@ export interface ExportData {
    */
   exportDay: string
   show(id: number): Show | undefined
+  showBySlug(slug: string): Show | undefined
   venue(id: number): ExportVenue | undefined
+  venueBySlug(slug: string): ExportVenue | undefined
   band(id: number): ExportBand | undefined
+  bandBySlug(slug: string): ExportBand | undefined
   /** A Venue's Upcoming Shows from the export's day, in date then door-time order. */
   venueShows(venueId: number): Show[]
   /** A Band's Upcoming Shows from the export's day, in date then door-time order. */
@@ -56,8 +59,11 @@ export function readExport(dir: string = DEFAULT_DATA_DIR): ExportData {
   const meta = readJson<ExportMeta>(dir, 'meta')
 
   const showById = new Map(shows.map(s => [s.id, s]))
+  const showBySlug = new Map(shows.map(s => [s.slug, s]))
   const venueById = new Map(venues.map(v => [v.id, v]))
+  const venueBySlug = new Map(venues.map(v => [v.slug, v]))
   const bandById = new Map(bands.map(b => [b.id, b]))
+  const bandBySlug = new Map(bands.map(b => [b.slug, b]))
   const from = exportDay(meta)
   const byVenue = new Map<number, Show[]>()
   for (const s of shows) {
@@ -70,8 +76,11 @@ export function readExport(dir: string = DEFAULT_DATA_DIR): ExportData {
     meta,
     exportDay: from,
     show: id => showById.get(id),
+    showBySlug: slug => showBySlug.get(slug),
     venue: id => venueById.get(id),
+    venueBySlug: slug => venueBySlug.get(slug),
     band: id => bandById.get(id),
+    bandBySlug: slug => bandBySlug.get(slug),
     venueShows: venueId =>
       (byVenue.get(venueId) ?? [])
         .slice()

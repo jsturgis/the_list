@@ -6,17 +6,17 @@ import { readExport } from '@/lib/siteData.server'
 import type { ExportBand, ExportShow, ExportVenue } from '@/lib/types'
 
 const venue = (id: number, name: string): ExportVenue => ({
-  id, name, address: null, city: 'San Francisco', region: 'sf', websiteUrl: null, latitude: null, longitude: null,
+  id, name, slug: name.toLowerCase(), address: null, city: 'San Francisco', region: 'sf', websiteUrl: null, latitude: null, longitude: null,
   timezone: null, phone: null, googleRating: null, googlePlaceId: null, description: null, wikipediaUrl: null,
   neighborhood: null, venueType: null, nearestTransit: null, instagram: null, imageUrl: null,
   defaultAgeRestriction: null, isSoberSpace: null, isCashOnly: null, membershipRequired: null,
 })
 const band = (id: number, similar: number[] = []): ExportBand => ({
-  id, name: `Band ${id}`, genres: [], spotifyUrl: null, soundcloudUrl: null, bandcampUrl: null, links: [], imageCredit: null, imageFocus: null, members: [], websiteUrl: null,
+  id, name: `Band ${id}`, slug: `band-${id}`, genres: [], spotifyUrl: null, soundcloudUrl: null, bandcampUrl: null, links: [], imageCredit: null, imageFocus: null, members: [], websiteUrl: null,
   imageUrl: null, isLocal: null, description: null, similar,
 })
 const show = (id: number, venueId: number, date: string, status = 'upcoming'): ExportShow => ({
-  id, date, doorTime: '20:00:00', setTime: null, priceMin: null, priceMax: null, isFree: false, ageRestriction: 'a/a',
+  id, slug: `show-${id}`, date, doorTime: '20:00:00', setTime: null, priceMin: null, priceMax: null, isFree: false, ageRestriction: 'a/a',
   status, isRecommended: false, willSellOut: false, isPit: false, isDrinkTickets: false, isNoReentry: false,
   notes: null, isMatinee: false, isSoldOut: false, ticketProvider: null, ticketUrl: null, isBenefit: false, benefitCause: null,
   specialEvent: null, venueId, acts: [[id * 10, 0]],

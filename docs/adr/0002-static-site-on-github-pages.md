@@ -10,7 +10,8 @@ The List is published as a static site on GitHub Pages instead of running the Fa
 ## Consequences
 
 - The GraphQL API is still the way to explore data locally, but the published site never calls it; anything the site shows has to be in the export.
-- Every page must exist at build time: the Show, Venue and Band pages come from `getStaticPaths` over the export, so a Band or Show added between deploys has no page until the next one, and any other id gets the 404 page.
+- Every page must exist at build time: the Show, Venue and Band pages come from `getStaticPaths` over the export, so a Band or Show added between deploys has no page until the next one, and any other URL gets the 404 page.
+- Pages are at their slugs (`/bands/neon-harbor/`), and each is also built at its numeric URL (`/bands/12/`), which redirects to the slug. GitHub Pages can't send redirects, so `Astro.redirect` builds a page that does it: a meta refresh, `noindex`, and a canonical link to the slug.
 - Pages are built days before some visits, so anything that depends on today's date is decided in the browser, in Bay Area time. Lists leave out Shows dated before the export, and an inline `<head>` script hides any that have passed since (ADR 0004).
 - The build reads the export from `frontend/export` and writes the site to `frontend/dist`, which the Deploy workflow uploads. The export itself isn't published; the browser only gets what the pages and `home-shows.json` contain.
 - The `data` branch grows by roughly a database's size per ingest. If that becomes a problem, squash its history; only the latest commit is used.

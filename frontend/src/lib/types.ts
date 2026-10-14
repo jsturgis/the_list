@@ -1,6 +1,8 @@
 export interface Venue {
   id: number
   name: string
+  /** Its page's URL segment, from its name (/venues/924-gilman-street/): unique among Venues. */
+  slug: string
   address: string | null
   city: string
   region: string
@@ -62,6 +64,8 @@ export interface BandLink {
 export interface Band {
   id: number
   name: string
+  /** Its page's URL segment, from its name (/bands/neon-harbor/): unique among Bands. */
+  slug: string
   genres: string[]
   spotifyUrl: string | null
   soundcloudUrl: string | null
@@ -91,6 +95,8 @@ export interface Act {
 
 export interface Show {
   id: number
+  /** Its page's URL segment, from its headliner and date (/shows/neon-harbor-2026-10-03/): unique among Shows. */
+  slug: string
   date: string
   doorTime: string | null
   setTime: string | null

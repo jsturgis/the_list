@@ -39,7 +39,7 @@ describe('googleCalendarUrl', () => {
     const details = url.searchParams.get('details')!
     expect(details).toContain('Deafheaven, Uniform')
     expect(details).toContain('Doors 8:00 PM · Set 9:00 PM')
-    expect(details).toContain(`${SITE}/shows/42/`)
+    expect(details).toContain(`${SITE}/shows/deafheaven-2026-10-01/`)
   })
 
   it('uses the set time when there is no door time', () => {
@@ -61,7 +61,7 @@ describe('icsText', () => {
     expect(text).toContain('\r\nDTSTART:20261002T030000Z\r\n')
     expect(text).toContain('\r\nDTEND:20261002T060000Z\r\n')
     expect(text).toContain('\r\nSUMMARY:Deafheaven at Bottom of the Hill\r\n')
-    expect(text).toContain(`\r\nURL:${SITE}/shows/42/\r\n`)
+    expect(text).toContain(`\r\nURL:${SITE}/shows/deafheaven-2026-10-01/\r\n`)
     expect(text).toMatch(/END:VEVENT\r\nEND:VCALENDAR\r\n$/)
   })
 

@@ -5,9 +5,9 @@ import { expect, test } from './fixtures'
 // headings. These compare the rendered pages with each other at desktop width.
 
 const NARROW: [name: string, path: string][] = [
-  ['Show page', 'shows/102/'],
-  ['Venue page', 'venues/2/'],
-  ['Band page', 'bands/1/'],
+  ['Show page', 'shows/neon-harbor-2026-10-03/'],
+  ['Venue page', 'venues/924-gilman-street/'],
+  ['Band page', 'bands/neon-harbor/'],
   ['Alerts page', 'alerts/'],
   ['Unsubscribe page', 'alerts/unsubscribe/'],
   ['not-found page', 'shows/99999/'],
