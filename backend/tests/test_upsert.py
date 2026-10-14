@@ -282,6 +282,25 @@ def test_shared_band_across_shows(db):
     assert db.query(Show).count() == 2
 
 
+def test_a_new_spelling_of_a_known_band_joins_it(db):
+    """Steve writes the same Band differently from week to week: case, punctuation, "&" or "and", accents."""
+    upsert_shows(db, [_show(bands=["Swept to Sea", "Brian Mello & The Afterglow"], date_=date(2026, 9, 25))])
+    upsert_shows(db, [_show(bands=["Swept To Sea!", "Brian Mello And The Afterglow"], date_=date(2026, 9, 26))])
+    assert sorted(b.name for b in db.query(Band).all()) == ["Brian Mello & The Afterglow", "Swept to Sea"]
+    assert db.query(Act).count() == 4
+
+
+def test_two_spellings_of_one_band_in_a_lineup_are_one_act(db):
+    upsert_shows(db, [_show(bands=["Da Pupz", "Opener", "Da Pupz!"])])
+    show = db.query(Show).one()
+    assert [(a.band.name, a.position) for a in show.acts] == [("Da Pupz", 0), ("Opener", 1)]
+
+
+def test_a_name_of_only_punctuation_matches_only_itself(db):
+    upsert_shows(db, [_show(bands=["!!!", "..."])])
+    assert sorted(b.name for b in db.query(Band).all()) == ["!!!", "..."]
+
+
 def test_duplicate_band_on_same_show_keeps_one_act(db):
     """Steve sometimes repeats a headliner in the comma-separated lineup."""
     upsert_shows(db, [_show(bands=["Grant-Lee Phillips", "Grant-Lee Phillips"])])

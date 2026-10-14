@@ -136,12 +136,22 @@ def _emails_by_user() -> dict[str, str]:
         page += 1
 
 
-def fetch_subscribers() -> list[Subscriber]:
-    """Everyone with Alerts turned on, with their Saved Filters in the order they were saved."""
+def _require_supabase() -> None:
     if not settings.supabase_url or not settings.supabase_service_role_key:
         raise SupabaseError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set")
+
+
+def fetch_saved_filters() -> list[dict]:
+    """Every Saved Filter (`user_id`, `name`, `query`), whether or not its person has Alerts on."""
+    _require_supabase()
+    return _rows("saved_filters", {"select": "user_id,name,query,created_at", "order": "created_at.asc"})
+
+
+def fetch_subscribers() -> list[Subscriber]:
+    """Everyone with Alerts turned on, with their Saved Filters in the order they were saved."""
+    _require_supabase()
     subscriptions = _rows("alert_subscriptions", {"select": "user_id,unsubscribe_token", "enabled": "eq.true"})
-    saved = _rows("saved_filters", {"select": "user_id,name,query,created_at", "order": "created_at.asc"})
+    saved = fetch_saved_filters()
     emails = _emails_by_user()
 
     by_user = {s["user_id"]: Subscriber(emails[s["user_id"]], s["unsubscribe_token"])

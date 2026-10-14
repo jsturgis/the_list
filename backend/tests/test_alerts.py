@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.alerts import SendError, SupabaseError, run_alerts
+from app.alerts import SendError, SupabaseError, fetch_saved_filters, run_alerts
 from app.clock import local_today
 from app.models.act import Act
 from app.models.band import Band
@@ -288,6 +288,12 @@ def test_logs_counts_but_no_email_addresses(db, shows, supabase, caplog):
         _run(db)
     assert "1 alert email" in caplog.text
     assert "fan@example.com" not in caplog.text
+
+
+def test_fetches_every_saved_filter_including_people_with_alerts_off(supabase):
+    supabase.person("on@example.com", ("B.F.H", "bandId=2214"))
+    supabase.person("off@example.com", ("Free", "free=1"), enabled=False)
+    assert [(r["name"], r["query"]) for r in fetch_saved_filters()] == [("B.F.H", "bandId=2214"), ("Free", "free=1")]
 
 
 def test_a_supabase_error_fails_the_run(db, shows, supabase):

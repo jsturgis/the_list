@@ -8,6 +8,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.ingestion.edition import is_placeholder_website
+from app.slugs import slugify
 from app.models.act import Act
 from app.models.band import Band
 from app.models.show import AgeRestriction, Show, ShowStatus
@@ -103,6 +104,25 @@ def venue_key(name: str) -> str:
     """
     key = " ".join(name.lower().split())
     return key[4:] if key.startswith("the ") else key
+
+
+def band_key(name: str) -> str:
+    """Matching key for a Band name: its slug (app.slugs), so case, accents, apostrophes and punctuation don't count
+    and "&" is "and". Steve lists the same Band as "Swept To Sea" and "Swept to Sea", "B.F.H" and "B.F.H.".
+    Empty for a name with no letters or digits, which then matches only itself.
+    """
+    return slugify(name)
+
+
+def find_band(db: Session, name: str) -> Band | None:
+    """Existing Band with this name, else the first (lowest id) with the same key (see band_key)."""
+    band = db.query(Band).filter(Band.name == name).first()
+    key = band_key(name)
+    if band or not key:
+        return band
+    # Only new names get here, a few per edition, so scanning every name is cheap.
+    ids = [id_ for id_, other in db.query(Band.id, Band.name).order_by(Band.id) if band_key(other) == key]
+    return db.get(Band, ids[0]) if ids else None
 
 
 def find_venue(
@@ -231,8 +251,11 @@ def _upsert_acts(db: Session, show: Show, data: dict) -> None:
         b for b in (data.get("bands") or [])
         if not _DJ_RE.match(b) and not _B2B_RE.search(b) and b.strip()
     ]
-    # Steve sometimes repeats a name in the comma-separated lineup
-    band_names = list(dict.fromkeys(band_names))
+    # Steve sometimes repeats a name in the comma-separated lineup, not always spelled the same (see band_key)
+    first_spelling: dict[str, str] = {}
+    for b in band_names:
+        first_spelling.setdefault(band_key(b) or b, b)
+    band_names = list(first_spelling.values())
     # Notes are matched by name, since filtering above can shift positions.
     act_notes = dict(zip(data.get("bands") or [], data.get("act_notes") or []))
 
@@ -254,7 +277,7 @@ def _upsert_acts(db: Session, show: Show, data: dict) -> None:
         }
 
     for position, name in enumerate(band_names):
-        band = db.query(Band).filter(Band.name == name).first()
+        band = find_band(db, name)
         if not band:
             band = Band(name=name)
             db.add(band)
