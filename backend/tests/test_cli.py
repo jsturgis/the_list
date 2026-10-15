@@ -79,6 +79,27 @@ def test_backfill_can_first_recheck_genres(capsys):
     assert "2 bands with tags that aren't genres" in capsys.readouterr().out
 
 
+def test_backfill_can_first_redo_bands_matched_to_the_wrong_artist(capsys):
+    lastfm, discogs, model = _key_checks()
+    result = {"looked_up": 2, "failed": 0, "remaining": 0}
+    with patch("app.ingestion.backfill.redo_bands", return_value=[]) as redo, \
+         patch("app.ingestion.backfill.run_backfill", new=AsyncMock(return_value=result)) as run, \
+         patch("app.cli.SessionLocal"), lastfm, discogs, model:
+        main(["backfill", "--redo", "Sunblind", "--redo", "Petty Theft"])
+    assert redo.call_args.args[1] == ["Sunblind", "Petty Theft"]
+    run.assert_awaited_once()
+    assert "2 bands to look up again from scratch" in capsys.readouterr().out
+
+
+def test_backfill_wont_run_when_a_band_to_redo_isnt_there():
+    lastfm, discogs, model = _key_checks()
+    with patch("app.ingestion.backfill.redo_bands", return_value=["Sunblnd"]), \
+         patch("app.ingestion.backfill.run_backfill", new=AsyncMock()) as run, \
+         patch("app.cli.SessionLocal"), lastfm, discogs, model, pytest.raises(SystemExit, match="Sunblnd"):
+        main(["backfill", "--redo", "Sunblnd"])
+    run.assert_not_called()
+
+
 def test_photo_focus_fills_in_missing_focal_points(capsys):
     counts = {"bands": 12, "with_faces": 9, "faces": 15, "skipped": 1}
     with patch("app.ingestion.band_photos.fill_photo_focus", return_value=counts) as fill, patch("app.cli.SessionLocal"):

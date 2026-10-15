@@ -6,6 +6,7 @@
     python -m app.cli alerts --dry-run                    # print them instead
     python -m app.cli alerts --only me@example.com        # send only to one person (a test)
     python -m app.cli backfill --max-minutes 300          # look existing Bands up on the services (resumable)
+    python -m app.cli backfill --redo "Sunblind"          # ... first redoing a Band matched to the wrong artist
     python -m app.cli photo-focus                         # focal points for stored Band photos without one
     python -m app.cli photo-focus --all                   # ... or for every stored Band photo
 """
@@ -51,9 +52,9 @@ def alerts(dry_run: bool, only: str | None) -> None:
         db.close()
 
 
-def backfill(max_minutes: float, limit: int | None, recheck: bool = False) -> None:
+def backfill(max_minutes: float, limit: int | None, recheck: bool = False, redo: list[str] | None = None) -> None:
     """Look existing Bands up on the services until done, out of time or at the limit (see app/ingestion/backfill)."""
-    from app.ingestion.backfill import recheck_genres, run_backfill
+    from app.ingestion.backfill import recheck_genres, redo_bands, run_backfill
     from app.ingestion.discogs import discogs_key_problem
     from app.ingestion.genre_filter import genre_model_problem
     from app.ingestion.lastfm import lastfm_key_problem
@@ -68,6 +69,10 @@ def backfill(max_minutes: float, limit: int | None, recheck: bool = False) -> No
     try:
         if recheck:
             print(f"backfill: {recheck_genres(db)} bands with tags that aren't genres, to look up again")
+        if redo:
+            if missing := redo_bands(db, redo, settings.images_path):
+                sys.exit("backfill: no band named " + ", ".join(repr(name) for name in missing))
+            print(f"backfill: {len(redo)} bands to look up again from scratch")
         result = asyncio.run(run_backfill(db, settings.images_path, max_minutes=max_minutes, limit=limit))
     finally:
         db.close()
@@ -102,6 +107,9 @@ def main(argv: list[str] | None = None) -> None:
     backfill_cmd.add_argument("--limit", type=int, default=None, help="look up at most this many Bands")
     backfill_cmd.add_argument("--recheck-genres", action="store_true",
                               help="first mark Bands whose genres hold a tag that isn't one, to look them up again")
+    backfill_cmd.add_argument("--redo", action="append", metavar="NAME",
+                              help="first drop what the services gave this Band (matched to the wrong artist) and look "
+                                   "it up again from scratch; repeatable")
     focus_cmd = commands.add_parser("photo-focus", help="work out the focal point of stored Band photos (no network)")
     focus_cmd.add_argument("--all", action="store_true", help="every stored photo, not only those without a focal point")
     args = parser.parse_args(argv)
@@ -120,7 +128,7 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "alerts":
         alerts(dry_run=args.dry_run, only=args.only)
     elif args.command == "backfill":
-        backfill(max_minutes=args.max_minutes, limit=args.limit, recheck=args.recheck_genres)
+        backfill(max_minutes=args.max_minutes, limit=args.limit, recheck=args.recheck_genres, redo=args.redo)
     elif args.command == "photo-focus":
         photo_focus(recompute=args.all)
 

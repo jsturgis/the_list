@@ -15,7 +15,8 @@ from app.clock import local_today
 from app.config import settings
 from app.database import SessionLocal
 from app.ingestion.band_photos import save_band_photos
-from app.ingestion.band_sources import photo_candidates, service_genres
+from app.ingestion.band_corrections import correct_edition
+from app.ingestion.band_sources import discogs_match, photo_candidates, service_genres
 from app.ingestion.genre_filter import GenreFilter
 from app.ingestion.discogs import discogs_artist, discogs_genres
 from app.ingestion.drive import fetch_latest_edition
@@ -133,6 +134,8 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
         for data in shows_data:
             for name, halves in await loop.run_in_executor(None, split_joint_acts, data, split):
                 logger.info("ingestion: %r is a joint billing: %s", name, " + ".join(halves))
+            # A Band's correction (app/ingestion/band_corrections) takes the place of the edition's genres and links.
+            data["band_enrichment"] = [(name, correct_edition(name, e)) for name, e in data["band_enrichment"]]
 
         # New Bands: look them up on MusicBrainz (no LLM), once per name. The services are the source of truth;
         # the edition, whose genres are sometimes guessed from the name (Soulfly as "Soul / Funk / R&B"), is used
@@ -158,7 +161,7 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                         # Its photo on Wikimedia Commons, through MusicBrainz's Wikidata link, with its credit.
                         photo = await loop.run_in_executor(None, commons_photo, found.get("links") or [])
                         # Its Discogs artist (members, photo, page), through MusicBrainz's Discogs link or its name.
-                        artist = await loop.run_in_executor(None, discogs_artist, name, found.get("links") or [])
+                        artist = await loop.run_in_executor(None, discogs_match, name, found, discogs_artist)
                         band_cache[name] = {**found, "commons_photo": photo, "discogs": artist}
                 found = band_cache[name]
                 if found:

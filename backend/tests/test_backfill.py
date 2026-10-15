@@ -11,7 +11,9 @@ from PIL import Image
 
 from app.clock import local_today
 from app.ingestion import backfill
-from app.ingestion.backfill import pending_bands, recheck_genres, run_backfill
+from app.ingestion import band_corrections
+from app.ingestion.backfill import pending_bands, recheck_genres, redo_bands, run_backfill
+from app.ingestion.band_corrections import BandCorrection
 from app.ingestion.band_photos import is_stored
 from app.ingestion.discogs import DiscogsArtist
 from app.ingestion.wikimedia import CommonsPhoto
@@ -262,3 +264,83 @@ async def test_a_rechecked_band_with_only_tags_that_arent_genres_loses_them(db, 
 
     db.refresh(band)
     assert band.genres == [] and band.enriched_at is not None
+
+
+async def test_a_band_with_namesakes_isnt_matched_by_name_on_last_fm_or_discogs(db, services):
+    band = _band(db, "Sunblind", genres=["hardcore punk"])
+    db.commit()
+    services.mb.side_effect = lambda name, use_llm=True: {**_not_on_musicbrainz(name), "namesakes": True}
+    services.lastfm.return_value = ["trance"]                     # the namesake's page
+
+    await _run(db, services)
+
+    db.refresh(band)
+    services.lastfm.assert_not_called()
+    services.discogs.assert_not_called()
+    assert band.genres == ["hardcore punk"] and band.enriched_at is not None
+
+
+@pytest.fixture
+def sunblind_matched_wrong(db, services):
+    """Sunblind as it was stored: a German trance act's MusicBrainz links, Last.fm tags, Discogs members and photo,
+    and the edition's link to a Philadelphia band's Bandcamp."""
+    photo = services.images / "bands" / "1442-76be73bc76.webp"
+    photo.parent.mkdir(parents=True)
+    photo.write_bytes(b"trance")
+    band = _band(db, "Sunblind", genres=["trance", "hard trance"], enriched_at=datetime(2026, 10, 7),
+                 links=[{"type": "discogs", "url": "https://www.discogs.com/artist/70254"},
+                        {"type": "free streaming", "url": "https://open.spotify.com/artist/trance"}],
+                 spotify_url="https://open.spotify.com/artist/trance",             # from MusicBrainz
+                 bandcamp_url="https://sunblind.bandcamp.com/",                    # from the edition
+                 members=[{"name": "Frank Schmidt", "active": True}],
+                 image_url="bands/1442-76be73bc76.webp",
+                 image_credit={"source": "Discogs", "author": None, "license": None, "license_url": None,
+                               "source_url": "https://www.discogs.com/artist/70254-Sunblind"})
+    band.image_focus = {"x": 50.0, "y": 35.0}
+    other = _band(db, "Other", genres=["punk"], enriched_at=datetime(2026, 10, 7))
+    db.commit()
+    return type("Stored", (), dict(band=band, other=other, photo=photo))
+
+
+def test_redoing_a_band_drops_what_its_wrong_match_gave_it(db, services, sunblind_matched_wrong, monkeypatch):
+    monkeypatch.setattr(band_corrections, "CORRECTIONS", {})
+    stored = sunblind_matched_wrong
+
+    assert redo_bands(db, ["sunblind", "Nobody"], services.images) == ["Nobody"]   # the names it didn't find
+
+    band = stored.band
+    db.refresh(band)
+    assert band.genres == [] and band.links == [] and band.members == []
+    assert band.spotify_url is None                                  # it came with the MusicBrainz match
+    assert band.bandcamp_url == "https://sunblind.bandcamp.com/"     # the edition's: kept
+    assert (band.image_url, band.image_credit, band.image_focus) == (None, None, None)
+    assert not stored.photo.exists()
+    assert band.enriched_at is None and stored.other.enriched_at is not None
+    assert [b.name for b in pending_bands(db)] == ["Sunblind"]       # the backfill looks it up again
+
+
+def test_redo_keeps_the_editions_photo(db, services):
+    band = _band(db, "Local", image_url="bands/9-edition.webp", enriched_at=datetime(2026, 10, 7))
+    db.commit()
+
+    redo_bands(db, ["Local"], services.images)
+
+    db.refresh(band)
+    assert band.image_url == "bands/9-edition.webp"   # no credit: the edition's, not a service's
+
+
+async def test_a_redone_band_gets_its_correction(db, services, sunblind_matched_wrong, monkeypatch):
+    monkeypatch.setattr(band_corrections, "CORRECTIONS", {"sunblind": BandCorrection(
+        by_name=False, genres=("hardcore punk",), links={"bandcamp_url": "https://sunblindhc.bandcamp.com/"})})
+    redo_bands(db, ["Sunblind"], services.images)
+    services.mb.side_effect = lambda name, use_llm=True: {**_not_on_musicbrainz(name), "namesakes": True}
+
+    result = await _run(db, services)
+
+    band = sunblind_matched_wrong.band
+    db.refresh(band)
+    assert band.genres == ["hardcore punk"]
+    assert band.bandcamp_url == "https://sunblindhc.bandcamp.com/"
+    assert band.image_url is None and band.members == [] and band.links == []
+    assert band.enriched_at is not None and result["looked_up"] == 1
+    services.embed.assert_awaited_once()                             # its genres changed: Similar Bands follow

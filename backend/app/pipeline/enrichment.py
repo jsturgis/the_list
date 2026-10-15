@@ -14,7 +14,9 @@ import musicbrainzngs
 from pydantic import BaseModel
 
 from app.config import settings
+from app.ingestion.band_corrections import band_correction
 from app.ingestion.parser import RawShow
+from app.ingestion.upsert import known_region
 from app.pipeline.providers import get_enrichment_llm
 
 musicbrainzngs.set_useragent(
@@ -37,17 +39,41 @@ class _GenreList(BaseModel):
 
 # ── MusicBrainz ───────────────────────────────────────────────────────────────
 
-def _mb_search(name: str) -> Optional[dict]:
-    """Return the MB artist whose name exactly matches (case-insensitive), or None."""
+def _in_bay_area(artist: dict) -> bool:
+    """Whether MusicBrainz places the artist in the Bay Area: its area or where it began is a Bay Area city."""
+    places = [(artist.get(key) or {}).get("name") for key in ("area", "begin-area")]
+    return any(known_region(place) for place in places) or "bay area" in (artist.get("disambiguation") or "").lower()
+
+
+def _tell_apart(namesakes: list[dict]) -> Optional[dict]:
+    """The Band among MusicBrainz artists with its exact name (best match first), or None when they can't be told
+    apart. The one from the Bay Area, as these are Bay Area listings; else MusicBrainz's best match, unless MusicBrainz
+    knows nothing about it (no area, disambiguation or tags), which leaves nothing to tell it from the others by."""
+    local = [a for a in namesakes if _in_bay_area(a)]
+    best = (local or namesakes)[0]
+    known = best.get("area") or best.get("begin-area") or best.get("disambiguation") or best.get("tag-list")
+    return best if known else None
+
+
+def _mb_search(name: str, namesakes: Optional[set] = None) -> Optional[dict]:
+    """The MusicBrainz artist with exactly the Band's name (ignoring case), or None.
+
+    When several have it, the one that's the Band (see _tell_apart); if they can't be told apart there's no match,
+    and the name is added to `namesakes`, so the caller knows the services' same-named artists may not be the Band.
+    """
     try:
-        result = musicbrainzngs.search_artists(artist=f'"{name}"', limit=5)
+        # 25: enough to see a name's namesakes, which can score below other names' artists.
+        result = musicbrainzngs.search_artists(artist=f'"{name}"', limit=25)
     except Exception:
         return None
     name_lower = name.lower()
-    for artist in result.get("artist-list", []):
-        if artist.get("name", "").lower() == name_lower:
-            return artist
-    return None
+    same = [a for a in result.get("artist-list", []) if a.get("name", "").lower() == name_lower]
+    if len(same) <= 1:
+        return same[0] if same else None
+    artist = _tell_apart(same)
+    if artist is None and namesakes is not None:
+        namesakes.add(name)
+    return artist
 
 
 def _mb_lookup(mbid: str) -> dict:
@@ -147,12 +173,22 @@ def _enrich_band(name: str, use_llm: bool = True) -> dict:
     `genres` are MusicBrainz's curated genres (at most 5), falling back to its top 5 tags when it has none;
     `mb_genres` says whether they're the curated ones. With `use_llm=False` only MusicBrainz is used (no LLM
     guesses for SoundCloud/Bandcamp or genres).
+
+    `namesakes` is True when MusicBrainz has artists with the Band's name but none is the Band (or its correction,
+    app/ingestion/band_corrections.py, says its name is a namesake's): the other services aren't asked by name then.
     """
-    artist = _mb_search(name)
+    correction = band_correction(name)
+    namesakes: set[str] = set()
+    if correction and correction.mbid:
+        artist = {"id": correction.mbid}
+    elif correction and not correction.by_name:
+        artist, namesakes = None, {name}
+    else:
+        artist = _mb_search(name, namesakes)
     if artist is None:
         return {"genres": [], "mb_genres": False, "mbid": None, "spotify_url": None, "soundcloud_url": None,
                 "bandcamp_url": None,
-                "website_url": None, "links": []}
+                "website_url": None, "links": [], "namesakes": bool(namesakes)}
 
     full = _mb_lookup(artist["id"])
 
@@ -186,7 +222,7 @@ def _enrich_band(name: str, use_llm: bool = True) -> dict:
     if not use_llm:
         return {"genres": genres, "mb_genres": bool(curated), "mbid": artist["id"], "spotify_url": spotify_url,
                 "soundcloud_url": soundcloud_url, "bandcamp_url": bandcamp_url, "website_url": website_url,
-                "links": links}
+                "links": links, "namesakes": False}
 
     # LLM fallback: find SoundCloud URL when MB doesn't have one
     if not soundcloud_url:
@@ -211,6 +247,7 @@ def _enrich_band(name: str, use_llm: bool = True) -> dict:
         "bandcamp_url": bandcamp_url,
         "website_url": website_url,
         "links": links,
+        "namesakes": False,
     }
 
 
