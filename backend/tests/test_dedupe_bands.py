@@ -152,3 +152,21 @@ def test_removing_bands_from_a_saved_index_keeps_the_rest(tmp_path):
 def test_removing_from_an_index_that_was_never_saved_does_nothing(tmp_path):
     remove_from_index(str(tmp_path / "bands.index"), [2])
     assert not (tmp_path / "bands.index").exists()
+
+
+def test_a_merge_says_which_kept_bands_took_a_vector_to_index(db):
+    keep = _band(db, "Swept to Sea")
+    dup = _band(db, "Swept To Sea", embedding=np.ones(4, dtype=np.float32).tobytes())
+    own = _band(db, "B.F.H", embedding=np.zeros(4, dtype=np.float32).tobytes())
+    _band(db, "B.F.H.")
+    _show(db, 1, keep)
+    _show(db, 2, keep)
+    _show(db, 3, dup)
+    _show(db, 4, own)
+    db.commit()
+
+    merges = {m.keep_id: m for m in merge_duplicate_bands(db, apply=True)}
+
+    # The kept Band's vector came from the duplicate, under the duplicate's id: it needs indexing under its own.
+    assert merges[keep.id].vector_to_index == np.ones(4, dtype=np.float32).tobytes()
+    assert merges[own.id].vector_to_index is None  # its own vector, already indexed under its id
