@@ -77,14 +77,14 @@ const creditLink = 'text-link underline underline-offset-2'
 const creditLine = 'order-last mt-2 basis-full text-xs text-ink-muted sm:order-none sm:mt-1.5 sm:mb-6'
 
 /**
- * "Photo: <author>, <licence>, via Wikimedia Commons", as a Commons photo's licence requires; "Photo via Discogs"
- * for a Discogs photo, which has no author or licence to name.
+ * "Photo: <author>, <licence>, via Wikimedia Commons", as a Commons photo's licence requires; "Photo via Discogs" or
+ * "Photo via Bandcamp" for a photo from one of them, which has no author or licence to name.
  */
 function PhotoCreditLine({ credit }: { credit: PhotoCredit }) {
-  if (credit.source === 'Discogs') {
+  if (credit.source !== 'Wikimedia Commons') {
     return (
       <figcaption className={creditLine}>
-        Photo via <a href={credit.sourceUrl} target="_blank" rel="noopener noreferrer" className={creditLink}>Discogs</a>
+        Photo via <a href={credit.sourceUrl} target="_blank" rel="noopener noreferrer" className={creditLink}>{credit.source}</a>
       </figcaption>
     )
   }

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import io
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, patch
 
 import httpx
 import pytest
@@ -12,9 +12,10 @@ from PIL import Image
 from app.clock import local_today
 from app.ingestion import backfill
 from app.ingestion import band_corrections
-from app.ingestion.backfill import pending_bands, recheck_genres, redo_bands, run_backfill
+from app.ingestion.backfill import pending_bands, recheck_genres, recheck_photos, redo_bands, run_backfill
 from app.ingestion.band_corrections import BandCorrection
 from app.ingestion.band_photos import is_stored
+from app.ingestion.bandcamp import BandcampPhoto, BandcampUnavailable, bandcamp_credit
 from app.ingestion.discogs import DiscogsArtist
 from app.ingestion.wikimedia import CommonsPhoto
 from app.models.act import Act
@@ -51,10 +52,11 @@ def services(tmp_path, monkeypatch):
          patch.object(backfill, "discogs_artist", return_value=None) as discogs, \
          patch.object(backfill, "lastfm_tags", return_value=[]) as lastfm, \
          patch.object(backfill, "discogs_genres", return_value=[]) as discogs_genres, \
+         patch.object(backfill, "bandcamp_photo", return_value=None) as bandcamp, \
          patch.object(backfill, "embed_and_index_band", new_callable=AsyncMock) as embed:
         yield type("Services", (), dict(mb=mb, commons=commons, discogs=discogs, lastfm=lastfm,
-                                        discogs_genres=discogs_genres, embed=embed, routes=routes,
-                                        images=tmp_path))
+                                        discogs_genres=discogs_genres, bandcamp=bandcamp, embed=embed,
+                                        routes=routes, images=tmp_path))
 
 
 def _band(db, name, **kw):
@@ -228,6 +230,82 @@ async def test_tags_that_arent_genres_are_left_out(db, services, no_genre_model)
 
     assert db.query(Band).one().genres == ["youth crew"]
     assert db.query(GenreTag).count() == 3                 # each judged once, for next time
+
+
+_BANDCAMP = BandcampPhoto("https://f4.bcbits.com/img/0045628516_10.jpg", bandcamp_credit("https://glow.bandcamp.com/"))
+
+
+async def test_a_band_with_no_commons_or_discogs_photo_gets_its_bandcamp_one(db, services):
+    glow = _band(db, "Glow", bandcamp_url="https://glow.bandcamp.com/", image_url="https://edition.example/glow.jpg")
+    db.commit()
+    services.bandcamp.return_value = _BANDCAMP
+    services.routes[_BANDCAMP.url] = httpx.Response(200, content=_jpeg())
+
+    await _run(db, services)
+
+    db.refresh(glow)
+    services.bandcamp.assert_called_once_with("https://glow.bandcamp.com/", ANY)
+    assert is_stored(glow.image_url) and glow.image_credit == _BANDCAMP.credit
+
+
+async def test_bandcamp_isnt_asked_when_commons_or_discogs_has_a_photo(db, services):
+    soulfly = _band(db, "Soulfly", bandcamp_url="https://soulfly.bandcamp.com/")
+    db.commit()
+    services.commons.return_value = _COMMONS
+    services.routes[_COMMONS.url] = httpx.Response(200, content=_jpeg())
+
+    await _run(db, services)
+
+    db.refresh(soulfly)
+    services.bandcamp.assert_not_called()
+    assert soulfly.image_credit == _COMMONS.credit
+
+
+async def test_a_band_bandcamp_wont_serve_right_now_is_tried_again_next_run(db, services):
+    glow = _band(db, "Glow", bandcamp_url="https://glow.bandcamp.com/")
+    db.commit()
+    services.bandcamp.side_effect = BandcampUnavailable("rate limited")
+
+    result = await _run(db, services)
+
+    db.refresh(glow)
+    assert glow.enriched_at is None and result["remaining"] == 1
+
+
+async def test_a_band_with_namesakes_takes_a_bandcamp_photo_only_from_its_correction(db, services, monkeypatch):
+    # The edition's Bandcamp link may be a namesake's (the edition linked Sunblind to a Philadelphia band).
+    services.mb.side_effect = lambda name, use_llm=True: {**_not_on_musicbrainz(name), "namesakes": True}
+    _band(db, "Petty Theft", bandcamp_url="https://pettytheft.bandcamp.com/")
+    db.commit()
+
+    await _run(db, services)
+
+    services.bandcamp.assert_not_called()
+    sunblind = _band(db, "Sunblind", bandcamp_url="https://sunblind.bandcamp.com/")
+    db.commit()
+
+    await _run(db, services)
+
+    services.bandcamp.assert_called_once_with("https://sunblindhc.bandcamp.com/", ANY)
+    db.refresh(sunblind)
+    assert sunblind.bandcamp_url == "https://sunblindhc.bandcamp.com/"
+
+
+def test_recheck_photos_marks_bands_with_a_bandcamp_page_and_no_service_photo(db):
+    looked_up = datetime(2026, 10, 1)
+    edition_photo = _band(db, "Glow", bandcamp_url="https://glow.bandcamp.com/", image_url="bands/1-a.webp",
+                          enriched_at=looked_up)
+    no_photo = _band(db, "Dusk", bandcamp_url="https://dusk.bandcamp.com/", enriched_at=looked_up)
+    commons = _band(db, "Soulfly", bandcamp_url="https://soulfly.bandcamp.com/", image_url="bands/3-b.webp",
+                    image_credit=_COMMONS.credit, enriched_at=looked_up)
+    no_page = _band(db, "Nowhere", enriched_at=looked_up)
+    db.commit()
+
+    assert recheck_photos(db) == 2
+
+    db.expire_all()
+    assert (edition_photo.enriched_at, no_photo.enriched_at) == (None, None)
+    assert (commons.enriched_at, no_page.enriched_at) == (looked_up, looked_up)
 
 
 def test_recheck_marks_bands_with_tags_that_arent_genres(db, no_genre_model):

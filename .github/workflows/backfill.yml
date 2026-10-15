@@ -19,6 +19,10 @@ on:
         description: First mark Bands whose genres hold a tag that isn't a genre, to look them up again
         type: boolean
         default: false
+      recheck_photos:
+        description: First mark Bands with a Bandcamp page and no service photo, to look them up again
+        type: boolean
+        default: false
       redo:
         description: Bands matched to the wrong artist, to look up again from scratch (names separated by ";")
         type: string
@@ -98,6 +102,7 @@ jobs:
           MAX_MINUTES: ${{ inputs.max_minutes }}
           LIMIT: ${{ inputs.limit }}
           RECHECK: ${{ inputs.recheck_genres && '--recheck-genres' || '' }}
+          RECHECK_PHOTOS: ${{ inputs.recheck_photos && '--recheck-photos' || '' }}
           REDO: ${{ inputs.redo }}
         run: |
           alembic upgrade head
@@ -107,7 +112,7 @@ jobs:
             name="${name#"${name%%[![:space:]]*}"}"; name="${name%"${name##*[![:space:]]}"}"   # trimmed
             if [ -n "$name" ]; then redo+=(--redo "$name"); fi
           done
-          python -m app.cli backfill --max-minutes "$MAX_MINUTES" ${LIMIT:+--limit "$LIMIT"} $RECHECK "${redo[@]}" | tee "$RUNNER_TEMP/message"
+          python -m app.cli backfill --max-minutes "$MAX_MINUTES" ${LIMIT:+--limit "$LIMIT"} $RECHECK $RECHECK_PHOTOS "${redo[@]}" | tee "$RUNNER_TEMP/message"
 
       - name: Commit the data
         # Even after a failed backfill step: each Band was committed to the database as it was looked up.

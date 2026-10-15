@@ -4,7 +4,8 @@ already has, mostly edition data) is only ever the last fallback.
 
 Genres: MusicBrainz's curated genres, else Last.fm's tags, else Discogs' genres and styles, else MusicBrainz's
 free-form tags, else the edition's; only ever those that are genres
-(app/ingestion/genre_filter.py). Photos: Wikimedia Commons, else Discogs, else the edition's.
+(app/ingestion/genre_filter.py). Photos: Wikimedia Commons, else Discogs, else the band photo on its Bandcamp page,
+else the edition's.
 
 A Band whose name MusicBrainz knows several artists by, and can't tell which is the Band, has namesakes: it's
 matched on the other services only through MusicBrainz's links (it has none then), never by name, since their
@@ -15,6 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from app.ingestion.bandcamp import BandcampPhoto
 from app.ingestion.discogs import DiscogsArtist, discogs_credit
 from app.ingestion.wikimedia import CommonsPhoto
 
@@ -47,15 +49,24 @@ def discogs_match(name: str, found: dict,
     return None if found.get("namesakes") else discogs(name, found.get("links") or [])
 
 
-def photo_candidates(commons: CommonsPhoto | None, artist: DiscogsArtist | None,
+def bandcamp_page(found: dict, bandcamp_url: str | None, corrected_url: str | None) -> str | None:
+    """The Bandcamp page to take a Band's photo from, asked only when Commons and Discogs have none: its own, but for a
+    Band with namesakes only the one its correction gives (`corrected_url`), since the edition's link may be a
+    namesake's (the edition linked Sunblind to a Philadelphia band's page)."""
+    return corrected_url if found.get("namesakes") else bandcamp_url
+
+
+def photo_candidates(commons: CommonsPhoto | None, artist: DiscogsArtist | None, bandcamp: BandcampPhoto | None,
                      fallback_url: str | None) -> list[dict]:
-    """A Band's photos in order, each {"url", "credit"}: Commons, Discogs, then `fallback_url` (the edition's, with no
-    credit). Empty when no service has one: the caller then just keeps the edition's."""
+    """A Band's photos in order, each {"url", "credit"}: Commons, Discogs, Bandcamp, then `fallback_url` (the
+    edition's, with no credit). Empty when no service has one: the caller then just keeps the edition's."""
     candidates = []
     if commons:
         candidates.append({"url": commons.url, "credit": commons.credit})
     if artist and artist.image_url:
         candidates.append({"url": artist.image_url, "credit": discogs_credit(artist)})
+    if bandcamp:
+        candidates.append({"url": bandcamp.url, "credit": bandcamp.credit})
     if candidates and fallback_url:
         candidates.append({"url": fallback_url, "credit": None})
     return candidates

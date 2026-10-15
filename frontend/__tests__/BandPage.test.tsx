@@ -255,6 +255,15 @@ describe('BandDetail', () => {
     expect(within(caption).getByRole('link', { name: 'Discogs' })).toHaveAttribute('href', 'https://www.discogs.com/artist/6-Locals')
   })
 
+  it('credits a Bandcamp photo "Photo via Bandcamp", linking the Band\'s page', () => {
+    renderBand(makeBand({ name: 'Sunblind', imageUrl: '/images/bands/6-b.webp', imageCredit: {
+      source: 'Bandcamp', author: null, license: null, licenseUrl: null, sourceUrl: 'https://sunblindhc.bandcamp.com/',
+    } }), [])
+    const caption = screen.getByRole('figure').querySelector('figcaption')!
+    expect(caption).toHaveTextContent(/^Photo via Bandcamp$/)
+    expect(within(caption).getByRole('link', { name: 'Bandcamp' })).toHaveAttribute('href', 'https://sunblindhc.bandcamp.com/')
+  })
+
   it('shows the edition\'s photo without a credit', () => {
     renderBand(makeBand({ name: 'Locals', imageUrl: 'https://example.com/locals.jpg', imageCredit: null }), [])
     expect(screen.getByRole('figure').querySelector('figcaption')).toBeNull()

@@ -62,6 +62,20 @@ def _retry_after(response: httpx.Response) -> float:
         return 5.0
 
 
+def paced_get(client: httpx.Client, url: str) -> httpx.Response | None:
+    """GET a page by the same rules as the link checks: one request at a time per site, _MIN_INTERVAL apart, waiting
+    as told after a 429 up to _RETRIES times. None when the site is still rate limiting."""
+    for attempt in range(_RETRIES + 1):
+        with _slot(url):
+            _pace(url)
+            response = client.get(url)
+        if response.status_code != 429:
+            return response
+        if attempt < _RETRIES:
+            _sleep(_retry_after(response))  # outside the host slot, so other hosts keep going
+    return None
+
+
 def _works(client: httpx.Client, url: str) -> bool:
     for attempt in range(_RETRIES + 1):
         try:

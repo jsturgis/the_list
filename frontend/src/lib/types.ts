@@ -35,7 +35,7 @@ export interface ImageFocus {
 
 /** Where a Band's photo came from, who took it and its licence: shown with the photo. */
 export interface PhotoCredit {
-  /** "Wikimedia Commons" or "Discogs". */
+  /** "Wikimedia Commons", "Discogs" or "Bandcamp". */
   source: string
   author: string | null
   license: string | null

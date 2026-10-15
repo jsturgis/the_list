@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from app.config import settings
+from app.ingestion.bandcamp import BandcampPhoto, BandcampUnavailable, bandcamp_credit
 from app.models.band import Band
 from app.models.ingestion_run import IngestionRun, IngestionStatus
 from app.models.show import Show, ShowStatus
@@ -35,7 +36,8 @@ def offline_musicbrainz():
          patch("app.scheduler.commons_photo", return_value=None), \
          patch("app.scheduler.lastfm_tags", return_value=[]), \
          patch("app.scheduler.discogs_artist", return_value=None), \
-         patch("app.scheduler.discogs_genres", return_value=[]):  # no downloads or lookups unless a test asks
+         patch("app.scheduler.discogs_genres", return_value=[]), \
+         patch("app.scheduler.bandcamp_photo", return_value=None):  # no downloads or lookups unless a test asks
         yield
 
 # ── sample data ───────────────────────────────────────────────────────────────
@@ -745,6 +747,37 @@ async def test_pipeline_uses_the_discogs_photo_when_commons_has_none(mock_batch,
     deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
     assert deafheaven.image_url == "https://i.discogs.com/deafheaven.jpg"   # over the edition's
     assert deafheaven.image_credit == _DISCOGS_CREDIT
+
+
+_BANDCAMP = BandcampPhoto("https://f4.bcbits.com/img/0012345678_10.jpg", bandcamp_credit("https://deafheaven.bandcamp.com/"))
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.bandcamp_photo", return_value=_BANDCAMP)
+@patch("app.scheduler.check_image_urls", side_effect=lambda urls: {u: u for u in urls})
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_uses_the_bandcamp_photo_when_commons_and_discogs_have_none(
+        mock_batch, mock_images, mock_bandcamp, mock_venue, mock_fetch, db):
+    await _run_ingestion_async(db=db)
+
+    deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
+    assert (deafheaven.image_url, deafheaven.image_credit) == (_BANDCAMP.url, _BANDCAMP.credit)  # over the edition's
+    # Only Bands with a Bandcamp page are looked up there, and then on their own page.
+    assert [c.args[0] for c in mock_bandcamp.call_args_list] == ["https://deafheaven.bandcamp.com/"]
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.bandcamp_photo", side_effect=BandcampUnavailable("rate limited"))
+@patch("app.scheduler.check_image_urls", side_effect=lambda urls: {u: u for u in urls})
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_keeps_the_editions_photo_when_bandcamp_wont_serve_the_page(
+        mock_batch, mock_images, mock_bandcamp, mock_venue, mock_fetch, db):
+    await _run_ingestion_async(db=db)
+
+    deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
+    assert (deafheaven.image_url, deafheaven.image_credit) == ("https://example.com/wrong-path.jpg", None)
 
 
 @patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
