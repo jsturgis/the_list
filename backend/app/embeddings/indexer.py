@@ -40,3 +40,14 @@ def remove_from_index(path: str, record_ids: list[int]) -> None:
     index = faiss.read_index(path)
     index.remove_ids(np.array(record_ids, dtype=np.int64))
     save_index(index, path)
+
+
+def add_to_index(path: str, vectors: dict[int, np.ndarray | bytes]) -> None:
+    """Add (or replace) these records' vectors in the index saved at `path`, creating it if there's none."""
+    if not vectors:
+        return
+    arrays = {i: np.frombuffer(v, dtype=np.float32) if isinstance(v, bytes) else v for i, v in vectors.items()}
+    index = load_or_create_index(path, len(next(iter(arrays.values()))))
+    for record_id, vector in arrays.items():
+        upsert_vector(index, record_id, vector)
+    save_index(index, path)

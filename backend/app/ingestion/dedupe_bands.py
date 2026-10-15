@@ -36,8 +36,12 @@ class BandMerge:
     keep: Band
     merged: list[Band]
     # Captured before commit/rollback, which expires the ORM objects.
+    keep_id: int
     merged_ids: list[int]
     summary: str
+    # A vector the kept Band took from a duplicate: the Band index has it under the duplicate's id, so it needs
+    # adding under the kept Band's (or the kept Band never comes up as anyone's Similar Band).
+    vector_to_index: bytes | None = None
 
 
 def merge_duplicate_bands(db: Session, apply: bool = False) -> list[BandMerge]:
@@ -57,6 +61,7 @@ def merge_duplicate_bands(db: Session, apply: bool = False) -> list[BandMerge]:
         dups = [b for b in bands if b is not keep]
         summary = f"keep {keep.id}:{keep.name!r} <- " + ", ".join(f"{d.id}:{d.name!r}" for d in dups)
         kept_acts = {a.show_id: a for a in keep.acts}
+        own_vector = keep.embedding
         for dup in dups:
             for field in _FILL_FIELDS:
                 if _empty(getattr(keep, field)) and not _empty(getattr(dup, field)):
@@ -79,7 +84,8 @@ def merge_duplicate_bands(db: Session, apply: bool = False) -> list[BandMerge]:
                     a.position = position
             db.flush()
             db.delete(dup)
-        merges.append(BandMerge(keep=keep, merged=dups, merged_ids=[d.id for d in dups], summary=summary))
+        merges.append(BandMerge(keep=keep, merged=dups, keep_id=keep.id, merged_ids=[d.id for d in dups],
+                                summary=summary, vector_to_index=None if own_vector else keep.embedding))
 
     if apply:
         db.commit()
@@ -101,7 +107,7 @@ def saved_filters_pinning(band_ids: set[int], saved_filters: list[dict]) -> list
 def main(argv: list[str]) -> None:
     from app.alerts import SupabaseError, fetch_saved_filters
     from app.database import SessionLocal
-    from app.embeddings.indexer import BAND_INDEX_PATH, remove_from_index
+    from app.embeddings.indexer import BAND_INDEX_PATH, add_to_index, remove_from_index
 
     apply = "--apply" in argv
     db = SessionLocal()
@@ -113,8 +119,10 @@ def main(argv: list[str]) -> None:
         verb = "Merged" if apply else "Would merge"
         print(f"{verb} {len(merged_ids)} duplicate bands into {len(merges)}.")
         if apply and merged_ids:
-            # Merged-away Bands would otherwise still come up as Similar Bands.
+            # Merged-away Bands would otherwise still come up as Similar Bands, and a kept Band whose vector came from
+            # a duplicate would never come up: it goes in under its own id.
             remove_from_index(BAND_INDEX_PATH, sorted(merged_ids))
+            add_to_index(BAND_INDEX_PATH, {m.keep_id: m.vector_to_index for m in merges if m.vector_to_index})
         try:
             for row in saved_filters_pinning(merged_ids, fetch_saved_filters()):
                 print(f"Saved Filter {row['name']!r} (user {row['user_id']}) pins merged band: {row['query']}")
