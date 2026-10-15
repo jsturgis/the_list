@@ -1,6 +1,6 @@
 """Bring existing Bands up to what new ones get at ingest: MusicBrainz's links, genres (MusicBrainz, Last.fm,
-Discogs), Discogs' members, and a Commons or Discogs photo, all with what the Band already has (mostly edition
-data) as the last fallback, by the same rules (app/ingestion/band_sources.py).
+Discogs), Discogs' members, and a Commons, Discogs or Bandcamp photo, all with what the Band already has (mostly
+edition data) as the last fallback, by the same rules (app/ingestion/band_sources.py).
 
 Each Band looked up gets enriched_at, so the backfill is resumable: a run takes the Bands never looked up, those
 on Upcoming Shows first (they're the ones on the site), and stops at a time budget or a limit; the next run
@@ -9,6 +9,8 @@ the next run; it never stops the others.
 
 Genres are filtered to genres (app/ingestion/genre_filter.py) as at ingest; `python -m app.cli backfill
 --recheck-genres` first marks the Bands whose stored genres hold a tag that isn't one, to look them up again.
+`--recheck-photos` first marks the Bands with a Bandcamp page and no service photo, to look them up again (Bandcamp
+photos came after the Bands were first looked up, and a page Bandcamp wouldn't serve at ingest is tried again).
 `--redo NAME` first drops what the services gave a Band matched to the wrong artist (a namesake) and marks it to
 be looked up again, with its correction if it has one (app/ingestion/band_corrections.py).
 
@@ -29,7 +31,8 @@ from sqlalchemy.orm import Session
 from app.clock import local_today
 from app.ingestion.band_photos import _USER_AGENT, is_stored, save_band_photo
 from app.ingestion.band_corrections import band_correction
-from app.ingestion.band_sources import discogs_match, photo_candidates, service_genres
+from app.ingestion.band_sources import bandcamp_page, discogs_match, photo_candidates, service_genres
+from app.ingestion.bandcamp import BandcampUnavailable, bandcamp_photo
 from app.ingestion.discogs import discogs_artist, discogs_genres
 from app.ingestion.genre_filter import GenreFilter
 from app.ingestion.lastfm import lastfm_tags
@@ -101,7 +104,15 @@ def backfill_band(band: Band, images_dir: Path, client: httpx.Client, genre_filt
             setattr(band, field, url)
     if artist and artist.members:
         band.members = artist.members
-    if _photo(band, photo_candidates(found["commons_photo"], artist, None), images_dir, client):
+    bandcamp = None
+    page = bandcamp_page(found, band.bandcamp_url, correction.links.get("bandcamp_url") if correction else None)
+    if page and not found["commons_photo"] and not (artist and artist.image_url):
+        try:
+            bandcamp = bandcamp_photo(page, client)
+        except BandcampUnavailable as exc:
+            logger.info("backfill: %s's Bandcamp page, to try again next run: %s", band.name, exc)
+            return changed  # without enriched_at
+    if _photo(band, photo_candidates(found["commons_photo"], artist, bandcamp, None), images_dir, client):
         band.enriched_at = datetime.utcnow()
     return changed
 
@@ -137,6 +148,18 @@ def redo_bands(db: Session, names: list[str], images_dir: str | Path) -> list[st
     for photo in photos:
         _delete(Path(images_dir), photo, keep=None)
     return missing
+
+
+def recheck_photos(db: Session) -> int:
+    """Mark for the next backfill every looked-up Band with a Bandcamp page and no service photo (none, or the
+    edition's), so it's looked up again and can take its Bandcamp one. Returns how many were marked."""
+    bands = (db.query(Band)
+             .filter(Band.bandcamp_url.isnot(None), Band.image_credit.is_(None), Band.enriched_at.isnot(None))
+             .all())
+    for band in bands:
+        band.enriched_at = None
+    db.commit()
+    return len(bands)
 
 
 def recheck_genres(db: Session) -> int:

@@ -79,6 +79,17 @@ def test_backfill_can_first_recheck_genres(capsys):
     assert "2 bands with tags that aren't genres" in capsys.readouterr().out
 
 
+def test_backfill_can_first_recheck_photos(capsys):
+    lastfm, discogs, model = _key_checks()
+    result = {"looked_up": 3, "failed": 0, "remaining": 0}
+    with patch("app.ingestion.backfill.recheck_photos", return_value=3) as recheck, \
+         patch("app.ingestion.backfill.run_backfill", new=AsyncMock(return_value=result)), \
+         patch("app.cli.SessionLocal"), lastfm, discogs, model:
+        main(["backfill", "--recheck-photos"])
+    recheck.assert_called_once()
+    assert "3 bands with a Bandcamp page and no service photo" in capsys.readouterr().out
+
+
 def test_backfill_can_first_redo_bands_matched_to_the_wrong_artist(capsys):
     lastfm, discogs, model = _key_checks()
     result = {"looked_up": 2, "failed": 0, "remaining": 0}

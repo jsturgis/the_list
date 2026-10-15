@@ -15,8 +15,9 @@ from app.clock import local_today
 from app.config import settings
 from app.database import SessionLocal
 from app.ingestion.band_photos import save_band_photos
-from app.ingestion.band_corrections import correct_edition
-from app.ingestion.band_sources import discogs_match, photo_candidates, service_genres
+from app.ingestion.band_corrections import band_correction, correct_edition
+from app.ingestion.band_sources import bandcamp_page, discogs_match, photo_candidates, service_genres
+from app.ingestion.bandcamp import BandcampUnavailable, bandcamp_photo
 from app.ingestion.genre_filter import GenreFilter
 from app.ingestion.discogs import discogs_artist, discogs_genres
 from app.ingestion.drive import fetch_latest_edition
@@ -162,15 +163,27 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                         photo = await loop.run_in_executor(None, commons_photo, found.get("links") or [])
                         # Its Discogs artist (members, photo, page), through MusicBrainz's Discogs link or its name.
                         artist = await loop.run_in_executor(None, discogs_match, name, found, discogs_artist)
-                        band_cache[name] = {**found, "commons_photo": photo, "discogs": artist}
+                        # Its Bandcamp band photo, only when neither has a photo. Bandcamp often won't serve a page
+                        # right away; the Band then keeps the edition's photo (backfill --recheck-photos tries again).
+                        bandcamp = None
+                        correction = band_correction(name)
+                        page = bandcamp_page(found, found.get("bandcamp_url") or enrichment.get("bandcamp_url"),
+                                             correction.links.get("bandcamp_url") if correction else None)
+                        if page and not photo and not (artist and artist.image_url):
+                            try:
+                                bandcamp = await loop.run_in_executor(None, bandcamp_photo, page)
+                            except BandcampUnavailable as exc:
+                                logger.info("ingestion: no Bandcamp photo for %s for now: %s", name, exc)
+                        band_cache[name] = {**found, "commons_photo": photo, "discogs": artist, "bandcamp_photo": bandcamp}
                 found = band_cache[name]
                 if found:
                     links = {k: v for k, v in found.items() if k.endswith("_url") and v}
                     links["mb_links"] = found.get("links") or []  # every MusicBrainz link, for app/band_links.py
-                    # Photos, in order (app/ingestion/band_sources): Commons, Discogs, and only then the edition's.
+                    # Photos, in order (app/ingestion/band_sources): Commons, Discogs, Bandcamp, and only then the edition's.
                     # The first that loads is used; the rest are fallbacks if it turns out to be gone when downloaded.
                     artist = found.get("discogs")
-                    candidates = photo_candidates(found.get("commons_photo"), artist, enrichment.get("image_url"))
+                    candidates = photo_candidates(found.get("commons_photo"), artist, found.get("bandcamp_photo"),
+                                                  enrichment.get("image_url"))
                     if candidates:
                         links.update(image_url=candidates[0]["url"], image_credit=candidates[0]["credit"],
                                      image_candidates=candidates)
