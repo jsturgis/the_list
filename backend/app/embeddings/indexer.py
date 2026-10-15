@@ -31,3 +31,12 @@ def upsert_vector(index: faiss.Index, record_id: int, vector: np.ndarray) -> Non
         vector.reshape(1, -1),
         np.array([record_id], dtype=np.int64),
     )
+
+
+def remove_from_index(path: str, record_ids: list[int]) -> None:
+    """Remove these records' vectors from the index saved at `path` (e.g. Bands merged away); nothing if none is."""
+    if not os.path.exists(path):
+        return
+    index = faiss.read_index(path)
+    index.remove_ids(np.array(record_ids, dtype=np.int64))
+    save_index(index, path)
