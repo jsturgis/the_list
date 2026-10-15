@@ -161,6 +161,28 @@ async def test_pipeline_imports_the_edition(mock_batch, mock_band, mock_venue, m
 
 @patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler._enrich_band", return_value={**_NOT_ON_MUSICBRAINZ, "namesakes": True})
+@patch("app.scheduler.lastfm_tags", return_value=["trance"])
+@patch("app.scheduler.discogs_artist", return_value=None)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_puts_a_corrected_band_right_and_skips_its_namesakes(
+        mock_batch, mock_discogs, mock_lastfm, mock_band, mock_venue, mock_fetch, db, monkeypatch):
+    from app.ingestion import band_corrections
+    from app.ingestion.band_corrections import BandCorrection
+    monkeypatch.setattr(band_corrections, "CORRECTIONS", {"deafheaven": BandCorrection(
+        by_name=False, genres=("post-metal",), links={"bandcamp_url": "https://deafheavenofficial.bandcamp.com/"})})
+
+    await _run_ingestion_async(db=db)
+
+    deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
+    assert deafheaven.genres == ["post-metal"]                                     # not the edition's
+    assert deafheaven.bandcamp_url == "https://deafheavenofficial.bandcamp.com/"
+    mock_lastfm.assert_not_called()                                                 # namesakes: not by name
+    mock_discogs.assert_not_called()
+
+
+@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
 async def test_pipeline_records_the_ingestion_run(mock_batch, mock_venue, mock_fetch, db):
     await _run_ingestion_async(db=db)

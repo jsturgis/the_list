@@ -9,6 +9,8 @@ the next run; it never stops the others.
 
 Genres are filtered to genres (app/ingestion/genre_filter.py) as at ingest; `python -m app.cli backfill
 --recheck-genres` first marks the Bands whose stored genres hold a tag that isn't one, to look them up again.
+`--redo NAME` first drops what the services gave a Band matched to the wrong artist (a namesake) and marks it to
+be looked up again, with its correction if it has one (app/ingestion/band_corrections.py).
 
 Run it with `python -m app.cli backfill` (the Backfill workflow does, on the data branch).
 """
@@ -26,10 +28,12 @@ from sqlalchemy.orm import Session
 
 from app.clock import local_today
 from app.ingestion.band_photos import _USER_AGENT, is_stored, save_band_photo
-from app.ingestion.band_sources import photo_candidates, service_genres
+from app.ingestion.band_corrections import band_correction
+from app.ingestion.band_sources import discogs_match, photo_candidates, service_genres
 from app.ingestion.discogs import discogs_artist, discogs_genres
 from app.ingestion.genre_filter import GenreFilter
 from app.ingestion.lastfm import lastfm_tags
+from app.ingestion.upsert import find_band
 from app.ingestion.wikimedia import commons_photo
 from app.models.act import Act
 from app.models.band import Band
@@ -76,12 +80,15 @@ def backfill_band(band: Band, images_dir: Path, client: httpx.Client, genre_filt
     It gets enriched_at unless its service photo couldn't be downloaded right now (it's tried again next run)."""
     found = _enrich_band(band.name, False)
     mb_links = found.get("links") or []
-    found = {**found, "commons_photo": commons_photo(mb_links), "discogs": discogs_artist(band.name, mb_links)}
+    found = {**found, "commons_photo": commons_photo(mb_links), "discogs": discogs_match(band.name, found, discogs_artist)}
     artist = found["discogs"]
+    correction = band_correction(band.name)
 
     keep = genre_filter.keep if genre_filter else (lambda tags: tags)
     # What the Band has is the fallback, and only its genres: a Band rechecked for tags that aren't genres loses them.
-    genres = service_genres(band.name, found, lastfm_tags, discogs_genres, keep) or keep(band.genres or [])
+    # Its correction's come before it, in the edition's place.
+    genres = (service_genres(band.name, found, lastfm_tags, discogs_genres, keep)
+              or list(correction.genres if correction else ()) or keep(band.genres or []))
     changed = genres != band.genres
     band.genres = genres
     if mb_links:
@@ -89,6 +96,9 @@ def backfill_band(band: Band, images_dir: Path, client: httpx.Client, genre_filt
     for field in _LINK_FIELDS:
         if found.get(field):
             setattr(band, field, found[field])
+    for field, url in (correction.links if correction else {}).items():
+        if not found.get(field):
+            setattr(band, field, url)
     if artist and artist.members:
         band.members = artist.members
     if _photo(band, photo_candidates(found["commons_photo"], artist, None), images_dir, client):
@@ -99,6 +109,34 @@ def backfill_band(band: Band, images_dir: Path, client: httpx.Client, genre_filt
 def _delete(images_dir: Path, photo: str | None, keep: str | None) -> None:
     if is_stored(photo) and photo != keep:
         (images_dir / photo).unlink(missing_ok=True)
+
+
+def redo_bands(db: Session, names: list[str], images_dir: str | Path) -> list[str]:
+    """Mark Bands matched to the wrong artist to be looked up again from scratch by the next backfill, first dropping
+    what the services gave them: genres, MusicBrainz's links (and each link field holding one of them), Discogs'
+    members, and a service's photo (one with a credit) with its focal point and stored file. The edition's links and
+    photo are kept; its genres come back with the next edition that lists the Band, or from its correction.
+    Names are matched by Slug (app/ingestion/upsert.find_band). Returns the names no Band was found for."""
+    missing, photos = [], []
+    for name in names:
+        band = find_band(db, name)
+        if band is None:
+            missing.append(name)
+            continue
+        mb_urls = {link.get("url") for link in band.links or []}
+        for field in _LINK_FIELDS:
+            if getattr(band, field) in mb_urls:
+                setattr(band, field, None)
+        band.genres, band.links, band.members = [], [], []
+        if band.image_credit:
+            photos.append(band.image_url)
+            band.image_url, band.image_credit = None, None     # setting the photo clears its focal point
+        band.enriched_at = None
+        logger.info("backfill: %s to be looked up again from scratch", band.name)
+    db.commit()
+    for photo in photos:
+        _delete(Path(images_dir), photo, keep=None)
+    return missing
 
 
 def recheck_genres(db: Session) -> int:

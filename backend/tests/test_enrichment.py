@@ -192,7 +192,7 @@ async def test_genre_fallback_to_support_when_headliner_empty(mock_search, mock_
             return _mb_full(tags=[{"name": "jazz", "count": "3"}, {"name": "funk", "count": "2"}])
         return _mb_full(tags=[])
 
-    mock_search.side_effect = lambda name: mb_search_by_name(name)
+    mock_search.side_effect = lambda name, *namesakes: mb_search_by_name(name)
     mock_lookup.side_effect = lambda mbid: mb_lookup_by_id(mbid)
 
     result = await enrich_show(_raw(bands=["Headliner", "Support"]))
@@ -212,7 +212,7 @@ async def test_headliner_genres_take_precedence(mock_search, mock_lookup, mock_v
             return _mb_full(tags=[{"name": "punk", "count": "10"}])
         return _mb_full(tags=[{"name": "jazz", "count": "5"}])
 
-    mock_search.side_effect = lambda name: mb_search_by_name(name)
+    mock_search.side_effect = lambda name, *namesakes: mb_search_by_name(name)
     mock_lookup.side_effect = lambda mbid: mb_lookup_by_id(mbid)
 
     result = await enrich_show(_raw(bands=["Headliner", "Support"]))

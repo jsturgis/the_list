@@ -19,6 +19,10 @@ on:
         description: First mark Bands whose genres hold a tag that isn't a genre, to look them up again
         type: boolean
         default: false
+      redo:
+        description: Bands matched to the wrong artist, to look up again from scratch (names separated by ";")
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -94,9 +98,16 @@ jobs:
           MAX_MINUTES: ${{ inputs.max_minutes }}
           LIMIT: ${{ inputs.limit }}
           RECHECK: ${{ inputs.recheck_genres && '--recheck-genres' || '' }}
+          REDO: ${{ inputs.redo }}
         run: |
           alembic upgrade head
-          python -m app.cli backfill --max-minutes "$MAX_MINUTES" ${LIMIT:+--limit "$LIMIT"} $RECHECK | tee "$RUNNER_TEMP/message"
+          redo=()
+          IFS=';' read -ra names <<< "$REDO"
+          for name in "${names[@]}"; do
+            name="${name#"${name%%[![:space:]]*}"}"; name="${name%"${name##*[![:space:]]}"}"   # trimmed
+            if [ -n "$name" ]; then redo+=(--redo "$name"); fi
+          done
+          python -m app.cli backfill --max-minutes "$MAX_MINUTES" ${LIMIT:+--limit "$LIMIT"} $RECHECK "${redo[@]}" | tee "$RUNNER_TEMP/message"
 
       - name: Commit the data
         # Even after a failed backfill step: each Band was committed to the database as it was looked up.
