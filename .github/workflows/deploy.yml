@@ -6,7 +6,7 @@ name: Deploy
 on:
   schedule:
     # Saturday 04:00 UTC = Friday 9pm PDT / 8pm PST, after the Drive publisher's 6-7pm Pacific update.
-    - cron: '0 4 * * 6'
+    - cron: '15 4 * * 6'
   workflow_dispatch:
     inputs:
       skip_ingest:
