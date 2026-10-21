@@ -60,6 +60,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
       )}
 
       <div className="flex items-center gap-4">
+        {show.flyerImageUrl && <ShowFlyer show={show} headliner={acts[0]?.band.name ?? 'this show'} />}
         <div className="min-w-0 flex-1">
           <PageHeader
             eyebrow={show.status === 'cancelled' || show.status === 'postponed' ? <StatusBadge status={show.status} size="detail" /> : undefined}
@@ -84,7 +85,6 @@ export default function ShowDetail({ show }: ShowDetailProps) {
             subtitle={<>at <VenueLink slug={show.venue.slug} className="text-link underline underline-offset-2">{show.venue.name}</VenueLink> · {show.venue.city}</>}
           />
         </div>
-        {show.flyerImageUrl && <ShowFlyer show={show} headliner={acts[0]?.band.name ?? 'this show'} />}
       </div>
 
       <div className="flex flex-col gap-4 rounded-lg bg-surface p-5">
@@ -158,7 +158,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
 }
 
 /**
- * A Show's flyer from its Venue's own calendar, right-aligned beside the headliner and venue (DESIGN.md, "Show
+ * A Show's flyer from its Venue's own calendar, left of the headliner and venue (DESIGN.md, "Show
  * flyer"): on phones the same 64px box as a Band's photo circle (BandDetail.tsx), but a rectangle, cropped to
  * fill it; from `sm`, its own size up to 300px tall, never cropped (a flyer is a poster meant to be seen whole).
  * When the Venue's calendar also gave a more-info link, the flyer is that link; otherwise it's just shown.

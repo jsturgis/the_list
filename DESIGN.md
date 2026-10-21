@@ -190,7 +190,7 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
 - **Detail pages (Show, Venue, Band):** in order: Back, `PageHeader`, key facts, actions, then `Section`s. A Show
   has Lineup, Venue and Notes; a Venue has Details, Upcoming Shows and About; a Band has Upcoming Shows, Members, Social
   and Similar Bands. Upcoming Shows on Venue and Band pages are one panel of Show list items, each with its compact
-  date, with no date headings. A Show's flyer, when the Venue's own calendar had one, sits right of `PageHeader`,
+  date, with no date headings. A Show's flyer, when the Venue's own calendar had one, sits left of `PageHeader`,
   not below it (see "Show flyer" below).
 - **Loading (`Ghost`):** anything waiting on Supabase (who's signed in, their alerts and weekly email setting, an
   unsubscribe) shows ghost placeholders: `line`-coloured bars in the shape of the content to come, pulsing
@@ -212,8 +212,8 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
   whose `<figcaption>` credits it, as its licence requires: "Photo: <author>, <licence>, via Wikimedia Commons" in
   `text-xs ink-muted`, with the licence and "Wikimedia Commons" (the photo's page) as running-text links. A photo
   from Discogs reads "Photo via Discogs", linking the artist's Discogs page. The edition's photos have no credit.
-- **Show flyer:** when the Venue's own calendar had one (`backend/app/ingestion/venue_calendar.py`), right-aligned
-  beside the headliner name and venue line (`PageHeader`'s title and subtitle, in a row beside it, vertically
+- **Show flyer:** when the Venue's own calendar had one (`backend/app/ingestion/venue_calendar.py`), left of
+  the headliner name and venue line (`PageHeader`'s title and subtitle, in a row beside it, vertically
   centred), shrinking to fit rather than pushing them. At `sm` and up, at most 300px tall, at its own natural
   width, `object-contain` (never `object-cover`): a flyer is a poster meant to be seen whole, not cropped around
   a face the way a Band photo is, so it has no focal point. On phones, the same 64px box as a Band photo's
