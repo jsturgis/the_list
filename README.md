@@ -275,8 +275,14 @@ redirects there.
      each person whose Saved Filters match Upcoming Shows (see [Weekly Alerts](#weekly-alerts)). It never
      runs on deploy-only runs. If it fails, the site stays deployed and the run shows red.
 - **When it runs**:
-  - **Every Friday night**, cron `0 4 * * 6` (Saturday 04:00 UTC = Friday 9pm PDT / 8pm PST), after
-    the Drive publisher updates `latest.json` between 6 and 7pm Pacific. Ingest, then deploy.
+  - **The Drive publisher's dispatch, first**: when it updates `latest.json` with a new edition (between
+    6 and 7pm Pacific Friday), it starts this workflow itself (`workflow_dispatch`, ingestion on) through
+    GitHub's API. Ingest, then deploy. See the script's header comment and README's Drive setup above.
+  - **The Friday-night cron, as a fallback**: `37 6 * * 6` (Saturday 06:37 UTC = Friday 11:37pm PDT /
+    10:37pm PST), late enough that a dispatched run has normally already finished. In a normal week this
+    finds the edition already ingested and just redeploys, sending no one a second Alerts email (same
+    Pacific day, so it reuses the dispatch run's idempotency key); in a week the dispatch didn't fire, it
+    ingests, deploys and sends Alerts the way the scheduled run always has.
   - **By hand** from the Actions tab (**Deploy → Run workflow**) or `gh workflow run deploy.yml`.
     A manual run with ingest also sends Alerts (re-running the same day sends no one a second email).
     Tick **Skip ingestion** (`gh workflow run deploy.yml -f skip_ingest=true`) to rebuild from the

@@ -1,12 +1,16 @@
 name: Deploy
 
-# Weekly: ingest the newest edition into the data branch's database, then export it to JSON, build the
-# static site and publish it to GitHub Pages, then email everyone's weekly Alerts. Pushes to main and
-# manual runs can skip the ingest; Alerts go out only after an ingest.
+# Weekly: the Drive publisher (scripts/drive-publisher.gs) starts this itself, right after it publishes a
+# new edition around 6-7pm Pacific Friday; the cron below is only a late fallback for a week its dispatch
+# didn't fire. Either way: ingest the newest edition into the data branch's database, then export it to
+# JSON, build the static site and publish it to GitHub Pages, then email everyone's weekly Alerts. Pushes
+# to main and manual runs can skip the ingest; Alerts go out only after an ingest.
 on:
   schedule:
-    # Saturday 04:00 UTC = Friday 9pm PDT / 8pm PST, after the Drive publisher's 6-7pm Pacific update.
-    - cron: '15 4 * * 6'
+    # Saturday 06:37 UTC = Friday 11:37pm PDT / 10:37pm PST: late enough that a dispatched run has normally
+    # already finished, and off the clock's popular minutes so GitHub's own scheduler is less likely to
+    # delay it further.
+    - cron: '37 6 * * 6'
   workflow_dispatch:
     inputs:
       skip_ingest:

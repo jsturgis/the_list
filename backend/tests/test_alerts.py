@@ -4,7 +4,7 @@ from __future__ import annotations
 import io
 import json
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -336,6 +336,28 @@ def test_sends_each_alert_through_resend_with_both_versions_and_an_unsubscribe_l
     resend.sent.clear()
     run_alerts(db, dry_run=False, out=io.StringIO())
     assert resend.sent[0][1]["Idempotency-Key"] != key
+
+
+def test_a_same_evening_fallback_reuses_the_dispatch_runs_key_across_a_utc_midnight(db, shows, supabase, resend):
+    supabase.person("fan@example.com", ("Free", "free=1"))
+
+    # "The same day" the Idempotency-Key is keyed to is the Pacific calendar day (app.clock.local_today), not
+    # UTC: the dispatch (~6-7pm Pacific Friday) and the cron fallback (~11:37pm Pacific the same Friday) can
+    # fall on different UTC calendar days while staying the same Pacific evening, and must still produce the
+    # same key so Resend drops the fallback's repeat.
+    dispatch_run = datetime(2026, 10, 23, 23, 45, tzinfo=timezone.utc)  # 4:45pm PDT Friday: still Friday UTC
+    fallback_run = datetime(2026, 10, 24, 6, 37, tzinfo=timezone.utc)  # 11:37pm PDT the same Friday: Saturday UTC
+    assert dispatch_run.date() != fallback_run.date()  # different UTC calendar days
+    assert local_today(dispatch_run) == local_today(fallback_run)  # the same Pacific calendar day
+
+    with patch("app.alerts.local_today", return_value=local_today(dispatch_run)):
+        run_alerts(db, dry_run=False, out=io.StringIO())
+    key = resend.sent[0][1]["Idempotency-Key"]
+    resend.sent.clear()
+
+    with patch("app.alerts.local_today", return_value=local_today(fallback_run)):
+        run_alerts(db, dry_run=False, out=io.StringIO())
+    assert resend.sent[0][1]["Idempotency-Key"] == key
 
 
 def test_a_dry_run_sends_nothing(db, shows, supabase, resend):

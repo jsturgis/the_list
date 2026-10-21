@@ -240,8 +240,9 @@ function folder_(name, isPublic) {
 }
 
 /**
- * Run once: publish daily between 6pm and 7pm (script time zone, Pacific). Steve's email arrives
- * Friday ~5:20pm and the ingest runs Friday 8pm, so the new edition is published in between.
+ * Run once: publish daily between 6pm and 7pm (script time zone, Pacific). Steve's email arrives Friday
+ * ~5:20pm, so the new edition is published in time to dispatch that Friday's ingest itself; the Saturday
+ * cron in .github/workflows/deploy.yml is only a late fallback for a week the dispatch didn't fire.
  */
 function installTrigger() {
   ScriptApp.getProjectTriggers()
