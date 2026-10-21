@@ -169,6 +169,16 @@ describe('ShowDetail', () => {
     expect(screen.queryByTestId('show-flyer-background')).not.toBeInTheDocument()
   })
 
+  it("sets the flyer's accent colour as a CSS variable, for the panels to tint themselves with", () => {
+    render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp', flyerAccentColor: '#336699' })} />)
+    expect(screen.getByRole('article').style.getPropertyValue('--flyer-accent')).toBe('#336699')
+  })
+
+  it('has no accent colour variable when the flyer has none', () => {
+    render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp', flyerAccentColor: null })} />)
+    expect(screen.getByRole('article').style.getPropertyValue('--flyer-accent')).toBe('')
+  })
+
   it('shows a More Info icon linking to the venue calendar entry when there is one', () => {
     render(<ShowDetail show={makeShow({ moreInfoUrl: 'https://venue.example/shows/1' })} />)
     const link = screen.getByRole('link', { name: 'More info' })

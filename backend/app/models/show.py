@@ -68,6 +68,8 @@ class Show(Base):
     # has none) a ticket link. Never overwrites what the edition already gave the Show.
     flyer_image_url: Mapped[Optional[str]] = mapped_column(String(500))
     more_info_url: Mapped[Optional[str]] = mapped_column(String(500))
+    # The flyer's accent colour (app/ingestion/flyer_color.py), as "#rrggbb": used to tint the Show page's panels.
+    flyer_accent_color: Mapped[Optional[str]] = mapped_column(String(7))
     raw_text: Mapped[Optional[str]] = mapped_column(Text)
     embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

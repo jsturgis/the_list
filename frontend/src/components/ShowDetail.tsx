@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import type { Show } from '@/lib/types'
 import { formatTime, formatPrice, formatDateLongYear, mapsHref, ticketProviderLabel } from '@/lib/format'
 import { ArrowDownTrayIcon, BanknotesIcon, CalendarDaysIcon, ClockIcon, GlobeAltIcon, InformationCircleIcon, MapPinIcon, SparklesIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
@@ -47,12 +48,15 @@ export default function ShowDetail({ show }: ShowDetailProps) {
   const upcoming = show.status === 'upcoming'
 
   return (
-    <article className="relative flex flex-col gap-6">
+    <article
+      className="relative flex flex-col gap-6"
+      style={show.flyerAccentColor ? ({ '--flyer-accent': show.flyerAccentColor } as CSSProperties) : undefined}
+    >
       {show.flyerImageUrl && (
         <div
           aria-hidden="true"
           data-testid="show-flyer-background"
-          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-72 overflow-hidden rounded-t-lg [mask-image:linear-gradient(to_bottom,black,black_55%,transparent)]"
+          className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-t-lg [mask-image:linear-gradient(to_bottom,black,black_60%,transparent)]"
         >
           <img src={show.flyerImageUrl} alt="" className="size-full scale-110 object-cover blur-md" />
           <div className="absolute inset-0 bg-page/60" />
@@ -103,7 +107,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
         subtitle={<>at <VenueLink slug={show.venue.slug} className="text-link underline underline-offset-2">{show.venue.name}</VenueLink> · {show.venue.city}</>}
       />
 
-      <div className="flex flex-col gap-4 rounded-lg bg-surface p-5">
+      <div className="flex flex-col gap-4 rounded-lg bg-flyer-tint p-5">
         <FactList facts={[
           ...(door ? [{ icon: ClockIcon, label: set ? 'Doors / Set' : 'Doors', value: set ? `${door} / ${set}` : door }] : []),
           { icon: BanknotesIcon, label: 'Price', value: price },

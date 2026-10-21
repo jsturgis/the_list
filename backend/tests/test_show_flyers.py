@@ -43,6 +43,27 @@ def test_downloads_resizes_and_stores_a_flyer_as_webp(tmp_path):
         assert saved.size == (MAX_WIDTH, 450)
 
 
+def test_a_stored_flyer_gets_its_accent_colour(tmp_path):
+    # JPEG is lossy, so this allows the colour to drift a couple of levels per channel rather than pinning an
+    # exact hex value.
+    url = "https://venue.example/flyer.jpg"
+    show = _show(flyer_image_url=url)
+
+    save_show_flyer(show, url, tmp_path, _client({url: httpx.Response(200, content=_jpeg(color=(80, 40, 120)))}))
+
+    r, g, b = (int(show.flyer_accent_color[i:i + 2], 16) for i in (1, 3, 5))
+    assert abs(r - 80) <= 4 and abs(g - 40) <= 4 and abs(b - 120) <= 4
+
+
+def test_a_colourless_flyer_gets_no_accent_colour(tmp_path):
+    url = "https://venue.example/flyer.jpg"
+    show = _show(flyer_image_url=url)
+
+    save_show_flyer(show, url, tmp_path, _client({url: httpx.Response(200, content=_jpeg(color=(128, 128, 128)))}))
+
+    assert show.flyer_accent_color is None
+
+
 def test_replacing_a_flyer_removes_the_old_file(tmp_path):
     first, second = "https://venue.example/1.jpg", "https://venue.example/2.jpg"
     client = _client({first: httpx.Response(200, content=_jpeg(color=(1, 2, 3))),

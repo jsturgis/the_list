@@ -240,3 +240,14 @@ body {
 [data-js][data-query] [data-home-first-page] {
   visibility: hidden;
 }
+
+/*
+ * A Show page's panels (DESIGN.md, "Show flyer"), tinted to complement the flyer's accent colour instead of
+ * plain `surface`. `--flyer-accent` is set inline, per Show, only when it has a flyer with one (ShowDetail.tsx);
+ * unset, it falls back to `--surface` itself, so `color-mix` of `--surface` with `--surface` is just `--surface`
+ * — every other page, and a Show without a flyer, renders identically to plain `bg-surface`. The mix is light
+ * (12%) so it never moves the panel far from `surface`'s own lightness, keeping `ink`'s contrast on it intact.
+ */
+.bg-flyer-tint {
+  background-color: color-mix(in oklab, var(--flyer-accent, var(--surface)) 12%, var(--surface));
+}

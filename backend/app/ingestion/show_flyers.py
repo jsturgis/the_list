@@ -6,6 +6,9 @@ A Show's flyer_image_url is filled by app/ingestion/venue_calendar.py's matching
 downloads and stores it, the same way save_band_photos does for Bands. Unlike a Band photo, a flyer has no focal
 point (it's shown whole, never cropped to a face) and no credit (it carries no attribution requirement). A flyer
 that's gone or unusable counts as none: no flyer beats a broken one.
+
+Storing a flyer also works out its accent colour (app/ingestion/flyer_color.py), used by the site to tint the
+Show page's panels to complement it.
 """
 from __future__ import annotations
 
@@ -14,6 +17,7 @@ from pathlib import Path
 
 import httpx
 
+from app.ingestion.flyer_color import accent_color
 from app.ingestion.image_store import is_stored, fetch_image, site_path, store
 from app.models.show import Show
 
@@ -49,6 +53,7 @@ def save_show_flyer(show: Show, url: str, images_dir: str | Path, client: httpx.
 
     show.flyer_image_url = store(fetched.data, prefix="shows", key=str(show.id), images_dir=images_dir,
                                  old=show.flyer_image_url)
+    show.flyer_accent_color = accent_color(fetched.data)
     return True
 
 

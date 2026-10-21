@@ -19,7 +19,7 @@ const show = (id: number, venueId: number, date: string, status = 'upcoming'): E
   id, slug: `show-${id}`, date, doorTime: '20:00:00', setTime: null, priceMin: null, priceMax: null, isFree: false, ageRestriction: 'a/a',
   status, isRecommended: false, willSellOut: false, isPit: false, isDrinkTickets: false, isNoReentry: false,
   notes: null, isMatinee: false, isSoldOut: false, ticketProvider: null, ticketUrl: null, isBenefit: false, benefitCause: null,
-  specialEvent: null, flyerImageUrl: null, moreInfoUrl: null, venueId, acts: [[id * 10, 0]],
+  specialEvent: null, flyerImageUrl: null, moreInfoUrl: null, flyerAccentColor: null, venueId, acts: [[id * 10, 0]],
 })
 
 let dir: string
