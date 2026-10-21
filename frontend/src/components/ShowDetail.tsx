@@ -55,7 +55,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
           className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-3xl"
         >
           <img src={show.flyerImageUrl} alt="" className="size-full scale-125 object-cover blur-3xl" />
-          <div className="absolute inset-0 bg-page/90" />
+          <div className="absolute inset-0 bg-page/70" />
         </div>
       )}
 

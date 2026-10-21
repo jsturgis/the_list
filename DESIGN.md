@@ -214,8 +214,9 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
   from Discogs reads "Photo via Discogs", linking the artist's Discogs page. The edition's photos have no credit.
 - **Show flyer:** when the Venue's own calendar had one (`backend/app/ingestion/venue_calendar.py`), a blurred
   backdrop behind the whole Show page (`PageHeader` through Notes), not a photo shown in full: `object-cover`,
-  scaled up and `blur-3xl` so the crop's edges stay covered, behind a `bg-page/90` scrim so every heading and
-  panel on top keeps its normal contrast — the image is decoration, not something meant to be read. It's
+  scaled up and `blur-3xl` so the crop's edges stay covered, behind a `bg-page/70` scrim — enough to still read
+  as a colour wash rather than vanish into the page background, while every heading and panel on top keeps its
+  normal contrast, since a flyer's colours survive heavy blur as broad, low-detail patches. It's
   `aria-hidden` with empty `alt`; it carries no credit, since a flyer carries its own branding. When the entry
   also gave a more-info link, a small icon (`InformationCircleIcon`) beside the date in `PageHeader`'s aside
   links there, alongside the "add to calendar" icons — shown whenever there's a more-info link, flyer or not.
