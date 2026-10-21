@@ -52,10 +52,10 @@ export default function ShowDetail({ show }: ShowDetailProps) {
         <div
           aria-hidden="true"
           data-testid="show-flyer-background"
-          className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-3xl"
+          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-72 overflow-hidden rounded-t-lg [mask-image:linear-gradient(to_bottom,black,black_55%,transparent)]"
         >
-          <img src={show.flyerImageUrl} alt="" className="size-full scale-125 object-cover blur-3xl" />
-          <div className="absolute inset-0 bg-page/70" />
+          <img src={show.flyerImageUrl} alt="" className="size-full scale-110 object-cover blur-md" />
+          <div className="absolute inset-0 bg-page/60" />
         </div>
       )}
 

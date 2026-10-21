@@ -212,15 +212,15 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
   whose `<figcaption>` credits it, as its licence requires: "Photo: <author>, <licence>, via Wikimedia Commons" in
   `text-xs ink-muted`, with the licence and "Wikimedia Commons" (the photo's page) as running-text links. A photo
   from Discogs reads "Photo via Discogs", linking the artist's Discogs page. The edition's photos have no credit.
-- **Show flyer:** when the Venue's own calendar had one (`backend/app/ingestion/venue_calendar.py`), a blurred
-  backdrop behind the whole Show page (`PageHeader` through Notes), not a photo shown in full: `object-cover`,
-  scaled up and `blur-3xl` so the crop's edges stay covered, behind a `bg-page/70` scrim — enough to still read
-  as a colour wash rather than vanish into the page background, while every heading and panel on top keeps its
-  normal contrast, since a flyer's colours survive heavy blur as broad, low-detail patches. It's
-  `aria-hidden` with empty `alt`; it carries no credit, since a flyer carries its own branding. When the entry
-  also gave a more-info link, a small icon (`InformationCircleIcon`) beside the date in `PageHeader`'s aside
-  links there, alongside the "add to calendar" icons — shown whenever there's a more-info link, flyer or not.
-  A Show without a flyer has no backdrop, just the plain `page` background.
+- **Show flyer:** when the Venue's own calendar had one (`backend/app/ingestion/venue_calendar.py`), a hero band
+  behind `PageHeader` (288px, `h-72`, the same height as a Band's banner), `object-cover`, lightly blurred
+  (`blur-md`) so it reads as the actual poster rather than an abstract wash, behind a `bg-page/60` scrim for
+  contrast. It fades to the plain `page` background by its bottom edge (a `mask-image` gradient, not a hard
+  crop), so it never competes with the panels below. Rounded on top only (`rounded-t-lg`), since the fade makes
+  the bottom edge invisible. It's `aria-hidden` with empty `alt`; it carries no credit, since a flyer carries its
+  own branding. When the entry also gave a more-info link, a small icon (`InformationCircleIcon`) beside the
+  date in `PageHeader`'s aside links there, alongside the "add to calendar" icons — shown whenever there's a
+  more-info link, flyer or not. A Show without a flyer has no backdrop, just the plain `page` background.
 - **Band members (`BandMembers`):** a **Members** section after Upcoming Shows, from Discogs: current members as a
   wrapping list of `text-sm` semibold `ink` names, then a `text-xs ink-muted` "Formerly" label over a wrapping list
   of past members in `ink-soft`. Each is a real `<ul>`, named "Current members" and "Formerly". Hidden without
