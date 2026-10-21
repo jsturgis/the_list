@@ -213,12 +213,14 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
   `text-xs ink-muted`, with the licence and "Wikimedia Commons" (the photo's page) as running-text links. A photo
   from Discogs reads "Photo via Discogs", linking the artist's Discogs page. The edition's photos have no credit.
 - **Show flyer:** when the Venue's own calendar had one (`backend/app/ingestion/venue_calendar.py`), a backdrop
-  filling the Show page's full height (`PageHeader` through Notes), `object-cover`, lightly blurred (`blur-md`)
-  so it reads as the actual poster rather than an abstract wash, behind a `bg-page/60` scrim for contrast. It
-  fades to the plain `page` background toward the bottom (a `mask-image` gradient, not a hard crop), so it
-  never competes with whatever's below the fold. Rounded on top only (`rounded-t-lg`), since the fade makes the
-  bottom edge invisible. It's `aria-hidden` with empty `alt`; it carries no credit, since a flyer carries its
-  own branding. The Facts panel and every `Section` panel (`bg-flyer-tint`, not plain `bg-surface`) pick up a
+  filling the Show page's full height (`PageHeader` through Notes) and the full viewport width — it breaks out
+  of the page's column (`left-1/2 -translate-x-1/2 w-screen`, centred on the column since nothing else on the
+  page is asymmetric), edge to edge like Plex's artist page, not boxed into the content column. `object-cover`,
+  lightly blurred (`blur-md`) so it reads as the actual poster rather than an abstract wash, behind a
+  `bg-page/60` scrim for contrast. It fades to the plain `page` background toward the bottom (a `mask-image`
+  gradient, not a hard crop), so it never competes with whatever's below the fold. Square corners, since it's
+  edge to edge. It's `aria-hidden` with empty `alt`; it carries no credit, since a flyer carries its own
+  branding. The Facts panel and every `Section` panel (`bg-flyer-tint`, not plain `bg-surface`) pick up a
   light tint of the flyer's accent colour (`backend/app/ingestion/flyer_color.py`, worked out at ingest, its
   one most colourful swatch) instead of sitting as plain white/dark boxes on top of it — a 12% `color-mix`
   toward `surface`, close enough to `surface`'s own lightness that `ink`'s contrast on it is unaffected. When

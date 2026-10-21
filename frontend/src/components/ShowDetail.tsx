@@ -56,7 +56,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
         <div
           aria-hidden="true"
           data-testid="show-flyer-background"
-          className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-t-lg [mask-image:linear-gradient(to_bottom,black,black_60%,transparent)]"
+          className="pointer-events-none absolute inset-y-0 left-1/2 -z-10 w-screen -translate-x-1/2 overflow-hidden [mask-image:linear-gradient(to_bottom,black,black_60%,transparent)]"
         >
           <img src={show.flyerImageUrl} alt="" className="size-full scale-110 object-cover blur-md" />
           <div className="absolute inset-0 bg-page/60" />

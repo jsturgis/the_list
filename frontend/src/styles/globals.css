@@ -213,6 +213,9 @@
 body {
   background: var(--page);
   color: var(--ink);
+  /* A Show's flyer backdrop (ShowDetail.tsx) breaks out to full viewport width (100vw); clip rather than let
+   * the vertical scrollbar's own width turn that into a few stray pixels of horizontal scroll. */
+  overflow-x: clip;
 }
 
 /* Type (DESIGN.md): weight contrast carries the hierarchy; button labels are uppercase and tracked. */
