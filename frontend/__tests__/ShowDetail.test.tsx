@@ -168,26 +168,27 @@ describe('ShowDetail', () => {
     expect(screen.queryByRole('img', { name: /flyer/i })).not.toBeInTheDocument()
   })
 
-  it('shows a More Info button to the venue calendar entry when there is one', () => {
-    render(<ShowDetail show={makeShow({ moreInfoUrl: 'https://venue.example/shows/1' })} />)
-    expect(screen.getByRole('link', { name: /More Info/i })).toHaveAttribute('href', 'https://venue.example/shows/1')
+  it('the flyer links to the venue calendar entry when there is a more-info URL', () => {
+    render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp', moreInfoUrl: 'https://venue.example/shows/1' })} />)
+    const link = screen.getByRole('link', { name: /flyer/i })
+    expect(link).toHaveAttribute('href', 'https://venue.example/shows/1')
+    expect(link.querySelector('img')).toHaveAttribute('src', '/images/shows/1-abc.webp')
   })
 
-  it('has no More Info button when there is none', () => {
-    render(<ShowDetail show={show} />)
-    expect(screen.queryByRole('link', { name: /More Info/i })).not.toBeInTheDocument()
+  it('the flyer is not a link when there is no more-info URL', () => {
+    render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp', moreInfoUrl: null })} />)
+    expect(screen.queryByRole('link', { name: /flyer/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /flyer/i })).toBeInTheDocument()
   })
 
-  it('shows More Info alongside Tickets, with Tickets as the only primary action', () => {
-    render(<ShowDetail show={makeShow({ ticketUrl: 'https://tix.example/1', moreInfoUrl: 'https://venue.example/shows/1' })} />)
-    expect(screen.getByRole('link', { name: /Tickets/i })).toHaveClass('bg-accent')
-    expect(screen.getByRole('link', { name: /More Info/i })).not.toHaveClass('bg-accent')
+  it('has no More Info button: a more-info URL with no flyer has no link of its own', () => {
+    render(<ShowDetail show={makeShow({ flyerImageUrl: null, moreInfoUrl: 'https://venue.example/shows/1' })} />)
+    expect(screen.queryByText(/More Info/i)).not.toBeInTheDocument()
   })
 
-  it('shows a More Info button even when there is no ticket link', () => {
-    render(<ShowDetail show={makeShow({ ticketUrl: null, moreInfoUrl: 'https://venue.example/shows/1' })} />)
-    expect(screen.getByRole('link', { name: /More Info/i })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /^Tickets$/i })).not.toBeInTheDocument()
+  it('Tickets stays the only action when there is also a flyer link', () => {
+    render(<ShowDetail show={makeShow({ ticketUrl: 'https://tix.example/1', flyerImageUrl: '/images/shows/1-abc.webp', moreInfoUrl: 'https://venue.example/shows/1' })} />)
+    expect(screen.getByRole('link', { name: 'Tickets' })).toHaveClass('bg-accent')
   })
 
   it('lists where tickets are sold among the key facts, by name', () => {

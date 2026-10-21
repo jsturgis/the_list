@@ -1,6 +1,6 @@
 import type { Show } from '@/lib/types'
 import { formatTime, formatPrice, formatDateLongYear, mapsHref, ticketProviderLabel } from '@/lib/format'
-import { ArrowDownTrayIcon, BanknotesIcon, CalendarDaysIcon, ClockIcon, GlobeAltIcon, InformationCircleIcon, MapPinIcon, SparklesIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
+import { ArrowDownTrayIcon, BanknotesIcon, CalendarDaysIcon, ClockIcon, GlobeAltIcon, MapPinIcon, SparklesIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
 import { googleCalendarUrl, icsFilename, icsHref } from '@/lib/calendar'
 import ActionLinks, { ActionLink } from './ActionLinks'
 import BandLink from './BandLink'
@@ -59,14 +59,6 @@ export default function ShowDetail({ show }: ShowDetailProps) {
         </div>
       )}
 
-      {show.flyerImageUrl && (
-        <img
-          src={show.flyerImageUrl}
-          alt={`Flyer for ${acts[0]?.band.name ?? 'this show'} at ${show.venue.name}`}
-          className="w-full max-h-[600px] rounded-lg bg-surface object-contain"
-        />
-      )}
-
       <PageHeader
         eyebrow={show.status === 'cancelled' || show.status === 'postponed' ? <StatusBadge status={show.status} size="detail" /> : undefined}
         aside={
@@ -90,6 +82,29 @@ export default function ShowDetail({ show }: ShowDetailProps) {
         subtitle={<>at <VenueLink slug={show.venue.slug} className="text-link underline underline-offset-2">{show.venue.name}</VenueLink> · {show.venue.city}</>}
       />
 
+      {show.flyerImageUrl && (
+        show.moreInfoUrl ? (
+          <a
+            href={show.moreInfoUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mx-auto block w-fit"
+          >
+            <img
+              src={show.flyerImageUrl}
+              alt={`Flyer for ${acts[0]?.band.name ?? 'this show'} at ${show.venue.name} — more info`}
+              className="block max-h-[500px] max-w-full rounded-lg bg-surface object-contain"
+            />
+          </a>
+        ) : (
+          <img
+            src={show.flyerImageUrl}
+            alt={`Flyer for ${acts[0]?.band.name ?? 'this show'} at ${show.venue.name}`}
+            className="mx-auto block max-h-[500px] max-w-full rounded-lg bg-surface object-contain"
+          />
+        )
+      )}
+
       <div className="flex flex-col gap-4 rounded-lg bg-surface p-5">
         <FactList facts={[
           ...(door ? [{ icon: ClockIcon, label: set ? 'Doors / Set' : 'Doors', value: set ? `${door} / ${set}` : door }] : []),
@@ -100,14 +115,9 @@ export default function ShowDetail({ show }: ShowDetailProps) {
         <Flags show={show} size="detail" showBenefitCause />
       </div>
 
-      {(show.ticketUrl || show.moreInfoUrl) && (
+      {show.ticketUrl && (
         <ActionLinks>
-          {show.ticketUrl && (
-            <ActionLink href={show.ticketUrl} kind="primary" icon={TicketIcon} external>{ticketsLabel}</ActionLink>
-          )}
-          {show.moreInfoUrl && (
-            <ActionLink href={show.moreInfoUrl} icon={InformationCircleIcon} external>More Info</ActionLink>
-          )}
+          <ActionLink href={show.ticketUrl} kind="primary" icon={TicketIcon} external>{ticketsLabel}</ActionLink>
         </ActionLinks>
       )}
 
