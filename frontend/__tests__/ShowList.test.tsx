@@ -70,6 +70,23 @@ describe('ShowList', () => {
       expect(screen.getByText(/no shows/i)).toBeInTheDocument()
     })
 
+    it("on the first page, marks the list and a hidden loading message, so the page's CSS can swap them " +
+       'if the build goes stale enough that every Show on it has passed (lib/pastShows)', () => {
+      const { container } = render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} firstPage />)
+      expect(container.querySelector('[data-upcoming-shows]')).not.toBeNull()
+      expect(container.querySelector('[data-upcoming-shows-list]')).not.toBeNull()
+      const empty = container.querySelector('[data-upcoming-shows-empty]') as HTMLElement | null
+      expect(empty).not.toBeNull()
+      expect(empty).toHaveStyle({ display: 'none' })  // the page's CSS reveals it with !important; nothing else does
+    })
+
+    it('has none of the first-page staleness markers once off the first page (the live, hydrated list)', () => {
+      const { container } = render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
+      expect(container.querySelector('[data-upcoming-shows]')).toBeNull()
+      expect(container.querySelector('[data-upcoming-shows-list]')).toBeNull()
+      expect(container.querySelector('[data-upcoming-shows-empty]')).toBeNull()
+    })
+
     it('populates genre suggestions from filterOptions', () => {
       render(<ShowList shows={shows} dbTotal={shows.length} filterOptions={FILTER_OPTIONS} />)
       fireEvent.focus(screen.getByLabelText(/genre/i))

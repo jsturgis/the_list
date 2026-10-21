@@ -187,6 +187,26 @@ describe('the home page', () => {
     expect(html).toContain('Showing 5 of 5 shows')
     expect(html).toContain('data-home-first-page')
     expect(html).toContain('data-show-date="2026-10-03"')
+    // So the build's first page can fall back to a loading message if it's gone stale enough that every one
+    // of its Shows has since passed (lib/pastShows), the same way a Venue page's list already does.
+    expect(html).toContain('data-upcoming-shows')
+    expect(html).toContain('data-upcoming-shows-list')
+    expect(html).toContain('data-upcoming-shows-empty')
+  })
+
+  it("falls back to a loading message, not a silent gap, if the build's first page has gone stale enough that every Show on it has passed", async () => {
+    const html = await render(HomePage)
+    const head = html.match(/<head>(.*)<\/head>/s)![1]
+    const script = head.match(/<script>(document\.head\.append\(.*?\}\)\))<\/script>/s)![1]
+    const added: { textContent?: string }[] = []
+    const document = { createElement: () => ({}), head: { append: (el: { textContent?: string }) => added.push(el) } }
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-12T19:00:00Z'))  // after every fixture Show's date (the latest is Oct 10)
+    try { new Function('document', script)(document) } finally { vi.useRealTimers() }
+    const css = added[0].textContent!
+    // Every date on the first page's Shows is covered, so pastShowsStyle hides the whole list (CSS targets
+    // data-upcoming-shows-list when none of its data-show-date children survive) and reveals data-upcoming-shows-empty.
+    for (const date of ['2026-10-03', '2026-10-04', '2026-10-05', '2026-10-10']) expect(css).toContain(`[data-show-date="${date}"]`)
   })
 
   it('has the Save search button only on builds with the Supabase settings, so it never appears and then goes', async () => {

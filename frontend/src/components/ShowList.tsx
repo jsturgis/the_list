@@ -106,22 +106,29 @@ export default function ShowList({ shows: listed, showCount, dbTotal = 0, filter
           <p>No shows match your filters.</p>
         </div>
       ) : (
-        <>
-          <section data-home-first-page={firstPage ? '' : undefined}>
-            <div className="flex flex-col gap-6">
-              {sortedDates.map(date => (
-                <div key={date} data-show-date={firstPage ? date : undefined}>
-                  <h2 className="text-2xl font-bold text-ink mb-2">
-                    {formatDateLong(date)}
-                  </h2>
-                  <ul className="flex flex-col divide-y divide-line-subtle overflow-hidden rounded-lg bg-surface">
-                    {(byDate.get(date) ?? []).map(show => <li key={show.id}><ShowRow show={show} filterQs={filtersKey} /></li>)}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </section>
-        </>
+        <section data-home-first-page={firstPage ? '' : undefined} data-upcoming-shows={firstPage ? '' : undefined}>
+          <div className="flex flex-col gap-6" data-upcoming-shows-list={firstPage ? '' : undefined}>
+            {sortedDates.map(date => (
+              <div key={date} data-show-date={firstPage ? date : undefined}>
+                <h2 className="text-2xl font-bold text-ink mb-2">
+                  {formatDateLong(date)}
+                </h2>
+                <ul className="flex flex-col divide-y divide-line-subtle overflow-hidden rounded-lg bg-surface">
+                  {(byDate.get(date) ?? []).map(show => <li key={show.id}><ShowRow show={show} filterQs={filtersKey} /></li>)}
+                </ul>
+              </div>
+            ))}
+          </div>
+          {/* The build's first page can go stale (rebuilt weekly): if every one of its Shows has since
+              passed, the page's CSS (lib/pastShows) hides the list above and reveals this instead, until
+              the real, current list loads. */}
+          {firstPage && (
+            <p className="flex items-center justify-center gap-1.5 text-ink-muted py-12" data-upcoming-shows-empty="" style={{ display: 'none' }}>
+              <ArrowPathIcon className="size-4 shrink-0 animate-spin" />
+              Loading this week&apos;s shows…
+            </p>
+          )}
+        </section>
       )}
 
       {hasMore && <div ref={sentinelRef} className="py-6" aria-hidden="true" />}
