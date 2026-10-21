@@ -20,11 +20,21 @@
  *
  * Setup: paste into a new project at https://script.google.com, run `publish` once (grant Drive access),
  * copy the logged latest.json file id into DRIVE_LATEST_FILE_ID, then run `installTrigger`.
+ *
+ * When a publish points latest.json at a new (or re-generated) edition, it also dispatches the Deploy
+ * workflow on `main` (with ingestion on) so the week's ingest runs right away instead of waiting for
+ * GitHub's scheduled fallback. That needs a GitHub token: create a fine-grained personal access token
+ * limited to this repository, with Actions read and write, and set it as the GITHUB_TOKEN script
+ * property (Project Settings -> Script properties). Without it, publishing still works; the dispatch is
+ * just skipped and logged.
  */
 
 const PUBLIC_FOLDER = 'The List (public)';
 const PRIVATE_FOLDER = 'The List (raw, private)';
 const POINTER_NAME = 'latest.json';
+const GITHUB_REPO = 'jsturgis/the_list';
+const DEPLOY_WORKFLOW_FILE = 'deploy.yml';
+const GITHUB_TOKEN_PROPERTY = 'GITHUB_TOKEN';
 const FORMATTED_RE = /^Bay Area & Santa Cruz Concert Events - .+\.json$/;
 const ENRICHED_RE = /^San Francisco Area Music List for .+\.enriched\.json$/;
 const RAW_RE = /\(Raw Email\)\.json$/;
@@ -112,9 +122,14 @@ function trashSameName_(folder, name) {
 
 /**
  * Point latest.json at the formatted edition with the newest edition_date (latest update wins ties),
- * and at the enriched export for the same date, when there is one.
+ * and at the enriched export for the same date, when there is one. Dispatches the Deploy workflow when
+ * that changes which edition the pointer names.
  */
 function updatePointer_(publicFolder) {
+  const existing = publicFolder.getFilesByName(POINTER_NAME);
+  const pointerFile = existing.hasNext() ? existing.next() : null;
+  const previousEdition = pointerFile && previousEdition_(pointerFile);
+
   let newest = null;
   const enrichedByDate = {};
   const files = publicFolder.getFiles();
@@ -146,12 +161,63 @@ function updatePointer_(publicFolder) {
   const enrichedFile = newest && enrichedByDate[newest.edition_date];
   const enriched = enrichedFile ? {id: enrichedFile.getId(), name: enrichedFile.getName()} : null;
   const content = JSON.stringify({latest: latest, enriched: enriched}, null, 2);
-  const existing = publicFolder.getFilesByName(POINTER_NAME);
-  const pointer = existing.hasNext() ? existing.next() : publicFolder.createFile(POINTER_NAME, content, 'application/json');
+  const pointer = pointerFile || publicFolder.createFile(POINTER_NAME, content, 'application/json');
   pointer.setContent(content);  // same file id every week, so DRIVE_LATEST_FILE_ID never changes
   pointer.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   Logger.log('%s (id %s) -> %s (enriched: %s)', POINTER_NAME, pointer.getId(),
              newest ? newest.name : 'no edition yet', enriched ? enriched.name : 'none');
+
+  maybeDispatchDeploy_(previousEdition, newest);
+}
+
+/** The {id, edition_date} the pointer file currently names, or null if it has none or can't be read. */
+function previousEdition_(pointerFile) {
+  try {
+    const data = JSON.parse(pointerFile.getBlob().getDataAsString());
+    return data.latest ? {id: data.latest.id, edition_date: data.latest.edition_date} : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Dispatch the Deploy workflow on `main`, with ingestion on, when the pointer now names a different
+ * edition file than before: a new edition, or a re-generated one with the same edition_date but a new
+ * file (compare by file id, not edition_date, so a same-date regeneration still dispatches). Never
+ * throws: a missing token or a failed dispatch is logged and the publish still stands. The token is read
+ * from the GITHUB_TOKEN script property and never appears in the script or the logs.
+ */
+function maybeDispatchDeploy_(previousEdition, newest) {
+  if (!newest || (previousEdition && newest.id === previousEdition.id)) return;
+  const newEditionDate = newest.edition_date;
+
+  const token = PropertiesService.getScriptProperties().getProperty(GITHUB_TOKEN_PROPERTY);
+  if (!token) {
+    Logger.log('New edition %s but skipped the Deploy dispatch: no %s script property', newEditionDate,
+               GITHUB_TOKEN_PROPERTY);
+    return;
+  }
+
+  try {
+    const response = UrlFetchApp.fetch(
+      'https://api.github.com/repos/' + GITHUB_REPO + '/actions/workflows/' + DEPLOY_WORKFLOW_FILE + '/dispatches',
+      {
+        method: 'post',
+        contentType: 'application/json',
+        headers: {Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json'},
+        payload: JSON.stringify({ref: 'main', inputs: {skip_ingest: 'false'}}),
+        muteHttpExceptions: true,
+      }
+    );
+    const status = response.getResponseCode();
+    if (status === 204) {
+      Logger.log('Dispatched Deploy workflow for new edition %s', newEditionDate);
+    } else {
+      Logger.log('Deploy dispatch failed (status %s): %s', String(status), response.getContentText());
+    }
+  } catch (e) {
+    Logger.log('Deploy dispatch failed: %s', e);
+  }
 }
 
 const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september',

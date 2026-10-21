@@ -180,6 +180,8 @@ Set these in `backend/.env` for local runs. The Deploy workflow sets its own (se
 | `SITE_URL` | `https://list.sturgis.me` | Where links in the Alert emails point |
 
 > **Drive setup**: install `scripts/drive-publisher.gs` as a Google Apps Script with a daily trigger. It moves formatted editions from your Drive root into a public folder (raw email exports into a private one) and keeps `latest.json` pointing at the newest edition and, when there is one, its enriched export (`San Francisco Area Music List for <date>.enriched.json`), which the ingest uses to fill in missing venue details, ticket links and artist images. Set `DRIVE_LATEST_FILE_ID` to that file's id. Add `scripts/gmail-exporter.gs` to the same project to also save the newest List email (footer stripped) to the [public folder](https://drive.google.com/drive/folders/1plFG_Zp0lVbYOnzkbmHJ2DFTzYC8q1gH?usp=share_link) as `.txt`.
+>
+> When a publish points `latest.json` at a new edition, the script also dispatches the Deploy workflow on `main` (ingestion on) so that week's ingest starts right away instead of waiting for the Saturday cron. To enable this, create a fine-grained personal access token limited to this repository, with Actions read and write permission, and set it as the `GITHUB_TOKEN` script property (Project Settings → Script properties, in the Apps Script editor). Without a token, publishing still works; the dispatch is skipped and logged instead.
 
 > **Alerts dry run**: with the two Supabase settings in `backend/.env`, `docker compose run --rm api python -m app.cli alerts --dry-run`
 > prints this week's Alert emails (one per person whose Saved Filters match Upcoming Shows) without sending anything.
