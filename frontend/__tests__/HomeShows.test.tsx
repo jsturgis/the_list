@@ -26,7 +26,7 @@ const show = (id: number, date: string, bandId: number, extra: Partial<ExportSho
   id, slug: `show-${id}`, date, doorTime: '20:00:00', setTime: null, priceMin: 15, priceMax: 15, isFree: false, ageRestriction: 'a/a',
   status: 'upcoming', isRecommended: false, willSellOut: false, isPit: false, isDrinkTickets: false,
   isNoReentry: false, notes: null, isMatinee: false, isSoldOut: false, ticketProvider: null, ticketUrl: null, isBenefit: false,
-  benefitCause: null, specialEvent: null, venueId: 1, acts: [[bandId, 0]], ...extra,
+  benefitCause: null, specialEvent: null, flyerImageUrl: null, moreInfoUrl: null, venueId: 1, acts: [[bandId, 0]], ...extra,
 })
 
 const META: ExportMeta = {

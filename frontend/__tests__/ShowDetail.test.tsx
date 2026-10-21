@@ -157,6 +157,39 @@ describe('ShowDetail', () => {
     expect(screen.getByText('Hardly Strictly Bluegrass')).toBeInTheDocument()
   })
 
+  it('shows the flyer from the venue calendar when there is one', () => {
+    render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp' })} />)
+    const img = screen.getByRole('img', { name: /flyer/i })
+    expect(img).toHaveAttribute('src', '/images/shows/1-abc.webp')
+  })
+
+  it('has no flyer image when there is none', () => {
+    render(<ShowDetail show={show} />)
+    expect(screen.queryByRole('img', { name: /flyer/i })).not.toBeInTheDocument()
+  })
+
+  it('shows a More Info button to the venue calendar entry when there is one', () => {
+    render(<ShowDetail show={makeShow({ moreInfoUrl: 'https://venue.example/shows/1' })} />)
+    expect(screen.getByRole('link', { name: /More Info/i })).toHaveAttribute('href', 'https://venue.example/shows/1')
+  })
+
+  it('has no More Info button when there is none', () => {
+    render(<ShowDetail show={show} />)
+    expect(screen.queryByRole('link', { name: /More Info/i })).not.toBeInTheDocument()
+  })
+
+  it('shows More Info alongside Tickets, with Tickets as the only primary action', () => {
+    render(<ShowDetail show={makeShow({ ticketUrl: 'https://tix.example/1', moreInfoUrl: 'https://venue.example/shows/1' })} />)
+    expect(screen.getByRole('link', { name: /Tickets/i })).toHaveClass('bg-accent')
+    expect(screen.getByRole('link', { name: /More Info/i })).not.toHaveClass('bg-accent')
+  })
+
+  it('shows a More Info button even when there is no ticket link', () => {
+    render(<ShowDetail show={makeShow({ ticketUrl: null, moreInfoUrl: 'https://venue.example/shows/1' })} />)
+    expect(screen.getByRole('link', { name: /More Info/i })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^Tickets$/i })).not.toBeInTheDocument()
+  })
+
   it('lists where tickets are sold among the key facts, by name', () => {
     render(<ShowDetail show={makeShow({ ticketProvider: 'box_office' })} />)
     expect(screen.getAllByRole('term').map(t => t.textContent)).toContain('Tickets')

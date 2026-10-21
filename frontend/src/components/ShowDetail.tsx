@@ -1,6 +1,6 @@
 import type { Show } from '@/lib/types'
 import { formatTime, formatPrice, formatDateLongYear, mapsHref, ticketProviderLabel } from '@/lib/format'
-import { ArrowDownTrayIcon, BanknotesIcon, CalendarDaysIcon, ClockIcon, GlobeAltIcon, MapPinIcon, SparklesIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
+import { ArrowDownTrayIcon, BanknotesIcon, CalendarDaysIcon, ClockIcon, GlobeAltIcon, InformationCircleIcon, MapPinIcon, SparklesIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
 import { googleCalendarUrl, icsFilename, icsHref } from '@/lib/calendar'
 import ActionLinks, { ActionLink } from './ActionLinks'
 import BandLink from './BandLink'
@@ -59,6 +59,14 @@ export default function ShowDetail({ show }: ShowDetailProps) {
         </div>
       )}
 
+      {show.flyerImageUrl && (
+        <img
+          src={show.flyerImageUrl}
+          alt={`Flyer for ${acts[0]?.band.name ?? 'this show'} at ${show.venue.name}`}
+          className="w-full max-h-[600px] rounded-lg bg-surface object-contain"
+        />
+      )}
+
       <PageHeader
         eyebrow={show.status === 'cancelled' || show.status === 'postponed' ? <StatusBadge status={show.status} size="detail" /> : undefined}
         aside={
@@ -92,9 +100,14 @@ export default function ShowDetail({ show }: ShowDetailProps) {
         <Flags show={show} size="detail" showBenefitCause />
       </div>
 
-      {show.ticketUrl && (
+      {(show.ticketUrl || show.moreInfoUrl) && (
         <ActionLinks>
-          <ActionLink href={show.ticketUrl} kind="primary" icon={TicketIcon} external>{ticketsLabel}</ActionLink>
+          {show.ticketUrl && (
+            <ActionLink href={show.ticketUrl} kind="primary" icon={TicketIcon} external>{ticketsLabel}</ActionLink>
+          )}
+          {show.moreInfoUrl && (
+            <ActionLink href={show.moreInfoUrl} icon={InformationCircleIcon} external>More Info</ActionLink>
+          )}
         </ActionLinks>
       )}
 
