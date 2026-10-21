@@ -157,36 +157,36 @@ describe('ShowDetail', () => {
     expect(screen.getByText('Hardly Strictly Bluegrass')).toBeInTheDocument()
   })
 
-  it('shows the flyer from the venue calendar when there is one', () => {
+  it('shows the flyer from the venue calendar as a blurred background when there is one', () => {
     render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp' })} />)
-    const img = screen.getByRole('img', { name: /flyer/i })
-    expect(img).toHaveAttribute('src', '/images/shows/1-abc.webp')
+    const bg = screen.getByTestId('show-flyer-background')
+    expect(bg).toHaveAttribute('aria-hidden', 'true')
+    expect(bg.querySelector('img')).toHaveAttribute('src', '/images/shows/1-abc.webp')
   })
 
-  it('has no flyer image when there is none', () => {
+  it('has no flyer background when there is none', () => {
     render(<ShowDetail show={show} />)
-    expect(screen.queryByRole('img', { name: /flyer/i })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('show-flyer-background')).not.toBeInTheDocument()
   })
 
-  it('the flyer links to the venue calendar entry when there is a more-info URL', () => {
-    render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp', moreInfoUrl: 'https://venue.example/shows/1' })} />)
-    const link = screen.getByRole('link', { name: /flyer/i })
+  it('shows a More Info icon linking to the venue calendar entry when there is one', () => {
+    render(<ShowDetail show={makeShow({ moreInfoUrl: 'https://venue.example/shows/1' })} />)
+    const link = screen.getByRole('link', { name: 'More info' })
     expect(link).toHaveAttribute('href', 'https://venue.example/shows/1')
-    expect(link.querySelector('img')).toHaveAttribute('src', '/images/shows/1-abc.webp')
+    expect(link).toHaveAttribute('target', '_blank')
   })
 
-  it('the flyer is not a link when there is no more-info URL', () => {
-    render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp', moreInfoUrl: null })} />)
-    expect(screen.queryByRole('link', { name: /flyer/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('img', { name: /flyer/i })).toBeInTheDocument()
-  })
-
-  it('has no More Info button: a more-info URL with no flyer has no link of its own', () => {
+  it('shows the More Info icon even without a flyer image', () => {
     render(<ShowDetail show={makeShow({ flyerImageUrl: null, moreInfoUrl: 'https://venue.example/shows/1' })} />)
-    expect(screen.queryByText(/More Info/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'More info' })).toBeInTheDocument()
   })
 
-  it('Tickets stays the only action when there is also a flyer link', () => {
+  it('has no More Info icon when there is no more-info URL', () => {
+    render(<ShowDetail show={makeShow({ moreInfoUrl: null })} />)
+    expect(screen.queryByRole('link', { name: 'More info' })).not.toBeInTheDocument()
+  })
+
+  it('Tickets stays the only action when there is also a flyer background and more-info link', () => {
     render(<ShowDetail show={makeShow({ ticketUrl: 'https://tix.example/1', flyerImageUrl: '/images/shows/1-abc.webp', moreInfoUrl: 'https://venue.example/shows/1' })} />)
     expect(screen.getByRole('link', { name: 'Tickets' })).toHaveClass('bg-accent')
   })

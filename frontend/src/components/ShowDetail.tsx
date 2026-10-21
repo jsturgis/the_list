@@ -1,6 +1,6 @@
 import type { Show } from '@/lib/types'
 import { formatTime, formatPrice, formatDateLongYear, mapsHref, ticketProviderLabel } from '@/lib/format'
-import { ArrowDownTrayIcon, BanknotesIcon, CalendarDaysIcon, ClockIcon, GlobeAltIcon, MapPinIcon, SparklesIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
+import { ArrowDownTrayIcon, BanknotesIcon, CalendarDaysIcon, ClockIcon, GlobeAltIcon, InformationCircleIcon, MapPinIcon, SparklesIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
 import { googleCalendarUrl, icsFilename, icsHref } from '@/lib/calendar'
 import ActionLinks, { ActionLink } from './ActionLinks'
 import BandLink from './BandLink'
@@ -47,7 +47,18 @@ export default function ShowDetail({ show }: ShowDetailProps) {
   const upcoming = show.status === 'upcoming'
 
   return (
-    <article className="flex flex-col gap-6">
+    <article className="relative flex flex-col gap-6">
+      {show.flyerImageUrl && (
+        <div
+          aria-hidden="true"
+          data-testid="show-flyer-background"
+          className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-3xl"
+        >
+          <img src={show.flyerImageUrl} alt="" className="size-full scale-125 object-cover blur-3xl" />
+          <div className="absolute inset-0 bg-page/90" />
+        </div>
+      )}
+
       {show.specialEvent && (
         <div
           role="note"
@@ -59,16 +70,15 @@ export default function ShowDetail({ show }: ShowDetailProps) {
         </div>
       )}
 
-      <div className="flex items-center gap-4">
-        {show.flyerImageUrl && <ShowFlyer show={show} headliner={acts[0]?.band.name ?? 'this show'} />}
-        <div className="min-w-0 flex-1">
-          <PageHeader
-            eyebrow={show.status === 'cancelled' || show.status === 'postponed' ? <StatusBadge status={show.status} size="detail" /> : undefined}
-            aside={
-              <>
-                <span>{formatDateLongYear(show.date)}</span>
+      <PageHeader
+        eyebrow={show.status === 'cancelled' || show.status === 'postponed' ? <StatusBadge status={show.status} size="detail" /> : undefined}
+        aside={
+          <>
+            <span>{formatDateLongYear(show.date)}</span>
+            {(upcoming || show.moreInfoUrl) && (
+              <span className="flex items-center">
                 {upcoming && (
-                  <span className="flex items-center">
+                  <>
                     <a href={icsHref(show.id)} download={icsFilename(show)} aria-label="Add to calendar (.ics)" title="Add to calendar (.ics)"
                        className="rounded-full p-1 hover:bg-muted hover:text-link">
                       <ArrowDownTrayIcon className="size-4" />
@@ -77,15 +87,21 @@ export default function ShowDetail({ show }: ShowDetailProps) {
                        title="Add to Google Calendar" className="rounded-full p-1 hover:bg-muted hover:text-link">
                       <CalendarDaysIcon className="size-4" />
                     </a>
-                  </span>
+                  </>
                 )}
-              </>
-            }
-            title={acts[0]?.band.name ?? 'Unknown'}
-            subtitle={<>at <VenueLink slug={show.venue.slug} className="text-link underline underline-offset-2">{show.venue.name}</VenueLink> · {show.venue.city}</>}
-          />
-        </div>
-      </div>
+                {show.moreInfoUrl && (
+                  <a href={show.moreInfoUrl} target="_blank" rel="noopener noreferrer" aria-label="More info" title="More info"
+                     className="rounded-full p-1 hover:bg-muted hover:text-link">
+                    <InformationCircleIcon className="size-4" />
+                  </a>
+                )}
+              </span>
+            )}
+          </>
+        }
+        title={acts[0]?.band.name ?? 'Unknown'}
+        subtitle={<>at <VenueLink slug={show.venue.slug} className="text-link underline underline-offset-2">{show.venue.name}</VenueLink> · {show.venue.city}</>}
+      />
 
       <div className="flex flex-col gap-4 rounded-lg bg-surface p-5">
         <FactList facts={[
@@ -154,25 +170,5 @@ export default function ShowDetail({ show }: ShowDetailProps) {
         </Section>
       )}
     </article>
-  )
-}
-
-/**
- * A Show's flyer from its Venue's own calendar, left of the headliner and venue (DESIGN.md, "Show
- * flyer"): on phones the same 64px box as a Band's photo circle (BandDetail.tsx), but a rectangle, cropped to
- * fill it; from `sm`, its own size up to 300px tall, never cropped (a flyer is a poster meant to be seen whole).
- * When the Venue's calendar also gave a more-info link, the flyer is that link; otherwise it's just shown.
- */
-function ShowFlyer({ show, headliner }: { show: Show, headliner: string }) {
-  const alt = `Flyer for ${headliner} at ${show.venue.name}` + (show.moreInfoUrl ? ' — more info' : '')
-  const img = (
-    <img src={show.flyerImageUrl!} alt={alt}
-         className="size-16 rounded-lg bg-surface object-cover sm:h-auto sm:max-h-[300px] sm:w-auto sm:max-w-full sm:object-contain" />
-  )
-  if (!show.moreInfoUrl) return <div className="shrink-0">{img}</div>
-  return (
-    <a href={show.moreInfoUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
-      {img}
-    </a>
   )
 }
