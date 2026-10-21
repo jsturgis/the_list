@@ -59,51 +59,33 @@ export default function ShowDetail({ show }: ShowDetailProps) {
         </div>
       )}
 
-      <PageHeader
-        eyebrow={show.status === 'cancelled' || show.status === 'postponed' ? <StatusBadge status={show.status} size="detail" /> : undefined}
-        aside={
-          <>
-            <span>{formatDateLongYear(show.date)}</span>
-            {upcoming && (
-              <span className="flex items-center">
-                <a href={icsHref(show.id)} download={icsFilename(show)} aria-label="Add to calendar (.ics)" title="Add to calendar (.ics)"
-                   className="rounded-full p-1 hover:bg-muted hover:text-link">
-                  <ArrowDownTrayIcon className="size-4" />
-                </a>
-                <a href={googleCalendarUrl(show)} target="_blank" rel="noopener noreferrer" aria-label="Add to Google Calendar"
-                   title="Add to Google Calendar" className="rounded-full p-1 hover:bg-muted hover:text-link">
-                  <CalendarDaysIcon className="size-4" />
-                </a>
-              </span>
-            )}
-          </>
-        }
-        title={acts[0]?.band.name ?? 'Unknown'}
-        subtitle={<>at <VenueLink slug={show.venue.slug} className="text-link underline underline-offset-2">{show.venue.name}</VenueLink> · {show.venue.city}</>}
-      />
-
-      {show.flyerImageUrl && (
-        show.moreInfoUrl ? (
-          <a
-            href={show.moreInfoUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mx-auto block w-fit"
-          >
-            <img
-              src={show.flyerImageUrl}
-              alt={`Flyer for ${acts[0]?.band.name ?? 'this show'} at ${show.venue.name} — more info`}
-              className="block max-h-[500px] max-w-full rounded-lg bg-surface object-contain"
-            />
-          </a>
-        ) : (
-          <img
-            src={show.flyerImageUrl}
-            alt={`Flyer for ${acts[0]?.band.name ?? 'this show'} at ${show.venue.name}`}
-            className="mx-auto block max-h-[500px] max-w-full rounded-lg bg-surface object-contain"
+      <div className="flex items-center gap-4">
+        <div className="min-w-0 flex-1">
+          <PageHeader
+            eyebrow={show.status === 'cancelled' || show.status === 'postponed' ? <StatusBadge status={show.status} size="detail" /> : undefined}
+            aside={
+              <>
+                <span>{formatDateLongYear(show.date)}</span>
+                {upcoming && (
+                  <span className="flex items-center">
+                    <a href={icsHref(show.id)} download={icsFilename(show)} aria-label="Add to calendar (.ics)" title="Add to calendar (.ics)"
+                       className="rounded-full p-1 hover:bg-muted hover:text-link">
+                      <ArrowDownTrayIcon className="size-4" />
+                    </a>
+                    <a href={googleCalendarUrl(show)} target="_blank" rel="noopener noreferrer" aria-label="Add to Google Calendar"
+                       title="Add to Google Calendar" className="rounded-full p-1 hover:bg-muted hover:text-link">
+                      <CalendarDaysIcon className="size-4" />
+                    </a>
+                  </span>
+                )}
+              </>
+            }
+            title={acts[0]?.band.name ?? 'Unknown'}
+            subtitle={<>at <VenueLink slug={show.venue.slug} className="text-link underline underline-offset-2">{show.venue.name}</VenueLink> · {show.venue.city}</>}
           />
-        )
-      )}
+        </div>
+        {show.flyerImageUrl && <ShowFlyer show={show} headliner={acts[0]?.band.name ?? 'this show'} />}
+      </div>
 
       <div className="flex flex-col gap-4 rounded-lg bg-surface p-5">
         <FactList facts={[
@@ -172,5 +154,25 @@ export default function ShowDetail({ show }: ShowDetailProps) {
         </Section>
       )}
     </article>
+  )
+}
+
+/**
+ * A Show's flyer from its Venue's own calendar, right-aligned beside the headliner and venue (DESIGN.md, "Show
+ * flyer"): on phones the same 64px box as a Band's photo circle (BandDetail.tsx), but a rectangle, cropped to
+ * fill it; from `sm`, its own size up to 300px tall, never cropped (a flyer is a poster meant to be seen whole).
+ * When the Venue's calendar also gave a more-info link, the flyer is that link; otherwise it's just shown.
+ */
+function ShowFlyer({ show, headliner }: { show: Show, headliner: string }) {
+  const alt = `Flyer for ${headliner} at ${show.venue.name}` + (show.moreInfoUrl ? ' — more info' : '')
+  const img = (
+    <img src={show.flyerImageUrl!} alt={alt}
+         className="size-16 rounded-lg bg-surface object-cover sm:h-auto sm:max-h-[300px] sm:w-auto sm:max-w-full sm:object-contain" />
+  )
+  if (!show.moreInfoUrl) return <div className="shrink-0">{img}</div>
+  return (
+    <a href={show.moreInfoUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
+      {img}
+    </a>
   )
 }

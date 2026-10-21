@@ -190,8 +190,8 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
 - **Detail pages (Show, Venue, Band):** in order: Back, `PageHeader`, key facts, actions, then `Section`s. A Show
   has Lineup, Venue and Notes; a Venue has Details, Upcoming Shows and About; a Band has Upcoming Shows, Members, Social
   and Similar Bands. Upcoming Shows on Venue and Band pages are one panel of Show list items, each with its compact
-  date, with no date headings. A Show's flyer, when the Venue's own calendar had one, sits below `PageHeader`,
-  above key facts (see "Show flyer" below).
+  date, with no date headings. A Show's flyer, when the Venue's own calendar had one, sits right of `PageHeader`,
+  not below it (see "Show flyer" below).
 - **Loading (`Ghost`):** anything waiting on Supabase (who's signed in, their alerts and weekly email setting, an
   unsubscribe) shows ghost placeholders: `line`-coloured bars in the shape of the content to come, pulsing
   (`motion-safe:animate-pulse`, so still for reduced motion). Headings that are already known stay real. Ghosts are
@@ -212,13 +212,16 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
   whose `<figcaption>` credits it, as its licence requires: "Photo: <author>, <licence>, via Wikimedia Commons" in
   `text-xs ink-muted`, with the licence and "Wikimedia Commons" (the photo's page) as running-text links. A photo
   from Discogs reads "Photo via Discogs", linking the artist's Discogs page. The edition's photos have no credit.
-- **Show flyer:** when the Venue's own calendar had one (`backend/app/ingestion/venue_calendar.py`), centred
-  below `PageHeader`, at most 500px tall, `object-contain` on a `surface` background (never `object-cover`), at
-  its own natural width up to the column: a flyer is a poster meant to be seen whole, not cropped around a face
-  the way a Band photo is, so it has no focal point. When the entry also gave a more-info link, the flyer is
-  that link (no separate button); its alt text then says so ("Flyer for \<headliner\> at \<venue\> — more info"),
-  else alt text is just "Flyer for \<headliner\> at \<venue\>". No credit line — a flyer carries its own
-  branding, with no attribution requirement. A Show without one shows nothing in its place.
+- **Show flyer:** when the Venue's own calendar had one (`backend/app/ingestion/venue_calendar.py`), right-aligned
+  beside the headliner name and venue line (`PageHeader`'s title and subtitle, in a row beside it, vertically
+  centred), shrinking to fit rather than pushing them. At `sm` and up, at most 300px tall, at its own natural
+  width, `object-contain` (never `object-cover`): a flyer is a poster meant to be seen whole, not cropped around
+  a face the way a Band photo is, so it has no focal point. On phones, the same 64px box as a Band photo's
+  circle (`size-16`), but a rectangle (not `rounded-full`), `object-cover`-cropped to fill it — a thumbnail,
+  not the poster in full, at that size. 8px radius either way. When the entry also gave a more-info link, the
+  flyer is that link (no separate button); its alt text then says so ("Flyer for \<headliner\> at \<venue\> —
+  more info"), else alt text is just "Flyer for \<headliner\> at \<venue\>". No credit line — a flyer carries
+  its own branding, with no attribution requirement. A Show without one shows nothing in its place.
 - **Band members (`BandMembers`):** a **Members** section after Upcoming Shows, from Discogs: current members as a
   wrapping list of `text-sm` semibold `ink` names, then a `text-xs ink-muted` "Formerly" label over a wrapping list
   of past members in `ink-soft`. Each is a real `<ul>`, named "Current members" and "Formerly". Hidden without
