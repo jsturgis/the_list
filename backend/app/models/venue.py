@@ -45,6 +45,12 @@ class Venue(Base):
     is_sober_space: Mapped[Optional[bool]] = mapped_column(Boolean)
     is_cash_only: Mapped[Optional[bool]] = mapped_column(Boolean)
     membership_required: Mapped[Optional[bool]] = mapped_column(Boolean)
+    # The Venue's own calendar page, found by app/ingestion/venue_calendar.py (or set by a correction,
+    # app/ingestion/venue_corrections.py). calendar_checked_at is when discovery was last attempted, success or
+    # failure, so a Venue is asked at most once; None means never attempted. `python -m app.cli backfill
+    # --recheck-calendars` clears it to force another try.
+    calendar_url: Mapped[Optional[str]] = mapped_column(String(500))
+    calendar_checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

@@ -199,7 +199,7 @@ def test_the_migration_adds_and_removes_the_focal_point_column(tmp_path):
         con.execute("INSERT INTO bands VALUES (1, 'Crowbar', 'bands/1-a.webp', NULL)")
     _alembic(db_path, "stamp", "d5a7b9c1e3f4")
 
-    _alembic(db_path, "upgrade", "head")
+    _alembic(db_path, "upgrade", "e6f8a0b2c4d7")  # the focal-point migration itself, not whatever head is now
     assert "image_focus" in _band_columns(db_path)
     with sqlite3.connect(db_path) as con:
         assert con.execute("SELECT name, image_url, image_focus FROM bands").fetchall() == [

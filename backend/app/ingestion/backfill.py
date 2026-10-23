@@ -41,6 +41,7 @@ from app.ingestion.wikimedia import commons_photo
 from app.models.act import Act
 from app.models.band import Band
 from app.models.show import Show, ShowStatus
+from app.models.venue import Venue
 from app.pipeline.embed import embed_and_index_band
 from app.pipeline.enrichment import _enrich_band
 
@@ -160,6 +161,16 @@ def recheck_photos(db: Session) -> int:
         band.enriched_at = None
     db.commit()
     return len(bands)
+
+
+def recheck_calendars(db: Session) -> int:
+    """Mark every checked Venue to look for its calendar again next ingest (app/ingestion/venue_calendar.py),
+    e.g. after adding or changing a correction (app/ingestion/venue_corrections.py). Returns how many were marked."""
+    venues = db.query(Venue).filter(Venue.calendar_checked_at.is_not(None)).all()
+    for venue in venues:
+        venue.calendar_checked_at = None
+    db.commit()
+    return len(venues)
 
 
 def recheck_genres(db: Session) -> int:

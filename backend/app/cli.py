@@ -8,6 +8,7 @@
     python -m app.cli backfill --max-minutes 300          # look existing Bands up on the services (resumable)
     python -m app.cli backfill --redo "Sunblind"          # ... first redoing a Band matched to the wrong artist
     python -m app.cli backfill --recheck-photos           # ... first marking Bands that could have a Bandcamp photo
+    python -m app.cli backfill --recheck-calendars        # ... first marking every checked Venue to look again
     python -m app.cli photo-focus                         # focal points for stored Band photos without one
     python -m app.cli photo-focus --all                   # ... or for every stored Band photo
 """
@@ -54,7 +55,7 @@ def alerts(dry_run: bool, only: str | None) -> None:
 
 
 def backfill(max_minutes: float, limit: int | None, recheck: bool = False, redo: list[str] | None = None,
-             recheck_photos: bool = False) -> None:
+             recheck_photos: bool = False, recheck_calendars: bool = False) -> None:
     """Look existing Bands up on the services until done, out of time or at the limit (see app/ingestion/backfill)."""
     from app.ingestion import backfill as backfills
     from app.ingestion.discogs import discogs_key_problem
@@ -74,6 +75,8 @@ def backfill(max_minutes: float, limit: int | None, recheck: bool = False, redo:
         if recheck_photos:
             print(f"backfill: {backfills.recheck_photos(db)} bands with a Bandcamp page and no service photo, "
                   "to look up again")
+        if recheck_calendars:
+            print(f"backfill: {backfills.recheck_calendars(db)} venues to look up their calendar again")
         if redo:
             if missing := backfills.redo_bands(db, redo, settings.images_path):
                 sys.exit("backfill: no band named " + ", ".join(repr(name) for name in missing))
@@ -114,6 +117,8 @@ def main(argv: list[str] | None = None) -> None:
                               help="first mark Bands whose genres hold a tag that isn't one, to look them up again")
     backfill_cmd.add_argument("--recheck-photos", action="store_true",
                               help="first mark Bands with a Bandcamp page and no service photo, to look them up again")
+    backfill_cmd.add_argument("--recheck-calendars", action="store_true",
+                              help="first mark every checked Venue to look for its calendar again")
     backfill_cmd.add_argument("--redo", action="append", metavar="NAME",
                               help="first drop what the services gave this Band (matched to the wrong artist) and look "
                                    "it up again from scratch; repeatable")
@@ -136,7 +141,7 @@ def main(argv: list[str] | None = None) -> None:
         alerts(dry_run=args.dry_run, only=args.only)
     elif args.command == "backfill":
         backfill(max_minutes=args.max_minutes, limit=args.limit, recheck=args.recheck_genres, redo=args.redo,
-                 recheck_photos=args.recheck_photos)
+                 recheck_photos=args.recheck_photos, recheck_calendars=args.recheck_calendars)
     elif args.command == "photo-focus":
         photo_focus(recompute=args.all)
 

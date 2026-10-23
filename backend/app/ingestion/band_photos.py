@@ -12,15 +12,14 @@ server error, timeout) keeps the remote URL, so the next ingest tries again.
 """
 from __future__ import annotations
 
-import hashlib
-import io
 import logging
 from pathlib import Path
 
 import httpx
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
+from app.ingestion.image_store import Fetched, fetch_image, is_stored, site_path, store
 from app.ingestion.photo_focus import detect_faces, focus_for, photo_focus_of
 from app.models.band import Band
 
@@ -28,38 +27,10 @@ logger = logging.getLogger(__name__)
 
 MAX_WIDTH = 800
 MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024  # some Wikimedia originals are scans or panoramas; no Band photo needs more
-_GONE = (404, 410)
-_QUALITY = 80
 _USER_AGENT = "the-list/0.1 (https://github.com/jsturgis/the_list)"  # Wikimedia rejects requests without one
-_SITE_PREFIX = "/images/"
 
-
-def is_stored(image_url: str | None) -> bool:
-    """Whether an image is a stored photo (a path in the images folder) rather than a remote URL."""
-    return bool(image_url) and not image_url.startswith(("http://", "https://"))
-
-
-def site_path(image_url: str | None) -> str | None:
-    """The URL the site serves an image at: a stored photo under /images/, a remote URL as it is."""
-    return _SITE_PREFIX + image_url if is_stored(image_url) else image_url
-
-
-def _webp(data: bytes) -> bytes | None:
-    """The image resized to at most MAX_WIDTH wide (aspect kept, never enlarged) as WebP, or None if it isn't one."""
-    try:
-        with Image.open(io.BytesIO(data)) as img:
-            img.load()
-            # Cameras store photos sideways with an orientation tag; WebP drops the tag, so apply it first.
-            img = ImageOps.exif_transpose(img)
-            if img.width > MAX_WIDTH:
-                img = img.resize((MAX_WIDTH, round(img.height * MAX_WIDTH / img.width)), Image.LANCZOS)
-            if img.mode not in ("RGB", "RGBA"):
-                img = img.convert("RGBA" if "transparency" in img.info or img.mode in ("LA", "P") else "RGB")
-            out = io.BytesIO()
-            img.save(out, "WEBP", quality=_QUALITY, method=6)
-            return out.getvalue()
-    except (UnidentifiedImageError, Image.DecompressionBombError, OSError, ValueError):
-        return None
+__all__ = ["MAX_WIDTH", "MAX_DOWNLOAD_BYTES", "is_stored", "site_path", "save_band_photo", "save_band_photos",
+           "fill_photo_focus"]
 
 
 def _focus(data: bytes, band: Band) -> dict | None:
@@ -79,43 +50,23 @@ def save_band_photo(band: Band, url: str, images_dir: str | Path, client: httpx.
     """
     own_client = client is None
     client = client or httpx.Client(timeout=20, follow_redirects=True, headers={"User-Agent": _USER_AGENT})
-    gone = False  # the photo itself is missing or unusable, not just unavailable right now
-    data = None
     try:
-        with client.stream("GET", url) as response:
-            if response.status_code == 200:
-                body = bytearray()
-                for chunk in response.iter_bytes():
-                    body += chunk
-                    if len(body) > MAX_DOWNLOAD_BYTES:
-                        break
-                too_big = len(body) > MAX_DOWNLOAD_BYTES
-                data = None if too_big else _webp(bytes(body))
-                gone = data is None
-            else:
-                gone = response.status_code in _GONE
-    except httpx.HTTPError:
-        pass  # timeouts, network errors: try again next ingest
+        fetched: Fetched = fetch_image(url, client, max_download_bytes=MAX_DOWNLOAD_BYTES, max_width=MAX_WIDTH)
     finally:
         if own_client:
             client.close()
 
-    if data is None:
-        logger.info("band photos: couldn't use %s for %s (%s)", url, band.name, "gone" if gone else "will retry")
-        if gone and not is_stored(band.image_url):
+    if fetched.data is None:
+        logger.info("band photos: couldn't use %s for %s (%s)", url, band.name,
+                    "gone" if fetched.gone else "will retry")
+        if fetched.gone and not is_stored(band.image_url):
             band.image_url = None
             band.image_credit = None  # a credit goes with its photo
         return False
 
-    relative = f"bands/{band.id}-{hashlib.sha256(data).hexdigest()[:10]}.webp"
-    images_dir = Path(images_dir)
-    (images_dir / relative).parent.mkdir(parents=True, exist_ok=True)
-    (images_dir / relative).write_bytes(data)
     old = band.image_url
-    band.image_url = relative
-    band.image_focus = _focus(data, band)
-    if is_stored(old) and old != relative:
-        (images_dir / old).unlink(missing_ok=True)
+    band.image_url = store(fetched.data, prefix="bands", key=str(band.id), images_dir=images_dir, old=old)
+    band.image_focus = _focus(fetched.data, band)
     return True
 
 

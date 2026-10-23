@@ -1,6 +1,8 @@
+import type { CSSProperties } from 'react'
 import type { Show } from '@/lib/types'
 import { formatTime, formatPrice, formatDateLongYear, mapsHref, ticketProviderLabel } from '@/lib/format'
-import { ArrowDownTrayIcon, BanknotesIcon, CalendarDaysIcon, ClockIcon, GlobeAltIcon, MapPinIcon, SparklesIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
+import { ArrowDownTrayIcon, BanknotesIcon, CalendarDaysIcon, ClockIcon, GlobeAltIcon, InformationCircleIcon, MapPinIcon, SparklesIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
+import { href } from '@/lib/basePath'
 import { googleCalendarUrl, icsFilename, icsHref } from '@/lib/calendar'
 import ActionLinks, { ActionLink } from './ActionLinks'
 import BandLink from './BandLink'
@@ -47,7 +49,21 @@ export default function ShowDetail({ show }: ShowDetailProps) {
   const upcoming = show.status === 'upcoming'
 
   return (
-    <article className="flex flex-col gap-6">
+    <article
+      className="relative flex flex-col gap-6"
+      style={show.flyerAccentColor ? ({ '--flyer-accent': show.flyerAccentColor } as CSSProperties) : undefined}
+    >
+      {show.flyerImageUrl && (
+        <div
+          aria-hidden="true"
+          data-testid="show-flyer-background"
+          className="pointer-events-none absolute inset-y-0 left-1/2 -z-10 w-screen -translate-x-1/2 overflow-hidden [mask-image:linear-gradient(to_bottom,black,black_60%,transparent)]"
+        >
+          <img src={show.flyerImageUrl.startsWith('/') ? href(show.flyerImageUrl) : show.flyerImageUrl} alt="" className="size-full scale-110 object-cover blur-md" />
+          <div className="absolute inset-0 bg-page/60" />
+        </div>
+      )}
+
       {show.specialEvent && (
         <div
           role="note"
@@ -64,16 +80,26 @@ export default function ShowDetail({ show }: ShowDetailProps) {
         aside={
           <>
             <span>{formatDateLongYear(show.date)}</span>
-            {upcoming && (
+            {(upcoming || show.moreInfoUrl) && (
               <span className="flex items-center">
-                <a href={icsHref(show.id)} download={icsFilename(show)} aria-label="Add to calendar (.ics)" title="Add to calendar (.ics)"
-                   className="rounded-full p-1 hover:bg-muted hover:text-link">
-                  <ArrowDownTrayIcon className="size-4" />
-                </a>
-                <a href={googleCalendarUrl(show)} target="_blank" rel="noopener noreferrer" aria-label="Add to Google Calendar"
-                   title="Add to Google Calendar" className="rounded-full p-1 hover:bg-muted hover:text-link">
-                  <CalendarDaysIcon className="size-4" />
-                </a>
+                {upcoming && (
+                  <>
+                    <a href={icsHref(show.id)} download={icsFilename(show)} aria-label="Add to calendar (.ics)" title="Add to calendar (.ics)"
+                       className="rounded-full p-1 hover:bg-muted hover:text-link">
+                      <ArrowDownTrayIcon className="size-4" />
+                    </a>
+                    <a href={googleCalendarUrl(show)} target="_blank" rel="noopener noreferrer" aria-label="Add to Google Calendar"
+                       title="Add to Google Calendar" className="rounded-full p-1 hover:bg-muted hover:text-link">
+                      <CalendarDaysIcon className="size-4" />
+                    </a>
+                  </>
+                )}
+                {show.moreInfoUrl && (
+                  <a href={show.moreInfoUrl} target="_blank" rel="noopener noreferrer" aria-label="More info" title="More info"
+                     className="rounded-full p-1 hover:bg-muted hover:text-link">
+                    <InformationCircleIcon className="size-4" />
+                  </a>
+                )}
               </span>
             )}
           </>
@@ -82,7 +108,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
         subtitle={<>at <VenueLink slug={show.venue.slug} className="text-link underline underline-offset-2">{show.venue.name}</VenueLink> · {show.venue.city}</>}
       />
 
-      <div className="flex flex-col gap-4 rounded-lg bg-surface p-5">
+      <div className="flex flex-col gap-4 rounded-lg bg-flyer-tint p-5">
         <FactList facts={[
           ...(door ? [{ icon: ClockIcon, label: set ? 'Doors / Set' : 'Doors', value: set ? `${door} / ${set}` : door }] : []),
           { icon: BanknotesIcon, label: 'Price', value: price },

@@ -15,7 +15,9 @@ const slug = (title: ReactNode) => `section-${String(title).toLowerCase().replac
 
 /**
  * A titled part of a page (DESIGN.md, "Sections"): a 24px bold h2 above a `surface` panel, named by that heading so
- * it's a landmark region for screen readers. Extra attributes (data-*, className) go on the <section>.
+ * it's a landmark region for screen readers. Extra attributes (data-*, className) go on the <section>. The panel
+ * uses `bg-flyer-tint` (DESIGN.md, "Show flyer") rather than plain `bg-surface`: outside a Show page with a
+ * flyer, that's a no-op and renders exactly like `bg-surface`.
  */
 export default function Section({ title, aside, headingId, plain = false, className = '', children, ...rest }: SectionProps) {
   const id = headingId ?? slug(title)
@@ -33,7 +35,7 @@ export default function Section({ title, aside, headingId, plain = false, classN
       ) : (
         <h2 id={id} className="text-2xl font-bold text-ink">{title}</h2>
       )}
-      {plain ? children : <div className="flex flex-col gap-3 rounded-lg bg-surface p-5">{children}</div>}
+      {plain ? children : <div className="flex flex-col gap-3 rounded-lg bg-flyer-tint p-5">{children}</div>}
     </section>
   )
 }

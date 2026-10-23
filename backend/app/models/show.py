@@ -63,6 +63,13 @@ class Show(Base):
     is_benefit: Mapped[bool] = mapped_column(Boolean, default=False)
     benefit_cause: Mapped[Optional[str]] = mapped_column(String(255))
     special_event: Mapped[Optional[str]] = mapped_column(String(255))
+    # From the Venue's own calendar (app/ingestion/venue_calendar.py): a stored path (as Band.image_url) or a
+    # remote URL not yet downloaded, a link to the Show's own page on the Venue's site, and (when Steve's edition
+    # has none) a ticket link. Never overwrites what the edition already gave the Show.
+    flyer_image_url: Mapped[Optional[str]] = mapped_column(String(500))
+    more_info_url: Mapped[Optional[str]] = mapped_column(String(500))
+    # The flyer's accent colour (app/ingestion/flyer_color.py), as "#rrggbb": used to tint the Show page's panels.
+    flyer_accent_color: Mapped[Optional[str]] = mapped_column(String(7))
     raw_text: Mapped[Optional[str]] = mapped_column(Text)
     embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

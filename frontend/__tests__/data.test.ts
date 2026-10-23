@@ -17,7 +17,7 @@ const show = (id: number, date: string, status = 'upcoming', acts: ExportShow['a
   id, slug: `show-${id}`, date, doorTime: '20:00:00', setTime: null, priceMin: 15, priceMax: 20, isFree: false, ageRestriction: '21+',
   status, isRecommended: false, willSellOut: false, isPit: false, isDrinkTickets: false, isNoReentry: false,
   notes: null, isMatinee: false, isSoldOut: false, ticketProvider: null, ticketUrl: null, isBenefit: false, benefitCause: null,
-  specialEvent: null, venueId: 1, acts,
+  specialEvent: null, flyerImageUrl: null, moreInfoUrl: null, flyerAccentColor: null, venueId: 1, acts,
 })
 
 describe('hydrateShows', () => {

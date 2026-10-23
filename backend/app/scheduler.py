@@ -28,7 +28,9 @@ from app.ingestion.ingest_stats import new_band_stats
 from app.ingestion.joint_bands import joint_parts, split_joint_acts, split_joint_name
 from app.ingestion.lastfm import lastfm_tags
 from app.ingestion.links import check_links
+from app.ingestion.show_flyers import save_show_flyers
 from app.ingestion.upsert import find_venue, known_region, upsert_shows
+from app.ingestion.venue_calendar import enrich_shows_from_venue_calendars
 from app.ingestion.wikimedia import commons_photo
 from app.models.act import Act
 from app.models.band import Band
@@ -280,6 +282,15 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
         logger.info("ingestion: %s new bands; %s%% without a photo; from the edition: genres %s%%, photo %s%%, "
                     "links %s%%", run.new_bands, run.new_bands_without_photo_pct, run.new_bands_genres_from_edition_pct,
                     run.new_bands_photo_from_edition_pct, run.new_bands_links_from_edition_pct)
+
+        # Each Show's own Venue calendar, when it has one: a flyer, a more-info link, and (when Steve's edition has
+        # none) a ticket link. Never overwrites what the edition already gave the Show.
+        matched = await loop.run_in_executor(None, enrich_shows_from_venue_calendars, shows)
+        stored_flyers = await loop.run_in_executor(None, save_show_flyers, shows, settings.images_path)
+        db.commit()
+        if matched:
+            logger.info("ingestion: matched %d shows against their venue's calendar; saved %d flyers",
+                        matched, stored_flyers)
 
         logger.info("ingestion: embedding and indexing")
         await batch_embed_and_index(db, shows)
