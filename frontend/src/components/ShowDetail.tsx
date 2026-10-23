@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import type { Show } from '@/lib/types'
 import { formatTime, formatPrice, formatDateLongYear, mapsHref, ticketProviderLabel } from '@/lib/format'
 import { ArrowDownTrayIcon, BanknotesIcon, CalendarDaysIcon, ClockIcon, GlobeAltIcon, InformationCircleIcon, MapPinIcon, SparklesIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
+import { href } from '@/lib/basePath'
 import { googleCalendarUrl, icsFilename, icsHref } from '@/lib/calendar'
 import ActionLinks, { ActionLink } from './ActionLinks'
 import BandLink from './BandLink'
@@ -58,7 +59,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
           data-testid="show-flyer-background"
           className="pointer-events-none absolute inset-y-0 left-1/2 -z-10 w-screen -translate-x-1/2 overflow-hidden [mask-image:linear-gradient(to_bottom,black,black_60%,transparent)]"
         >
-          <img src={show.flyerImageUrl} alt="" className="size-full scale-110 object-cover blur-md" />
+          <img src={show.flyerImageUrl.startsWith('/') ? href(show.flyerImageUrl) : show.flyerImageUrl} alt="" className="size-full scale-110 object-cover blur-md" />
           <div className="absolute inset-0 bg-page/60" />
         </div>
       )}

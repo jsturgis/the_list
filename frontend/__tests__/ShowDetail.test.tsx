@@ -1,7 +1,9 @@
 import { render, screen } from '@testing-library/react'
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import ShowDetail from '@/components/ShowDetail'
 import { makeShow, makeVenue, makeBand } from './fixtures'
+
+afterEach(() => { vi.unstubAllEnvs() })
 
 describe('ShowDetail', () => {
   const show = makeShow({
@@ -158,10 +160,12 @@ describe('ShowDetail', () => {
   })
 
   it('shows the flyer from the venue calendar as a blurred background when there is one', () => {
+    vi.stubEnv('BASE_URL', '/the_list/')
     render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp' })} />)
     const bg = screen.getByTestId('show-flyer-background')
     expect(bg).toHaveAttribute('aria-hidden', 'true')
-    expect(bg.querySelector('img')).toHaveAttribute('src', '/images/shows/1-abc.webp')
+    // Under the base path the site is served from, like a Band's photo, or it 404s on GitHub Pages.
+    expect(bg.querySelector('img')).toHaveAttribute('src', '/the_list/images/shows/1-abc.webp')
   })
 
   it('has no flyer background when there is none', () => {
