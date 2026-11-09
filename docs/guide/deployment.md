@@ -1,7 +1,7 @@
 ---
 title: Deployment
 description: The weekly Deploy workflow, the data branch, backfills and rollbacks.
-order: 5
+order: 6
 ---
 
 The site is published at **https://list.sturgis.me/** as a static site on GitHub Pages (see
@@ -17,7 +17,8 @@ redirects there.
   index (`faiss/`) and Band photos (`images/`). `main` never contains data files. It keeps only its newest 4 commits (the current
   data plus 3 to roll back to): after each ingest, older history is squashed into the oldest kept
   commit and the branch is force-pushed (`.github/scripts/prune-history.sh`).
-- **The Deploy workflow** (`.github/workflows/deploy.yml`) has three stages:
+- **The Deploy workflow** (`.github/workflows/deploy.yml`) has three stages (diagrams of its triggers and of the
+  weekly run are in [Architecture](architecture.md#offline-jobs)):
   1. **Ingest**: runs `python -m app.cli ingest` against the `data` branch's database (with an Ollama
      service container for embeddings) and commits the changed database, index and Band photos back to
      `data`. Each run's row in `ingestion_runs` records its new Bands and, as percentages, how many have no

@@ -1,8 +1,10 @@
 ---
 title: Project structure
 description: Where things live in the repository.
-order: 7
+order: 8
 ---
+
+For how these parts work together, see the diagrams in [Architecture](architecture.md).
 
 ```
 backend/
@@ -14,7 +16,7 @@ backend/
     ingestion/       # Drive fetch, edition mapping, upsert, image URL checks, venue clean-up scripts
     pipeline/        # Google Places + MusicBrainz enrichment, embedding
     embeddings/      # Ollama client + FAISS indices
-    models/          # SQLAlchemy ORM models (Show, Band, Venue, Act, IngestionRun)
+    models/          # SQLAlchemy ORM models (Show, Band, Venue, Act, IngestionRun, GenreTag)
     graphql/         # Strawberry types, queries, mutations
   tests/
   alembic/           # Database migrations
@@ -33,5 +35,5 @@ docs/
   adr/               # Architecture decision records
   guide/             # these docs, rendered on the site at /docs/ (frontend/src/pages/docs)
   agents/            # Agent skill docs (issue tracker, triage labels, domain)
-.github/workflows/   # backend and frontend tests, Deploy (weekly ingest + Pages)
+.github/workflows/   # backend and frontend tests, Deploy (weekly ingest + Pages), Backfill
 ```

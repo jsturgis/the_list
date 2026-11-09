@@ -4,7 +4,7 @@ import { ArrowLeftIcon } from '@heroicons/react/20/solid'
 import Layout from '@/layouts/Layout.astro'
 import PageHeader from '@/components/PageHeader'
 import { href } from '@/lib/basePath'
-import { type Guide, guides, guideSource } from '@/lib/docs'
+import { type Guide, guides, guideSource, hasDiagram } from '@/lib/docs'
 
 // One page per guide in docs/guide/, at its file name (/docs/local-setup/).
 export const getStaticPaths = (() =>
@@ -23,4 +23,11 @@ const { guide } = Astro.props as { guide: Guide }
   <p class="text-sm text-ink-muted">
     <a href={guideSource(guide.slug)} class="text-link underline underline-offset-2">Edit this page on GitHub</a>
   </p>
+  {hasDiagram(guide.html) && (
+    <script>
+      // Only on guides with a diagram: draws them, loading Mermaid (lib/diagrams).
+      import { drawDiagrams } from '@/lib/diagrams'
+      void drawDiagrams()
+    </script>
+  )}
 </Layout>

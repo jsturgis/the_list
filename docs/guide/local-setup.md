@@ -1,7 +1,7 @@
 ---
 title: Local setup
 description: Run the backend, an ingest and the site on your own machine.
-order: 2
+order: 3
 ---
 
 ## Docker (recommended)

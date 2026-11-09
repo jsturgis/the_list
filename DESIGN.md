@@ -245,6 +245,15 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
   `ink-soft` on the page, `h2`s as Sections' (24px bold `ink`), links in running text underlined in `link`, inline
   code on `muted` in `ink`, and code blocks and tables in `surface` panels (8px radius) that scroll sideways on their
   own, focusable from the keyboard. It ends with an "Edit this page on GitHub" link.
+  - *Diagrams:* a ```` ```mermaid ```` block in a guide is drawn with Mermaid (`src/lib/diagrams.ts`), loaded only
+    on guides that have one. Each sits in a `surface` panel (8px radius, 16px padding) named after its `accTitle`
+    (`role="region"`, focusable, like tables), centred, at most its own size and shrunk to fit the column down to
+    80%; below that (phones) the panel scrolls sideways rather than shrinking the text. Its colours are the theme's
+    tokens, read from the page, and it's drawn again when the system switches light and dark: boxes `muted` with
+    `ink` text and a `line-strong` border, groups on `page`, arrows `ink-muted` with labels on `surface`, notes
+    `accent-soft` with `accent-soft-ink`, and table rows alternating `surface` and `page`. Text is Figtree at 15px.
+    Until it's drawn, or without JavaScript, the panel shows the diagram's source like a code block. Keep diagrams
+    narrow (top to bottom, short labels, about 15 boxes) so they fit the 672px column.
 - **Links:** links inside running text (a sentence) are `text-link underline underline-offset-2`, always
   underlined, so colour isn't the only cue. Standalone links (rows, lists, the Venue name, facts) are underlined
   on hover only. Navigation links (header, Back) are `ink-muted` and turn `ink-soft` on hover.

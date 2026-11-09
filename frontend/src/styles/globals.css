@@ -317,4 +317,20 @@ body {
   .docs-prose td:first-child {
     white-space: nowrap;
   }
+  /* Diagrams (lib/diagrams): centred in a surface panel, at most their own size and shrunk to fit down to
+     --diagram-min; past that (phones) the panel scrolls sideways. Until they're drawn, or without JavaScript, the
+     panel shows their source like a code block. */
+  .docs-prose .docs-diagram {
+    @apply overflow-x-auto rounded-lg bg-surface text-sm text-ink;
+  }
+  .docs-prose .docs-diagram pre {
+    @apply w-max min-w-full overflow-visible rounded-none bg-transparent;
+  }
+  .docs-prose .docs-diagram-svg {
+    @apply p-4;
+    width: max(100%, calc(var(--diagram-min, 0px) + 2rem));
+  }
+  .docs-prose .docs-diagram-svg svg {
+    @apply mx-auto h-auto;
+  }
 }

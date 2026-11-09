@@ -1,7 +1,7 @@
 ---
 title: Weekly Alerts
 description: Saved Filters, the weekly Alert email, and their one-time setup.
-order: 6
+order: 7
 ---
 
 People save the Shows list's filters as **Saved Filters** ("Setup Alert"), signing in with an emailed link.
