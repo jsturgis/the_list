@@ -18,6 +18,7 @@ on:
     paths:
       - 'frontend/**'
       - 'backend/app/**'   # the export lives in the backend
+      - 'docs/guide/**'    # the docs pages
       - '.github/workflows/deploy.yml'
 
 permissions:

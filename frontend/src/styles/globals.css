@@ -240,3 +240,81 @@ body {
 [data-js][data-query] [data-home-first-page] {
   visibility: hidden;
 }
+
+/*
+ * The docs pages (DESIGN.md, "Docs pages"): Markdown from docs/guide/, rendered at build time. Running text in
+ * ink-soft on the page, headings as Sections' h2s, and code and tables in surface panels that scroll on their own.
+ */
+@layer components {
+  .docs-prose {
+    @apply flex flex-col gap-4 text-ink-soft;
+  }
+  .docs-prose h2 {
+    @apply pt-4 text-2xl font-bold text-ink;
+  }
+  .docs-prose h3 {
+    @apply pt-2 text-xl font-bold text-ink;
+  }
+  .docs-prose strong {
+    @apply font-bold text-ink;
+  }
+  .docs-prose a {
+    @apply text-link underline underline-offset-2;
+  }
+  .docs-prose ul,
+  .docs-prose ol {
+    @apply flex flex-col gap-1.5 pl-6;
+  }
+  .docs-prose ul {
+    list-style: disc;
+  }
+  .docs-prose ol {
+    list-style: decimal;
+  }
+  .docs-prose li > ul,
+  .docs-prose li > ol,
+  .docs-prose li > pre {
+    @apply mt-1.5;
+  }
+  .docs-prose code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.875em;
+    overflow-wrap: anywhere;
+  }
+  .docs-prose :not(pre) > code {
+    @apply rounded bg-muted px-1 py-0.5 text-ink;
+  }
+  .docs-prose pre {
+    @apply overflow-x-auto rounded-lg bg-surface p-4 text-sm text-ink;
+  }
+  .docs-prose pre code {
+    overflow-wrap: normal;
+  }
+  .docs-prose blockquote {
+    @apply border-l-4 border-line-strong pl-4;
+  }
+  .docs-prose .docs-scroll {
+    @apply overflow-x-auto rounded-lg bg-surface;
+  }
+  /* Wide enough to read on phones, where it scrolls inside its panel. */
+  .docs-prose table {
+    @apply w-full min-w-[40rem] border-collapse text-sm;
+  }
+  .docs-prose th,
+  .docs-prose td {
+    @apply border-b border-line-subtle px-3 py-2 text-left align-top;
+  }
+  .docs-prose tr:last-child td {
+    @apply border-b-0;
+  }
+  .docs-prose th {
+    @apply font-bold text-ink;
+  }
+  /* Names in tables stay whole: the first column doesn't wrap, and the table scrolls instead on phones. */
+  .docs-prose table code {
+    overflow-wrap: normal;
+  }
+  .docs-prose td:first-child {
+    white-space: nowrap;
+  }
+}

@@ -20,7 +20,11 @@ export default defineConfig({
   build: { format: 'directory' },
   // sitemap-index.xml lists the pages for search engines (robots.txt points to it), not the noindex ones.
   integrations: [react(), sitemap({ filter: inSitemap })],
-  vite: { plugins: [tailwindcss()] },
+  // The docs pages (/docs/) render the Markdown in ../docs/guide/. Code is plain, styled by the theme's tokens in
+  // globals.css rather than a highlighter's colours.
+  markdown: { syntaxHighlight: false },
+  // The dev server may read ../docs/guide/, outside this project.
+  vite: { plugins: [tailwindcss()], server: { fs: { allow: ['..'] } } },
   // localhost:3000/the_list/alerts/** is on Supabase's sign-in redirect allow-list (ADR 0003).
   server: { port: 3000 },
 })

@@ -2,397 +2,50 @@
 
 A weekly SF Bay Area music discovery site, published at **https://list.sturgis.me/**.
 Every Friday, a GitHub Action ingests the formatted edition of [Steve List's](mailto:skoepke@stevelist.com)
-curated list, enriches it, and rebuilds a static site on GitHub Pages. A GraphQL API is available for
-exploring the data locally.
+curated list, enriches it with MusicBrainz, Last.fm, Discogs and Google Places, and rebuilds a static site on
+GitHub Pages. People can save searches and get a weekly email of the Shows that match.
 
 The List itself is also published each week as plain text (the original email, subscriber footer
 removed) in a [public Google Drive folder](https://drive.google.com/drive/folders/1plFG_Zp0lVbYOnzkbmHJ2DFTzYC8q1gH?usp=share_link).
 
-## What it does
+## Documentation
 
-1. **Ingests** the newest formatted edition (structured JSON: shows, venues, artists with genres and links)
-   from a public Google Drive folder each Friday
-2. **Parses** each show's details (prices, age restrictions, times, and flags: `*` recommended, `$` will
-   sell out, etc.)
-3. **Enriches** new venues with Google Maps Places (address, lat/lng, place ID), takes new bands' genres
-   and links from MusicBrainz, Last.fm and Discogs, the source of truth (the edition's are used only when every
-   service has nothing), and keeps only image URLs and links that work
-4. **Stores** shows, bands, venues, and acts in SQLite (Alembic-managed schema)
-5. **Indexes** band and show embeddings in FAISS for Similar Bands (Ollama `nomic-embed-text`)
-6. **Exports** the data to static JSON and builds an Astro static site with region, band, venue, genre,
-   date and free-only filters, all running in the browser
-7. **Serves** a Strawberry GraphQL API over FastAPI, for local development only
+The full docs are on the site, at **https://list.sturgis.me/docs/**:
+
+- [Overview](https://list.sturgis.me/docs/overview/): what it does, and the stack
+- [Local setup](https://list.sturgis.me/docs/local-setup/): Docker, seeding, the frontend, database migrations
+- [Configuration](https://list.sturgis.me/docs/configuration/): environment variables and the Drive scripts
+- [How ingestion works](https://list.sturgis.me/docs/ingestion/)
+- [Deployment](https://list.sturgis.me/docs/deployment/): the Deploy workflow, the `data` branch, backfills, rollbacks
+- [Weekly Alerts](https://list.sturgis.me/docs/alerts/)
+- [Project structure](https://list.sturgis.me/docs/project-structure/)
+
+Their source is Markdown in [`docs/guide/`](docs/guide/), and they're readable on GitHub too. Other docs in the
+repo: [`CONTEXT.md`](CONTEXT.md) (the domain language), [`DESIGN.md`](DESIGN.md) (the design system),
+[`docs/adr/`](docs/adr/) (architecture decisions) and [`frontend/README.md`](frontend/README.md).
+
+## Quick start
+
+```bash
+cp backend/.env.example backend/.env    # set GOOGLE_MAPS_API_KEY and DRIVE_LATEST_FILE_ID
+docker compose up --build               # GraphQL API at http://localhost:8000/graphql
+
+docker compose run --rm -v "$PWD/frontend/export:/export" api python -m app.cli export --out /export
+cd frontend && npm ci && npm run dev    # http://localhost:3000/the_list/
+```
+
+See [Local setup](docs/guide/local-setup.md) for the Ollama models, running an ingest and seeding from the sample edition.
+
+## Tests
+
+```bash
+docker compose run --rm --no-deps -v "$PWD/backend:/src" -w /src api \
+  sh -c "pip install -q -r requirements-dev.txt; python -m pytest -q"   # backend
+cd frontend && npm test && npm run typecheck && npm run lint      # frontend, as CI runs them
+```
 
 ## Stack
 
-| Layer | Tech |
-|---|---|
-| Backend | Python 3.12, FastAPI, Strawberry GraphQL |
-| ORM / migrations | SQLAlchemy 2, Alembic |
-| Database | SQLite (kept on the `data` branch in production) |
-| Enrichment | Google Maps Places API, MusicBrainz API; Claude Haiku 4.5 only for the manual venue re-enrichment job |
-| Embeddings | Ollama `nomic-embed-text` (dim=768) |
-| Vector search | FAISS `IndexIDMap(IndexFlatL2)` |
-| Photo focal points | OpenCV's YuNet face detector (`opencv-python-headless`; the model, `face_detection_yunet_2023mar.onnx` from the [OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet), is MIT-licensed and vendored in `backend/app/ingestion/yunet/` with its licence) |
-| Source | Formatted edition JSON on Google Drive (public link, `latest.json` pointer) |
-| Frontend | Astro static site with React islands, Tailwind; Vitest, React Testing Library, MSW, Playwright |
-| Hosting | GitHub Pages, built and deployed by GitHub Actions |
-
-**Design:** [`DESIGN.md`](DESIGN.md) describes the site's design system: the colour tokens (defined in
-`frontend/src/styles/globals.css`, switching with the system's light/dark setting), the Figtree typeface, the type
-scale and the component styles. Use the semantic tokens (`bg-surface`, `text-ink-muted`, `text-link`, …) rather than
-palette classes or `dark:` variants; a test keeps `DESIGN.md` and the stylesheet in sync.
-
-## Local setup
-
-### Docker (recommended)
-
-```bash
-cp backend/.env.example backend/.env
-# edit backend/.env: set GOOGLE_MAPS_API_KEY and DRIVE_LATEST_FILE_ID
-
-docker compose up --build
-```
-
-The API starts at `http://localhost:8000/graphql`. Tables are created automatically on first boot. The SQLite DB and FAISS indices are persisted in `./data/` on the host.
-
-**Pull the Ollama models** (one-time, needed for the full pipeline): the embedding model, and the genre model that
-judges whether a tag is a genre (`app/ingestion/genre_filter.py`; needs Ollama 0.35 or later, so
-`docker compose pull ollama` first if yours is older):
-```bash
-docker compose exec ollama ollama pull nomic-embed-text
-docker compose exec ollama ollama pull tev1:0.8b
-```
-
-**Run an ingest by hand** (maintenance, then the newest edition from Drive; the API server doesn't
-schedule anything, the weekly run is a GitHub Action):
-```bash
-docker compose exec api python -m app.cli ingest
-```
-
-**Seed from the sample edition** (no network calls: no Drive, Google Places, MusicBrainz or embeddings):
-```bash
-docker compose exec api python -c "
-import json
-from app.database import Base, SessionLocal, engine
-from app.ingestion.edition import edition_shows
-from app.ingestion.upsert import upsert_shows
-
-doc = json.load(open('/samples/Bay Area & Santa Cruz Concert Events - September 25, 2026 (v2.0.0 Final).json'))
-Base.metadata.create_all(bind=engine)
-db = SessionLocal()
-shows = upsert_shows(db, edition_shows(doc))
-db.commit()
-print(f'Upserted {len(shows)} shows')
-db.close()
-"
-```
-
-Then query at `http://localhost:8000/graphql`:
-```graphql
-{ shows(limit: 5) { date venue { name city } acts { band { name } } isRecommended } }
-```
-
-> If you have Ollama running locally already, remove the `ollama` service from `docker-compose.yml` and add `OLLAMA_BASE_URL=http://host.docker.internal:11434` to `.env`.
-
-**Frontend data.** The site is built from static JSON exported from the database, not the API. Export it
-into `frontend/export/` (gitignored; read at build time, not published) whenever the data changes, then run the
-frontend:
-
-```bash
-docker compose run --rm -v "$PWD/frontend/export:/export" api python -m app.cli export --out /export
-rm -rf frontend/public/images && cp -R data/images frontend/public/images   # Band photos, if any
-cd frontend && npm run dev     # http://localhost:3000/the_list/
-```
-
-The site is served from `/the_list/`, as on GitHub Pages. `npm run build` writes the static site to
-`frontend/dist/`; `npm run preview` serves it under that path.
-
-Frontend checks (the same ones CI runs):
-
-```bash
-cd frontend && npm test && npm run typecheck && npm run lint
-```
-
----
-
-### Without Docker
-
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements-dev.txt
-cp .env.example .env
-# edit .env: see the environment variables reference below
-```
-
-Run the tests:
-
-```bash
-python -m pytest
-```
-
-Start the API server (creates tables automatically on first boot):
-
-```bash
-uvicorn app.main:app --reload
-```
-
-GraphQL playground: http://localhost:8000/graphql. You also need Ollama running locally with
-`nomic-embed-text` pulled for a full ingest.
-
-## Environment variables reference
-
-Set these in `backend/.env` for local runs. The Deploy workflow sets its own (see [Deployment](#deployment)).
-
-### Required (no working default)
-
-| Variable | Description |
-|---|---|
-| `DRIVE_LATEST_FILE_ID` | Drive file id of the public `latest.json` pointer (see Drive setup below) |
-| `GOOGLE_MAPS_API_KEY` | Venue enrichment (address, lat/lng, place ID) |
-| `LASTFM_API_KEY` | Last.fm tags as new bands' genres when MusicBrainz has none (optional; without it Last.fm is skipped) |
-| `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET` | Discogs app credentials: new bands' members, photos, and genres after Last.fm's (optional; without them Discogs is skipped) |
-
-### Paths and services
-
-| Variable | Default | Notes |
-|---|---|---|
-| `DATABASE_URL` | `sqlite:///./the_list.db` | SQLite URL; Docker Compose sets `sqlite:////app/data/the_list.db` |
-| `FAISS_INDEX_PATH` | `./data/faiss` | Docker Compose sets `/app/data/faiss` |
-| `IMAGES_PATH` | `./data/images` | Band photos saved at ingest (`bands/<id>-<hash>.webp`); Docker Compose's `data` volume holds them at `/app/data/images` |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | URL of your Ollama instance |
-
-### Optional
-
-| Variable | Default | Notes |
-|---|---|---|
-| `ANTHROPIC_API_KEY` | (none) | Only for the manual venue re-enrichment job (LLM name clean-up and Wikipedia descriptions); ingestion makes no LLM calls |
-| `OLLAMA_EMBEDDING_MODEL` | `nomic-embed-text` | Change only if swapping embedding models (requires re-embedding everything) |
-| `DATA_RETENTION_DAYS` | `90` | Shows older than this are hard-deleted |
-| `TIMEZONE` | `America/Los_Angeles` | Timezone for "today" and Upcoming vs Past |
-| `MUSICBRAINZ_APP_NAME` | `the-list` | MusicBrainz user-agent |
-| `MUSICBRAINZ_APP_VERSION` | `0.1` | MusicBrainz user-agent |
-| `MUSICBRAINZ_CONTACT` | `https://github.com/jsturgis/the_list` | MusicBrainz user-agent contact |
-| `SUPABASE_URL` | (none) | Weekly Alerts: the Supabase project URL, `https://<ref>.supabase.co` (ADR 0003) |
-| `SUPABASE_SERVICE_ROLE_KEY` | (none) | Weekly Alerts: the project's secret key (`sb_secret_…`); it reads every Saved Filter, so keep it to GitHub secrets and a local `.env` |
-| `SITE_URL` | `https://list.sturgis.me` | Where links in the Alert emails point |
-
-> **Drive setup**: install `scripts/drive-publisher.gs` as a Google Apps Script with a daily trigger. It moves formatted editions from your Drive root into a public folder (raw email exports into a private one) and keeps `latest.json` pointing at the newest edition and, when there is one, its enriched export (`San Francisco Area Music List for <date>.enriched.json`), which the ingest uses to fill in missing venue details, ticket links and artist images. Set `DRIVE_LATEST_FILE_ID` to that file's id. Add `scripts/gmail-exporter.gs` to the same project to also save the newest List email (footer stripped) to the [public folder](https://drive.google.com/drive/folders/1plFG_Zp0lVbYOnzkbmHJ2DFTzYC8q1gH?usp=share_link) as `.txt`.
-
-> **Alerts dry run**: with the two Supabase settings in `backend/.env`, `docker compose run --rm api python -m app.cli alerts --dry-run`
-> prints this week's Alert emails (one per person whose Saved Filters match Upcoming Shows) without sending anything.
-> The Supabase schema is in `supabase/migrations/`, applied by hand in the SQL editor.
-
-## Project structure
-
-```
-backend/
-  app/
-    cli.py           # python -m app.cli ingest | export | alerts | backfill | photo-focus
-    scheduler.py     # ingestion pipeline and daily maintenance (run by `cli ingest`)
-    export.py        # static JSON export for the frontend
-    catalog.py       # filter options, Similar Bands, latest subject (shared by API and export)
-    ingestion/       # Drive fetch, edition mapping, upsert, image URL checks, venue clean-up scripts
-    pipeline/        # Google Places + MusicBrainz enrichment, embedding
-    embeddings/      # Ollama client + FAISS indices
-    models/          # SQLAlchemy ORM models (Show, Band, Venue, Act, IngestionRun)
-    graphql/         # Strawberry types, queries, mutations
-  tests/
-  alembic/           # Database migrations
-frontend/
-  src/
-    pages/           # Astro pages: home, Show, Band and Venue pages, Alerts, 404
-    layouts/         # the page shell: head, header, link behaviour script
-    components/      # UI (React)
-    lib/             # data loading, browser filtering, navigation, base path helper
-  __tests__/
-samples/             # sample edition JSON and the (redacted) email it came from
-scripts/
-  drive-publisher.gs # Google Apps Script that publishes editions to the public Drive folder
-  gmail-exporter.gs  # Google Apps Script that saves the newest List email to that folder as .txt
-docs/
-  adr/               # Architecture decision records
-  agents/            # Agent skill docs (issue tracker, triage labels, domain)
-.github/workflows/   # backend and frontend tests, Deploy (weekly ingest + Pages)
-```
-
-## Database migrations
-
-The API creates missing tables on startup, but new columns need an Alembic migration. Alembic uses the
-app's `DATABASE_URL`.
-
-```bash
-docker compose exec api alembic upgrade head
-```
-
-A database created by the app itself has no Alembic version yet. Mark it once, depending on which
-models created it:
-
-- **It already has the latest columns** (created by the current code): just record that it's up to date.
-  Running `upgrade` here fails, because the columns already exist.
-
-  ```bash
-  docker compose exec api alembic stamp head
-  ```
-
-- **It's missing newer columns** (created by older code): mark it at the first migration, then upgrade.
-
-  ```bash
-  docker compose exec api alembic stamp 5b5092d5ef44
-  docker compose exec api alembic upgrade head
-  ```
-
-Check with `docker compose exec api alembic current`: it should print the head revision.
-
-## Deployment
-
-The site is published at **https://list.sturgis.me/** as a static site on GitHub Pages (see
-[ADR 0002](docs/adr/0002-static-site-on-github-pages.md)). The old address, https://jsturgis.github.io/the_list/,
-redirects there.
-
-- **Custom domain**: set in Settings → Pages, with a `CNAME` record `list` → `jsturgis.github.io` in the
-  `sturgis.me` DNS. The build takes its base path and site URL from `actions/configure-pages`
-  (`PAGES_BASE_PATH`, `PAGES_SITE_URL`): `""` and `https://list.sturgis.me` with the domain, `/the_list` and
-  `https://jsturgis.github.io/the_list` without it. Local builds default to `/the_list`.
-
-- **The `data` branch** is an orphan branch holding the SQLite database (`the_list.db`), the FAISS
-  index (`faiss/`) and Band photos (`images/`). `main` never contains data files. It keeps only its newest 4 commits (the current
-  data plus 3 to roll back to): after each ingest, older history is squashed into the oldest kept
-  commit and the branch is force-pushed (`.github/scripts/prune-history.sh`).
-- **The Deploy workflow** (`.github/workflows/deploy.yml`) has three stages:
-  1. **Ingest**: runs `python -m app.cli ingest` against the `data` branch's database (with an Ollama
-     service container for embeddings) and commits the changed database, index and Band photos back to
-     `data`. Each run's row in `ingestion_runs` records its new Bands and, as percentages, how many have no
-     photo and how many fell back to the edition for genres, photo and links (`app/ingestion/ingest_stats.py`;
-     also in the `ingestionRuns` GraphQL query and the ingest log), to follow the lookups' coverage.
-  2. **Build and deploy**: checks out `main` and the `data` branch, runs `python -m app.cli export`,
-     copies `images/` into the site's static files, builds the static site and deploys it to Pages.
-  3. **Alerts**: after a successful ingest and deploy only, runs `python -m app.cli alerts`. That emails
-     each person whose Saved Filters match Upcoming Shows (see [Weekly Alerts](#weekly-alerts)). It never
-     runs on deploy-only runs. If it fails, the site stays deployed and the run shows red.
-- **When it runs**:
-  - **Every Friday night**, cron `0 4 * * 6` (Saturday 04:00 UTC = Friday 9pm PDT / 8pm PST), after
-    the Drive publisher updates `latest.json` between 6 and 7pm Pacific. Ingest, then deploy.
-  - **By hand** from the Actions tab (**Deploy → Run workflow**) or `gh workflow run deploy.yml`.
-    A manual run with ingest also sends Alerts (re-running the same day sends no one a second email).
-    Tick **Skip ingestion** (`gh workflow run deploy.yml -f skip_ingest=true`) to rebuild from the
-    existing data without sending Alerts.
-  - **On pushes to `main`** that touch `frontend/` or `backend/app/`: deploy only, no ingest.
-  - Only one run at a time.
-- **A week with no new edition** still succeeds and redeploys (the run is recorded as `no_email`).
-- **A failed ingest** fails the run: the `data` branch is left untouched and nothing is deployed.
-  GitHub emails you about failed scheduled runs (Settings → Notifications → Actions).
-- **Settings**: Pages source must be **GitHub Actions** (Settings → Pages). The ingest uses the
-  `GOOGLE_MAPS_API_KEY`, `LASTFM_API_KEY`, `DISCOGS_CONSUMER_KEY` and `DISCOGS_CONSUMER_SECRET` secrets and the
-  `DRIVE_LATEST_FILE_ID` repository variable
-  (Settings → Secrets and variables → Actions). No Anthropic key: ingestion makes no LLM calls.
-- **The Backfill workflow** (`.github/workflows/backfill.yml`, run by hand: **Backfill → Run workflow** or
-  `gh workflow run backfill.yml`) brings Bands ingested before a lookup existed up to what new Bands get:
-  `python -m app.cli backfill` looks each one up on MusicBrainz, Last.fm, Discogs and Wikimedia Commons by the
-  ingest's rules (`app/ingestion/band_sources.py`; what the Band already has is the last fallback), re-embeds it
-  when its genres change, and stores its new photo. Each Band looked up gets `enriched_at`, so it's resumable:
-  a run takes the Bands not yet looked up (those on Upcoming Shows first), stops after **max minutes** (default
-  300, under the 6-hour job limit) or **limit** Bands, commits to `data` and starts a deploy-only Deploy. Run it
-  again until its commit message says none are still to do. Discogs' rate limit (one request a second) sets
-  the pace. It needs `LASTFM_API_KEY` and both Discogs keys and the genre model, and checks first that Last.fm and
-  Discogs accept the keys and the model answers. Tick **recheck genres** (`--recheck-genres`) to first mark the
-  Bands whose stored genres hold a tag that isn't a genre, so the run looks them up again. A service that's
-  down mid-run returns nothing, and those Bands are still marked looked up. Locally (with the keys in `backend/.env`):
-  `docker compose exec api python -m app.cli backfill --limit 20`.
-- **Genres are filtered** (`app/ingestion/genre_filter.py`): Last.fm's tags and MusicBrainz's free-form tags keep
-  only genres. A tag in MusicBrainz's genre list (`app/ingestion/genres.txt`) or a known shorthand is kept; any
-  other is judged once by the `tev1:0.8b` decision model on Ollama, and the answer is stored in the `genre_tags`
-  table. To overrule it, edit that row on the `data` branch (`is_genre`, and `decided_by = 'hand'`).
-- **Photo focal points** (`app/ingestion/photo_focus.py`): each Band photo the ingest or backfill stores gets a
-  focal point (`bands.image_focus`) from the faces in it, and the site crops the photo around it. Photos stored
-  before focal points need one run of `python -m app.cli photo-focus`, which works them out from the files in
-  `images/` (no network; it only looks at Bands without one, commits every 100, and can be run again; `--all`
-  redoes every photo). To run it on the `data` branch, from a checkout of `main`:
-
-  ```bash
-  git fetch origin data
-  git worktree add -B data ../the_list-data origin/data
-  docker compose build api        # the image needs opencv-python-headless
-  docker compose run --rm --no-deps -v "$PWD/../the_list-data:/data" \
-    -e DATABASE_URL=sqlite:////data/the_list.db -e IMAGES_PATH=/data/images \
-    api sh -c "alembic upgrade head && python -m app.cli photo-focus"
-  cd ../the_list-data && git add the_list.db && git commit -m "Focal points for stored Band photos" && git push origin data
-  gh workflow run deploy.yml -f skip_ingest=true
-  ```
-- **Updating the data by hand**: commit a new `the_list.db` and `faiss/` to the `data` branch, then run
-  the workflow with **Skip ingestion**.
-- **Rolling back**: revert the bad commit on the `data` branch (`git revert <sha>` on a checkout of
-  `data`, then push) and run the workflow with **Skip ingestion**. Only the last 3 changes can be rolled
-  back this way. The branch is rewritten when it's pruned, so fetch it fresh
-  (`git fetch origin data && git reset --hard origin/data`) before committing to it by hand.
-
-## Weekly Alerts
-
-People save the Shows list's filters as **Saved Filters** ("Setup Alert"), signing in with an emailed link.
-After each Friday ingest they get one **Alert** email listing the Upcoming Shows that match (see
-[ADR 0003](docs/adr/0003-saved-filter-alerts-on-supabase.md)). Accounts and Saved Filters live in Supabase;
-emails go through Resend from `alerts@list.sturgis.me`.
-
-- **Commands:**
-  - `python -m app.cli alerts` sends this week's Alerts.
-  - `--dry-run` prints them instead.
-  - `--only you@example.com` sends just one person's, as a test.
-- **One-time setup:**
-  1. **Supabase project:** email sign-in on. Site URL `https://list.sturgis.me`. Redirect URLs
-     `https://list.sturgis.me/alerts/**` and `http://localhost:3000/the_list/alerts/**`; the wildcards are
-     needed because the sign-in link carries the filter to save. Run `supabase/migrations/*.sql` in
-     order in the SQL editor.
-  2. **Resend:** verify `list.sturgis.me` (its DKIM, SPF and DMARC records are in the `sturgis.me` DNS),
-     and create sending-only API keys.
-  3. **Supabase SMTP:** send through Resend (`smtp.resend.com`, port 465, user `resend`), from
-     `alerts@list.sturgis.me`.
-  4. **GitHub:**
-     - secrets `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (the `sb_secret_…` key) and `RESEND_API_KEY`
-     - variables `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (the publishable key) and
-       `ALERTS_FROM`. The Deploy workflow passes the first two to the build as `PUBLIC_SUPABASE_URL` and
-       `PUBLIC_SUPABASE_ANON_KEY`; set those in `frontend/.env` to try sign-in locally.
-- **Unsubscribe:** every Alert links to `/alerts/unsubscribe/?token=…`, which turns that person's
-  Alerts off without signing in. People can also turn them off and on, or delete alerts, on `/alerts/`.
-- **Privacy:** email addresses never enter the repository, the `data` branch or the logs. The job logs
-  counts only.
-
-## How ingestion works
-
-```
-Google Drive (public folder)
-  └─ latest.json → newest formatted edition JSON
-       └─ edition_shows()        → upsert-ready dict per show (details parsed, bands with genres/links)
-            └─ Google Places     → only for venues not yet in the DB
-            └─ joint billings    → "Dying Fetus And Sanguisugabogg" becomes two bands, "Belle and Sebastian"
-                                   stays one (app/ingestion/joint_bands.py, decided on MusicBrainz)
-            └─ MusicBrainz       → genres and links for new bands (not yet in the DB), over the edition's;
-                                   genres: MusicBrainz's curated ones, Last.fm's tags (app/ingestion/lastfm.py),
-                                   Discogs' genres and styles (app/ingestion/discogs.py), MusicBrainz's free-form
-                                   tags, and only then the edition's
-                 └─ Wikimedia      → the band's photo on Commons through its Wikidata link, with its credit
-                                     (app/ingestion/wikimedia.py); else its Discogs photo ("Photo via Discogs");
-                                     only then the edition's
-            └─ image URL check   → keep, repair (Wikimedia paths) or drop each image URL
-                 └─ upsert_shows()   → Show, Venue, Band and Act rows
-                      └─ band photos     → download each band photo still at a remote URL, resize to ≤800px
-                                           WebP, save to the images folder (app/ingestion/band_photos.py),
-                                           with its focal point from the faces in it (photo_focus.py)
-                      └─ embed + index in FAISS
-```
-
-**Show identity** (upsert key): `(date, venue_id, door_time)`. Re-running ingestion on the same edition
-is idempotent.
-
-**Bands**: DJs (`dj …`) and back-to-back sets (`… b2b …`) are excluded. Band details from the edition
-only fill empty fields, so corrections made in the database aren't overwritten.
-
-**Data retention**: shows older than `DATA_RETENTION_DAYS` (90) are hard-deleted by the daily maintenance
-that runs before each ingest.
-
-## Issues / specs
-
-- [#1 Backend MVP spec](https://github.com/jsturgis/the_list/issues/1) (tickets #2–#7)
-- [#8 Frontend MVP spec](https://github.com/jsturgis/the_list/issues/8)
-- [#10 Static site on GitHub Pages, rebuilt weekly](https://github.com/jsturgis/the_list/issues/10) (tickets #11–#19)
+Python 3.12 (FastAPI, Strawberry GraphQL, SQLAlchemy, SQLite), Ollama embeddings with FAISS, and an Astro static site
+with React islands and Tailwind, deployed to GitHub Pages by GitHub Actions. Saved searches and Alerts use Supabase
+and Resend.

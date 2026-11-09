@@ -14,8 +14,8 @@ npm ci
 ```
 
 The site is built from the database export in `export/` (gitignored). The build reads it; it isn't published
-with the site. Export it from the repository root whenever the data changes (see the root README for the
-backend):
+with the site. Export it from the repository root whenever the data changes (see [Local setup](../docs/guide/local-setup.md)
+for the backend):
 
 ```bash
 docker compose run --rm -v "$PWD/frontend/export:/export" api python -m app.cli export --out /export
@@ -59,7 +59,7 @@ src/
     pastShows.ts        # CSS that hides Shows dated before today; inlined in each page's <head>
     navigation.ts       # the URL's query in React (useQuery, replaceQuery)
     basePath.ts         # href(): a site path under the base path
-  styles/globals.css    # Tailwind and the colour theme (see the root README)
+  styles/globals.css    # Tailwind, the colour theme and the docs pages' styles (see DESIGN.md)
 ```
 
 ## Screenshots
