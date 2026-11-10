@@ -1,7 +1,6 @@
 ---
 title: Overview
 description: What The List does each week, and what it’s built with.
-order: 1
 ---
 
 ## What it does
@@ -35,9 +34,10 @@ order: 1
 | Photo focal points | OpenCV's YuNet face detector (`opencv-python-headless`; the model, `face_detection_yunet_2023mar.onnx` from the [OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet), is MIT-licensed and vendored in `backend/app/ingestion/yunet/` with its licence) |
 | Source | Formatted edition JSON on Google Drive (public link, `latest.json` pointer) |
 | Frontend | Astro static site with React islands, Tailwind; Vitest, React Testing Library, MSW, Playwright |
+| Docs | Starlight (Astro's docs framework), with Pagefind search and Mermaid diagrams |
 | Hosting | GitHub Pages, built and deployed by GitHub Actions |
 
 **Design:** [`DESIGN.md`](https://github.com/jsturgis/the_list/blob/main/DESIGN.md) describes the site's design system: the colour tokens (defined in
-`frontend/src/styles/globals.css`, switching with the system's light/dark setting), the Figtree typeface, the type
+`frontend/src/styles/tokens.css`, switching with the system's light/dark setting), the Figtree typeface, the type
 scale and the component styles. Use the semantic tokens (`bg-surface`, `text-ink-muted`, `text-link`, …) rather than
 palette classes or `dark:` variants; a test keeps `DESIGN.md` and the stylesheet in sync.

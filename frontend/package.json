@@ -15,8 +15,10 @@
     "screenshots": "node e2e/screenshots.mjs"
   },
   "dependencies": {
+    "@astrojs/markdown-remark": "7.3.7",
     "@astrojs/react": "^7.0.0",
     "@astrojs/sitemap": "^3.7.4",
+    "@astrojs/starlight": "0.42.7",
     "@fontsource-variable/figtree": "^5.3.0",
     "@heroicons/react": "^2.2.0",
     "@supabase/supabase-js": "^2.117.2",

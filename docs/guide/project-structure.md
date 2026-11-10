@@ -1,7 +1,6 @@
 ---
 title: Project structure
 description: Where things live in the repository.
-order: 8
 ---
 
 For how these parts work together, see the diagrams in [Architecture](architecture.md).
@@ -27,11 +26,12 @@ backend/
   alembic/           # Database migrations
 frontend/
   src/
-    pages/           # Astro pages: home, Show, Band and Venue pages, Alerts, Docs, 404
+    pages/           # Astro pages: home, Show, Band and Venue pages, Alerts, 404
+    content.config.ts  # the docs collection: Starlight renders ../docs/guide/ at /docs/
     layouts/         # the page shell: head, header, link behaviour script
     components/      # UI (React)
     lib/             # data loading, browser filtering, navigation, base path helper
-    styles/          # Tailwind and the colour theme
+    styles/          # the colour tokens, the site's stylesheet (Tailwind) and the docs' theme (Starlight)
   __tests__/         # Vitest: components, libs and pages
   e2e/               # Playwright: smoke, accessibility and consistency tests, their fixtures, the screenshot script
 supabase/
@@ -42,7 +42,7 @@ scripts/
   gmail-exporter.gs  # Google Apps Script that saves the newest List email to that folder as .txt
 docs/
   adr/               # Architecture decision records
-  guide/             # these docs, rendered on the site at /docs/ (frontend/src/pages/docs)
+  guide/             # these docs, rendered on the site at /docs/ by Starlight
   agents/            # Agent skill docs (issue tracker, triage labels, domain)
 .github/
   workflows/         # backend and frontend tests, Deploy (weekly ingest + Pages), Backfill

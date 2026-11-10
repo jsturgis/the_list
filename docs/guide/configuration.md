@@ -1,7 +1,6 @@
 ---
 title: Configuration
 description: Environment variables, and the Google Drive scripts that publish each edition.
-order: 4
 ---
 
 Set these in `backend/.env` for local runs (`backend/.env.example` is a starting point). The Deploy workflow sets

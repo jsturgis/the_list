@@ -59,7 +59,14 @@ src/
     pastShows.ts        # CSS that hides Shows dated before today; inlined in each page's <head>
     navigation.ts       # the URL's query in React (useQuery, replaceQuery)
     basePath.ts         # href(): a site path under the base path
-  styles/globals.css    # Tailwind, the colour theme and the docs pages' styles (see DESIGN.md)
+    docsMarkdown.ts     # adapts the guides in ../docs/guide/ for the docs: links between guides, Mermaid diagrams
+    diagrams.ts         # draws the docs' diagrams with Mermaid, in the theme's colours
+  content.config.ts     # the docs collection (Starlight): the Markdown guides in ../docs/guide/
+  components/docs/      # the two Starlight components the docs replace
+  styles/
+    tokens.css          # the colour theme's tokens (see DESIGN.md)
+    globals.css         # the site's stylesheet: Tailwind and the tokens
+    starlight.css       # the docs' theme: Starlight's colours and font, set from the tokens
 ```
 
 ## Screenshots

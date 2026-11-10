@@ -1,7 +1,6 @@
 ---
 title: Weekly Alerts
 description: Saved Filters, the weekly Alert email, and their one-time setup.
-order: 7
 ---
 
 People save the Shows list's filters as **Saved Filters** (the **Save search** button, or the bell on a Band or

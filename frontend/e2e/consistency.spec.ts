@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 
-// Every page shares one shell (DESIGN.md §5 and §9): the same column, the same page title and the same section
+// Every page but the docs (Starlight's own layout) shares one shell (DESIGN.md §5 and §9): the same column, the same page title and the same section
 // headings. These compare the rendered pages with each other at desktop width.
 
 const NARROW: [name: string, path: string][] = [
@@ -11,8 +11,6 @@ const NARROW: [name: string, path: string][] = [
   ['Alerts page', 'alerts/'],
   ['Unsubscribe page', 'alerts/unsubscribe/'],
   ['not-found page', 'shows/99999/'],
-  ['Docs page', 'docs/'],
-  ['guide page', 'docs/local-setup/'],
 ]
 const DETAIL = new Set(['Show page', 'Venue page', 'Band page'])
 

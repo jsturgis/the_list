@@ -1,7 +1,6 @@
 ---
 title: Deployment
 description: The weekly Deploy workflow, the data branch, backfills and rollbacks.
-order: 6
 ---
 
 The site is published at **https://list.sturgis.me/** as a static site on GitHub Pages (see
