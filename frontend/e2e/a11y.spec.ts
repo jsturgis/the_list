@@ -31,6 +31,15 @@ const STATES: [string, string, (page: Page) => Promise<void>][] = [
   ['not-found page', 'shows/99999/', page => expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()],
   ['Alerts page, signed out', 'alerts/', page => expect(page.getByRole('button', { name: /sign-in link/i })).toBeVisible()],
   ['Unsubscribe page', 'alerts/unsubscribe/', page => expect(page.getByRole('heading', { level: 1 })).toBeVisible()],
+  ['Docs page', 'docs/', page => expect(page.getByRole('link', { name: /Local setup/ })).toBeVisible()],
+  // Its code blocks, tables, lists and inline code.
+  ['guide page', 'docs/configuration/', page => expect(page.getByRole('region', { name: 'Table' }).first()).toBeVisible()],
+  // Its Mermaid diagrams, once drawn: every one, as each is checked for contrast.
+  ['guide page with diagrams', 'docs/architecture/', async page => {
+    const diagrams = page.locator('[data-diagram]')
+    await expect(diagrams).toHaveCount(6)
+    for (const diagram of await diagrams.all()) await expect(diagram.locator('.docs-diagram-svg > svg')).toBeVisible()
+  }],
 ]
 
 for (const scheme of ['light', 'dark'] as const) {

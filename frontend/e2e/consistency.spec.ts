@@ -11,6 +11,8 @@ const NARROW: [name: string, path: string][] = [
   ['Alerts page', 'alerts/'],
   ['Unsubscribe page', 'alerts/unsubscribe/'],
   ['not-found page', 'shows/99999/'],
+  ['Docs page', 'docs/'],
+  ['guide page', 'docs/local-setup/'],
 ]
 const DETAIL = new Set(['Show page', 'Venue page', 'Band page'])
 
@@ -26,7 +28,7 @@ async function measure(page: Page) {
     const s = getComputedStyle(el)
     return { size: s.fontSize, weight: s.fontWeight }
   })
-  const back = page.getByRole('link', { name: 'Back' })
+  const back = page.getByRole('link', { name: 'Back', exact: true })
   const backX = (await back.count()) ? (await back.boundingBox())!.x : null
   return { x: Math.round(box.x), width: Math.round(box.width), backX: backX === null ? null : Math.round(backX), ...type }
 }

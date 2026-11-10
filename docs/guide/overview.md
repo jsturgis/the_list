@@ -1,0 +1,46 @@
+---
+title: Overview
+description: What The List does each week, and what it’s built with.
+order: 1
+---
+
+## What it does
+
+1. **Ingests** the newest formatted edition (structured JSON: shows, venues, artists with genres and links)
+   from a public Google Drive folder each Friday
+2. **Parses** each show's details (prices, age restrictions, times, and flags: `*` recommended, `$` will
+   sell out, etc.)
+3. **Enriches** new venues with Google Maps Places (address, lat/lng, place ID), takes new bands' genres
+   and links from MusicBrainz, Last.fm and Discogs, the source of truth (the edition's are used only when every
+   service has nothing), and keeps only image URLs and links that work
+4. **Stores** shows, bands, venues, and acts in SQLite (Alembic-managed schema)
+5. **Indexes** band and show embeddings in FAISS for Similar Bands (Ollama `nomic-embed-text`)
+6. **Exports** the data to static JSON and builds an Astro static site with region, band, venue, genre,
+   date and free-only filters, all running in the browser
+7. **Serves** a Strawberry GraphQL API over FastAPI, for local development only
+
+## Stack
+
+| Layer | Tech |
+|---|---|
+| Backend | Python 3.12, FastAPI, Strawberry GraphQL |
+| ORM / migrations | SQLAlchemy 2, Alembic |
+| Database | SQLite (kept on the `data` branch in production) |
+| Enrichment | Google Maps Places API, MusicBrainz API; Claude Haiku 4.5 only for the manual venue re-enrichment job |
+| Embeddings | Ollama `nomic-embed-text` (dim=768) |
+| Vector search | FAISS `IndexIDMap(IndexFlatL2)` |
+| Photo focal points | OpenCV's YuNet face detector (`opencv-python-headless`; the model, `face_detection_yunet_2023mar.onnx` from the [OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet), is MIT-licensed and vendored in `backend/app/ingestion/yunet/` with its licence) |
+| Source | Formatted edition JSON on Google Drive (public link, `latest.json` pointer) |
+| Frontend | Astro static site with React islands, Tailwind; Vitest, React Testing Library, MSW, Playwright |
+| Hosting | GitHub Pages, built and deployed by GitHub Actions |
+
+**Design:** [`DESIGN.md`](https://github.com/jsturgis/the_list/blob/main/DESIGN.md) describes the site's design system: the colour tokens (defined in
+`frontend/src/styles/globals.css`, switching with the system's light/dark setting), the Figtree typeface, the type
+scale and the component styles. Use the semantic tokens (`bg-surface`, `text-ink-muted`, `text-link`, …) rather than
+palette classes or `dark:` variants; a test keeps `DESIGN.md` and the stylesheet in sync.
+
+## Issues and specs
+
+- [#1 Backend MVP spec](https://github.com/jsturgis/the_list/issues/1) (tickets #2–#7)
+- [#8 Frontend MVP spec](https://github.com/jsturgis/the_list/issues/8)
+- [#10 Static site on GitHub Pages, rebuilt weekly](https://github.com/jsturgis/the_list/issues/10) (tickets #11–#19)

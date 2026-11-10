@@ -1,0 +1,33 @@
+---
+import type { GetStaticPaths } from 'astro'
+import { ArrowLeftIcon } from '@heroicons/react/20/solid'
+import Layout from '@/layouts/Layout.astro'
+import PageHeader from '@/components/PageHeader'
+import { href } from '@/lib/basePath'
+import { type Guide, guides, guideSource, hasDiagram } from '@/lib/docs'
+
+// One page per guide in docs/guide/, at its file name (/docs/local-setup/).
+export const getStaticPaths = (() =>
+  guides.map(guide => ({ params: { slug: guide.slug }, props: { guide } }))) satisfies GetStaticPaths
+
+const { guide } = Astro.props as { guide: Guide }
+---
+
+<Layout title={`${guide.title} — The List docs`} description={guide.description}>
+  <a slot="back" href={href('/docs/')} class="inline-flex items-center gap-1 self-start text-sm text-ink-muted hover:text-ink-soft">
+    <ArrowLeftIcon className="size-4 shrink-0" />
+    All docs
+  </a>
+  <PageHeader title={guide.title} subtitle={guide.description} />
+  <article class="docs-prose" set:html={guide.html} />
+  <p class="text-sm text-ink-muted">
+    <a href={guideSource(guide.slug)} class="text-link underline underline-offset-2">Edit this page on GitHub</a>
+  </p>
+  {hasDiagram(guide.html) && (
+    <script>
+      // Only on guides with a diagram: draws them, loading Mermaid (lib/diagrams).
+      import { drawDiagrams } from '@/lib/diagrams'
+      void drawDiagrams()
+    </script>
+  )}
+</Layout>

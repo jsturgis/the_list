@@ -49,6 +49,10 @@ const PAGES = [
   ['alerts', 'alerts/'],
   ['unsubscribe', 'alerts/unsubscribe/'],
   ['not-found', 'shows/99999/'],
+  ['docs', 'docs/'],
+  ['docs-guide', 'docs/local-setup/'],
+  ['docs-guide-tables', 'docs/configuration/'],
+  ['docs-guide-diagrams', 'docs/architecture/', page => page.locator('.docs-diagram-svg > svg').nth(5).waitFor()],
   ['setup-alert-panel', '?region=east_bay', page => page.getByRole('button', { name: /setup alert|save search/i }).click()],
 ]
 

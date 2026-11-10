@@ -1,0 +1,28 @@
+---
+import Layout from '@/layouts/Layout.astro'
+import PageHeader from '@/components/PageHeader'
+import Section from '@/components/Section'
+import { href } from '@/lib/basePath'
+import { guides } from '@/lib/docs'
+---
+
+<Layout title="Docs — The List" description="How The List is built, run and deployed.">
+  <PageHeader title="Docs" subtitle="How The List is built, run and deployed." />
+  <Section title="Guides">
+    <ul class="-mx-2 flex flex-col">
+      {guides.map(guide => (
+        <li>
+          <a href={href(`/docs/${guide.slug}/`)} class="flex flex-col gap-0.5 rounded-lg px-2 py-2 hover:bg-surface-hover">
+            <span class="font-bold text-ink">{guide.title}</span>
+            <span class="text-sm text-ink-muted">{guide.description}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </Section>
+  <!-- Text and links share lines: whitespace across a line break between them is dropped from the built HTML. -->
+  <p class="text-sm text-ink-muted">
+    The guides are Markdown in the repository&apos;s <a href="https://github.com/jsturgis/the_list/tree/main/docs/guide" class="text-link underline underline-offset-2">docs/guide</a> folder.
+    The design system, the domain language and the architecture decisions are in <a href="https://github.com/jsturgis/the_list/blob/main/DESIGN.md" class="text-link underline underline-offset-2">DESIGN.md</a>, <a href="https://github.com/jsturgis/the_list/blob/main/CONTEXT.md" class="text-link underline underline-offset-2">CONTEXT.md</a> and <a href="https://github.com/jsturgis/the_list/tree/main/docs/adr" class="text-link underline underline-offset-2">docs/adr</a>.
+  </p>
+</Layout>

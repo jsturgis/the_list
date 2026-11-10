@@ -105,7 +105,7 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
 
 - **Typeface:** **Figtree** (variable, SIL Open Font License), self-hosted through `@fontsource-variable/figtree`
   and preloaded by the layout. Fallback: `ui-sans-serif, system-ui, sans-serif`. Tailwind's `font-sans` is Figtree.
-  There's no second family and no monospace in the UI.
+  There's no second family and no monospace in the UI, except for code on the docs pages (the system's monospace).
 - **Weights:** 800 for page titles; 700 for headings, headliners and button labels; 400 for everything else. Use
   600 sparingly.
 
@@ -238,6 +238,22 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
   with" or "Shows at", then the name as an `accent-chip` pill with a × that removes it.
 - **Banners:** `accent-soft` with `accent-soft-line` and `accent-soft-ink` (special events).
 - **Toasts:** `inverse` with `on-inverse`, 8px radius, at the bottom of the screen.
+- **Docs pages (`/docs/`):** the guides in `docs/guide/` (Markdown), rendered at build time with no React. The index
+  is a `PageHeader` and a **Guides** `Section` listing each guide's title (bold `ink`) over its description
+  (`text-sm ink-muted`), each a link with an 8px `surface-hover` hover. A guide page has an "All docs" link in the Back
+  slot, `PageHeader` (title and description), then the Markdown in `.docs-prose` (`globals.css`): running text in
+  `ink-soft` on the page, `h2`s as Sections' (24px bold `ink`), links in running text underlined in `link`, inline
+  code on `muted` in `ink`, and code blocks and tables in `surface` panels (8px radius) that scroll sideways on their
+  own, focusable from the keyboard. It ends with an "Edit this page on GitHub" link.
+  - *Diagrams:* a ```` ```mermaid ```` block in a guide is drawn with Mermaid (`src/lib/diagrams.ts`), loaded only
+    on guides that have one. Each sits in a `surface` panel (8px radius, 16px padding) named after its `accTitle`
+    (`role="region"`, focusable, like tables), centred, at most its own size and shrunk to fit the column down to
+    80%; below that (phones) the panel scrolls sideways rather than shrinking the text. Its colours are the theme's
+    tokens, read from the page, and it's drawn again when the system switches light and dark: boxes `muted` with
+    `ink` text and a `line-strong` border, groups on `page`, arrows `ink-muted` with labels on `surface`, notes
+    `accent-soft` with `accent-soft-ink`, and table rows alternating `surface` and `page`. Text is Figtree at 15px.
+    Until it's drawn, or without JavaScript, the panel shows the diagram's source like a code block. Keep diagrams
+    narrow (top to bottom, short labels, about 15 boxes) so they fit the 672px column.
 - **Links:** links inside running text (a sentence) are `text-link underline underline-offset-2`, always
   underlined, so colour isn't the only cue. Standalone links (rows, lists, the Venue name, facts) are underlined
   on hover only. Navigation links (header, Back) are `ink-muted` and turn `ink-soft` on hover.
@@ -246,7 +262,7 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
 
 - **Two widths, set by the layout** (`Layout`'s `width` prop), never by a page's components:
   - *wide:* the home page, the full `max-w-5xl` (1024px) with 16px side padding, for the filter bar and list.
-  - *narrow (the default):* every other page (Show, Venue, Band, Alerts, Unsubscribe, 404) in one centred 672px
+  - *narrow (the default):* every other page (Show, Venue, Band, Alerts, Unsubscribe, Docs, 404) in one centred 672px
     column (`max-w-2xl`, `w-full`). The Back link sits above it at the full-width left edge (the layout's `back`
     slot), lined up with the home page's content.
 - **Spacing** steps in 4px (Tailwind's scale). Blocks on a page (header, facts, sections) are 24px apart (`gap-6`). Rows have 12px vertical
