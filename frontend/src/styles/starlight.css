@@ -1,0 +1,116 @@
+/*
+ * The docs' theme (DESIGN.md, "Docs pages"): Starlight's layout in The List's colours and typeface. Starlight's own
+ * colour variables are set from the site's tokens (tokens.css), which switch with the system's light/dark setting, so
+ * the same mapping serves both modes. This file doesn't load Tailwind's reset or utilities: only its theme, which
+ * the tokens' palette colours need.
+ */
+@import "tailwindcss/theme.css" layer(theme);
+@import "./tokens.css";
+
+:root,
+:root[data-theme='light'],
+:root[data-theme='dark'] {
+  --sl-font: 'Figtree Variable', ui-sans-serif, system-ui, sans-serif;
+
+  /* Text, from headings down to decorative. */
+  --sl-color-white: var(--ink);
+  --sl-color-gray-1: var(--ink);
+  --sl-color-gray-2: var(--ink-soft);
+  --sl-color-gray-3: var(--ink-muted);
+  --sl-color-gray-4: var(--ink-faint);
+  --sl-color-text: var(--ink-soft);
+  --sl-color-text-accent: var(--link);
+  --sl-color-text-invert: var(--on-accent);
+
+  /* Surfaces: the page, then the header and sidebar a step up. */
+  --sl-color-black: var(--page);
+  --sl-color-bg: var(--page);
+  --sl-color-bg-nav: var(--surface);
+  --sl-color-bg-sidebar: var(--surface);
+  --sl-color-bg-inline-code: var(--muted);
+  --sl-color-gray-5: var(--line-strong);
+  --sl-color-gray-6: var(--muted);
+  --sl-color-gray-7: var(--surface);
+
+  /* Lines. */
+  --sl-color-hairline: var(--line);
+  --sl-color-hairline-light: var(--line-subtle);
+  --sl-color-hairline-shade: var(--line-strong);
+
+  /* The green accent: fills, their text-safe shade, and tinted backgrounds. */
+  --sl-color-accent: var(--link);
+  --sl-color-accent-high: var(--accent-soft-ink);
+  --sl-color-accent-low: var(--accent-soft);
+}
+
+/* Type (DESIGN.md): weight carries the hierarchy. */
+h1 {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* Keyboard focus: the same green outline as the rest of the site. */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* The current page in the sidebar: an accent chip, as the site marks what's active. */
+.sidebar-content a[aria-current='page'],
+.sidebar-content a[aria-current='page']:hover,
+.sidebar-content a[aria-current='page']:focus {
+  background-color: var(--accent-chip);
+  color: var(--accent-chip-ink);
+  font-weight: 700;
+}
+
+/* Inline code: ink on a muted chip. */
+.sl-markdown-content :not(pre) > code {
+  color: var(--ink);
+}
+
+/*
+ * Diagrams (lib/diagrams): centred in a surface panel, at most their own size and shrunk to fit down to
+ * --diagram-min; past that (phones) the panel scrolls sideways. Until they're drawn, or without JavaScript, the
+ * panel shows their source like a code block.
+ */
+.docs-diagram {
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--sl-text-sm);
+}
+.docs-diagram pre {
+  width: max-content;
+  min-width: 100%;
+  margin: 0;
+  padding: 1rem;
+  font-family: var(--sl-font-mono);
+}
+.docs-diagram-svg {
+  width: max(100%, calc(var(--diagram-min, 0px) + 2rem));
+  padding: 1rem;
+}
+.docs-diagram-svg svg {
+  display: block;
+  height: auto;
+  margin-inline: auto;
+}
+
+/* The site title, as in the site's own header: bold ink, not the accent. */
+.site-title {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/*
+ * Tables: names and short values stay whole; only the last column (notes, descriptions) may break long values
+ * (URLs, paths), so a table fits the column on desktop. On phones it scrolls sideways.
+ */
+.sl-markdown-content td:not(:last-child) code {
+  white-space: nowrap;
+}
+.sl-markdown-content td:last-child code {
+  overflow-wrap: anywhere;
+}

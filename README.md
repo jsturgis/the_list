@@ -55,5 +55,5 @@ cd frontend && npm test && npm run typecheck && npm run lint && npm run e2e   # 
 ## Stack
 
 Python 3.12 (FastAPI, Strawberry GraphQL, SQLAlchemy, SQLite), Ollama embeddings with FAISS, and an Astro static site
-with React islands and Tailwind, deployed to GitHub Pages by GitHub Actions. Saved searches and Alerts use Supabase
+with React islands and Tailwind (the docs with Starlight), deployed to GitHub Pages by GitHub Actions. Saved searches and Alerts use Supabase
 and Resend.

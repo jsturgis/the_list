@@ -1,8 +1,8 @@
 /**
- * Draws the docs pages' diagrams: each ```mermaid block in a guide, which guideHtml (lib/docs) turned into a
- * `[data-diagram]` region holding its source. Mermaid is large, so the page loads this only when it has a diagram,
- * and this loads Mermaid only then. The diagrams take the theme's colour tokens (DESIGN.md), read from the page, and
- * are drawn again when the system switches between light and dark. If Mermaid fails, the source stays on the page.
+ * Draws the docs pages' diagrams: each ```mermaid block in a guide, which the Markdown plugin (lib/docsMarkdown) turned
+ * into a `[data-diagram]` region holding its source. Mermaid is large, so this loads it only on a page with a diagram.
+ * The diagrams take the theme's colour tokens (DESIGN.md), read from the page, and are drawn again when the system
+ * switches between light and dark. If Mermaid fails, the source stays on the page.
  */
 import type { MermaidConfig } from 'mermaid'
 

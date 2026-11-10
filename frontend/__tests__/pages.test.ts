@@ -10,9 +10,6 @@ import UnsubscribePage from '@/pages/alerts/unsubscribe.astro'
 import ShowRoute, { getStaticPaths as showPaths } from '@/pages/shows/[slug].astro'
 import VenueRoute, { getStaticPaths as venuePaths } from '@/pages/venues/[slug].astro'
 import BandRoute, { getStaticPaths as bandPaths } from '@/pages/bands/[slug].astro'
-import DocsPage from '@/pages/docs/index.astro'
-import GuideRoute, { getStaticPaths as guidePaths } from '@/pages/docs/[slug].astro'
-import { guides } from '@/lib/docs'
 
 let container: AstroContainer
 
@@ -227,29 +224,5 @@ describe('the home page', () => {
   it('marks the page when the URL has a query, so the unfiltered first page can wait', async () => {
     const html = await render(HomePage)
     expect(html).toMatch(/<head>.*if \(location\.search\.length > 1\) document\.documentElement\.dataset\.query = ''.*<\/head>/s)
-  })
-})
-
-describe('the docs pages', () => {
-  it('lists every guide, linking to its page', async () => {
-    const html = await render(DocsPage)
-    expect(html).toMatch(/<h1[^>]*>Docs<\/h1>/)
-    expect(html).toContain('<title>Docs — The List</title>')
-    for (const guide of guides) expect(html).toContain(`href="/docs/${guide.slug}/"`)
-  })
-
-  it('builds a page for each guide, at its file name', async () => {
-    expect((await guidePaths()).map(p => p.params.slug)).toEqual(guides.map(g => g.slug))
-  })
-
-  it("renders a guide's Markdown under its title, with a link back to the docs and one to its source", async () => {
-    const guide = guides.find(g => g.slug === 'local-setup')!
-    const html = await render(GuideRoute as unknown as Page, { guide })
-    expect(html).toMatch(/<h1[^>]*>Local setup<\/h1>/)
-    expect(html).toContain('<title>Local setup — The List docs</title>')
-    expect(html).toMatch(/<h2 id="database-migrations">Database migrations<\/h2>/)
-    expect(html).toMatch(/<a href="\/docs\/"[^>]*>.*All docs/s)
-    expect(html).toContain('href="https://github.com/jsturgis/the_list/blob/main/docs/guide/local-setup.md"')
-    expect(islands(html)).toEqual([])  // static HTML, no React (ADR 0004)
   })
 })

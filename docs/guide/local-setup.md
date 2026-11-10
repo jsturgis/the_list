@@ -1,7 +1,6 @@
 ---
 title: Local setup
 description: Run the backend, an ingest and the site on your own machine.
-order: 3
 ---
 
 The backend runs in Docker. The steps are: start it, load some Shows (seed the sample edition, or run a real

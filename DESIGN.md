@@ -5,7 +5,7 @@ How The List looks, for the people and coding agents who change it. It's adapted
 [#71](https://github.com/jsturgis/the_list/issues/71). We took its feel (charcoal surfaces, one green accent,
 weight-led type, pill controls) and left out its brand: its name, logo, imagery and proprietary fonts.
 
-The colours below are the theme's semantic tokens, defined in `frontend/src/styles/globals.css`. A test keeps this file
+The colours below are the theme's semantic tokens, defined in `frontend/src/styles/tokens.css`. A test keeps this file
 and that stylesheet in sync: every token in one must be in the other, with the same light and dark values.
 
 ## 1. Visual Theme & Atmosphere
@@ -238,13 +238,22 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
   with" or "Shows at", then the name as an `accent-chip` pill with a × that removes it.
 - **Banners:** `accent-soft` with `accent-soft-line` and `accent-soft-ink` (special events).
 - **Toasts:** `inverse` with `on-inverse`, 8px radius, at the bottom of the screen.
-- **Docs pages (`/docs/`):** the guides in `docs/guide/` (Markdown), rendered at build time with no React. The index
-  is a `PageHeader` and a **Guides** `Section` listing each guide's title (bold `ink`) over its description
-  (`text-sm ink-muted`), each a link with an 8px `surface-hover` hover. A guide page has an "All docs" link in the Back
-  slot, `PageHeader` (title and description), then the Markdown in `.docs-prose` (`globals.css`): running text in
-  `ink-soft` on the page, `h2`s as Sections' (24px bold `ink`), links in running text underlined in `link`, inline
-  code on `muted` in `ink`, and code blocks and tables in `surface` panels (8px radius) that scroll sideways on their
-  own, focusable from the keyboard. It ends with an "Edit this page on GitHub" link.
+- **Docs pages (`/docs/`):** the guides in `docs/guide/` (Markdown), rendered by **Starlight**
+  ([ADR 0005](docs/adr/0005-starlight-for-the-docs.md)). They use Starlight's layout, not the site's shell: a header
+  with the site title and search, a sidebar listing the guides, the guide, an "On this page" table of contents, an
+  "Edit page" link and previous/next links. They don't use `PageHeader`, `Section` or Tailwind's utilities. What makes
+  them The List's is the theme, `frontend/src/styles/starlight.css`, which sets Starlight's colour variables from the
+  tokens in section 2 and its font to Figtree:
+  - the page on `page`, the header and sidebar on `surface`, lines in `line`
+  - headings in `ink` (the h1 at weight 800), running text in `ink-soft`, links underlined in `link`
+  - the current guide in the sidebar as an `accent-chip` with `accent-chip-ink`
+  - inline code on `muted` in `ink`; code blocks in `surface` panels (8px radius, no shadow), focusable so the
+    keyboard can scroll them; code is in the system's monospace
+  - tables fit the column on desktop: only the last column breaks long values; on phones they scroll sideways
+  - the same `focus-ring` outline as the rest of the site
+  - no light/dark switch: the docs follow the system's setting, like every other page
+  Don't restyle Starlight's components one by one; change the mapping in `starlight.css`. If a docs page needs a
+  colour, use a token.
   - *Diagrams:* a ```` ```mermaid ```` block in a guide is drawn with Mermaid (`src/lib/diagrams.ts`), loaded only
     on guides that have one. Each sits in a `surface` panel (8px radius, 16px padding) named after its `accTitle`
     (`role="region"`, focusable, like tables), centred, at most its own size and shrunk to fit the column down to
@@ -253,16 +262,17 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
     `ink` text and a `line-strong` border, groups on `page`, arrows `ink-muted` with labels on `surface`, notes
     `accent-soft` with `accent-soft-ink`, and table rows alternating `surface` and `page`. Text is Figtree at 15px.
     Until it's drawn, or without JavaScript, the panel shows the diagram's source like a code block. Keep diagrams
-    narrow (top to bottom, short labels, about 15 boxes) so they fit the 672px column.
+    narrow (top to bottom, short labels, about 15 boxes) so they fit the docs' text column.
 - **Links:** links inside running text (a sentence) are `text-link underline underline-offset-2`, always
   underlined, so colour isn't the only cue. Standalone links (rows, lists, the Venue name, facts) are underlined
   on hover only. Navigation links (header, Back) are `ink-muted` and turn `ink-soft` on hover.
 
 ## 5. Layout Principles
 
-- **Two widths, set by the layout** (`Layout`'s `width` prop), never by a page's components:
+- **Two widths, set by the layout** (`Layout`'s `width` prop), never by a page's components (the docs pages have
+  Starlight's own layout):
   - *wide:* the home page, the full `max-w-5xl` (1024px) with 16px side padding, for the filter bar and list.
-  - *narrow (the default):* every other page (Show, Venue, Band, Alerts, Unsubscribe, Docs, 404) in one centred 672px
+  - *narrow (the default):* every other page (Show, Venue, Band, Alerts, Unsubscribe, 404) in one centred 672px
     column (`max-w-2xl`, `w-full`). The Back link sits above it at the full-width left edge (the layout's `back`
     slot), lined up with the home page's content.
 - **Spacing** steps in 4px (Tailwind's scale). Blocks on a page (header, facts, sections) are 24px apart (`gap-6`). Rows have 12px vertical
@@ -319,7 +329,7 @@ list (`shadow-lg`), and toasts.
 When you build or change UI in this repo:
 1. Read this file first. Use the tokens in section 2 by name (`bg-surface`, `text-ink-muted`, `text-link`,
    `bg-accent text-on-accent`, `bg-pick`…), never hex values or Tailwind palette colours.
-2. If you need a colour that doesn't exist, add a token to `globals.css` (light and dark) and to the table here.
+2. If you need a colour that doesn't exist, add a token to `tokens.css` (light and dark) and to the table here.
    The sync test fails until both match. If you pair tokens in a new way (text on a background), add the pair to
    `frontend/__tests__/contrast.test.ts`, which checks every listed pair against WCAG AA in both modes.
 3. Lists of Shows use the Show list item (section 4). Don't introduce new card styles.

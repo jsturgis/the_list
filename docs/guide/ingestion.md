@@ -1,7 +1,6 @@
 ---
 title: How ingestion works
 description: From the Drive edition to Shows, Bands and Venues in the database.
-order: 5
 ---
 
 `python -m app.cli ingest` runs the steps below (`app/scheduler.py`). The services are the source of truth for a

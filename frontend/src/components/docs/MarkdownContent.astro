@@ -1,0 +1,12 @@
+---
+// Starlight's Markdown wrapper, plus the script that draws a guide's diagrams (lib/diagrams). The script is small,
+// and loads Mermaid only on a page that has a diagram.
+import Default from '@astrojs/starlight/components/MarkdownContent.astro'
+---
+
+<Default><slot /></Default>
+
+<script>
+  import { drawDiagrams } from '@/lib/diagrams'
+  void drawDiagrams()
+</script>

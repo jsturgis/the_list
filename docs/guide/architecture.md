@@ -1,7 +1,6 @@
 ---
 title: Architecture
 description: Diagrams of the site, the backend and the weekly jobs, and how they fit together.
-order: 2
 ---
 
 The List has three parts. The **backend** (Python, in `backend/app`) ingests each week's edition into a SQLite
@@ -18,16 +17,17 @@ and [ADR 0003](https://github.com/jsturgis/the_list/blob/main/docs/adr/0003-save
 `astro build` reads the export (`shows.json`, `venues.json`, `bands.json`, `meta.json`) once, through
 `lib/siteData.server.ts`, and writes every page ahead of time. Each Show, Venue and Band page is built at its Slug,
 and again at its numeric URL, which redirects to the Slug. The Alerts, Unsubscribe and 404 pages and
-`robots.txt` need no data, and the docs pages come from the guides' Markdown. The export itself isn't published.
+`robots.txt` need no data, and the docs pages come from the guides' Markdown, through
+[Starlight](https://starlight.astro.build/) ([ADR 0005](https://github.com/jsturgis/the_list/blob/main/docs/adr/0005-starlight-for-the-docs.md)). The export itself isn't published.
 
 ```mermaid
 flowchart TD
   accTitle: The site at build time
-  accDescr: lib/siteData.server.ts reads the export JSON for the Shows list, the Show, Venue and Band pages, the .ics files and home-shows.json; lib/docs.ts turns the guides' Markdown into the docs pages. astro build writes every page to frontend/dist, with the Band photos, and the Deploy workflow uploads it to GitHub Pages.
+  accDescr: lib/siteData.server.ts reads the export JSON for the Shows list, the Show, Venue and Band pages, the .ics files and home-shows.json; Starlight turns the guides' Markdown into the docs pages. astro build writes every page to frontend/dist, with the Band photos, and the Deploy workflow uploads it to GitHub Pages.
   export[("frontend/export<br/>shows, venues, bands, meta")]
   guides[("docs/guide/*.md")]
   siteData["lib/siteData.server.ts"]
-  docsLib["lib/docs.ts"]
+  docsLib["Starlight<br/>content.config.ts"]
   dataPages["Shows list, Show, Venue<br/>and Band pages, .ics files,<br/>home-shows.json"]
   docsPages["Docs pages"]
   photos[("Band photos<br/>data branch")]
@@ -55,7 +55,7 @@ flowchart LR
   page["Page from<br/>GitHub Pages"]
   head["&lt;head&gt; script<br/>hides past Shows"]
   keep["lib/keepFilters<br/>filters onto links"]
-  diagrams["lib/diagrams<br/>docs pages only"]
+  diagrams["lib/diagrams, search<br/>docs pages only"]
   subgraph islands ["React islands"]
     homeShows["HomeShows<br/>client:load"]
     bell["AlertBell<br/>client:idle"]
