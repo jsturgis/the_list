@@ -39,6 +39,15 @@ describe('the guides', () => {
     expect(hasDiagram(guides.find(g => g.slug === 'local-setup')!.html)).toBe(false)
   })
 
+  it("only links to headings that exist, in its own guide or another's", () => {
+    const html = new Map(guides.map(g => [g.slug, g.html]))
+    for (const guide of guides) {
+      for (const [, slug, id] of guide.html.matchAll(/href="(?:\.\.\/([a-z0-9-]+)\/)?#([^"]+)"/g)) {
+        expect(html.get(slug ?? guide.slug), `${guide.slug} → ${slug ?? guide.slug}#${id}`).toContain(`id="${id}"`)
+      }
+    }
+  })
+
   it("points each guide's edit link at its file on GitHub", () => {
     expect(guideSource('deployment')).toBe('https://github.com/jsturgis/the_list/blob/main/docs/guide/deployment.md')
   })

@@ -17,8 +17,8 @@ and [ADR 0003](https://github.com/jsturgis/the_list/blob/main/docs/adr/0003-save
 
 `astro build` reads the export (`shows.json`, `venues.json`, `bands.json`, `meta.json`) once, through
 `lib/siteData.server.ts`, and writes every page ahead of time. Each Show, Venue and Band page is built at its Slug,
-and again at its numeric URL, which redirects to the Slug. The other pages (Alerts, Unsubscribe, 404,
-`robots.txt` and the sitemap) need no data. The export itself isn't published.
+and again at its numeric URL, which redirects to the Slug. The Alerts, Unsubscribe and 404 pages and
+`robots.txt` need no data, and the docs pages come from the guides' Markdown. The export itself isn't published.
 
 ```mermaid
 flowchart TD
@@ -170,7 +170,7 @@ Saved Filters and Alert subscriptions aren't in this database: they live in Supa
 
 ### When the Deploy workflow runs
 
-The Deploy workflow (`.github/workflows/deploy.yml`) has four jobs. An ingest happens only on the publisher's
+The Deploy workflow (`.github/workflows/deploy.yml`) has four jobs: `ingest`, `build`, `deploy` and `alerts`. An ingest happens only on the publisher's
 dispatch, the cron and a manual run that doesn't skip it; Alerts go out only after an ingest. Runs share the
 `pages` concurrency group with the Backfill workflow, so only one runs at a time.
 
@@ -236,7 +236,7 @@ sequenceDiagram
   GH->>Pages: the site
   Note over GH: alerts job
   SB->>GH: Saved Filters
-  GH->>SB: Alerts, via Resend
+  Note over GH: sends each Alert<br/>through Resend
 ```
 
 The services are Google Places (new Venues), and MusicBrainz, Last.fm, Discogs, Wikimedia Commons and Bandcamp
