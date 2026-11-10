@@ -121,6 +121,11 @@ export interface Show {
   isBenefit?: boolean
   benefitCause?: string | null
   specialEvent?: string | null
+  // From the Venue's own calendar (backend/app/ingestion/venue_calendar.py); never overwrites the edition's own data.
+  flyerImageUrl?: string | null
+  moreInfoUrl?: string | null
+  // The flyer's accent colour (backend/app/ingestion/flyer_color.py), "#rrggbb", worked out when it's stored.
+  flyerAccentColor?: string | null
 }
 
 // ── Static JSON export (python -m app.cli export) ────────────────────────────

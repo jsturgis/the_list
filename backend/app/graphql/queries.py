@@ -106,6 +106,9 @@ def _show(s: Show) -> ShowType:
         is_benefit=bool(s.is_benefit),
         benefit_cause=s.benefit_cause,
         special_event=s.special_event,
+        flyer_image_url=site_path(s.flyer_image_url),
+        more_info_url=s.more_info_url,
+        flyer_accent_color=s.flyer_accent_color,
     )
 
 

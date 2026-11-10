@@ -658,6 +658,46 @@ async def test_pipeline_drops_a_band_photo_that_cannot_be_downloaded(mock_batch,
     assert not any(tmp_path.rglob("*.webp"))
 
 
+# ── venue calendar matching ────────────────────────────────────────────────────
+
+@patch("app.ingestion.venue_calendar.find_calendar_url",
+      side_effect=lambda name, url: "https://thechapel.com/shows/" if name == "The Chapel" else None)
+@patch("app.ingestion.venue_calendar.fetch_calendar_entries")
+@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.check_image_urls", side_effect=lambda urls: {u: u for u in urls})
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_matches_a_show_against_its_venues_calendar(mock_batch, mock_images, mock_venue, mock_fetch,
+                                                                    mock_entries, mock_find, db, tmp_path,
+                                                                    monkeypatch):
+    """Only The Chapel's calendar is found; Bottom of the Hill's Show (a different night) is untouched."""
+    import httpx
+
+    from app.ingestion import show_flyers
+    from app.ingestion.venue_calendar import CalendarEntry
+    mock_entries.return_value = [CalendarEntry(date=date(2026, 10, 1), title="Mdou Moctar",
+                                               flyer_url="https://thechapel.com/flyer.jpg",
+                                               more_info_url="https://thechapel.com/shows/mdou-moctar")]
+    monkeypatch.setattr(settings, "images_path", str(tmp_path))
+    monkeypatch.setattr(show_flyers.httpx, "Client", _photo_client(
+        {"https://thechapel.com/flyer.jpg": httpx.Response(200, content=_jpeg_bytes())}))
+
+    await _run_ingestion_async(db=db)
+
+    chapel_show = db.query(Show).join(Venue).filter(Venue.name == "The Chapel").one()
+    assert chapel_show.flyer_image_url.startswith(f"shows/{chapel_show.id}-") and chapel_show.flyer_image_url.endswith(".webp")
+    assert (tmp_path / chapel_show.flyer_image_url).is_file()
+    assert chapel_show.more_info_url == "https://thechapel.com/shows/mdou-moctar"
+
+    chapel = db.query(Venue).filter(Venue.name == "The Chapel").one()
+    assert chapel.calendar_url == "https://thechapel.com/shows/" and chapel.calendar_checked_at is not None
+
+    bottom = db.query(Venue).filter(Venue.name == "Bottom of the Hill").one()
+    assert bottom.calendar_url is None and bottom.calendar_checked_at is not None
+    bottom_show = db.query(Show).filter(Show.venue_id == bottom.id).one()
+    assert bottom_show.flyer_image_url is None and bottom_show.more_info_url is None
+
+
 _COMMONS_CREDIT = {"author": "S. Bollmann", "license": "CC BY-SA 4.0",
                    "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
                    "source_url": "https://commons.wikimedia.org/wiki/File:Deafheaven.jpg"}
