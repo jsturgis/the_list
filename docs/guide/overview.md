@@ -16,8 +16,8 @@ order: 1
    image URLs and links that work
 4. **Stores** shows, bands, venues, and acts in SQLite (Alembic-managed schema)
 5. **Indexes** band and show embeddings in FAISS for Similar Bands (Ollama `nomic-embed-text`)
-6. **Exports** the data to static JSON and builds an Astro static site with region, band, venue, genre,
-   date and free-only filters, all running in the browser
+6. **Exports** the data to static JSON and builds an Astro static site, with a band-or-venue search and region,
+   genre, date, price, age and free-only filters, all running in the browser
 7. **Emails** each week's Alerts: the Upcoming Shows that match each person's Saved Filters (Supabase and Resend)
 8. **Serves** a Strawberry GraphQL API over FastAPI, for local development only
 
@@ -41,9 +41,3 @@ order: 1
 `frontend/src/styles/globals.css`, switching with the system's light/dark setting), the Figtree typeface, the type
 scale and the component styles. Use the semantic tokens (`bg-surface`, `text-ink-muted`, `text-link`, …) rather than
 palette classes or `dark:` variants; a test keeps `DESIGN.md` and the stylesheet in sync.
-
-## Issues and specs
-
-- [#1 Backend MVP spec](https://github.com/jsturgis/the_list/issues/1) (tickets #2–#7)
-- [#8 Frontend MVP spec](https://github.com/jsturgis/the_list/issues/8)
-- [#10 Static site on GitHub Pages, rebuilt weekly](https://github.com/jsturgis/the_list/issues/10) (tickets #11–#19)
