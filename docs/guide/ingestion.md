@@ -81,6 +81,8 @@ unless given `--apply`.
 - **The same Band stored twice** under different spellings: `python -m app.ingestion.dedupe_bands`. Then
   `python -m app.ingestion.index_stored_vectors`, which adds any stored vector the FAISS indexes are missing, so
   the kept Band still comes up as a Similar Band.
-- **The same Venue stored twice**: `python -m app.ingestion.dedupe_venues`.
+- **The same Venue stored twice**: `python -m app.ingestion.dedupe_venues`. It merges names that differ by case or
+  a leading "the", and records at the same Google place. For a typo or another name ("Hotel Utan"), first add it to
+  `_VENUE_ALIASES` in `app/ingestion/upsert.py`, so later listings under that name join the Venue too.
 - **A Band name that includes a set time or show details** ("The Coverups (2:30pm)"):
   `python -m app.ingestion.clean_band_names`.

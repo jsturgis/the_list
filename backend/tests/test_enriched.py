@@ -200,7 +200,7 @@ def test_sample_pair_fills_most_shows(sample_pair):
     before, after, matched = sample_pair
     count = lambda shows, field: sum(1 for s in shows if s.get(field) is not None)
 
-    assert matched > 1100 and len(after) == 1210
+    assert matched > 1100 and len(after) == 1207  # 1210 events, 3 at the placeholder Venue
     assert count(before, "latitude") < 500 < 1100 < count(after, "latitude")
     assert count(before, "venue_image_url") < 400 < 1000 < count(after, "venue_image_url")
     assert count(before, "ticket_url") == 0 and count(after, "ticket_url") > 300

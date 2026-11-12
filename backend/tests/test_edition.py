@@ -47,7 +47,8 @@ def sample():
 
 def test_sample_imports_every_event(sample):
     shows = edition_shows(sample)
-    assert len(shows) == sample["total_events"] == 1210
+    # 3 events are at the placeholder Venue: listings the producer couldn't read.
+    assert sample["total_events"] == 1210 and len(shows) == 1207
     assert all(s["date"] and s["bands"] and s["venue_name"] for s in shows)
     assert {s["status"] for s in shows} == {"upcoming", "cancelled", "postponed"}
 
@@ -150,9 +151,16 @@ def test_details_win_over_values_parsed_from_an_unsplit_venue():
 
 
 def test_placeholder_address_is_not_stored():
-    venue = {"name": "San Francisco Bay Area", "address": "San Francisco Bay Area", "url": "", "coordinates": None}
+    venue = {"name": "Gray Area", "address": "San Francisco Bay Area", "url": "", "coordinates": None}
     [s] = edition_shows(_doc(_event(venue=venue, region="San Francisco Venues")))
     assert s["address"] is None and s["city"] == "San Francisco"
+
+
+def test_events_at_the_placeholder_venue_are_left_out():
+    # A listing the producer couldn't read, or a line that isn't a Show ("record store day").
+    placeholder = {"name": "San Francisco Bay Area", "address": "San Francisco Bay Area", "url": "", "coordinates": None}
+    shows = edition_shows(_doc(_event(venue=placeholder, region="San Francisco Venues"), _event()))
+    assert [s["venue_name"] for s in shows] == ["The Catalyst"]
 
 
 def test_every_sample_show_has_a_city(sample):
