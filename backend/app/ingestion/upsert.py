@@ -107,6 +107,9 @@ _VENUE_ALIASES: dict[str, str] = {
     "3rd and army skatepark": "3rd and Army",
     "x sports bar": "The X-Bar",
     "shed a, pier 48": "Pier 48",
+    "lanesplitters pizza": "Lanesplitter Pizza",
+    "point san pablo harbor": "the Knot Club",  # the club at the harbor
+    "brodway hall": "Broadway Hall",
 }
 
 

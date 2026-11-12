@@ -34,6 +34,7 @@ def _show(db, venue, day):
     ("Hotel Utan", "hotel utah saloon"),  # a known variant reads as the Venue's usual name
     ("the On Broadway", "mabuhay gardens"),
     ("X Sports Bar", "x-bar"),
+    ("Point San Pablo Harbor", "knot club"),
 ])
 def test_venue_key(name, key):
     assert venue_key(name) == key

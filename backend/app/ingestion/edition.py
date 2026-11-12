@@ -33,6 +33,9 @@ _FLAG_FIELDS = {"*": "is_recommended", "$": "will_sell_out", "@": "is_pit", "^":
 _REGION_CITY = {"San Francisco Venues": "San Francisco"}
 # The producer's placeholder when it couldn't split a listing; never a real address.
 _PLACEHOLDER_ADDRESS = "san francisco bay area"
+# The same placeholder as a Venue name: a listing the producer couldn't read (its venue and details end up
+# among the artists) or a line that isn't a Show ("record store day"). Those events are left out.
+_PLACEHOLDER_VENUE = "san francisco bay area"
 # The producer's placeholder when it doesn't know a Venue's site: Steve's own.
 _PLACEHOLDER_WEBSITE_HOST = "stevelist.com"
 # "Black Flag (Greg Ginn, Max Zanelly)" -> band "Black Flag", note "Greg Ginn, Max Zanelly"; the ")" may be missing.
@@ -49,8 +52,13 @@ def edition_meta(doc: dict) -> dict:
 
 
 def edition_shows(doc: dict) -> list[dict]:
-    """One upsert-ready dict per event in the edition."""
-    return [_show(event) for event in doc.get("events", [])]
+    """One upsert-ready dict per event in the edition, leaving out events at the placeholder Venue."""
+    return [_show(event) for event in doc.get("events", []) if not _is_placeholder_venue(event)]
+
+
+def _is_placeholder_venue(event: dict) -> bool:
+    name = (event.get("venue") or {}).get("name") or ""
+    return " ".join(name.lower().split()) == _PLACEHOLDER_VENUE
 
 
 def _acts(artists: list[dict]) -> list[tuple[str, str | None, dict]]:
