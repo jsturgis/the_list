@@ -1,5 +1,5 @@
-"""Merge duplicate Venues: names that differ only by case or a leading "the" (see upsert.venue_key),
-or records that resolve to the same Google place.
+"""Merge duplicate Venues: names that differ only by case or a leading "the", or that are known variants
+of one Venue's name (see upsert.venue_key), or records that resolve to the same Google place.
 
 Dry run by default:   python -m app.ingestion.dedupe_venues
 Apply the merge:      python -m app.ingestion.dedupe_venues --apply
@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from app.ingestion.parser import split_venue_street
-from app.ingestion.upsert import venue_key
+from app.ingestion.upsert import canonical_venue_name, venue_key
 from app.models.venue import Venue
 
 # Detail fields copied onto the kept Venue when it's missing them.
@@ -58,6 +58,17 @@ def strip_street_from_names(db: Session) -> list[VenueRename]:
             v.name = name
             if street and not v.address:
                 v.address = ", ".join(p for p in (street, v.city) if p)
+    return renames
+
+
+def rename_variant_names(db: Session) -> list[VenueRename]:
+    """Give Venues stored under a known variant name ("Hotel Utan") their usual name (see upsert.canonical_venue_name)."""
+    renames = []
+    for v in db.query(Venue).order_by(Venue.id):
+        name = canonical_venue_name(v.name)
+        if name != v.name:
+            renames.append(VenueRename(v, v.name))
+            v.name = name
     return renames
 
 
@@ -154,7 +165,7 @@ def main(argv: list[str]) -> None:
     apply = "--apply" in argv
     db = SessionLocal()
     try:
-        renames = strip_street_from_names(db)
+        renames = strip_street_from_names(db) + rename_variant_names(db)
         for r in renames:
             print(f"rename {r.venue.id}: {r.old_name!r} -> {r.venue.name!r}")
         merges = merge_duplicate_venues(db, apply=apply)

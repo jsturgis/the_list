@@ -97,13 +97,36 @@ def _parse_time(s: str | None) -> time | None:
     return None
 
 
-def venue_key(name: str) -> str:
-    """Matching key for a Venue name: case-insensitive, ignoring a leading "the" and extra spaces.
+# Other names Steve lists a Venue under (a typo, an older name, a room within it), by name key, and the
+# name the Venue goes by here. Listings under these names join that Venue instead of starting a new one.
+_VENUE_ALIASES: dict[str, str] = {
+    "hotel utan": "Hotel Utah Saloon",
+    "mabuhauy gardens": "Mabuhay Gardens",
+    "on broadway": "Mabuhay Gardens",  # upstairs in the same building; Steve lists one Show under both
+    "blue note napa": "Napa Music Hall",
+    "3rd and army skatepark": "3rd and Army",
+    "x sports bar": "The X-Bar",
+    "shed a, pier 48": "Pier 48",
+}
 
-    Steve lists the same Venue as both "the Fox Theater" and "Fox Theater".
-    """
+
+def _name_key(name: str) -> str:
     key = " ".join(name.lower().split())
     return key[4:] if key.startswith("the ") else key
+
+
+def canonical_venue_name(name: str) -> str:
+    """The name a Venue goes by: the usual name for a known variant (see _VENUE_ALIASES), else the name as given."""
+    return _VENUE_ALIASES.get(_name_key(name), name)
+
+
+def venue_key(name: str) -> str:
+    """Matching key for a Venue name: case-insensitive, ignoring a leading "the" and extra spaces, with a
+    known variant read as the Venue's usual name (see _VENUE_ALIASES).
+
+    Steve lists the same Venue as both "the Fox Theater" and "Fox Theater", and "Hotel Utah Saloon" as "Hotel Utan".
+    """
+    return _name_key(canonical_venue_name(name))
 
 
 def band_key(name: str) -> str:
@@ -133,7 +156,21 @@ def find_venue(
     A name match must be in a Region one of `cities` belongs to, when any of them is a known city,
     so e.g. Redwood City's "Fox Theater" doesn't merge with Oakland's. Place IDs don't veto a name
     match: the same Venue can come back from Google as a different place.
+
+    A known variant name (see _VENUE_ALIASES) is matched by name first: Google places a misspelt or
+    renamed Venue somewhere else, and that place can be another Venue's.
     """
+    key = venue_key(name)
+    by_name = db.query(Venue).filter(func.lower(Venue.name).in_([key, f"the {key}"]))
+    regions = {r for r in map(known_region, cities) if r}
+    if regions:
+        by_name = by_name.filter(Venue.region.in_(regions))
+    by_name = by_name.order_by(Venue.id)
+
+    if canonical_venue_name(name) != name:
+        venue = by_name.first()
+        if venue:
+            return venue
     if google_place_id:
         venue = (
             db.query(Venue)
@@ -143,12 +180,7 @@ def find_venue(
         )
         if venue:
             return venue
-    key = venue_key(name)
-    q = db.query(Venue).filter(func.lower(Venue.name).in_([key, f"the {key}"]))
-    regions = {r for r in map(known_region, cities) if r}
-    if regions:
-        q = q.filter(Venue.region.in_(regions))
-    return q.order_by(Venue.id).first()
+    return by_name.first()
 
 
 def _upsert_venue(db: Session, data: dict) -> Venue:
@@ -159,7 +191,7 @@ def _upsert_venue(db: Session, data: dict) -> Venue:
     if not venue:
         city = place_city or listing_city or "Unknown"
         venue = Venue(
-            name=name,
+            name=canonical_venue_name(name),
             city=city,
             # Google's city can be a neighbourhood outside the table; prefer whichever city is known.
             region=known_region(place_city) or known_region(listing_city) or Region.sf,

@@ -388,6 +388,34 @@ def test_same_name_in_same_region_is_the_same_venue_even_if_place_id_changes(db)
     assert db.query(Venue).count() == 1
 
 
+def test_a_known_variant_name_joins_the_venue_it_is_a_variant_of(db):
+    upsert_shows(db, [
+        _show(venue_name="Hotel Utah Saloon", city="S.F.", date_=date(2026, 11, 1), google_place_id="ChIJutah"),
+        _show(venue_name="Hotel Utan", city="S.F.", date_=date(2026, 11, 8), google_place_id="ChIJutahinn"),
+        _show(venue_name="Mabuhay Gardens", city="S.F.", date_=date(2026, 11, 6)),
+        _show(venue_name="the On Broadway", city="S.F.", date_=date(2026, 11, 7)),
+        _show(venue_name="on Broadway", city="S.F.", date_=date(2026, 11, 22)),
+    ])
+    assert sorted(v.name for v in db.query(Venue)) == ["Hotel Utah Saloon", "Mabuhay Gardens"]
+    assert db.query(Show).count() == 5
+
+
+def test_a_variant_name_matches_by_name_before_google_place(db):
+    # Google places "on Broadway" at Broadway Studios, another Venue.
+    upsert_shows(db, [
+        _show(venue_name="Broadway Studios", city="S.F.", date_=date(2026, 11, 1), google_place_id="ChIJstudios"),
+        _show(venue_name="Mabuhay Gardens", city="S.F.", date_=date(2026, 11, 6), google_place_id="ChIJmabuhay"),
+        _show(venue_name="on Broadway", city="S.F.", date_=date(2026, 11, 7), google_place_id="ChIJstudios"),
+    ])
+    shows = {s.date.day: s.venue.name for s in db.query(Show)}
+    assert shows == {1: "Broadway Studios", 6: "Mabuhay Gardens", 7: "Mabuhay Gardens"}
+
+
+def test_a_new_venue_listed_under_a_variant_name_gets_its_usual_name(db):
+    upsert_shows(db, [_show(venue_name="Shed A, Pier 48", city="S.F.")])
+    assert db.query(Venue).one().name == "Pier 48"
+
+
 def test_google_neighbourhood_city_does_not_split_a_venue(db):
     # First run: Google reports the neighbourhood; later run: no Google result, listing city only.
     upsert_shows(db, [
