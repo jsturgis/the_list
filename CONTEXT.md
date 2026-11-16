@@ -27,7 +27,7 @@ The List as of the date in its header, normally a Friday. Steve also corrects th
 _Avoid_: Issue, email
 
 **Listing**:
-One entry on the List: a date, a lineup, a Venue and its details. Each listing is one Show.
+One entry on the List: a date, a lineup, a Venue and its details. Each listing is one Show. Shows at one Venue on the same date and door time (a Venue with two rooms, "upstairs" and "downstairs") are told apart by their headliner, and a listing Steve repeats is still one Show.
 _Avoid_: Line, entry, event
 
 **Venue**:

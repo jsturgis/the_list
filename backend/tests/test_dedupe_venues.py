@@ -235,3 +235,33 @@ def test_combined_show_keeps_the_newer_listing_details(db, dup_is_newer):
     survivor = db.get(Show, a.id)
     expected = (ShowStatus.cancelled, 30.0) if dup_is_newer else (ShowStatus.upcoming, 15.0)
     assert (survivor.status, survivor.price_min) == expected
+
+
+def test_two_rooms_shows_at_the_same_time_are_not_combined(db):
+    """Neck Of The Woods lists a Show upstairs and one downstairs at the same time: two Shows, kept apart when a
+    duplicate of the Venue is merged into it."""
+    from datetime import time
+    from app.models.act import Act
+    from app.models.band import Band
+
+    keep = _venue(db, "Neck Of The Woods", city="San Francisco", region=Region.sf)
+    dup = _venue(db, "the Neck of the Woods", city="San Francisco", region=Region.sf)
+    _show(db, keep, 5)
+    upstairs = Show(date=date(2026, 12, 11), venue_id=keep.id, door_time=time(19))
+    downstairs = Show(date=date(2026, 12, 11), venue_id=dup.id, door_time=time(19))
+    db.add_all([upstairs, downstairs])
+    db.flush()
+    bands = {name: Band(name=name) for name in ("Pig City", "Opener A", "Sleepwalk", "Opener B")}
+    db.add_all(bands.values())
+    db.flush()
+    db.add_all([Act(show_id=show.id, band_id=bands[name].id, position=i)
+                for show, lineup in ((upstairs, ["Pig City", "Opener A"]), (downstairs, ["Sleepwalk", "Opener B"]))
+                for i, name in enumerate(lineup)])
+    db.commit()
+
+    [merge] = merge_duplicate_venues(db, apply=True)
+
+    assert (merge.shows_moved, merge.shows_combined) == (1, 0)
+    assert [a.band.name for a in db.get(Show, upstairs.id).acts] == ["Pig City", "Opener A"]
+    moved = db.get(Show, downstairs.id)
+    assert (moved.venue_id, [a.band.name for a in moved.acts]) == (keep.id, ["Sleepwalk", "Opener B"])

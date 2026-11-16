@@ -592,9 +592,49 @@ def test_a_lone_listing_whose_headliner_changed_updates_its_show(db):
 
 
 def test_one_of_two_rooms_changes_its_headliner(db):
-    upsert_shows(db, _rooms())
+    pig_city, sleepwalk = upsert_shows(db, _rooms())
     upsert_shows(db, _rooms(second="Someone Else"))
-    assert sorted(_lineups(db)) == ["Pig City", "Someone Else"]
+    assert {s.id: s.acts[0].band.name for s in db.query(Show)} == {pig_city.id: "Pig City",
+                                                                   sleepwalk.id: "Someone Else"}
+
+
+def test_a_dj_night_and_a_band_at_one_venue_at_the_same_time_are_two_shows(db):
+    listings = [_show(bands=["dj Suzy"], venue_name="Neck Of The Woods", notes="upstairs"),
+                _show(bands=["Band A"], venue_name="Neck Of The Woods", notes="downstairs")]
+    upsert_shows(db, listings)
+    before = {s.id: (s.notes, [a.band.name for a in s.acts]) for s in db.query(Show)}
+    upsert_shows(db, listings)
+    assert {s.id: (s.notes, [a.band.name for a in s.acts]) for s in db.query(Show)} == before
+    assert sorted(before.values()) == [("downstairs", ["Band A"]), ("upstairs", [])]
+
+
+def test_one_cancelled_room_cancels_only_its_show(db):
+    pig_city, sleepwalk = upsert_shows(db, _rooms())
+    upstairs, downstairs = _rooms()
+    upsert_shows(db, [upstairs, {**downstairs, "status": "cancelled"}])
+    assert db.query(Show).count() == 2
+    assert (pig_city.status, sleepwalk.status) == (ShowStatus.upcoming, ShowStatus.cancelled)
+
+
+def test_the_whole_list_ingested_again_changes_no_show(db):
+    """The unique constraint on (date, Venue, door time) used to fail an ingest that made a duplicate Show;
+    without it, a second ingest of the same List must find every Show it stored."""
+    from pathlib import Path
+
+    from app.ingestion.steve_list import list_page, list_shows
+
+    listings = list_shows(list_page((Path(__file__).parent / "fixtures" / "the_list.txt").read_bytes()).text)
+
+    def stored():
+        return {s.id: (str(s.door_time), s.notes, [(a.band_id, a.position, a.note) for a in s.acts])
+                for s in db.query(Show)}
+
+    upsert_shows(db, listings)
+    db.commit()
+    first = stored()
+    upsert_shows(db, listings)
+    db.commit()
+    assert stored() == first
 
 
 def test_three_listings_with_one_identity_are_three_shows(db):
@@ -630,8 +670,10 @@ def test_the_migration_drops_the_one_show_per_identity_constraint(tmp_path):
     from pathlib import Path
 
     def alembic(*args):
-        subprocess.run([sys.executable, "-m", "alembic", *args], cwd=Path(__file__).parent.parent, check=True,
-                       env={**os.environ, "DATABASE_URL": f"sqlite:///{db_path}"}, capture_output=True)
+        done = subprocess.run([sys.executable, "-m", "alembic", *args], cwd=Path(__file__).parent.parent,
+                              env={**os.environ, "DATABASE_URL": f"sqlite:///{db_path}"}, capture_output=True,
+                              text=True)
+        assert done.returncode == 0, done.stderr
 
     db_path = tmp_path / "migrated.db"
     with sqlite3.connect(db_path) as con:

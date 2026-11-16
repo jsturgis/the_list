@@ -3,7 +3,7 @@ from __future__ import annotations
 """Persist enriched show dicts to the database (idempotent)."""
 import difflib
 import re
-from datetime import datetime, time
+from datetime import date, datetime, time
 from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
@@ -319,10 +319,11 @@ def _headliner(names: list[str]) -> str | None:
 
 
 def _show_headliner(show: Show) -> str | None:
+    """Matching key for the Show's headliner (its first Act's Band, see band_key), or None when it has no Acts."""
     return _headliner([a.band.name for a in sorted(show.acts, key=lambda a: a.position)])
 
 
-def _find_shows(db: Session, date_, venue_id: int, door_time: time | None) -> list[Show]:
+def _find_shows(db: Session, date_: date, venue_id: int, door_time: time | None) -> list[Show]:
     """The stored Shows with this identity (date, Venue and door time), oldest first. Usually one; a Venue with two
     rooms has a Show in each at the same time."""
     door_cond = Show.door_time.is_(None) if door_time is None else Show.door_time == door_time
@@ -333,7 +334,9 @@ def _claim_shows(slots: list[tuple], shows: list[Show]) -> dict[tuple, Show]:
     """Which of `shows` (stored Shows with one identity) each slot (the listings with that identity, one slot per
     headliner) is: the Show with the slot's headliner first, then, in order, the Shows left to the slots left. So
     a lone listing whose headliner Steve corrected still updates its Show, and when a Show stored before two rooms'
-    listings were told apart has the second room's lineup, that room keeps it and the first gets a new Show."""
+    listings were told apart has the second room's lineup, that room keeps it and the first gets a new Show.
+    When several headliners at one identity change in the same run, the leftovers are paired in page order; the
+    next run finds each Show by its headliner."""
     free = list(shows)
     claimed: dict[tuple, Show] = {}
     for slot in slots:
@@ -367,7 +370,7 @@ def _find_changed_show(db: Session, venue: Venue, data: dict, taken: set[int]) -
 
 
 def _upsert_show(db: Session, venue: Venue, data: dict, show: Show | None) -> Show:
-    """Store the listing as `show` (found by _find_show or _find_changed_show), or as a new Show."""
+    """Store the listing as `show` (found by _claim_shows or _find_changed_show), or as a new Show."""
     door_time = _parse_time(data.get("door_time"))
     if not show:
         show = Show(date=data["date"], venue_id=venue.id, door_time=door_time)
