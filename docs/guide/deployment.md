@@ -21,8 +21,8 @@ back to): after each ingest, older history is squashed into the oldest kept comm
 
 0. **Check** (the `check` job): runs `python -m app.cli check` against the `data` branch's database. It fetches
    Steve's page ([stevelist.com/list](https://stevelist.com/list)) and compares its SHA-256 with the page the last
-   successful ingest read (`changed`), and the date in its header with the newest edition ingested
-   (`new_edition`). On the hourly cron, an unchanged page ends the run here.
+   successful ingest read (`changed`), and the week (Friday to Thursday) of the date in its header with the newest edition
+   ingested (`new_edition`). On the hourly cron, an unchanged page ends the run here.
 1. **Ingest** (the `ingest` job): runs `python -m app.cli ingest` against the `data` branch's database (with an
    Ollama service container for embeddings) and commits the changed database, index and Band photos back to
    `data`. Each run's row in `ingestion_runs` records the edition's date, the page's hash, its new Venues, its new Bands and, as a

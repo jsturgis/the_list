@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import traceback
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -82,19 +82,25 @@ def _last_ingested(db: Session) -> IngestionRun | None:
             .order_by(IngestionRun.id.desc()).first())
 
 
+def _edition_week(day: date) -> date:
+    """The Friday on or before `day`: the edition whose week (Friday to Thursday) it's in."""
+    return day - timedelta(days=(day.weekday() - 4) % 7)
+
+
 def list_status(db: Session, page: ListPage) -> dict[str, bool]:
     """How `page` (the List as it is now) compares with what's been ingested.
 
     `changed`: it isn't the page the last successful run ingested, so there's something to ingest.
-    `new_edition`: its date is later than any edition ingested, so it's the week's new edition (Alerts go out),
-    not a correction to the current one.
+    `new_edition`: its date is in a later week (Friday to Thursday) than any edition ingested, so it's the week's
+    new edition (Alerts go out), not a correction to the current one. Steve dates the page the day he updates it
+    (a Monday's correction says that Monday), so a later date alone isn't a new edition.
     """
     last = _last_ingested(db)
     newest = db.query(func.max(IngestionRun.edition_date)).filter(
         IngestionRun.status == IngestionStatus.success).scalar()
     return {
         "changed": last is None or last.source_hash != page.sha256,
-        "new_edition": newest is None or page.edition_date > newest,
+        "new_edition": newest is None or _edition_week(page.edition_date) > _edition_week(newest),
     }
 
 

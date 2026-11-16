@@ -214,8 +214,8 @@ flowchart TD
 ### A new edition
 
 Steve updates his page ahead of each Friday's edition, and corrects it in between. The next hourly check finds the
-page changed and ingests it. A page with a later date in its header is a new edition, and its run ends by sending
-Alerts; a correction to the current edition is ingested and deployed the same way, without Alerts.
+page changed and ingests it. A page whose header date is in a later week (Friday to Thursday) is a new edition, and its run ends by
+sending Alerts; a correction to the current edition is ingested and deployed the same way, without Alerts.
 
 ```mermaid
 sequenceDiagram

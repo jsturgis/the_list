@@ -23,7 +23,7 @@ Steve's list as he publishes it: the plain-text page at https://stevelist.com/li
 _Avoid_: Email, newsletter, feed
 
 **Edition**:
-The List as of the date in its header, normally a Friday. Steve also corrects the page between editions: a changed page with the same date is a correction, not a new edition, and sends no Alerts.
+The List as of the date in its header, normally a Friday. Steve also corrects the page between editions, dating it the day he does: a changed page dated in the same week (Friday to Thursday) as the last edition ingested is a correction, not a new edition, and sends no Alerts.
 _Avoid_: Issue, email
 
 **Listing**:

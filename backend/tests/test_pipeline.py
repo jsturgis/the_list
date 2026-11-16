@@ -506,6 +506,21 @@ async def test_list_status_tells_a_changed_page_from_a_new_edition(mock_batch, m
     assert list_status(db, _list(*_LISTINGS, edition="October 2, 2026")) == {"changed": True, "new_edition": True}
 
 
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_a_mid_week_update_with_a_later_date_is_not_a_new_edition(mock_batch, mock_venue, db):
+    # Steve dates the page the day he updates it (a Monday's page says that Monday), not only on Fridays.
+    with patch("app.scheduler.fetch_list", return_value=_LIST):   # Friday Sep 25
+        await _run_ingestion_async(db=db)
+    monday = _list(*_LISTINGS, "oct  1 thr Chat Pile at the Chapel, S.F. 21+ $20 9pm", edition="September 28, 2026")
+    assert list_status(db, monday) == {"changed": True, "new_edition": False}
+
+    with patch("app.scheduler.fetch_list", return_value=monday):
+        await _run_ingestion_async(db=db)
+    # The next Friday's page is the new edition, though the Monday's was ingested since the last one.
+    assert list_status(db, _list(*_LISTINGS, edition="October 2, 2026")) == {"changed": True, "new_edition": True}
+
+
 @patch("app.scheduler.fetch_list", return_value=_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock, side_effect=RuntimeError("Ollama is down"))
