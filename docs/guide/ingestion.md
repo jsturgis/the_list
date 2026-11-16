@@ -1,34 +1,34 @@
 ---
 title: How ingestion works
-description: From the Drive edition to Shows, Bands and Venues in the database.
+description: From Steve's page to Shows, Bands and Venues in the database.
 ---
 
-`python -m app.cli ingest` runs the steps below (`app/scheduler.py`). The services are the source of truth for a
-new Band; the edition is used only when every service has nothing. A Band or Venue already in the database isn't
-looked up again at ingest. The Backfill workflow looks stored Bands up again (see
+`python -m app.cli ingest` runs the steps below (`app/scheduler.py`). The List says which Shows there are, where
+and when, with Steve's flags and notes; everything else about a new Band or Venue comes from the services. A Band
+or Venue already in the database isn't looked up again at ingest. The Backfill workflow looks stored Bands up again (see
 [Deployment](deployment.md#the-backfill-workflow)); a Venue is refreshed by hand (see
-[Fixing data by hand](#fixing-data-by-hand)). For how this fits into the weekly
-run, see [Architecture](architecture.md#offline-jobs).
+[Fixing data by hand](#fixing-data-by-hand)). For how this fits into the hourly
+check, see [Architecture](architecture.md#offline-jobs).
 
 ```mermaid
 flowchart TD
   accTitle: The ingest, step by step
-  accDescr: Daily maintenance, then the newest edition from Drive is mapped to Shows. New Venues are looked up on Google Places. Joint billings are split, Band corrections applied, and new Bands looked up on MusicBrainz, then for a photo on Wikimedia Commons, Discogs and Bandcamp, and for genres on Last.fm and Discogs, then MusicBrainz's free-form tags. Image URLs and links are checked; Shows, Venues, Bands and Acts are upserted; Band photos are stored; Shows and headliners are embedded and indexed in FAISS.
+  accDescr: Daily maintenance, then Steve's page is fetched and its listings parsed into Shows. New Venues are looked up on Google Places, and the result kept only when it's the listed Venue. Joint billings are split, Band corrections applied, and new Bands looked up on MusicBrainz, then for a photo on Wikimedia Commons, Discogs and Bandcamp, and for genres on Last.fm and Discogs, then MusicBrainz's free-form tags, then a correction's. Image URLs and links are checked; Shows, Venues, Bands and Acts are upserted; Band photos are stored; Shows and headliners are embedded and indexed in FAISS.
   maintenance["Daily maintenance<br/>mark Past Shows,<br/>delete old ones"]
-  drive[("Google Drive<br/>latest.json → edition JSON")]
-  map["edition_shows()<br/>one dict per Show"]
-  places["Google Places<br/>new Venues only"]
+  list[("stevelist.com/list<br/>plain text")]
+  map["list_shows()<br/>one dict per listing"]
+  places["Google Places<br/>new Venues only,<br/>checked by venue_check.py"]
   joint["joint_bands.py<br/>split joint billings"]
   corrections["band_corrections.py"]
   mb["MusicBrainz<br/>new Bands only"]
-  photo["Photo: Wikimedia Commons,<br/>else Discogs, else Bandcamp,<br/>else the edition's"]
-  genres["Genres: MusicBrainz, else<br/>Last.fm, else Discogs, else<br/>MusicBrainz's tags, else the edition's"]
+  photo["Photo: Wikimedia Commons,<br/>else Discogs, else Bandcamp"]
+  genres["Genres: MusicBrainz, else<br/>Last.fm, else Discogs, else<br/>MusicBrainz's tags, else its correction's"]
   filter["genre_filter.py<br/>keeps only genres"]
   checks["images.py, links.py<br/>check image URLs, links"]
   upsert["upsert_shows()<br/>Show, Venue, Band, Act rows"]
   photos["band_photos.py<br/>store each photo"]
   embed["batch_embed_and_index()<br/>Ollama → FAISS"]
-  maintenance --> drive --> map
+  maintenance --> list --> map
   map --> places & joint
   joint --> corrections --> mb
   mb --> photo & genres
@@ -37,27 +37,56 @@ flowchart TD
   checks --> upsert --> photos --> embed
 ```
 
-- **The edition**: `latest.json` points at the newest edition and, when there is one, its enriched export, which
-  fills in missing Venue details, ticket links and artist images (`app/ingestion/drive.py`, `enriched.py`).
+- **The List** is the plain text of [stevelist.com/list](https://stevelist.com/list) (`app/ingestion/steve_list.py`).
+  An **edition** is the page as of the date in its header; Steve also corrects the page between editions. The page's
+  SHA-256 is kept on the ingestion run, which is how the hourly check (`python -m app.cli check`) tells a changed
+  page. A page with no edition date, or with fewer than 20 listings, isn't taken for the List: the run fails.
+- **Each listing** is parsed by `app/ingestion/parser.py`: the date (the year follows from the edition's), the
+  lineup, the Venue, city and street, age, price, door and set times, flags, and `CANCELLED:`, `POSTPONED:` or
+  `INCORRECT LISTING:` (also Cancelled). A parenthetical after a band ("Charger (record release)") is a note on
+  its Act; one after the details ("(sold out)") is a note on the Show. The page is typed by hand, so typos are
+  expected: a misspelt weekday or city is read as the one meant, and what can't be read goes to the Show's notes.
+  Lines that aren't a Show ("record store day") are left out.
+- **Venue names** are matched to stored Venues ignoring case, a leading "the", punctuation and theater/theatre,
+  then by Steve's other names for a Venue (`_VENUE_ALIASES` in `app/ingestion/upsert.py`: "the Castro" is The
+  Castro Theatre; "Hopmonk" is a different tavern in Novato and in Sebastopol), then by a one-typo match
+  ("the Indpendent"). Only a name that matches nothing is looked up on Google Places, and joins a Venue at the
+  same Google place.
+- **Google's answer is checked** (`app/ingestion/venue_check.py`), because Places always offers a best guess: a
+  neighbourhood for "the Castro", a bare address for a studio it doesn't know, another church for "First Church of
+  the Buzzard". A result is used only when it's a place (not an area or an address), in the listing's city (Google's
+  city, or a part of its address), and named like the listing: every word of one name is in the other, allowing
+  Steve's typos ("the Indpendent") and short names ("the Arena" for Oakland Arena). When Places offers several
+  guesses, only its exact name counts. A result that is just the listed street address keeps the address and
+  coordinates, but no place id, website or phone. Anything else is dropped: the Venue is stored as listed, and the
+  ingest logs `not confirmed on Google Places` with what Google offered. A nickname Google can't tie to its place
+  ("the Giants Ballpark" for Oracle Park) belongs in `_VENUE_ALIASES`. The manual Venue refresh applies the same
+  check before overwriting anything.
 - **Joint billings** ("Dying Fetus And Sanguisugabogg") become two Bands; a Band with "and" in its name ("Belle and
   Sebastian") stays one. MusicBrainz decides (`app/ingestion/joint_bands.py`).
-- **A Band's correction** (`app/ingestion/band_corrections.py`) takes the place of the edition's genres and links.
+- **A Band's correction** (`app/ingestion/band_corrections.py`) gives the genres and links to use when the services
+  have none.
 - **MusicBrainz** finds the artist (the Bay Area one, when several share the name) and its links.
 - **A Band's photo** is its Wikimedia Commons photo, found through MusicBrainz's Wikidata link and kept with its
   credit (`app/ingestion/wikimedia.py`); else its Discogs photo (`discogs.py`); else the band photo on its Bandcamp
-  page (`bandcamp.py`); and only then the edition's. **Members** come from Discogs.
+  page (`bandcamp.py`). **Members** come from Discogs.
 - **Genres** are MusicBrainz's curated ones, else Last.fm's tags (`app/ingestion/lastfm.py`), else Discogs' genres
-  and styles (`app/ingestion/discogs.py`), else MusicBrainz's free-form tags, and only then the edition's.
+  and styles (`app/ingestion/discogs.py`), else MusicBrainz's free-form tags, and only then its correction's.
   `genre_filter.py` keeps only genres: the `tev1:0.8b` model on Ollama judges a tag it hasn't seen.
 - **Image URLs** are kept, repaired (Wikimedia paths) or dropped; links that don't work are dropped.
 - **Band photos** still at a remote URL are downloaded, resized to ≤800px WebP and saved to the images folder
   (`app/ingestion/band_photos.py`), with a focal point from the faces in them (`photo_focus.py`).
 - **Embeddings** (`nomic-embed-text` on Ollama) of each Show and its headliner go into the FAISS indices.
 
-**Show identity** (upsert key): `(date, venue_id, door_time)`. Re-running ingestion on the same edition
-is idempotent.
+**Show identity** (upsert key): `(date, venue_id, door_time)`. Re-running ingestion on the same page is
+idempotent. When Steve adds or corrects a door time, or lists a Show again without one (`POSTPONED:`), the listing
+updates the stored Show at that Venue that day with the same headliner rather than starting another.
 
-**Bands**: DJs (`dj …`) and back-to-back sets (`… b2b …`) are excluded. Band details from the edition
+**What the List doesn't say** is kept: a Show's ticket link and provider, benefit cause and special event, and a
+Venue's neighbourhood, type and transit came from the formatted editions ingested until November 2026, and stay on
+the Shows and Venues that have them. Sold out, matinee (doors before 5pm) and benefit are read from the listing.
+
+**Bands**: DJs (`dj …`) and back-to-back sets (`… b2b …`) are excluded. Band details from the services
 only fill empty fields, so corrections made in the database aren't overwritten.
 
 **Data retention**: shows older than `DATA_RETENTION_DAYS` (90) are hard-deleted by the daily maintenance

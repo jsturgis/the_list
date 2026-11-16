@@ -65,7 +65,7 @@ export function homeShows(shows: Show[], meta: Pick<ExportMeta, 'generatedAt'>):
 export function homePage(shows: Show[], meta: ExportMeta, pageSize: number): HomePage {
   const listed = homeShows(shows, meta)
   return {
-    emailSubject: meta.emailSubject,
+    editionTitle: meta.editionTitle,
     filterOptions: meta.filterOptions,
     totalUpcoming: meta.totalUpcoming,
     listedCount: listed.length,

@@ -1,4 +1,5 @@
-"""Tests for embedding helpers, the edition ingestion pipeline, maintenance and venue re-enrichment."""
+"""Tests for embedding helpers, the ingest of the List, the check for a changed List, maintenance and venue
+re-enrichment."""
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -9,13 +10,14 @@ import pytest
 
 from app.config import settings
 from app.ingestion.bandcamp import BandcampPhoto, BandcampUnavailable, bandcamp_credit
+from app.ingestion.steve_list import ListError, list_page
 from app.models.band import Band
 from app.models.ingestion_run import IngestionRun, IngestionStatus
 from app.models.show import Show, ShowStatus
 from app.models.venue import Region, Venue
 from app.pipeline.embed import batch_embed_and_index, embed_and_index_band, embed_and_index_show
 from app.clock import local_today
-from app.scheduler import _run_ingestion_async, run_daily_maintenance
+from app.scheduler import _run_ingestion_async, list_status, run_daily_maintenance
 
 
 @pytest.fixture(autouse=True)
@@ -110,28 +112,23 @@ async def test_embed_and_index_show_stores_bytes(
 
 # ── full pipeline ─────────────────────────────────────────────────────────────
 
-def _edition_event(date_, venue, city, artists, details, age="all_ages"):
-    """A schema v2.0.0 event."""
-    return {"event_id": f"{date_}-{venue}", "date": date_, "day_of_week": "", "status": "scheduled",
-            "age_restriction": age, "list_flags": [], "doors_time": None, "show_time": None, "ticketing": {},
-            "venue": {"name": venue, "address": f"1 Main St, {city}", "region": "San Francisco Venues",
-                      "url": f"https://{venue.lower().replace(' ', '')}.com/", "coordinates": None},
-            "artists": [{"name": n, "role": "headliner" if i == 0 else "support", "genre": g, "url": u}
-                        for i, (n, g, u) in enumerate(artists)],
-            "raw_details": details}
+def _list(*listings, edition="September 25, 2026"):
+    """Steve's page (app/ingestion/steve_list.py) with these listings."""
+    text = "\n".join([f"funk-punk-thrash-ska      Upcoming shows of Interest      {edition}", "", *listings, "",
+                      "\t*    All bands deserve 3 stars\t\ta/a  all ages", "",
+                      "Bottom of the Hill, 1233 17th St., S.F. a/a 21+"])
+    return list_page(text.encode())
 
 
-_EDITION = {
-    "title": "Bay Area & Santa Cruz Concert Events", "edition_date": "2026-09-25", "schema_version": "2.0.0",
-    "events": [
-        _edition_event("Sep 25, 2026", "Bottom of the Hill", "San Francisco",
-                       [("Deafheaven", "Blackgaze", "https://deafheaven.bandcamp.com/"), ("Uniform", "Noise Rock", "")],
-                       "a/a $15 8pm"),
-        _edition_event("Oct 1, 2026", "The Chapel", "San Francisco",
-                       [("Mdou Moctar", "Tuareg Rock / Psych", "")], "18+ $25/$28 8pm", age="18+"),
-    ],
-}
-_SAMPLE_FETCH = (_EDITION, {"file_id": "edition-file-id", "file_name": "Concert Events - September 25, 2026.json"})
+_LISTINGS = ("sep 25 fri Deafheaven, Uniform\n       at Bottom of the Hill, S.F. a/a $15 8pm",
+             "oct  1 thr Mdou Moctar at the Chapel, S.F. 18+ $25/$28 8pm")
+_LIST = _list(*_LISTINGS)
+
+
+@pytest.fixture(autouse=True)
+def short_lists(monkeypatch):
+    """The Lists here have a few listings; the real one has hundreds, and fewer than 20 isn't taken for it."""
+    monkeypatch.setattr("app.ingestion.steve_list._MIN_SHOWS", 1)
 
 
 def _venue_data(name, city, street=None, use_llm=True):
@@ -139,29 +136,34 @@ def _venue_data(name, city, street=None, use_llm=True):
     return {"address": f"{street}, {city}, CA, USA", "google_place_id": f"ChIJ-{name}", "city": city}
 
 
+def _venue_data_with_website(name, city, street=None, use_llm=True):
+    return {**_venue_data(name, city, street), "website_url": f"https://{name.lower().replace(' ', '')}.com/"}
+
+
 _NOT_ON_MUSICBRAINZ = {"genres": [], "mb_genres": False, "spotify_url": None, "soundcloud_url": None,
                        "bandcamp_url": None}
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
+@patch("app.scheduler.fetch_list", return_value=_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler._enrich_band", return_value=_NOT_ON_MUSICBRAINZ)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
-async def test_pipeline_imports_the_edition(mock_batch, mock_band, mock_venue, mock_fetch, db):
+async def test_pipeline_ingests_the_list(mock_batch, mock_band, mock_venue, mock_fetch, db):
     await _run_ingestion_async(db=db)
 
     assert db.query(Show).count() == 2
-    deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
-    assert deafheaven.genres == ["blackgaze"]
-    assert deafheaven.bandcamp_url == "https://deafheaven.bandcamp.com/"
     assert {b.name for b in db.query(Band)} == {"Deafheaven", "Uniform", "Mdou Moctar"}
-    chapel = db.query(Venue).filter(Venue.name == "The Chapel").one()
-    assert chapel.google_place_id == "ChIJ-The Chapel"
-    assert chapel.website_url == "https://thechapel.com/"
+    # The List only names a Band: with no service knowing it, it has no genres or links.
+    deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
+    assert (deafheaven.genres, deafheaven.bandcamp_url) == ([], None)
+    chapel = db.query(Venue).filter(Venue.name == "the Chapel").one()
+    assert (chapel.city, chapel.google_place_id) == ("San Francisco", "ChIJ-the Chapel")
+    show = db.query(Show).filter(Show.venue_id == chapel.id).one()
+    assert (show.date, show.price_min, show.price_max) == (date(2026, 10, 1), 25.0, 28.0)
     mock_batch.assert_called_once()
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
+@patch("app.scheduler.fetch_list", return_value=_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler._enrich_band", return_value={**_NOT_ON_MUSICBRAINZ, "namesakes": True})
 @patch("app.scheduler.lastfm_tags", return_value=["trance"])
@@ -177,13 +179,13 @@ async def test_pipeline_puts_a_corrected_band_right_and_skips_its_namesakes(
     await _run_ingestion_async(db=db)
 
     deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
-    assert deafheaven.genres == ["post-metal"]                                     # not the edition's
+    assert deafheaven.genres == ["post-metal"]                                     # no service had any
     assert deafheaven.bandcamp_url == "https://deafheavenofficial.bandcamp.com/"
     mock_lastfm.assert_not_called()                                                 # namesakes: not by name
     mock_discogs.assert_not_called()
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
+@patch("app.scheduler.fetch_list", return_value=_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
 async def test_pipeline_records_the_ingestion_run(mock_batch, mock_venue, mock_fetch, db):
@@ -191,13 +193,14 @@ async def test_pipeline_records_the_ingestion_run(mock_batch, mock_venue, mock_f
 
     run = db.query(IngestionRun).one()
     assert run.status == IngestionStatus.success
-    assert run.email_subject == "Bay Area & Santa Cruz Concert Events — Sep 25, 2026"
-    assert run.email_message_id == "edition-file-id"
-    assert run.email_received_at.date() == date(2026, 9, 25)
+    assert run.edition_title == "The List for Sep 25, 2026"
+    assert run.edition_date == date(2026, 9, 25)
+    assert run.source_hash == _LIST.sha256
     assert (run.shows_parsed, run.shows_upserted, run.shows_new) == (2, 2, 2)
+    assert run.new_venues == 2
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
+@patch("app.scheduler.fetch_list", return_value=_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
 async def test_pipeline_idempotent_and_enriches_only_new_venues(mock_batch, mock_venue, mock_fetch, db):
@@ -210,14 +213,39 @@ async def test_pipeline_idempotent_and_enriches_only_new_venues(mock_batch, mock
 
     assert (db.query(Show).count(), db.query(Band).count(), db.query(Venue).count()) == counts
     mock_venue.assert_not_called()
-    assert db.query(IngestionRun).order_by(IngestionRun.id.desc()).first().shows_new == 0
+    again = db.query(IngestionRun).order_by(IngestionRun.id.desc()).first()
+    assert (again.shows_new, again.new_venues) == (0, 0)
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
+def _places(name, city, street=None, use_llm=True):
+    """Google Places as it answers: the Chapel is found; for "Bottom of the Hill" its best guess is another place."""
+    found = {"the Chapel": ("The Chapel", "777 Valencia St, San Francisco, CA 94110, USA"),
+             "Bottom of the Hill": ("Hill Bar", "1 Market St, San Francisco, CA 94105, USA")}[name]
+    return {"google_name": found[0], "address": found[1], "city": city, "google_types": ["establishment"],
+            "google_results": 1, "google_place_id": f"ChIJ-{found[0]}", "latitude": 37.7, "longitude": -122.4,
+            "phone": "(415) 555-0100", "website_url": "https://example.com/", "google_rating": 4.0, "timezone": None}
+
+
+@patch("app.scheduler.fetch_list", return_value=_LIST)
+@patch("app.scheduler._enrich_venue", side_effect=_places)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_a_new_venue_takes_only_a_google_place_that_is_it(mock_batch, mock_venue, mock_fetch, db, caplog):
+    await _run_ingestion_async(db=db)
+
+    chapel = db.query(Venue).filter(Venue.name == "the Chapel").one()
+    assert (chapel.google_place_id, chapel.address) == ("ChIJ-The Chapel", "777 Valencia St, San Francisco, CA 94110, USA")
+    # Google's guess for Bottom of the Hill is another place: the Venue is stored as listed, without its details.
+    bottom = db.query(Venue).filter(Venue.name == "Bottom of the Hill").one()
+    assert (bottom.google_place_id, bottom.address, bottom.latitude, bottom.website_url) == (None, None, None, None)
+    assert bottom.city == "San Francisco"
+    assert "Bottom of the Hill (San Francisco) not confirmed on Google Places (unconfirmed)" in caplog.text
+
+
+@patch("app.scheduler.fetch_list", return_value=_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
 async def test_pipeline_makes_no_llm_calls(mock_batch, mock_venue, mock_fetch, db):
-    """Edition names are already clean, so venue enrichment runs without the LLM."""
+    """Venue enrichment runs without the LLM at ingest."""
     with patch("app.pipeline.enrichment.get_enrichment_llm") as llm:
         await _run_ingestion_async(db=db)
     llm.assert_not_called()
@@ -225,14 +253,9 @@ async def test_pipeline_makes_no_llm_calls(mock_batch, mock_venue, mock_fetch, d
     assert all(call.args[3] is False for call in mock_venue.call_args_list)  # use_llm=False
 
 
-_NO_GENRE_EDITION = {
-    **_EDITION,
-    "events": _EDITION["events"] + [
-        _edition_event("Oct 2, 2026", "Bottom of the Hill", "San Francisco",
-                       [("Chat Pile", "", ""), ("Deafheaven", "Blackgaze", ""), ("Mystery Act", "", "")], "21+ $20 9pm"),
-        _edition_event("Oct 3, 2026", "The Chapel", "San Francisco", [("Chat Pile", "", "")], "21+ $20 9pm"),
-    ],
-}
+_NO_GENRE_LIST = _list(*_LISTINGS,
+                       "oct  2 fri Chat Pile, Deafheaven, Mystery Act at Bottom of the Hill, S.F. 21+ $20 9pm",
+                       "oct  3 sat Chat Pile at the Chapel, S.F. 21+ $20 9pm")
 
 
 def _musicbrainz(name, use_llm=True):
@@ -252,20 +275,19 @@ def _musicbrainz(name, use_llm=True):
     return found.get(name, _NOT_ON_MUSICBRAINZ)
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=(_NO_GENRE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler.fetch_list", return_value=_NO_GENRE_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler._enrich_band", side_effect=_musicbrainz)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
-async def test_pipeline_takes_genres_from_musicbrainz_then_the_edition(mock_batch, mock_band, mock_venue, mock_fetch, db):
+async def test_pipeline_takes_genres_and_links_from_musicbrainz(mock_batch, mock_band, mock_venue, mock_fetch, db):
     await _run_ingestion_async(db=db)
 
     genres = {b.name: b.genres for b in db.query(Band)}
-    assert genres["Chat Pile"] == ["noise rock", "sludge metal"]  # MusicBrainz; the edition has none
-    assert genres["Deafheaven"] == ["shoegaze", "black metal"]   # MusicBrainz over the edition's "Blackgaze"
-    assert genres["Mystery Act"] == []                           # in neither
+    assert genres["Chat Pile"] == ["noise rock", "sludge metal"]  # MusicBrainz's curated genres
+    assert genres["Deafheaven"] == ["shoegaze", "black metal"]
+    assert genres["Mystery Act"] == []                           # not on MusicBrainz
     chat_pile = db.query(Band).filter(Band.name == "Chat Pile").one()
     assert chat_pile.bandcamp_url == "https://chatpile.bandcamp.com/"
-    # MusicBrainz's links win over the edition's (deafheaven.bandcamp.com); it adds the ones the edition lacks.
     deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
     assert deafheaven.bandcamp_url == "https://deafheavens.bandcamp.com/"
     assert deafheaven.spotify_url == "https://open.spotify.com/artist/deafheaven"
@@ -278,19 +300,19 @@ async def test_pipeline_takes_genres_from_musicbrainz_then_the_edition(mock_batc
     assert all(call.args[1] is False for call in mock_band.call_args_list)
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
+@patch("app.scheduler.fetch_list", return_value=_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler._enrich_band", side_effect=_musicbrainz)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
-async def test_pipeline_uses_the_editions_genre_only_when_every_service_has_none(mock_batch, mock_band, mock_venue,
-                                                                                  mock_fetch, db):
+async def test_pipeline_gives_a_band_no_genres_when_every_service_has_none(mock_batch, mock_band, mock_venue,
+                                                                            mock_fetch, db):
     await _run_ingestion_async(db=db)
 
-    # Uniform has only free-form tags on MusicBrainz: its genres among them still beat the edition's "Noise Rock"
-    # ("seen live" isn't a genre, app/ingestion/genre_filter.py).
+    # Uniform has only free-form tags on MusicBrainz: the genres among them are used ("seen live" isn't a genre,
+    # app/ingestion/genre_filter.py).
     assert db.query(Band).filter(Band.name == "Uniform").one().genres == ["noise"]
-    # Mdou Moctar isn't on MusicBrainz or Last.fm: only then the edition's genres.
-    assert db.query(Band).filter(Band.name == "Mdou Moctar").one().genres == ["tuareg rock", "psych"]
+    # Mdou Moctar isn't on MusicBrainz or Last.fm.
+    assert db.query(Band).filter(Band.name == "Mdou Moctar").one().genres == []
 
 
 def _musicbrainz_tags_only(name, use_llm=True):
@@ -301,7 +323,7 @@ def _musicbrainz_tags_only(name, use_llm=True):
     return found.get(name, _NOT_ON_MUSICBRAINZ)
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=(_NO_GENRE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler.fetch_list", return_value=_NO_GENRE_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler._enrich_band", side_effect=_musicbrainz_tags_only)
 @patch("app.scheduler.lastfm_tags", side_effect=lambda name, mbid: {"Chat Pile": ["noise rock", "sludge metal"]}.get(name, []))
@@ -312,8 +334,8 @@ async def test_pipeline_takes_last_fm_tags_when_musicbrainz_has_no_curated_genre
 
     genres = {b.name: b.genres for b in db.query(Band)}
     assert genres["Chat Pile"] == ["noise rock", "sludge metal"]  # Last.fm's, over MusicBrainz's free-form tags
-    assert genres["Uniform"] == ["noise"]                         # MusicBrainz's tags, over the edition's
-    assert genres["Deafheaven"] == ["blackgaze"]                  # nothing anywhere else: the edition's, last
+    assert genres["Uniform"] == ["noise"]                         # MusicBrainz's tags
+    assert genres["Deafheaven"] == []                             # nothing anywhere
     assert genres["Mystery Act"] == []                            # nowhere
     # Asked for every Band without curated MusicBrainz genres, once each, with the MusicBrainz id.
     assert sorted(c.args for c in mock_lastfm.call_args_list) == [
@@ -321,18 +343,18 @@ async def test_pipeline_takes_last_fm_tags_when_musicbrainz_has_no_curated_genre
         ("Uniform", "uniform-mbid")]
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=(_NO_GENRE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler.fetch_list", return_value=_NO_GENRE_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler._enrich_band", side_effect=_musicbrainz_tags_only)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
 async def test_pipeline_falls_back_to_musicbrainz_tags_when_last_fm_has_none(mock_batch, mock_band, mock_venue, mock_fetch, db):
     await _run_ingestion_async(db=db)  # Last.fm stubbed to nothing by default
     assert db.query(Band).filter(Band.name == "Uniform").one().genres == ["noise"]
-    # Only the genres among them: Chat Pile's one tag, "seen live", isn't, and the edition has none.
+    # Only the genres among them: Chat Pile's one tag, "seen live", isn't.
     assert db.query(Band).filter(Band.name == "Chat Pile").one().genres == []
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=(_NO_GENRE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler.fetch_list", return_value=_NO_GENRE_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler._enrich_band", side_effect=_musicbrainz)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
@@ -347,21 +369,14 @@ async def test_pipeline_looks_up_only_bands_new_to_the_database(mock_batch, mock
     assert db.query(Band).filter(Band.name == "Mystery Act").one().genres == []
 
 
-_JOINT_EDITION = {
-    **_EDITION,
-    "events": [
-        _edition_event("Oct 5, 2026", "The Ritz", "San Jose",
-                       [("Dying Fetus And Sanguisugabogg", "Death Metal", ""), ("Belle and Sebastian", "Indie Pop", "")],
-                       "a/a $32 7pm"),
-    ],
-}
+_JOINT_LIST = _list("oct  5 mon Dying Fetus And Sanguisugabogg, Belle and Sebastian at the Ritz, San Jose a/a $32 7pm")
 
 
 def _joint(name):
     return {"Dying Fetus And Sanguisugabogg": ["Dying Fetus", "Sanguisugabogg"]}.get(name, [name])
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=(_JOINT_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler.fetch_list", return_value=_JOINT_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler.split_joint_name", side_effect=_joint)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
@@ -371,7 +386,6 @@ async def test_pipeline_splits_joint_billings_into_two_bands(mock_batch, mock_sp
     show = db.query(Show).one()
     lineup = [(a.position, a.band.name) for a in sorted(show.acts, key=lambda a: a.position)]
     assert lineup == [(0, "Dying Fetus"), (1, "Sanguisugabogg"), (2, "Belle and Sebastian")]
-    assert db.query(Band).filter(Band.name == "Sanguisugabogg").one().genres == ["death metal"]
     # Only names that could be joint billings are checked; a second ingest checks nothing new.
     assert sorted(c.args[0] for c in mock_split.call_args_list) == ["Belle and Sebastian", "Dying Fetus And Sanguisugabogg"]
     mock_split.reset_mock()
@@ -379,45 +393,19 @@ async def test_pipeline_splits_joint_billings_into_two_bands(mock_batch, mock_sp
     assert [c.args[0] for c in mock_split.call_args_list] == ["Dying Fetus And Sanguisugabogg"]
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
+@patch("app.scheduler.fetch_list", return_value=_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
 async def test_pipeline_records_how_the_new_bands_came_out(mock_batch, mock_venue, mock_fetch, db):
-    # No service knows anyone (the offline defaults), so every new Band falls back to the edition.
+    # No service knows anyone (the offline defaults), so no new Band has a photo.
     await _run_ingestion_async(db=db)
 
     run = db.query(IngestionRun).order_by(IngestionRun.id.desc()).first()
-    assert (run.new_bands, run.new_bands_without_photo_pct, run.new_bands_photo_from_edition_pct) == (3, 100.0, 0.0)
-    assert run.new_bands_genres_from_edition_pct == 100.0   # Deafheaven, Uniform, Mdou Moctar: the edition's genres
-    assert run.new_bands_links_from_edition_pct == 33.3     # Deafheaven's Bandcamp link
+    assert (run.new_bands, run.new_bands_without_photo_pct) == (3, 100.0)
 
-    await _run_ingestion_async(db=db)  # the same edition again: no new Bands
+    await _run_ingestion_async(db=db)  # the same List again: no new Bands
     run = db.query(IngestionRun).order_by(IngestionRun.id.desc()).first()
-    assert (run.new_bands, run.new_bands_without_photo_pct, run.new_bands_genres_from_edition_pct) == (0, None, None)
-
-
-_TWO_DATES_EDITION = {
-    **_EDITION,
-    "events": [
-        _edition_event("Oct 2, 2026", "Bottom of the Hill", "San Francisco",
-                       [("Local Heroes", "Rock", "https://localheroes.bandcamp.com/")], "21+ $12 8pm"),
-        _edition_event("Oct 3, 2026", "The Chapel", "San Francisco",
-                       [("Local Heroes", "Punk", "https://localheroes.example/")], "21+ $12 8pm"),
-    ],
-}
-
-
-@patch("app.scheduler.fetch_latest_edition", return_value=(_TWO_DATES_EDITION, _SAMPLE_FETCH[1]))
-@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
-@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
-async def test_the_edition_fallback_stats_count_a_band_on_several_shows(mock_batch, mock_venue, mock_fetch, db):
-    """The Band keeps its first Show's edition genres and each link field's first value; the stats must agree."""
-    await _run_ingestion_async(db=db)
-
-    heroes = db.query(Band).filter(Band.name == "Local Heroes").one()
-    assert heroes.genres == ["rock"] and heroes.bandcamp_url == "https://localheroes.bandcamp.com/"
-    run = db.query(IngestionRun).order_by(IngestionRun.id.desc()).first()
-    assert (run.new_bands, run.new_bands_genres_from_edition_pct, run.new_bands_links_from_edition_pct) == (1, 100.0, 100.0)
+    assert (run.new_bands, run.new_bands_without_photo_pct) == (0, None)
 
 
 def _discogs_artists(name, links):
@@ -426,7 +414,7 @@ def _discogs_artists(name, links):
     return DiscogsArtist(ids[name], name, f"https://www.discogs.com/artist/{ids[name]}") if name in ids else None
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=(_NO_GENRE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler.fetch_list", return_value=_NO_GENRE_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler._enrich_band", side_effect=_musicbrainz_tags_only)
 @patch("app.scheduler.lastfm_tags", side_effect=lambda name, mbid: {"Mdou Moctar": ["tuareg rock"]}.get(name, []))
@@ -441,7 +429,7 @@ async def test_pipeline_takes_discogs_genres_after_last_fm_and_before_musicbrain
     assert genres["Chat Pile"] == ["sludge metal", "noise rock"]  # Discogs', over MusicBrainz's "seen live"
     assert genres["Mdou Moctar"] == ["tuareg rock"]              # Last.fm's: Discogs isn't asked for genres
     assert genres["Uniform"] == ["noise"]                        # Discogs has none: MusicBrainz's free-form tags
-    assert genres["Deafheaven"] == ["blackgaze"]                 # not on any service: the edition's, last
+    assert genres["Deafheaven"] == []                            # not on any service
     asked = sorted(c.args[0] for c in mock_genres.call_args_list)
     assert asked == [11, 7258502]                                # Bands with a Discogs artist and no Last.fm tags
     # Every new Band's Discogs artist is looked up once; a second ingest looks up no one.
@@ -460,7 +448,7 @@ def _discogs_with_members(name, links):
         {"name": "George Clarke", "active": True}, {"name": "Derek Prine", "active": False}])
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
+@patch("app.scheduler.fetch_list", return_value=_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler.discogs_artist", side_effect=_discogs_with_members)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
@@ -476,14 +464,59 @@ async def test_pipeline_saves_a_new_bands_members_from_discogs(mock_batch, mock_
     assert len(db.query(Band).filter(Band.name == "Deafheaven").one().members) == 2
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=(None, None))
-async def test_pipeline_returns_early_when_no_edition(mock_fetch, db):
-    await _run_ingestion_async(db=db)
+@patch("app.scheduler.fetch_list", side_effect=ListError("couldn't fetch https://stevelist.com/list: timed out"))
+async def test_pipeline_records_a_failed_run_when_the_list_cannot_be_fetched(mock_fetch, db):
+    with pytest.raises(ListError):
+        await _run_ingestion_async(db=db)
+
+    run = db.query(IngestionRun).one()
+    assert run.status == IngestionStatus.failure and "timed out" in run.error
     assert db.query(Show).count() == 0
-    assert db.query(IngestionRun).one().status == IngestionStatus.no_email
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
+@patch("app.scheduler.fetch_list", return_value=_LIST)
+async def test_pipeline_fails_on_a_page_with_too_few_listings_to_be_the_list(mock_fetch, db, monkeypatch):
+    monkeypatch.setattr("app.ingestion.steve_list._MIN_SHOWS", 20)
+
+    with pytest.raises(ListError, match="only 2 listings"):
+        await _run_ingestion_async(db=db)
+
+    run = db.query(IngestionRun).one()
+    assert (run.status, run.source_hash) == (IngestionStatus.failure, None)  # so the next check tries again
+    assert db.query(Show).count() == 0
+
+
+# ── the check for a changed List ──────────────────────────────────────────────
+
+@patch("app.scheduler.fetch_list", return_value=_LIST)
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_list_status_tells_a_changed_page_from_a_new_edition(mock_batch, mock_venue, mock_fetch, db):
+    # Nothing ingested yet: everything is new.
+    assert list_status(db, _LIST) == {"changed": True, "new_edition": True}
+
+    await _run_ingestion_async(db=db)
+    assert list_status(db, _LIST) == {"changed": False, "new_edition": False}
+
+    # Steve corrects the page during the week: something to ingest, but not a new edition (no Alerts).
+    corrected = _list(*_LISTINGS, "oct  2 fri Chat Pile at the Chapel, S.F. 21+ $20 9pm")
+    assert list_status(db, corrected) == {"changed": True, "new_edition": False}
+
+    # Next week's page.
+    assert list_status(db, _list(*_LISTINGS, edition="October 2, 2026")) == {"changed": True, "new_edition": True}
+
+
+@patch("app.scheduler.fetch_list", return_value=_LIST)
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock, side_effect=RuntimeError("Ollama is down"))
+async def test_a_failed_ingest_leaves_the_list_changed(mock_batch, mock_venue, mock_fetch, db):
+    with pytest.raises(RuntimeError):
+        await _run_ingestion_async(db=db)
+
+    assert list_status(db, _LIST) == {"changed": True, "new_edition": True}
+
+
+@patch("app.scheduler.fetch_list", return_value=_LIST)
 @patch("app.scheduler._enrich_venue", return_value={})
 @patch("app.pipeline.embed.save_index")
 @patch("app.pipeline.embed.upsert_vector")
@@ -577,28 +610,28 @@ async def test_venue_enrichment_keeps_region_when_google_returns_a_neighbourhood
     assert refreshed.region == Region.east_bay  # not moved to the "sf" default
 
 
-_IMAGE_EDITION = {
-    **_EDITION,
-    "events": [{**_EDITION["events"][0],
-                "venue": {**_EDITION["events"][0]["venue"], "image_url": "https://example.com/made-up-venue.jpg"},
-                "artists": [{**_EDITION["events"][0]["artists"][0], "image_url": "https://example.com/wrong-path.jpg"},
-                            _EDITION["events"][0]["artists"][1]]}],
-}
+def _deafheaven_on_discogs(name, links):
+    from app.ingestion.discogs import DiscogsArtist
+    if name != "Deafheaven":
+        return None
+    return DiscogsArtist(9, "Deafheaven", "https://www.discogs.com/artist/9-Deafheaven",
+                         image_url="https://i.discogs.com/deafheaven.jpg")
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
+_DISCOGS_CREDIT = {"source": "Discogs", "author": None, "license": None, "license_url": None,
+                   "source_url": "https://www.discogs.com/artist/9-Deafheaven"}
+
+
+@patch("app.scheduler.fetch_list", return_value=_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
-@patch("app.scheduler.check_image_urls", return_value={
-    "https://example.com/made-up-venue.jpg": None,
-    "https://example.com/wrong-path.jpg": "https://example.com/real-path.jpg",
-})
+@patch("app.scheduler.discogs_artist", side_effect=_deafheaven_on_discogs)
+@patch("app.scheduler.check_image_urls", return_value={"https://i.discogs.com/deafheaven.jpg": "https://i.discogs.com/real-path.jpg"})
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
-async def test_pipeline_saves_only_images_that_load(mock_batch, mock_images, mock_venue, mock_fetch, db):
+async def test_pipeline_saves_only_images_that_load(mock_batch, mock_images, mock_discogs, mock_venue, mock_fetch, db):
     await _run_ingestion_async(db=db)
 
-    assert db.query(Band).filter(Band.name == "Deafheaven").one().image_url == "https://example.com/real-path.jpg"
-    assert db.query(Venue).filter(Venue.name == "Bottom of the Hill").one().image_url is None
-    assert sorted(mock_images.call_args.args[0]) == ["https://example.com/made-up-venue.jpg", "https://example.com/wrong-path.jpg"]
+    assert db.query(Band).filter(Band.name == "Deafheaven").one().image_url == "https://i.discogs.com/real-path.jpg"
+    assert mock_images.call_args.args[0] == ["https://i.discogs.com/deafheaven.jpg"]
 
 
 def _photo_client(routes):
@@ -618,18 +651,19 @@ def _jpeg_bytes():
     return buf.getvalue()
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler.fetch_list", return_value=_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.discogs_artist", side_effect=_deafheaven_on_discogs)
 @patch("app.scheduler.check_image_urls", side_effect=lambda urls: {u: u for u in urls})
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
-async def test_pipeline_saves_band_photos_with_the_data(mock_batch, mock_images, mock_venue, mock_fetch, db, tmp_path,
-                                                        monkeypatch):
+async def test_pipeline_saves_band_photos_with_the_data(mock_batch, mock_images, mock_discogs, mock_venue, mock_fetch,
+                                                        db, tmp_path, monkeypatch):
     import httpx
 
     from app.ingestion import band_photos
     monkeypatch.setattr(settings, "images_path", str(tmp_path))
     monkeypatch.setattr(band_photos.httpx, "Client", _photo_client(
-        {"https://example.com/wrong-path.jpg": httpx.Response(200, content=_jpeg_bytes())}))
+        {"https://i.discogs.com/deafheaven.jpg": httpx.Response(200, content=_jpeg_bytes())}))
 
     with patch("app.scheduler.save_band_photos", band_photos.save_band_photos):
         await _run_ingestion_async(db=db)
@@ -637,16 +671,15 @@ async def test_pipeline_saves_band_photos_with_the_data(mock_batch, mock_images,
     deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
     assert deafheaven.image_url.startswith(f"bands/{deafheaven.id}-") and deafheaven.image_url.endswith(".webp")
     assert (tmp_path / deafheaven.image_url).is_file()
-    # The Venue's photo isn't downloaded: only Band photos are kept with the data.
-    assert db.query(Venue).filter(Venue.name == "Bottom of the Hill").one().image_url == "https://example.com/made-up-venue.jpg"
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler.fetch_list", return_value=_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.discogs_artist", side_effect=_deafheaven_on_discogs)
 @patch("app.scheduler.check_image_urls", side_effect=lambda urls: {u: u for u in urls})
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
-async def test_pipeline_drops_a_band_photo_that_cannot_be_downloaded(mock_batch, mock_images, mock_venue, mock_fetch,
-                                                                     db, tmp_path, monkeypatch):
+async def test_pipeline_drops_a_band_photo_that_cannot_be_downloaded(mock_batch, mock_images, mock_discogs, mock_venue,
+                                                                     mock_fetch, db, tmp_path, monkeypatch):
     from app.ingestion import band_photos
     monkeypatch.setattr(settings, "images_path", str(tmp_path))
     monkeypatch.setattr(band_photos.httpx, "Client", _photo_client({}))  # every download 404s
@@ -676,7 +709,7 @@ def _commons(links):
     return None
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler.fetch_list", return_value=_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler._enrich_band", side_effect=_deafheaven_on_musicbrainz)
 @patch("app.scheduler.commons_photo", side_effect=_commons)
@@ -687,7 +720,7 @@ async def test_pipeline_prefers_the_commons_photo_and_saves_its_credit(mock_batc
     await _run_ingestion_async(db=db)
 
     deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
-    assert deafheaven.image_url == "https://upload.wikimedia.org/deafheaven-800.jpg"   # over the edition's
+    assert deafheaven.image_url == "https://upload.wikimedia.org/deafheaven-800.jpg"
     assert deafheaven.image_credit == _COMMONS_CREDIT
     # A Band already in the database isn't looked up again.
     mock_commons.reset_mock()
@@ -695,47 +728,21 @@ async def test_pipeline_prefers_the_commons_photo_and_saves_its_credit(mock_batc
     mock_commons.assert_not_called()
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler.fetch_list", return_value=_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler._enrich_band", side_effect=_deafheaven_on_musicbrainz)
 @patch("app.scheduler.commons_photo", side_effect=_commons)
-@patch("app.scheduler.check_image_urls", side_effect=lambda urls: {
-    u: (None if "upload.wikimedia.org/deafheaven" in u else u) for u in urls})
+@patch("app.scheduler.check_image_urls", side_effect=lambda urls: {u: None for u in urls})
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
-async def test_pipeline_falls_back_to_the_editions_photo_when_the_commons_one_does_not_load(
+async def test_pipeline_leaves_a_band_without_a_photo_when_its_only_one_does_not_load(
         mock_batch, mock_images, mock_commons, mock_band, mock_venue, mock_fetch, db):
     await _run_ingestion_async(db=db)
 
     deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
-    assert deafheaven.image_url == "https://example.com/wrong-path.jpg"   # the edition's
-    assert deafheaven.image_credit is None                                # which has no credit
+    assert (deafheaven.image_url, deafheaven.image_credit) == (None, None)
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
-@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
-@patch("app.scheduler.check_image_urls", side_effect=lambda urls: {u: u for u in urls})
-@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
-async def test_pipeline_keeps_the_editions_photo_without_a_credit_when_commons_has_none(
-        mock_batch, mock_images, mock_venue, mock_fetch, db):
-    await _run_ingestion_async(db=db)
-
-    deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
-    assert (deafheaven.image_url, deafheaven.image_credit) == ("https://example.com/wrong-path.jpg", None)
-
-
-def _deafheaven_on_discogs(name, links):
-    from app.ingestion.discogs import DiscogsArtist
-    if name != "Deafheaven":
-        return None
-    return DiscogsArtist(9, "Deafheaven", "https://www.discogs.com/artist/9-Deafheaven",
-                         image_url="https://i.discogs.com/deafheaven.jpg")
-
-
-_DISCOGS_CREDIT = {"source": "Discogs", "author": None, "license": None, "license_url": None,
-                   "source_url": "https://www.discogs.com/artist/9-Deafheaven"}
-
-
-@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler.fetch_list", return_value=_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler.discogs_artist", side_effect=_deafheaven_on_discogs)
 @patch("app.scheduler.check_image_urls", side_effect=lambda urls: {u: u for u in urls})
@@ -745,42 +752,54 @@ async def test_pipeline_uses_the_discogs_photo_when_commons_has_none(mock_batch,
     await _run_ingestion_async(db=db)
 
     deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
-    assert deafheaven.image_url == "https://i.discogs.com/deafheaven.jpg"   # over the edition's
+    assert deafheaven.image_url == "https://i.discogs.com/deafheaven.jpg"
     assert deafheaven.image_credit == _DISCOGS_CREDIT
+    # No service has a photo of Uniform, and the List has none.
+    assert db.query(Band).filter(Band.name == "Uniform").one().image_url is None
+
+
+def _deafheaven_on_bandcamp(name, use_llm=True):
+    """MusicBrainz knows Deafheaven's Bandcamp page, and nothing else."""
+    if name != "Deafheaven":
+        return _NOT_ON_MUSICBRAINZ
+    return {**_NOT_ON_MUSICBRAINZ, "bandcamp_url": "https://deafheaven.bandcamp.com/"}
 
 
 _BANDCAMP = BandcampPhoto("https://f4.bcbits.com/img/0012345678_10.jpg", bandcamp_credit("https://deafheaven.bandcamp.com/"))
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler.fetch_list", return_value=_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler._enrich_band", side_effect=_deafheaven_on_bandcamp)
 @patch("app.scheduler.bandcamp_photo", return_value=_BANDCAMP)
 @patch("app.scheduler.check_image_urls", side_effect=lambda urls: {u: u for u in urls})
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
 async def test_pipeline_uses_the_bandcamp_photo_when_commons_and_discogs_have_none(
-        mock_batch, mock_images, mock_bandcamp, mock_venue, mock_fetch, db):
+        mock_batch, mock_images, mock_bandcamp, mock_band, mock_venue, mock_fetch, db):
     await _run_ingestion_async(db=db)
 
     deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
-    assert (deafheaven.image_url, deafheaven.image_credit) == (_BANDCAMP.url, _BANDCAMP.credit)  # over the edition's
+    assert (deafheaven.image_url, deafheaven.image_credit) == (_BANDCAMP.url, _BANDCAMP.credit)
     # Only Bands with a Bandcamp page are looked up there, and then on their own page.
     assert [c.args[0] for c in mock_bandcamp.call_args_list] == ["https://deafheaven.bandcamp.com/"]
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler.fetch_list", return_value=_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler._enrich_band", side_effect=_deafheaven_on_bandcamp)
 @patch("app.scheduler.bandcamp_photo", side_effect=BandcampUnavailable("rate limited"))
 @patch("app.scheduler.check_image_urls", side_effect=lambda urls: {u: u for u in urls})
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
-async def test_pipeline_keeps_the_editions_photo_when_bandcamp_wont_serve_the_page(
-        mock_batch, mock_images, mock_bandcamp, mock_venue, mock_fetch, db):
-    await _run_ingestion_async(db=db)
+async def test_pipeline_leaves_a_band_without_a_photo_when_bandcamp_wont_serve_the_page(
+        mock_batch, mock_images, mock_bandcamp, mock_band, mock_venue, mock_fetch, db):
+    await _run_ingestion_async(db=db)   # the ingest still runs
 
     deafheaven = db.query(Band).filter(Band.name == "Deafheaven").one()
-    assert (deafheaven.image_url, deafheaven.image_credit) == ("https://example.com/wrong-path.jpg", None)
+    assert (deafheaven.image_url, deafheaven.image_credit) == (None, None)
+    mock_bandcamp.assert_called_once()
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler.fetch_list", return_value=_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler._enrich_band", side_effect=_deafheaven_on_musicbrainz)
 @patch("app.scheduler.commons_photo", side_effect=_commons)
@@ -796,7 +815,7 @@ async def test_pipeline_uses_the_discogs_photo_when_the_commons_one_does_not_loa
     assert (deafheaven.image_url, deafheaven.image_credit) == ("https://i.discogs.com/deafheaven.jpg", _DISCOGS_CREDIT)
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=(_IMAGE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler.fetch_list", return_value=_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler._enrich_band", side_effect=_deafheaven_on_musicbrainz)
 @patch("app.scheduler.commons_photo", side_effect=_commons)
@@ -812,24 +831,26 @@ async def test_pipeline_prefers_commons_to_discogs(mock_batch, mock_images, mock
     assert deafheaven.image_credit == _COMMONS_CREDIT
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
-@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.fetch_list", return_value=_LIST)
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data_with_website)
+@patch("app.scheduler._enrich_band", side_effect=_deafheaven_on_bandcamp)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
-async def test_pipeline_skips_broken_links(mock_batch, mock_venue, mock_fetch, db, no_link_checks):
+async def test_pipeline_skips_broken_links(mock_batch, mock_band, mock_venue, mock_fetch, db, no_link_checks):
     broken = {"https://bottomofthehill.com/", "https://deafheaven.bandcamp.com/"}
     no_link_checks.side_effect = lambda urls: {url: url not in broken for url in urls}
 
     await _run_ingestion_async(db=db)
 
     assert db.query(Venue).filter(Venue.name == "Bottom of the Hill").one().website_url is None
-    assert db.query(Venue).filter(Venue.name == "The Chapel").one().website_url == "https://thechapel.com/"
+    assert db.query(Venue).filter(Venue.name == "the Chapel").one().website_url == "https://thechapel.com/"
     assert db.query(Band).filter(Band.name == "Deafheaven").one().bandcamp_url is None
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=_SAMPLE_FETCH)
-@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.fetch_list", return_value=_LIST)
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data_with_website)
+@patch("app.scheduler._enrich_band", side_effect=_deafheaven_on_bandcamp)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
-async def test_pipeline_checks_only_links_it_would_save(mock_batch, mock_venue, mock_fetch, db, no_link_checks):
+async def test_pipeline_checks_only_links_it_would_save(mock_batch, mock_band, mock_venue, mock_fetch, db, no_link_checks):
     await _run_ingestion_async(db=db)
     assert sorted(no_link_checks.call_args.args[0]) == [
         "https://bottomofthehill.com/", "https://deafheaven.bandcamp.com/", "https://thechapel.com/"]
@@ -841,7 +862,7 @@ async def test_pipeline_checks_only_links_it_would_save(mock_batch, mock_venue, 
     no_link_checks.assert_not_called()
 
 
-@patch("app.scheduler.fetch_latest_edition", return_value=(_NO_GENRE_EDITION, _SAMPLE_FETCH[1]))
+@patch("app.scheduler.fetch_list", return_value=_NO_GENRE_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
 @patch("app.scheduler._enrich_band", side_effect=_musicbrainz_tags_only)
 @patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)

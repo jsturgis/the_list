@@ -35,7 +35,7 @@ class Venue(Base):
     google_rating: Mapped[Optional[float]] = mapped_column(Float)
     description: Mapped[Optional[str]] = mapped_column(Text)
     wikipedia_url: Mapped[Optional[str]] = mapped_column(String(500))
-    # From the formatted edition
+    # From the formatted editions ingested until November 2026; the List itself doesn't have these
     neighborhood: Mapped[Optional[str]] = mapped_column(String(255))
     venue_type: Mapped[Optional[str]] = mapped_column(String(100))
     nearest_transit: Mapped[Optional[str]] = mapped_column(String(255))

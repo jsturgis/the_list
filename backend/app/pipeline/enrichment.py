@@ -29,7 +29,7 @@ musicbrainzngs.set_rate_limit(True)
 # MusicBrainz request that stops answering would hang a run for good. httpx clients set their own, unaffected.
 socket.setdefaulttimeout(30)
 
-_PLACES_FIELD_MASK = "places.formattedAddress,places.addressComponents,places.location,places.websiteUri,places.id,places.nationalPhoneNumber,places.rating,places.utcOffsetMinutes"
+_PLACES_FIELD_MASK = "places.displayName,places.types,places.formattedAddress,places.addressComponents,places.location,places.websiteUri,places.id,places.nationalPhoneNumber,places.rating,places.utcOffsetMinutes"
 _WIKI_HEADERS = {"User-Agent": "the-list/1.0 (https://github.com/jsturgis/the_list) python-httpx"}
 
 
@@ -402,8 +402,9 @@ def _get_timezone(lat: float, lng: float, api_key: str) -> Optional[str]:
 def _enrich_venue(venue_name: str, city: str, street: str | None = None, use_llm: bool = True) -> dict:
     """Return venue enrichment dict from Google Places + Timezone APIs, or {}.
 
-    `street` (when the listing gave one) narrows the search for generic names like "Music Hall".
-    With `use_llm=False` (names already clean, e.g. from a formatted edition) there are no LLM calls:
+    `street` (when the listing gave one) narrows the search for generic names like "Music Hall". The result is
+    Google's best guess, whatever it is: app/ingestion/venue_check.py says whether it's the Venue.
+    With `use_llm=False` (the ingest) there are no LLM calls:
     the name is searched as given, and the Wikipedia description is skipped because without the LLM
     there's nothing to confirm the Wikipedia article is about this Venue.
     """
@@ -460,6 +461,11 @@ def _enrich_venue(venue_name: str, city: str, street: str | None = None, use_llm
         "timezone": timezone,
         "description": description,
         "wikipedia_url": wikipedia_url,
+        # For app/ingestion/venue_check.py: what Google calls the place, what kind of place it is, and how many
+        # places it offered (several are guesses at a name it doesn't know).
+        "google_name": (place.get("displayName") or {}).get("text"),
+        "google_types": place.get("types") or [],
+        "google_results": len(places),
     }
 
 

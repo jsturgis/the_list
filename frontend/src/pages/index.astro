@@ -13,7 +13,7 @@ const page = siteData().homePage(PAGE_SIZE)
 <Layout width="wide">
   <PageHeader title="This Week's Shows">
     <Fragment slot="subtitle">
-      {page.emailSubject ?? 'Upcoming Bay Area music'} — curated by{' '}
+      {page.editionTitle ?? 'Upcoming Bay Area music'} — curated by{' '}
       <a href="mailto:skoepke@stevelist.com" class="text-link underline underline-offset-2">Steve List</a>.
     </Fragment>
   </PageHeader>

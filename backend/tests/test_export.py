@@ -69,7 +69,7 @@ def data(db):
     later = _show(db, chapel, 7, [support], status=ShowStatus.cancelled)
     past = _show(db, fillmore, -1, [past_band])
     db.add(IngestionRun(started_at=datetime(2026, 9, 25, 9), status=IngestionStatus.success,
-                        email_subject="Bay Area & Santa Cruz Concert Events — Sep 25, 2026"))
+                        edition_title="The List for Sep 25, 2026"))
     db.commit()
     return locals()
 
@@ -143,11 +143,11 @@ def test_similar_bands_exclude_self_and_unexported(exported, data):
 
 def test_meta_matches_the_graphql_api(exported, client):
     api = _gql(client, """{ filterOptions { regions ages genres dates } showCount
-        ingestionRuns(limit: 1, status: "success") { emailSubject } }""")
+        ingestionRuns(limit: 1, status: "success") { editionTitle } }""")
     meta = exported["meta"]
     assert meta["filterOptions"] == api["filterOptions"]
     assert meta["totalUpcoming"] == api["showCount"] == 1
-    assert meta["emailSubject"] == api["ingestionRuns"][0]["emailSubject"]
+    assert meta["editionTitle"] == api["ingestionRuns"][0]["editionTitle"]
     assert datetime.fromisoformat(meta["generatedAt"]).tzinfo is not None
 
 

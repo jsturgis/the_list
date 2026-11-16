@@ -29,7 +29,7 @@ beforeAll(() => {
     venues: [venue(1, 'The Fillmore'), venue(2, 'The Chapel')],
     bands: [band(10, [30, 20]), band(20), band(30)],
     shows: [show(3, 1, '2026-10-05'), show(1, 1, '2026-10-01'), show(2, 2, '2026-10-02', 'cancelled')],
-    meta: { generatedAt: '', emailSubject: null, filterOptions: { regions: [], ages: [], genres: [], dates: [] }, totalUpcoming: 2 },
+    meta: { generatedAt: '', editionTitle: null, filterOptions: { regions: [], ages: [], genres: [], dates: [] }, totalUpcoming: 2 },
   }
   for (const [name, data] of Object.entries(files)) writeFileSync(join(dir, `${name}.json`), JSON.stringify(data))
 })

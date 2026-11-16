@@ -3,14 +3,14 @@ title: Local setup
 description: Run the backend, an ingest and the site on your own machine.
 ---
 
-The backend runs in Docker. The steps are: start it, load some Shows (seed the sample edition, or run a real
+The backend runs in Docker. The steps are: start it, load some Shows (seed them from Steve's page, or run a real
 ingest), export the data, then run the site from the export.
 
 ## Start the backend
 
 ```bash
 cp backend/.env.example backend/.env
-# edit backend/.env: set GOOGLE_MAPS_API_KEY and DRIVE_LATEST_FILE_ID (see Configuration)
+# edit backend/.env: set GOOGLE_MAPS_API_KEY (see Configuration)
 
 docker compose up --build -d
 ```
@@ -19,23 +19,20 @@ The API starts at `http://localhost:8000/graphql`. Tables are created automatica
 starts empty. The SQLite DB and FAISS indices are persisted in `./data/` on the host. See
 [Configuration](configuration.md) for every setting.
 
-## Seed from the sample edition
+## Seed from Steve's page
 
-The quickest way to get Shows: no keys and no network calls (no Drive, Google Places, MusicBrainz or embeddings, so
-Bands have the edition's genres and no Similar Bands). The sample is the September 25, 2026 edition, whose Shows
-run to June 2027.
+The quickest way to get Shows: no keys, and one request, for Steve's page (no Google Places, MusicBrainz or
+embeddings, so Venues have no address, and Bands no genres, photos or Similar Bands).
 
 ```bash
 docker compose exec api python -c "
-import json
 from app.database import Base, SessionLocal, engine
-from app.ingestion.edition import edition_shows
+from app.ingestion.steve_list import fetch_list, list_shows
 from app.ingestion.upsert import upsert_shows
 
-doc = json.load(open('/samples/Bay Area & Santa Cruz Concert Events - September 25, 2026 (v2.0.0 Final).json'))
 Base.metadata.create_all(bind=engine)
 db = SessionLocal()
-shows = upsert_shows(db, edition_shows(doc))
+shows = upsert_shows(db, list_shows(fetch_list().text))
 db.commit()
 print(f'Upserted {len(shows)} shows')
 db.close()
@@ -49,7 +46,7 @@ Then query at `http://localhost:8000/graphql`:
 
 ## Run an ingest by hand
 
-A real ingest needs the two keys above (and, for Last.fm and Discogs lookups, theirs) and the Ollama models. It
+A real ingest needs the key above (and, for Last.fm and Discogs lookups, theirs) and the Ollama models. It
 looks every new Band up on the services, so the first one takes a long time.
 
 **Pull the Ollama models** (one-time): the embedding model, and the genre model that
@@ -60,8 +57,8 @@ docker compose exec ollama ollama pull nomic-embed-text
 docker compose exec ollama ollama pull tev1:0.8b
 ```
 
-**Run the ingest** (daily maintenance, then the newest edition from Drive; the API server doesn't
-schedule anything, the weekly run is a GitHub Action). [How ingestion works](ingestion.md) has the steps:
+**Run the ingest** (daily maintenance, then the List as Steve's page has it now; the API server doesn't
+schedule anything, the hourly check is a GitHub Action). [How ingestion works](ingestion.md) has the steps:
 ```bash
 docker compose exec api python -m app.cli ingest
 ```

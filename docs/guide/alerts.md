@@ -5,7 +5,7 @@ description: Saved Filters, the weekly Alert email, and their one-time setup.
 
 People save the Shows list's filters as **Saved Filters** (the **Save search** button, or the bell on a Band or
 Venue page), signing in with an emailed link. Each person can have up to 20.
-After each Friday ingest they get one **Alert** email listing the Upcoming Shows that match (see
+After the ingest of each new edition they get one **Alert** email listing the Upcoming Shows that match (see
 [ADR 0003](https://github.com/jsturgis/the_list/blob/main/docs/adr/0003-saved-filter-alerts-on-supabase.md)). Accounts and Saved Filters live in Supabase;
 emails go through Resend from `alerts@list.sturgis.me`.
 

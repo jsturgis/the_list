@@ -117,17 +117,15 @@ def _ingestion_run(r: IngestionRun) -> IngestionRunType:
         started_at=r.started_at,
         finished_at=r.finished_at,
         status=r.status.value,
-        email_received_at=r.email_received_at,
-        email_subject=r.email_subject,
-        email_message_id=r.email_message_id,
+        edition_date=r.edition_date,
+        edition_title=r.edition_title,
+        source_hash=r.source_hash,
         shows_parsed=r.shows_parsed,
         shows_upserted=r.shows_upserted,
         shows_new=r.shows_new,
+        new_venues=r.new_venues,
         new_bands=r.new_bands,
         new_bands_without_photo_pct=r.new_bands_without_photo_pct,
-        new_bands_photo_from_edition_pct=r.new_bands_photo_from_edition_pct,
-        new_bands_genres_from_edition_pct=r.new_bands_genres_from_edition_pct,
-        new_bands_links_from_edition_pct=r.new_bands_links_from_edition_pct,
         error=r.error,
     )
 
@@ -333,7 +331,7 @@ class Query:
     def ingestion_runs(
         self, info: Info, limit: int = 20, status: Optional[str] = None
     ) -> list[IngestionRunType]:
-        """Pipeline runs, newest first. `status` is one of success | failure | no_email."""
+        """Pipeline runs, newest first. `status` is success or failure."""
         db: Session = info.context["db"]
         q = db.query(IngestionRun)
         if status is not None:

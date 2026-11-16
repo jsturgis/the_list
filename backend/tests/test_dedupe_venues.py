@@ -33,7 +33,12 @@ def _show(db, venue, day):
     ("Theater of Dreams", "theater of dreams"),  # "the" must be a whole word
     ("Hotel Utan", "hotel utah saloon"),  # a known variant reads as the Venue's usual name
     ("the On Broadway", "mabuhay gardens"),
-    ("X Sports Bar", "x-bar"),
+    ("X Sports Bar", "xbar"),   # hyphens, apostrophes and full stops don't count
+    ("Winter's Tavern", "winters tavern"),
+    ("Henry J. Kaiser Center", "henry j kaiser center"),
+    ("The UC Theatre", "uc theater"),   # nor theatre for theater
+    ("Brick & Mortar Music Hall", "brick and mortar music hall"),
+    ("the Castro", "castro theater"),   # Steve's short name for The Castro Theatre
     ("Point San Pablo Harbor", "knot club"),
 ])
 def test_venue_key(name, key):

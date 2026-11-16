@@ -1,16 +1,15 @@
 """The order a Band's data is taken from its sources, shared by the ingest (new Bands) and the backfill (existing
-Bands) so the two can't drift apart. The services come first; the edition (or, in the backfill, what the Band
-already has, mostly edition data) is only ever the last fallback.
+Bands) so the two can't drift apart. The services come first; a Band's correction (or, in the backfill, what the
+Band already has) is only ever the last fallback.
 
 Genres: MusicBrainz's curated genres, else Last.fm's tags, else Discogs' genres and styles, else MusicBrainz's
-free-form tags, else the edition's; only ever those that are genres
-(app/ingestion/genre_filter.py). Photos: Wikimedia Commons, else Discogs, else the band photo on its Bandcamp page,
-else the edition's.
+free-form tags, else its correction's; only ever those that are genres
+(app/ingestion/genre_filter.py). Photos: Wikimedia Commons, else Discogs, else the band photo on its Bandcamp page.
 
 A Band whose name MusicBrainz knows several artists by, and can't tell which is the Band, has namesakes: it's
 matched on the other services only through MusicBrainz's links (it has none then), never by name, since their
-same-named artist is as likely to be a namesake. A correction (app/ingestion/band_corrections.py) takes the
-edition's place.
+same-named artist is as likely to be a namesake. A correction (app/ingestion/band_corrections.py) says which it
+is.
 """
 from __future__ import annotations
 
@@ -24,7 +23,7 @@ from app.ingestion.wikimedia import CommonsPhoto
 def service_genres(name: str, found: dict, lastfm: Callable[[str, str | None], list[str]],
                    discogs: Callable[[int], list[str]],
                    keep: Callable[[list[str]], list[str]] = lambda tags: tags) -> list[str]:
-    """A Band's genres from the services, in order; [] when none has any (the caller falls back to the edition).
+    """A Band's genres from the services, in order; [] when none has any (the caller falls back to its correction).
 
     `found` is its MusicBrainz lookup (with its Discogs artist under "discogs"). Last.fm and Discogs are asked only
     when what comes before them has nothing; `lastfm` and `discogs` are the lookups to use. `keep` picks the genres
@@ -51,15 +50,14 @@ def discogs_match(name: str, found: dict,
 
 def bandcamp_page(found: dict, bandcamp_url: str | None, corrected_url: str | None) -> str | None:
     """The Bandcamp page to take a Band's photo from, asked only when Commons and Discogs have none: its own, but for a
-    Band with namesakes only the one its correction gives (`corrected_url`), since the edition's link may be a
-    namesake's (the edition linked Sunblind to a Philadelphia band's page)."""
+    Band with namesakes only the one its correction gives (`corrected_url`), since a page found by its name may be
+    a namesake's (sunblind.bandcamp.com is a Philadelphia band, not Oakland's Sunblind)."""
     return corrected_url if found.get("namesakes") else bandcamp_url
 
 
-def photo_candidates(commons: CommonsPhoto | None, artist: DiscogsArtist | None, bandcamp: BandcampPhoto | None,
-                     fallback_url: str | None) -> list[dict]:
-    """A Band's photos in order, each {"url", "credit"}: Commons, Discogs, Bandcamp, then `fallback_url` (the
-    edition's, with no credit). Empty when no service has one: the caller then just keeps the edition's."""
+def photo_candidates(commons: CommonsPhoto | None, artist: DiscogsArtist | None,
+                     bandcamp: BandcampPhoto | None) -> list[dict]:
+    """A Band's photos in order, each {"url", "credit"}: Commons, Discogs, Bandcamp. Empty when no service has one."""
     candidates = []
     if commons:
         candidates.append({"url": commons.url, "credit": commons.credit})
@@ -67,6 +65,4 @@ def photo_candidates(commons: CommonsPhoto | None, artist: DiscogsArtist | None,
         candidates.append({"url": artist.image_url, "credit": discogs_credit(artist)})
     if bandcamp:
         candidates.append({"url": bandcamp.url, "credit": bandcamp.credit})
-    if candidates and fallback_url:
-        candidates.append({"url": fallback_url, "credit": None})
     return candidates

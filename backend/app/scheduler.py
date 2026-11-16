@@ -1,4 +1,5 @@
-"""Pipeline jobs: weekly ingestion and daily maintenance, run by `python -m app.cli ingest`."""
+"""Pipeline jobs: the ingest of Steve's List and daily maintenance (`python -m app.cli ingest`), and the check for
+a changed List that decides whether to run them (`python -m app.cli check`)."""
 from __future__ import annotations
 
 import asyncio
@@ -9,26 +10,26 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.clock import local_today
 from app.config import settings
 from app.database import SessionLocal
 from app.ingestion.band_photos import save_band_photos
-from app.ingestion.band_corrections import band_correction, correct_edition
+from app.ingestion.band_corrections import band_correction, corrected
 from app.ingestion.band_sources import bandcamp_page, discogs_match, photo_candidates, service_genres
 from app.ingestion.bandcamp import BandcampUnavailable, bandcamp_photo
 from app.ingestion.genre_filter import GenreFilter
 from app.ingestion.discogs import discogs_artist, discogs_genres
-from app.ingestion.drive import fetch_latest_edition
-from app.ingestion.edition import edition_meta, edition_shows
-from app.ingestion.enriched import merge_enriched
 from app.ingestion.images import check_image_urls
 from app.ingestion.ingest_stats import new_band_stats
 from app.ingestion.joint_bands import joint_parts, split_joint_acts, split_joint_name
 from app.ingestion.lastfm import lastfm_tags
 from app.ingestion.links import check_links
+from app.ingestion.steve_list import ListPage, edition_title, fetch_list, list_shows
 from app.ingestion.upsert import find_venue, known_region, upsert_shows
+from app.ingestion.venue_check import CONFIRMED, NOT_CHECKED, check_venue, checked_details
 from app.ingestion.wikimedia import commons_photo
 from app.models.act import Act
 from app.models.band import Band
@@ -43,7 +44,7 @@ _BAND_LINK_FIELDS = ("spotify_url", "soundcloud_url", "bandcamp_url", "website_u
 
 
 def _unsaved_links(db: Session, shows_data: list[dict]) -> set[str]:
-    """Edition links for fields the database doesn't have yet: the only ones upsert would save."""
+    """Links for fields the database doesn't have yet: the only ones upsert would save."""
     links: set[str] = set()
     for data in shows_data:
         if data.get("venue_website"):
@@ -62,8 +63,8 @@ def _unsaved_links(db: Session, shows_data: list[dict]) -> set[str]:
 
 
 def _apply_venue_data(data: dict, venue_data: dict) -> None:
-    """Merge Google Places results into an edition show dict. Google's address wins (it's complete);
-    the edition's own website and coordinates are kept when Google has none."""
+    """Merge Google Places results into a listing's show dict. Google's address wins (it's complete; the
+    listing has at most a street)."""
     data["address"] = venue_data.get("address") or data["address"]
     data["venue_website"] = data["venue_website"] or venue_data.get("website_url")
     for key, source in [
@@ -75,8 +76,30 @@ def _apply_venue_data(data: dict, venue_data: dict) -> None:
             data[key] = venue_data.get(source)
 
 
+def _last_ingested(db: Session) -> IngestionRun | None:
+    """The most recent successful ingestion run."""
+    return (db.query(IngestionRun).filter(IngestionRun.status == IngestionStatus.success)
+            .order_by(IngestionRun.id.desc()).first())
+
+
+def list_status(db: Session, page: ListPage) -> dict[str, bool]:
+    """How `page` (the List as it is now) compares with what's been ingested.
+
+    `changed`: it isn't the page the last successful run ingested, so there's something to ingest.
+    `new_edition`: its date is later than any edition ingested, so it's the week's new edition (Alerts go out),
+    not a correction to the current one.
+    """
+    last = _last_ingested(db)
+    newest = db.query(func.max(IngestionRun.edition_date)).filter(
+        IngestionRun.status == IngestionStatus.success).scalar()
+    return {
+        "changed": last is None or last.source_hash != page.sha256,
+        "new_edition": newest is None or page.edition_date > newest,
+    }
+
+
 async def _run_ingestion_async(db: Optional[Session] = None) -> None:
-    """Full pipeline: fetch the newest edition from Drive → map → enrich new Venues → upsert → embed."""
+    """Full pipeline: fetch the List → parse → enrich new Venues and Bands → upsert → embed."""
     _own_db = db is None
     if _own_db:
         db = SessionLocal()
@@ -86,28 +109,15 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
     db.flush()
 
     try:
-        logger.info("ingestion: fetching latest edition")
-        doc, file_meta = fetch_latest_edition()
-        shows_data = edition_shows(doc) if doc else []
-        if not shows_data:
-            logger.info("ingestion: no edition found, aborting")
-            run.shows_parsed = 0
-            run.status = IngestionStatus.no_email
-            run.finished_at = datetime.utcnow()
-            db.commit()
-            return
-
-        meta = edition_meta(doc)
-        run.email_received_at = datetime.combine(meta["edition_date"], datetime.min.time())
-        run.email_subject = meta["subject"]
-        run.email_message_id = file_meta["file_id"]
+        logger.info("ingestion: fetching the List from %s", settings.list_url)
+        the_list = fetch_list()
+        run.edition_date = the_list.edition_date
+        run.edition_title = edition_title(the_list.edition_date)
+        shows_data = list_shows(the_list.text)
         run.shows_parsed = len(shows_data)
-        logger.info("ingestion: %d shows in %s", len(shows_data), file_meta.get("file_name"))
-        if file_meta.get("enriched_events"):
-            matched = merge_enriched(shows_data, file_meta["enriched_events"])
-            logger.info("ingestion: filled gaps in %d shows from %s", matched, file_meta.get("enriched_file_name"))
+        logger.info("ingestion: %d shows in %s", len(shows_data), run.edition_title)
 
-        # Bands arrive with genres and links; only Venues we haven't seen need Google Places.
+        # Only Venues we haven't seen need Google Places.
         loop = asyncio.get_event_loop()
         venue_cache: dict[tuple, dict] = {}
         for data in shows_data:
@@ -118,8 +128,14 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
             key = (name, city, street)
             if key not in venue_cache:
                 logger.info("ingestion: enriching new venue %s (%s)", name, city)
-                # Edition names are already clean: no LLM name clean-up or Wikipedia description.
-                venue_cache[key] = await loop.run_in_executor(None, _enrich_venue, name, city or "", street, False)
+                # No LLM calls at ingest: the name is searched as Steve lists it, and there's no Wikipedia description.
+                found = await loop.run_in_executor(None, _enrich_venue, name, city or "", street, False)
+                # Google's best guess is kept only as far as it's the listed Venue (app/ingestion/venue_check.py).
+                check = check_venue(name, city, street, found)
+                if check.status not in (CONFIRMED, NOT_CHECKED):
+                    logger.warning("ingestion: new venue %s (%s) not confirmed on Google Places (%s): %s",
+                                   name, city, check.status, check.reason)
+                venue_cache[key] = checked_details(found, check)
             _apply_venue_data(data, venue_cache[key])
 
         # New names that are two Bands billed together ("Dying Fetus And Sanguisugabogg") become two Acts; real
@@ -135,22 +151,19 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
         for data in shows_data:
             for name, halves in await loop.run_in_executor(None, split_joint_acts, data, split):
                 logger.info("ingestion: %r is a joint billing: %s", name, " + ".join(halves))
-            # A Band's correction (app/ingestion/band_corrections) takes the place of the edition's genres and links.
-            data["band_enrichment"] = [(name, correct_edition(name, e)) for name, e in data["band_enrichment"]]
+            # A Band's correction (app/ingestion/band_corrections) gives the genres and links to use when the services
+            # have none.
+            data["band_enrichment"] = [(name, corrected(name, e)) for name, e in data["band_enrichment"]]
 
-        # New Bands: look them up on MusicBrainz (no LLM), once per name. The services are the source of truth;
-        # the edition, whose genres are sometimes guessed from the name (Soulfly as "Soul / Funk / R&B"), is used
-        # only when every service has nothing. Genres: MusicBrainz's curated genres, else Last.fm's tags, else
-        # Discogs' genres and styles, else MusicBrainz's free-form tags, else the edition's.
-        # Links: each one MusicBrainz has, else the edition's.
+        # New Bands: look them up on MusicBrainz (no LLM), once per name. The List only names a Band; the services
+        # are the source of everything else. Genres: MusicBrainz's curated genres, else Last.fm's tags, else
+        # Discogs' genres and styles, else MusicBrainz's free-form tags, else its correction's.
+        # Links: each one MusicBrainz has, else its correction's.
         # A Band already in the database was looked up when it was new, so it isn't tried again.
         band_cache: dict[str, dict | None] = {}
         genre_cache: dict[str, list[str]] = {}  # each new Band's genres from the services, asked once
         # Keeps only genres. If the genre model is down, unknown tags are kept this run rather than lost for good.
         genre_filter = GenreFilter.load(db, keep_unknown=True)
-        # For the run's stats: the new Bands that took their genres or links from the edition (app/ingestion/ingest_stats).
-        edition_genres: dict[str, list[str]] = {}
-        edition_links: dict[str, dict[str, str]] = {}
         for data in shows_data:
             for i, (name, enrichment) in enumerate(data["band_enrichment"]):
                 if name not in band_cache:
@@ -164,7 +177,7 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                         # Its Discogs artist (members, photo, page), through MusicBrainz's Discogs link or its name.
                         artist = await loop.run_in_executor(None, discogs_match, name, found, discogs_artist)
                         # Its Bandcamp band photo, only when neither has a photo. Bandcamp often won't serve a page
-                        # right away; the Band then keeps the edition's photo (backfill --recheck-photos tries again).
+                        # right away; the Band then has no photo for now (backfill --recheck-photos tries again).
                         bandcamp = None
                         correction = band_correction(name)
                         page = bandcamp_page(found, found.get("bandcamp_url") or enrichment.get("bandcamp_url"),
@@ -179,32 +192,25 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                 if found:
                     links = {k: v for k, v in found.items() if k.endswith("_url") and v}
                     links["mb_links"] = found.get("links") or []  # every MusicBrainz link, for app/band_links.py
-                    # Photos, in order (app/ingestion/band_sources): Commons, Discogs, Bandcamp, and only then the edition's.
+                    # Photos, in order (app/ingestion/band_sources): Commons, Discogs, Bandcamp.
                     # The first that loads is used; the rest are fallbacks if it turns out to be gone when downloaded.
                     artist = found.get("discogs")
-                    candidates = photo_candidates(found.get("commons_photo"), artist, found.get("bandcamp_photo"),
-                                                  enrichment.get("image_url"))
+                    candidates = photo_candidates(found.get("commons_photo"), artist, found.get("bandcamp_photo"))
                     if candidates:
                         links.update(image_url=candidates[0]["url"], image_credit=candidates[0]["credit"],
                                      image_candidates=candidates)
                     # Genres from the services in order (app/ingestion/band_sources), asked once per name; only when
-                    # every service has none, the edition's.
+                    # every service has none, its correction's.
                     if name not in genre_cache:
                         genre_cache[name] = await loop.run_in_executor(
                             None, service_genres, name, found, lastfm_tags, discogs_genres, genre_filter.keep)
                     genres = genre_cache[name] or await loop.run_in_executor(
                         None, genre_filter.keep, enrichment["genres"])
-                    # First Show wins, as in the upsert, which only fills a Band's empty fields.
-                    if genres and not genre_cache[name]:
-                        edition_genres.setdefault(name, genres)
-                    for field in _BAND_LINK_FIELDS:
-                        if enrichment.get(field) and field not in links:
-                            edition_links.setdefault(name, {}).setdefault(field, enrichment[field])
                     # Its Discogs members are saved with the Band.
                     data["band_enrichment"][i] = (name, {**enrichment, **links, "genres": genres, "discogs": artist,
                                                          "members": artist.members if artist else []})
 
-        # The edition's image URLs are often broken: keep (or repair) only those that load.
+        # Photo URLs from the services are sometimes broken: keep (or repair) only those that load.
         image_urls = [d["venue_image_url"] for d in shows_data if d.get("venue_image_url")] + [
             url for d in shows_data for _, e in d["band_enrichment"]
             for url in ([c["url"] for c in e["image_candidates"]] if e.get("image_candidates") else [e.get("image_url")])
@@ -237,13 +243,16 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
                         if enrichment.get(field) in broken:
                             enrichment[field] = None
 
-        shows_before = db.query(Show).count()
+        shows_before, venues_before = db.query(Show).count(), db.query(Venue).count()
         shows = upsert_shows(db, shows_data)
         run.shows_upserted = len(shows)
+        # Recorded once the page's Shows are in: a run that fails before this is tried again at the next check.
+        run.source_hash = the_list.sha256
         run.shows_new = db.query(Show).count() - shows_before
+        run.new_venues = db.query(Venue).count() - venues_before
         genre_filter.save(db)  # the tags judged this run, kept for next time
         db.commit()
-        logger.info("ingestion: upserted %d shows (%d new)", len(shows), run.shows_new)
+        logger.info("ingestion: upserted %d shows (%d new); %d new venues", len(shows), run.shows_new, run.new_venues)
 
         # Reload with relationships for embedding
         show_ids = [s.id for s in shows]
@@ -267,19 +276,16 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
         if stored:
             logger.info("ingestion: saved %d band photos", stored)
 
-        # How the new Bands came out: no photo, or the edition's genres, photo or links (no service had any).
+        # How the new Bands came out: how many, and the share no service had a photo for.
         new_names = {name for name, found in band_cache.items() if found is not None}
         looked_up_at = datetime.utcnow()
         for band in bands:
             if band.name in new_names:
                 band.enriched_at = looked_up_at
-        for field, value in new_band_stats([b for b in bands if b.name in new_names], edition_genres,
-                                           edition_links).items():
+        for field, value in new_band_stats([b for b in bands if b.name in new_names]).items():
             setattr(run, field, value)
         db.commit()
-        logger.info("ingestion: %s new bands; %s%% without a photo; from the edition: genres %s%%, photo %s%%, "
-                    "links %s%%", run.new_bands, run.new_bands_without_photo_pct, run.new_bands_genres_from_edition_pct,
-                    run.new_bands_photo_from_edition_pct, run.new_bands_links_from_edition_pct)
+        logger.info("ingestion: %s new bands; %s%% without a photo", run.new_bands, run.new_bands_without_photo_pct)
 
         logger.info("ingestion: embedding and indexing")
         await batch_embed_and_index(db, shows)
@@ -321,7 +327,13 @@ async def _run_venue_enrichment_async(venue_id: Optional[int] = None) -> None:
         loop = asyncio.get_event_loop()
         for venue in venues:
             logger.info("venue enrichment: enriching %s", venue.name)
-            data = await loop.run_in_executor(None, _enrich_venue, venue.name, venue.city or "")
+            found = await loop.run_in_executor(None, _enrich_venue, venue.name, venue.city or "")
+            # Only what Google has for this very Venue overwrites what's stored (app/ingestion/venue_check.py).
+            check = check_venue(venue.name, venue.city, None, found)
+            if check.status not in (CONFIRMED, NOT_CHECKED):
+                logger.warning("venue enrichment: %s not confirmed on Google Places (%s): %s",
+                               venue.name, check.status, check.reason)
+            data = checked_details(found, check)
             if not data:
                 continue
             for attr, key in [

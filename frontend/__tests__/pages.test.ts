@@ -182,7 +182,7 @@ describe('the home page', () => {
   // Built from the e2e fixture export (SITE_DATA_DIR): five Upcoming Shows from Oct 3, exported Oct 1.
   it('has the edition and the first page of Shows in its HTML', async () => {
     const html = await render(HomePage)
-    expect(html).toContain('Bay Area &amp; Santa Cruz Concert Events — Sep 25, 2026 — curated by')
+    expect(html).toContain('The List for Sep 25, 2026 — curated by')
     for (const name of ['Neon Harbor', 'Gilman Youth', 'Tidepool Choir', 'Fog City Ramblers']) expect(html).toContain(name)
     expect(html).toContain('Showing 5 of 5 shows')
     expect(html).toContain('data-home-first-page')

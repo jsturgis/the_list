@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 """Persist enriched show dicts to the database (idempotent)."""
+import difflib
 import re
 from datetime import datetime, time
+from urllib.parse import urlparse
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.ingestion.edition import is_placeholder_website
 from app.slugs import slugify
 from app.models.act import Act
 from app.models.band import Band
@@ -97,9 +97,32 @@ def _parse_time(s: str | None) -> time | None:
     return None
 
 
-# Other names Steve lists a Venue under (a typo, an older name, a room within it), by name key, and the
+# Other names Steve lists a Venue under (a short name, a typo, an older name, a room within it), and the
 # name the Venue goes by here. Listings under these names join that Venue instead of starting a new one.
+# Names are compared by key (see _name_key), so case, a leading "the", punctuation and theater/theatre don't count.
 _VENUE_ALIASES: dict[str, str] = {
+    "castro": "The Castro Theatre",
+    "kilowatt": "Kilowatt Bar",
+    "warriors stadium": "Chase Center (Warriors Stadium)",
+    "hotel utah": "Hotel Utah Saloon",
+    "catalyst atrium": "The Catalyst",  # a room within it
+    "brick and mortar": "Brick & Mortar Music Hall",
+    "on broadway at mabuhay gardens": "Mabuhay Gardens",
+    "subrosa": "Subrosa Community Space",
+    "fml studios": "FML Studio",
+    "club, napa music hall": "Napa Music Hall",
+    "924 gilman": "924 Gilman Street",
+    "924 gilman st": "924 Gilman Street",
+    "freight": "Freight & Salvage",
+    "starry plough": "The Starry Plough Pub",
+    "shark tank": "SAP Center (Shark Tank)",
+    "towne cycles": "Towne Cycles Backyard",
+    "9 lives": "9 Lives Warehouse",
+    "vinnies": "Vinnie's Bar",
+    "kuumbwa": "Kuumbwa Jazz Center",
+    "gilman brewery company": "Gilman Brewing Co.",
+    "49s stadium": "the 49'er Stadium",
+    "greek theater": "Greek Theatre (UC Berkeley)",
     "hotel utan": "Hotel Utah Saloon",
     "mabuhauy gardens": "Mabuhay Gardens",
     "on broadway": "Mabuhay Gardens",  # upstairs in the same building; Steve lists one Show under both
@@ -111,25 +134,58 @@ _VENUE_ALIASES: dict[str, str] = {
     "point san pablo harbor": "the Knot Club",  # the club at the harbor
     "brodway hall": "Broadway Hall",
 }
+# Names that are a different Venue in each city, by (name, city): Steve's "Hopmonk" is two taverns.
+_VENUE_ALIASES_IN_CITY: dict[tuple[str, str], str] = {
+    ("hopmonk", "novato"): "HopMonk Tavern (Novato)",
+    ("hopmonk tavern", "novato"): "HopMonk Tavern (Novato)",
+    ("hopmonk", "sebastopol"): "HopMonk Tavern (Sebastopol)",
+    ("hopmonk tavern", "sebastopol"): "HopMonk Tavern (Sebastopol)",
+    ("arena", "oakland"): "Oakland Arena",
+    ("civic auditorium", "san francisco"): "Bill Graham Civic Auditorium",
+    ("civic auditorium", "san jose"): "San Jose Civic Center",
+    ("civic center", "san jose"): "San Jose Civic Center",
+    ("streetlight records", "santa cruz"): "Streetlight Records (Santa Cruz)",
+    ("amoeba music", "san francisco"): "Amoeba",
+    ("music hall", "felton"): "Felton Music Hall",
+    ("pavilion", "concord"): "Toyota Pavilion at Concord",
+}
+# How alike two name keys must be for one to be a typo of the other ("the Indpendent", "the Ivy Roomm"), and
+# the shortest key that's matched that way.
+_TYPO_SIMILARITY = 0.9
+_TYPO_MIN_LENGTH = 6
+# Steve's own site, stored as a Venue's website by early editions that didn't know the Venue's.
+_PLACEHOLDER_WEBSITE_HOST = "stevelist.com"
+
+
+def is_placeholder_website(url: str | None) -> bool:
+    """Whether a Venue website is a stand-in (Steve's own site) rather than the Venue's."""
+    host = urlparse(url).netloc.lower() if url else ""
+    return host == _PLACEHOLDER_WEBSITE_HOST or host.endswith("." + _PLACEHOLDER_WEBSITE_HOST)
 
 
 def _name_key(name: str) -> str:
-    key = " ".join(name.lower().split())
+    """A Venue name without what Steve varies: case, a leading "the", "&" for "and", apostrophes, full stops and
+    hyphens, "theatre" for "theater", extra spaces."""
+    key = name.lower().replace("&", " and ").replace("theatre", "theater")
+    key = " ".join(re.sub(r"[.'’\-]", "", key).split())
     return key[4:] if key.startswith("the ") else key
 
 
-def canonical_venue_name(name: str) -> str:
-    """The name a Venue goes by: the usual name for a known variant (see _VENUE_ALIASES), else the name as given."""
-    return _VENUE_ALIASES.get(_name_key(name), name)
+def canonical_venue_name(name: str, city: str | None = None) -> str:
+    """The name a Venue goes by: the usual name for a known variant (see _VENUE_ALIASES, and _VENUE_ALIASES_IN_CITY
+    for a variant that depends on the listing's `city`), else the name as given."""
+    key = _name_key(name)
+    in_city = _VENUE_ALIASES_IN_CITY.get((key, " ".join(city.lower().split()))) if city else None
+    return in_city or _VENUE_ALIASES.get(key, name)
 
 
-def venue_key(name: str) -> str:
-    """Matching key for a Venue name: case-insensitive, ignoring a leading "the" and extra spaces, with a
-    known variant read as the Venue's usual name (see _VENUE_ALIASES).
+def venue_key(name: str, city: str | None = None) -> str:
+    """Matching key for a Venue name (see _name_key), with a known variant read as the Venue's usual name.
 
-    Steve lists the same Venue as both "the Fox Theater" and "Fox Theater", and "Hotel Utah Saloon" as "Hotel Utan".
+    Steve lists the same Venue as both "the Fox Theater" and "Fox Theater", "the UC Theater" for The UC Theatre,
+    and "Hotel Utah Saloon" as "Hotel Utan".
     """
-    return _name_key(canonical_venue_name(name))
+    return _name_key(canonical_venue_name(name, city))
 
 
 def band_key(name: str) -> str:
@@ -161,19 +217,23 @@ def find_venue(
     match: the same Venue can come back from Google as a different place.
 
     A known variant name (see _VENUE_ALIASES) is matched by name first: Google places a misspelt or
-    renamed Venue somewhere else, and that place can be another Venue's.
+    renamed Venue somewhere else, and that place can be another Venue's. The first of `cities` is the listing's.
+
+    Last, a name one typo away from a Venue's, or from a known variant ("the Indpendent", "the eCastro").
     """
-    key = venue_key(name)
-    by_name = db.query(Venue).filter(func.lower(Venue.name).in_([key, f"the {key}"]))
+    city = cities[0] if cities else None
+    key = venue_key(name, city)
+    candidates = db.query(Venue)
     regions = {r for r in map(known_region, cities) if r}
     if regions:
-        by_name = by_name.filter(Venue.region.in_(regions))
-    by_name = by_name.order_by(Venue.id)
+        candidates = candidates.filter(Venue.region.in_(regions))
+    # Compared here rather than in SQL, as keys aren't how names are stored; there are a few hundred Venues.
+    by_key: dict[str, Venue] = {}
+    for candidate in candidates.order_by(Venue.id):
+        by_key.setdefault(_name_key(candidate.name), candidate)
 
-    if canonical_venue_name(name) != name:
-        venue = by_name.first()
-        if venue:
-            return venue
+    if canonical_venue_name(name, city) != name and key in by_key:
+        return by_key[key]
     if google_place_id:
         venue = (
             db.query(Venue)
@@ -183,7 +243,13 @@ def find_venue(
         )
         if venue:
             return venue
-    return by_name.first()
+    if key in by_key:
+        return by_key[key]
+    if len(key) < _TYPO_MIN_LENGTH:
+        return None
+    aliases = {alias: _name_key(usual) for alias, usual in _VENUE_ALIASES.items()}
+    close = difflib.get_close_matches(key, [*by_key, *aliases], n=1, cutoff=_TYPO_SIMILARITY)
+    return by_key.get(aliases.get(close[0], close[0])) if close else None
 
 
 def _upsert_venue(db: Session, data: dict) -> Venue:
@@ -194,7 +260,7 @@ def _upsert_venue(db: Session, data: dict) -> Venue:
     if not venue:
         city = place_city or listing_city or "Unknown"
         venue = Venue(
-            name=canonical_venue_name(name),
+            name=canonical_venue_name(name, listing_city),
             city=city,
             # Google's city can be a neighbourhood outside the table; prefer whichever city is known.
             region=known_region(place_city) or known_region(listing_city) or Region.sf,
@@ -205,7 +271,7 @@ def _upsert_venue(db: Session, data: dict) -> Venue:
         venue.city = place_city
         venue.region = known_region(place_city) or venue.region
 
-    # A placeholder stored by an earlier edition counts as no website, so it's replaced or cleared.
+    # A placeholder stored by an early edition counts as no website, so it's replaced or cleared.
     if is_placeholder_website(venue.website_url):
         venue.website_url = None
 
@@ -238,23 +304,57 @@ def _upsert_venue(db: Session, data: dict) -> Venue:
         if data.get(key) is not None and getattr(venue, attr) is None:
             setattr(venue, attr, data[key])
 
+    db.flush()   # so the next listing's lookup sees it (its Google place id above all)
     return venue
 
 
-def _upsert_show(db: Session, venue: Venue, data: dict) -> Show:
-    show_date = data["date"]
+def _listed_bands(data: dict) -> list[str]:
+    """The listing's Bands: its lineup without DJs, back-to-back sets and blanks."""
+    return [b for b in (data.get("bands") or []) if not _DJ_RE.match(b) and not _B2B_RE.search(b) and b.strip()]
+
+
+def _find_show(db: Session, venue: Venue, data: dict) -> Show | None:
+    """The Show with the listing's identity: its date, Venue and door time."""
     door_time = _parse_time(data.get("door_time"))
     door_cond = (
         Show.door_time.is_(None) if door_time is None else Show.door_time == door_time
     )
-    show = (
+    return (
         db.query(Show)
-        .filter(Show.date == show_date, Show.venue_id == venue.id, door_cond)
+        .filter(Show.date == data["date"], Show.venue_id == venue.id, door_cond)
         .first()
     )
+
+
+def _find_changed_show(db: Session, venue: Venue, data: dict, taken: set[int]) -> Show | None:
+    """The stored Show a listing is about when its door time isn't the Show's: Steve adds a time he didn't have,
+    corrects one, or drops them ("POSTPONED: Francisca Valenzuela at Rickshaw Stop, S.F.").
+
+    It's the one Show at the Venue that day with the listing's headliner, or, for a listing that names no Band and
+    no time ("INCORRECT LISTING: dj Raphi at August Hall"), the only Show there that day. Shows in `taken` are
+    other listings' (an early and a late show by one headliner are two Shows), and when it's unclear which Show is
+    meant there's no match.
+    """
+    candidates = [s for s in db.query(Show).filter(Show.date == data["date"], Show.venue_id == venue.id)
+                  if s.id not in taken]
+    bands = _listed_bands(data)
+    if bands:
+        headliner = band_key(bands[0]) or bands[0]
+        candidates = [s for s in candidates
+                      if s.acts and (band_key(min(s.acts, key=lambda a: a.position).band.name) or None) == headliner]
+    elif data.get("door_time"):
+        return None
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def _upsert_show(db: Session, venue: Venue, data: dict, show: Show | None) -> Show:
+    """Store the listing as `show` (found by _find_show or _find_changed_show), or as a new Show."""
+    door_time = _parse_time(data.get("door_time"))
     if not show:
-        show = Show(date=show_date, venue_id=venue.id, door_time=door_time)
+        show = Show(date=data["date"], venue_id=venue.id, door_time=door_time)
         db.add(show)
+    elif door_time is not None:
+        show.door_time = door_time   # a changed Show takes the listing's time; one listed without a time keeps its own
 
     price_min, price_max, is_free = _normalize_price(data.get("price_raw"))
     show.set_time = _parse_time(data.get("set_time"))
@@ -271,21 +371,19 @@ def _upsert_show(db: Session, venue: Venue, data: dict) -> Show:
     show.notes = data.get("notes")
     show.is_matinee = bool(data.get("is_matinee"))
     show.is_sold_out = bool(data.get("is_sold_out"))
-    show.ticket_provider = data.get("ticket_provider")
-    show.ticket_url = data.get("ticket_url") or show.ticket_url  # kept when a later export has none
-    show.is_benefit = bool(data.get("is_benefit"))
-    show.benefit_cause = data.get("benefit_cause")
-    show.special_event = data.get("special_event")
+    # A benefit stays one: Shows ingested before the List was read from Steve's page say so in fields it doesn't have.
+    show.is_benefit = bool(data.get("is_benefit") or show.is_benefit)
+    # The List doesn't say these; what a Show already has (from those earlier editions) is kept.
+    for field in ("ticket_provider", "ticket_url", "benefit_cause", "special_event"):
+        if data.get(field):
+            setattr(show, field, data[field])
     show.raw_text = data.get("raw_text")
     db.flush()
     return show
 
 
 def _upsert_acts(db: Session, show: Show, data: dict) -> None:
-    band_names = [
-        b for b in (data.get("bands") or [])
-        if not _DJ_RE.match(b) and not _B2B_RE.search(b) and b.strip()
-    ]
+    band_names = _listed_bands(data)
     # Steve sometimes repeats a name in the comma-separated lineup, not always spelled the same (see band_key)
     first_spelling: dict[str, str] = {}
     for b in band_names:
@@ -347,11 +445,26 @@ def _upsert_acts(db: Session, show: Show, data: dict) -> None:
 
 
 def upsert_shows(db: Session, enriched_shows: list[dict]) -> list[Show]:
-    """Persist a batch of enriched show dicts. Idempotent."""
+    """Persist a batch of enriched show dicts. Idempotent.
+
+    Each listing is the Show with its identity (date, Venue, door time); failing that, the stored Show whose time
+    it changes (see _find_changed_show), once every listing with a Show of its own has claimed it; failing that, a
+    new Show. A cancelled or postponed listing that names no Band and matches no Show isn't stored: there's
+    nothing to cancel, and nothing to show.
+    """
+    venues = [_upsert_venue(db, data) for data in enriched_shows]
+    taken = {show.id for show in (_find_show(db, venue, data) for venue, data in zip(venues, enriched_shows)) if show}
     results: list[Show] = []
-    for data in enriched_shows:
-        venue = _upsert_venue(db, data)
-        show = _upsert_show(db, venue, data)
-        _upsert_acts(db, show, data)
+    for venue, data in zip(venues, enriched_shows):
+        # Looked up again: an earlier listing in this batch may have just stored the Show (Steve repeats a line).
+        show = _find_show(db, venue, data) or _find_changed_show(db, venue, data, taken)
+        bands = _listed_bands(data)
+        if show is None and not bands and data.get("status", "upcoming") != "upcoming":
+            continue
+        kept_lineup = bool(show and not bands and show.acts)
+        show = _upsert_show(db, venue, data, show)
+        taken.add(show.id)
+        if not kept_lineup:   # a listing that names no Band doesn't empty a stored Show's lineup
+            _upsert_acts(db, show, data)
         results.append(show)
     return results

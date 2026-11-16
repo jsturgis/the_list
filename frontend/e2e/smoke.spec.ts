@@ -17,7 +17,7 @@ test('home page lists the upcoming Shows', async ({ page }) => {
 
   await expect(page).toHaveTitle(/The List/)
   await expect(page.getByRole('heading', { level: 1, name: "This Week's Shows" })).toBeVisible()
-  await expect(page.getByText('Bay Area & Santa Cruz Concert Events — Sep 25, 2026')).toBeVisible()
+  await expect(page.getByText('The List for Sep 25, 2026')).toBeVisible()
   await expect(page.getByText('Showing 5 of 5 shows')).toBeVisible()
   await expect(showCards(page)).toHaveCount(5)
 
@@ -438,7 +438,7 @@ test.describe('without JavaScript', () => {
 
   test('the home page lists the first page of Shows, with the edition', async ({ page }) => {
     await page.goto('./')
-    await expect(page.getByText('Bay Area & Santa Cruz Concert Events — Sep 25, 2026')).toBeVisible()
+    await expect(page.getByText('The List for Sep 25, 2026')).toBeVisible()
     await expect(showCards(page)).toHaveCount(5)
     await expect(showCards(page).first()).toBeVisible()
   })

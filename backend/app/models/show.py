@@ -55,7 +55,9 @@ class Show(Base):
     is_drink_tickets: Mapped[bool] = mapped_column(Boolean, default=False)
     is_no_reentry: Mapped[bool] = mapped_column(Boolean, default=False)
     notes: Mapped[Optional[str]] = mapped_column(Text)
-    # From the formatted edition
+    # Read from the listing (app/ingestion/steve_list.py): doors before 5pm, "(sold out)", a benefit or fundraiser.
+    # The ticket fields, the cause and the special event are from the formatted editions ingested until November
+    # 2026; the List itself doesn't have them.
     is_matinee: Mapped[bool] = mapped_column(Boolean, default=False)
     is_sold_out: Mapped[bool] = mapped_column(Boolean, default=False)
     ticket_provider: Mapped[Optional[str]] = mapped_column(String(100))

@@ -64,12 +64,12 @@ def similar_band_ids(db: Session, band: Band, k: int) -> list[int]:
     return [bid for bid, _ in similar if bid != band.id][:k]
 
 
-def latest_email_subject(db: Session) -> str | None:
-    """Subject of the email from the most recent successful ingestion run."""
+def latest_edition_title(db: Session) -> str | None:
+    """What the edition from the most recent successful ingestion run is called ("The List for Nov 13, 2026")."""
     run = (
         db.query(IngestionRun)
         .filter(IngestionRun.status == IngestionStatus.success)
         .order_by(IngestionRun.started_at.desc())
         .first()
     )
-    return run.email_subject if run else None
+    return run.edition_title if run else None

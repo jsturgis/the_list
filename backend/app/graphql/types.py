@@ -131,17 +131,15 @@ class IngestionRunType:
     started_at: datetime
     finished_at: datetime | None
     status: str
-    email_received_at: datetime | None
-    email_subject: str | None
-    email_message_id: str | None
+    edition_date: date | None
+    edition_title: str | None
+    source_hash: str | None
     shows_parsed: int | None
     shows_upserted: int | None
     shows_new: int | None
+    new_venues: int | None
     new_bands: int | None
     new_bands_without_photo_pct: float | None
-    new_bands_photo_from_edition_pct: float | None
-    new_bands_genres_from_edition_pct: float | None
-    new_bands_links_from_edition_pct: float | None
     error: str | None
 
 

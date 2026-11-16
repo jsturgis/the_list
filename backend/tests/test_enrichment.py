@@ -555,6 +555,7 @@ def test_venue_enrichment_without_llm_skips_name_cleanup_and_wikipedia(
 ):
     mock_settings.google_maps_api_key = "fake-key"
     mock_post.return_value.json.return_value = {"places": [{
+        "displayName": {"text": "Rickshaw Stop"}, "types": ["live_music_venue", "establishment"],
         "formattedAddress": "155 9th St, San Francisco, CA 94103, USA", "id": "ChIJrickshaw",
         "location": {"latitude": 37.77, "longitude": -122.42}, "websiteUri": "https://rickshawstop.com",
     }]}
@@ -569,6 +570,10 @@ def test_venue_enrichment_without_llm_skips_name_cleanup_and_wikipedia(
     assert result["google_place_id"] == "ChIJrickshaw"
     assert result["website_url"] == "https://rickshawstop.com"
     assert (result["description"], result["wikipedia_url"]) == (None, None)
+    # What app/ingestion/venue_check.py needs to tell whether the place is the Venue.
+    assert "places.displayName" in mock_post.call_args.kwargs["headers"]["X-Goog-FieldMask"]
+    assert (result["google_name"], result["google_types"], result["google_results"]) == (
+        "Rickshaw Stop", ["live_music_venue", "establishment"], 1)
 
 
 @patch("app.pipeline.enrichment.get_enrichment_llm")

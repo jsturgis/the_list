@@ -1,21 +1,19 @@
 # The List
 
 A weekly SF Bay Area music discovery site, published at **https://list.sturgis.me/**.
-Every Friday, a GitHub Action ingests the formatted edition of [Steve List's](mailto:skoepke@stevelist.com)
-curated list, enriches it with MusicBrainz, Last.fm, Discogs and Google Places, and rebuilds a static site on
-GitHub Pages. People can save searches and get a weekly email of the Shows that match.
-
-The List itself is also published each week as plain text (the original email, subscriber footer
-removed) in a [public Google Drive folder](https://drive.google.com/drive/folders/1plFG_Zp0lVbYOnzkbmHJ2DFTzYC8q1gH?usp=share_link).
+Every hour, a GitHub Action checks [Steve List's](mailto:skoepke@stevelist.com) curated list as he publishes it,
+at [stevelist.com/list](https://stevelist.com/list). When it has changed, it ingests it, enriches it with
+MusicBrainz, Last.fm, Discogs and Google Places, and rebuilds a static site on GitHub Pages. People can save
+searches and get a weekly email of the Shows that match.
 
 ## Documentation
 
 The full docs are on the site, at **https://list.sturgis.me/docs/**:
 
 - [Overview](https://list.sturgis.me/docs/overview/): what it does, and the stack
-- [Architecture](https://list.sturgis.me/docs/architecture/): diagrams of the site, the backend and the weekly jobs
+- [Architecture](https://list.sturgis.me/docs/architecture/): diagrams of the site, the backend and the scheduled jobs
 - [Local setup](https://list.sturgis.me/docs/local-setup/): Docker, seeding, the frontend, database migrations
-- [Configuration](https://list.sturgis.me/docs/configuration/): environment variables and the Drive scripts
+- [Configuration](https://list.sturgis.me/docs/configuration/): environment variables
 - [How ingestion works](https://list.sturgis.me/docs/ingestion/)
 - [Deployment](https://list.sturgis.me/docs/deployment/): the Deploy workflow, the `data` branch, backfills, rollbacks
 - [Weekly Alerts](https://list.sturgis.me/docs/alerts/)
@@ -28,7 +26,7 @@ repo: [`CONTEXT.md`](CONTEXT.md) (the domain language), [`DESIGN.md`](DESIGN.md)
 ## Quick start
 
 ```bash
-cp backend/.env.example backend/.env    # set GOOGLE_MAPS_API_KEY and DRIVE_LATEST_FILE_ID
+cp backend/.env.example backend/.env    # set GOOGLE_MAPS_API_KEY
 docker compose up --build -d            # GraphQL API at http://localhost:8000/graphql
 ```
 
