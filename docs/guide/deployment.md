@@ -81,6 +81,11 @@ fails only its own step, which has `continue-on-error`, so it can't change the i
 - **Every hour**, at 17 minutes past (`17 * * * *`): check, and only when Steve's page has changed, ingest and
   deploy. Steve posts each Friday's edition ahead of it (the November 13, 2026 edition went up the Thursday night),
   so a new edition's Alerts go out within about an hour of his posting it, at whatever hour that is.
+  GitHub disables a public repository's scheduled workflows after 60 days without activity, so each hourly run
+  first re-enables the workflow through GitHub's API (the "Keep the hourly schedule enabled" step). GitHub doesn't
+  document that this resets the 60 days. If the schedule ever stops anyway, the Actions tab shows the workflow as
+  disabled: click **Enable workflow**, or run `gh workflow enable deploy.yml`. No failure email can warn you of
+  this, as no run happens.
 - **By hand** from the Actions tab (**Deploy → Run workflow**) or `gh workflow run deploy.yml`.
   A manual run ingests the List whether or not it has changed, and sends Alerts only if it's a new edition.
   Tick **Skip ingestion** (`gh workflow run deploy.yml -f skip_ingest=true`) to rebuild from the
