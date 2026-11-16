@@ -78,7 +78,11 @@ flowchart TD
   (`app/ingestion/band_photos.py`), with a focal point from the faces in them (`photo_focus.py`).
 - **Embeddings** (`nomic-embed-text` on Ollama) of each Show and its headliner go into the FAISS indices.
 
-**Show identity** (upsert key): `(date, venue_id, door_time)`. Re-running ingestion on the same page is
+**Show identity** (upsert key): `(date, venue_id, door_time)`, and the headliner where Shows share that: a Venue
+with two rooms lists a Show in each at the same time (`7pm/8pm (upstairs)`, `7pm/8pm (downstairs)`), and each is its
+own Show. Listings with the same identity and headliner are one Show (Steve sometimes lists a Show twice). A listing
+takes the stored Show with its identity and headliner, else one with its identity that no other listing has taken,
+so a lone listing whose lineup Steve corrected still updates its Show. Re-running ingestion on the same page is
 idempotent. When Steve adds or corrects a door time, or lists a Show again without one (`POSTPONED:`), the listing
 updates the stored Show at that Venue that day with the same headliner rather than starting another.
 

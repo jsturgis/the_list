@@ -313,17 +313,37 @@ def _listed_bands(data: dict) -> list[str]:
     return [b for b in (data.get("bands") or []) if not _DJ_RE.match(b) and not _B2B_RE.search(b) and b.strip()]
 
 
-def _find_show(db: Session, venue: Venue, data: dict) -> Show | None:
-    """The Show with the listing's identity: its date, Venue and door time."""
-    door_time = _parse_time(data.get("door_time"))
-    door_cond = (
-        Show.door_time.is_(None) if door_time is None else Show.door_time == door_time
-    )
-    return (
-        db.query(Show)
-        .filter(Show.date == data["date"], Show.venue_id == venue.id, door_cond)
-        .first()
-    )
+def _headliner(names: list[str]) -> str | None:
+    """Matching key for the first of these Band names (see band_key), or None when there are none."""
+    return (band_key(names[0]) or names[0]) if names else None
+
+
+def _show_headliner(show: Show) -> str | None:
+    return _headliner([a.band.name for a in sorted(show.acts, key=lambda a: a.position)])
+
+
+def _find_shows(db: Session, date_, venue_id: int, door_time: time | None) -> list[Show]:
+    """The stored Shows with this identity (date, Venue and door time), oldest first. Usually one; a Venue with two
+    rooms has a Show in each at the same time."""
+    door_cond = Show.door_time.is_(None) if door_time is None else Show.door_time == door_time
+    return db.query(Show).filter(Show.date == date_, Show.venue_id == venue_id, door_cond).order_by(Show.id).all()
+
+
+def _claim_shows(slots: list[tuple], shows: list[Show]) -> dict[tuple, Show]:
+    """Which of `shows` (stored Shows with one identity) each slot (the listings with that identity, one slot per
+    headliner) is: the Show with the slot's headliner first, then, in order, the Shows left to the slots left. So
+    a lone listing whose headliner Steve corrected still updates its Show, and when a Show stored before two rooms'
+    listings were told apart has the second room's lineup, that room keeps it and the first gets a new Show."""
+    free = list(shows)
+    claimed: dict[tuple, Show] = {}
+    for slot in slots:
+        show = next((s for s in free if _show_headliner(s) == slot[-1]), None)
+        if show:
+            free.remove(show)
+            claimed[slot] = show
+    for slot, show in zip([slot for slot in slots if slot not in claimed], free):
+        claimed[slot] = show
+    return claimed
 
 
 def _find_changed_show(db: Session, venue: Venue, data: dict, taken: set[int]) -> Show | None:
@@ -339,9 +359,8 @@ def _find_changed_show(db: Session, venue: Venue, data: dict, taken: set[int]) -
                   if s.id not in taken]
     bands = _listed_bands(data)
     if bands:
-        headliner = band_key(bands[0]) or bands[0]
-        candidates = [s for s in candidates
-                      if s.acts and (band_key(min(s.acts, key=lambda a: a.position).band.name) or None) == headliner]
+        headliner = _headliner(bands)
+        candidates = [s for s in candidates if s.acts and _show_headliner(s) == headliner]
     elif data.get("door_time"):
         return None
     return candidates[0] if len(candidates) == 1 else None
@@ -442,28 +461,50 @@ def _upsert_acts(db: Session, show: Show, data: dict) -> None:
         db.add(Act(show_id=show.id, band_id=band.id, position=position, note=act_notes.get(name)))
 
     db.flush()
+    db.expire(show, ["acts"])   # the Acts were replaced by id, so a lineup loaded earlier is stale
 
 
 def upsert_shows(db: Session, enriched_shows: list[dict]) -> list[Show]:
     """Persist a batch of enriched show dicts. Idempotent.
 
-    Each listing is the Show with its identity (date, Venue, door time); failing that, the stored Show whose time
-    it changes (see _find_changed_show), once every listing with a Show of its own has claimed it; failing that, a
-    new Show. A cancelled or postponed listing that names no Band and matches no Show isn't stored: there's
-    nothing to cancel, and nothing to show.
+    A Show's identity is its date, Venue and door time, and its headliner tells apart the Shows that share one: a
+    Venue with two rooms lists a Show in each at the same time ("(upstairs)", "(downstairs)"). Listings with the
+    same identity and headliner are one Show (Steve repeats a line). Each listing is, in turn:
+
+    - a stored Show with its identity: the one with its headliner, else one left over once the other listings with
+      that identity have taken theirs (see _claim_shows). A lone listing with an identity is that identity's Show
+      whatever its headliner, so a corrected lineup updates its Show;
+    - failing that, the stored Show whose time it changes (see _find_changed_show), among those no other listing
+      has claimed;
+    - failing that, a new Show.
+
+    A cancelled or postponed listing that names no Band and matches no Show isn't stored: there's nothing to cancel,
+    and nothing to show.
     """
     venues = [_upsert_venue(db, data) for data in enriched_shows]
-    taken = {show.id for show in (_find_show(db, venue, data) for venue, data in zip(venues, enriched_shows)) if show}
+    slots = [(data["date"], venue.id, _parse_time(data.get("door_time")), _headliner(_listed_bands(data)))
+             for venue, data in zip(venues, enriched_shows)]
+    by_identity: dict[tuple, list[tuple]] = {}
+    for slot in slots:
+        same = by_identity.setdefault(slot[:3], [])
+        if slot not in same:
+            same.append(slot)
+    claimed: dict[tuple, Show] = {}
+    for identity, same in by_identity.items():
+        claimed.update(_claim_shows(same, _find_shows(db, *identity)))
+    taken = {show.id for show in claimed.values()}
+
     results: list[Show] = []
-    for venue, data in zip(venues, enriched_shows):
-        # Looked up again: an earlier listing in this batch may have just stored the Show (Steve repeats a line).
-        show = _find_show(db, venue, data) or _find_changed_show(db, venue, data, taken)
+    for venue, data, slot in zip(venues, enriched_shows, slots):
+        # An earlier listing in this batch may have just stored the slot's Show (Steve repeats a line).
+        show = claimed.get(slot) or _find_changed_show(db, venue, data, taken)
         bands = _listed_bands(data)
         if show is None and not bands and data.get("status", "upcoming") != "upcoming":
             continue
         kept_lineup = bool(show and not bands and show.acts)
         show = _upsert_show(db, venue, data, show)
         taken.add(show.id)
+        claimed[slot] = show
         if not kept_lineup:   # a listing that names no Band doesn't empty a stored Show's lineup
             _upsert_acts(db, show, data)
         results.append(show)

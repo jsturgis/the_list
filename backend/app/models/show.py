@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from sqlalchemy import (
     Boolean, Date, DateTime, Enum, Float, ForeignKey,
-    LargeBinary, String, Text, Time, UniqueConstraint, func,
+    LargeBinary, String, Text, Time, func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -35,9 +35,6 @@ class ShowStatus(str, enum.Enum):
 
 class Show(Base):
     __tablename__ = "shows"
-    __table_args__ = (
-        UniqueConstraint("date", "venue_id", "door_time", name="uq_show_identity"),
-    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     date: Mapped[date] = mapped_column(Date, index=True)
