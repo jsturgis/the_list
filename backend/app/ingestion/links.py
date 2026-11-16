@@ -1,6 +1,6 @@
-"""Check edition links before saving them.
+"""Check links before saving them.
 
-The edition's links are often wrong: domains that don't exist and pages that are gone. A link counts
+Links are often wrong: domains that don't exist and pages that are gone. A link counts
 as broken only when that's certain: the host can't be reached (DNS, connection or TLS failure) or the
 page is a 404 or 410. Anything else, including 403s (usually a bot wall in front of a working site),
 5xx errors and timeouts, keeps the link. Requests to each site go one at a time, at least a second

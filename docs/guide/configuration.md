@@ -1,6 +1,6 @@
 ---
 title: Configuration
-description: Environment variables, and the Google Drive scripts that publish each edition.
+description: Environment variables for the backend.
 ---
 
 Set these in `backend/.env` for local runs (`backend/.env.example` is a starting point). The Deploy workflow sets
@@ -11,8 +11,9 @@ settings in `backend/app/config.py`.
 
 | Variable | Description |
 |---|---|
-| `DRIVE_LATEST_FILE_ID` | Drive file id of the public `latest.json` pointer (see [Drive setup](#drive-setup)) |
 | `GOOGLE_MAPS_API_KEY` | Venue enrichment (address, lat/lng, place ID) |
+
+The List itself needs no key: the ingest reads Steve's page, `LIST_URL` (default `https://stevelist.com/list`).
 
 ## Band lookups
 
@@ -51,6 +52,16 @@ and no Resend key.
 | `ALERTS_FROM` | `The List <alerts@list.sturgis.me>` | The Alert emails' sender, on a domain verified in Resend |
 | `SITE_URL` | `https://list.sturgis.me` | Where links in the Alert emails point |
 
+## The maintainer's emails
+
+The `notify-success` and `notify-failure` commands email the maintainer how the ingest went (see
+[Deployment](deployment.md#the-maintainers-emails)). They send through Resend with `RESEND_API_KEY`, from
+`ALERTS_FROM`, and link to `SITE_URL`; without either of `MAINTAINER_EMAIL` and `RESEND_API_KEY` they send nothing.
+
+| Variable | Default | Notes |
+|---|---|---|
+| `MAINTAINER_EMAIL` | (none) | Who gets the emails about the ingest. In the Deploy workflow it's the `MAINTAINER_EMAIL` secret, so the address isn't in the public repository |
+
 ## Other
 
 | Variable | Default | Notes |
@@ -62,34 +73,3 @@ and no Resend key.
 The site's build has its own settings (`PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY`, `PAGES_BASE_PATH`,
 `PAGES_SITE_URL`, `SITE_DATA_DIR`): see the
 [frontend's README](https://github.com/jsturgis/the_list/blob/main/frontend/README.md).
-
-## Drive setup
-
-Each week two JSON files are saved to the Drive root of the Google account that receives Steve's email: the
-**formatted edition** (`Bay Area & Santa Cruz Concert Events - <date>.json`, schema v2.0.0) and its **enriched
-export** (`San Francisco Area Music List for <date>.enriched.json`). They're made outside this repository; `samples/`
-has one of each. Two Google Apps Scripts in `scripts/` publish them where the ingest can read them without Google
-credentials:
-
-- `drive-publisher.gs` moves formatted editions and enriched exports into a public folder (raw email exports, and
-  any file that still holds personal data, into a private one). It keeps `latest.json` in the public folder pointing
-  at the newest edition and, when there is one, its enriched export, which the ingest uses to fill in missing venue
-  details, ticket links and artist images.
-- `gmail-exporter.gs` saves the newest List email (footer stripped) to the
-  [public folder](https://drive.google.com/drive/folders/1plFG_Zp0lVbYOnzkbmHJ2DFTzYC8q1gH?usp=share_link) as `.txt`.
-
-To install them:
-
-1. Paste `drive-publisher.gs` into a new project at https://script.google.com. Add `gmail-exporter.gs` to the same
-   project as a second file.
-2. Run `publish` once and grant Drive access. It logs the `latest.json` file id: set `DRIVE_LATEST_FILE_ID` to it
-   (in `backend/.env`, and as the repository variable).
-3. Run `exportListEmail` once to grant Gmail access.
-4. Run `installTrigger` once. It runs `publish` daily between 6 and 7pm Pacific; `publish` exports the email too.
-5. To start the week's ingest right after publishing, create a fine-grained personal access token limited to this
-   repository, with Actions read and write permission, and set it as the `GITHUB_TOKEN` script property (Project
-   Settings → Script properties).
-
-With the token, a publish that points `latest.json` at a new edition also dispatches the Deploy workflow on `main`
-(ingestion on), so that week's ingest starts right away instead of waiting for the Saturday cron. Without a token,
-publishing still works; the dispatch is skipped and logged instead.

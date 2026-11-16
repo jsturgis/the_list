@@ -1,6 +1,6 @@
 # The List
 
-A weekly SF Bay Area music discovery app that ingests Steve List's curated email, enriches it, and presents upcoming shows in a browsable, searchable format.
+A weekly SF Bay Area music discovery app that ingests Steve List's curated list from his own page, enriches it, and presents upcoming shows in a browsable, searchable format.
 
 ## Language
 
@@ -15,11 +15,23 @@ A Band's appearance within a Show. The first Act is the headliner; subsequent Ac
 _Avoid_: Performer, artist (use Band or Act depending on context)
 
 **Band**:
-A named musical act — a group, solo artist, or ensemble. DJs and back-to-back DJ sets are excluded. A Band's genres are MusicBrainz's curated genres, else its top Last.fm tags, else its Discogs genres and styles, else MusicBrainz's free-form tags; the edition's genre is used only when every service has none (the edition is always the last fallback). Of Last.fm's and MusicBrainz's free-form tags, only genres are kept: places, nationalities, instruments, moods and notes like "seen live" aren't genres. A Band's members (current and former) come from Discogs. A Band's photo is its Wikimedia Commons photo (found through its MusicBrainz Wikidata link, and shown with its credit, as the licence requires), else its Discogs photo (credited "Photo via Discogs"), else the band photo on its Bandcamp page (credited "Photo via Bandcamp"; for a Band with namesakes, only from the Bandcamp page its correction gives), else the edition's. Either way it's kept with the data: downloaded at ingest, resized and stored on the `data` branch, and served by the site itself rather than linked from where it came from. A stored photo has a focal point, found from the faces in it when it's stored, where the site anchors it when cropping it (the phone circle and the desktop banner); a photo with no face is anchored a little above centre. The focal point goes with its photo: a changed or cleared photo loses it. A listing's name finds its Band by Slug, so the same Band spelled another way ("Swept To Sea", "Swept to Sea"; "B.F.H", "B.F.H.") stays one Band, under the name it was first listed by. A Band is found on the services by its name, which other artists can share (its namesakes): when MusicBrainz has several artists with the name, the Band is the one from the Bay Area, else MusicBrainz's best match unless MusicBrainz knows nothing about it (no area, disambiguation or tags); if they can't be told apart there's no match, and the Band isn't looked up by name on Last.fm or Discogs either, as their artist with that name is as likely to be a namesake. A Band the services or the edition still get wrong has a correction (`app/ingestion/band_corrections.py`): its MusicBrainz artist, or that it's never matched by name, and genres and links that take the edition's place. A Band's `enriched_at` is when it was last looked up on the services: set at ingest for new Bands, and by the backfill for Bands ingested before the lookups existed.
+A named musical act — a group, solo artist, or ensemble. DJs and back-to-back DJ sets are excluded. A Band's genres are MusicBrainz's curated genres, else its top Last.fm tags, else its Discogs genres and styles, else MusicBrainz's free-form tags. Of Last.fm's and MusicBrainz's free-form tags, only genres are kept: places, nationalities, instruments, moods and notes like "seen live" aren't genres. A Band's members (current and former) come from Discogs. A Band's photo is its Wikimedia Commons photo (found through its MusicBrainz Wikidata link, and shown with its credit, as the licence requires), else its Discogs photo (credited "Photo via Discogs"), else the band photo on its Bandcamp page (credited "Photo via Bandcamp"; for a Band with namesakes, only from the Bandcamp page its correction gives). The List only names a Band: Bands ingested from the formatted editions used until November 2026 may still have those editions' genres, links or photo, kept as a last fallback. Either way it's kept with the data: downloaded at ingest, resized and stored on the `data` branch, and served by the site itself rather than linked from where it came from. A stored photo has a focal point, found from the faces in it when it's stored, where the site anchors it when cropping it (the phone circle and the desktop banner); a photo with no face is anchored a little above centre. The focal point goes with its photo: a changed or cleared photo loses it. A listing's name finds its Band by Slug, so the same Band spelled another way ("Swept To Sea", "Swept to Sea"; "B.F.H", "B.F.H.") stays one Band, under the name it was first listed by. A Band is found on the services by its name, which other artists can share (its namesakes): when MusicBrainz has several artists with the name, the Band is the one from the Bay Area, else MusicBrainz's best match unless MusicBrainz knows nothing about it (no area, disambiguation or tags); if they can't be told apart there's no match, and the Band isn't looked up by name on Last.fm or Discogs either, as their artist with that name is as likely to be a namesake. A Band the services still get wrong has a correction (`app/ingestion/band_corrections.py`): its MusicBrainz artist, or that it's never matched by name, and the genres and links to use when no service has any. A Band's `enriched_at` is when it was last looked up on the services: set at ingest for new Bands, and by the backfill for Bands ingested before the lookups existed.
 _Avoid_: Artist, performer, act (when referring to the entity itself rather than its role in a Show)
 
+**The List**:
+Steve's list as he publishes it: the plain-text page at https://stevelist.com/list, the source of every Show. It is checked every hour and ingested whenever it has changed.
+_Avoid_: Email, newsletter, feed
+
+**Edition**:
+The List as of the date in its header, normally a Friday. Steve also corrects the page between editions, dating it the day he does: a changed page dated in the same week (Friday to Thursday) as the last edition ingested is a correction, not a new edition, and sends no Alerts.
+_Avoid_: Issue, email
+
+**Listing**:
+One entry on the List: a date, a lineup, a Venue and its details. Each listing is one Show.
+_Avoid_: Line, entry, event
+
 **Venue**:
-A named physical location where Shows occur, belonging to a City and Region.
+A named physical location where Shows occur, belonging to a City and Region. Steve lists a Venue under several names ("the Castro", "the Castro Theater"); they're matched ignoring case, a leading "the", punctuation and theater/theatre, then by its known other names, then as a one-typo match, and only then looked up on Google Places, whose answer is used only when it's that Venue (a place of that name, in that city).
 _Avoid_: Location, space, club
 
 **Region**:
@@ -39,10 +51,10 @@ A Show whose date is in the future and has not been cancelled or postponed.
 A Show whose date has passed. Past Shows are retained for 3 months, then hard-deleted.
 
 **Cancelled**:
-A Show that will not take place, as indicated by a `CANCELLED:` prefix in the source email.
+A Show that will not take place, as indicated by a `CANCELLED:` prefix on its listing (or `INCORRECT LISTING:`, for a listing Steve has marked as wrong).
 
 **Postponed**:
-A Show that has been delayed to an unconfirmed date, as indicated by a `POSTPONED:` prefix in the source email.
+A Show that has been delayed to an unconfirmed date, as indicated by a `POSTPONED:` prefix on its listing.
 
 ### Show flags
 
@@ -71,4 +83,4 @@ _Avoid_: Saved search (fine in UI copy, not in code), subscription, watch
 
 **Alert**:
 The weekly email a person gets after each new edition, listing the Upcoming Shows that match each of their Saved Filters. People can turn Alerts off without deleting their Saved Filters.
-_Avoid_: Notification, digest, newsletter
+_Avoid_: Notification, digest, newsletter. The maintainer's emails about the ingest (app/notifications.py) aren't Alerts.

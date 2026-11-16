@@ -1,16 +1,15 @@
 name: Deploy
 
-# Weekly: the Drive publisher (scripts/drive-publisher.gs) starts this itself, right after it publishes a
-# new edition around 6-7pm Pacific Friday; the cron below is only a late fallback for a week its dispatch
-# didn't fire. Either way: ingest the newest edition into the data branch's database, then export it to
-# JSON, build the static site and publish it to GitHub Pages, then email everyone's weekly Alerts. Pushes
-# to main and manual runs can skip the ingest; Alerts go out only after an ingest.
+# Hourly: check Steve's List (https://stevelist.com/list, the source of every Show) against the last page
+# ingested. When it has changed: ingest it into the data branch's database, then export it to JSON, build
+# the static site and publish it to GitHub Pages; when it's a new edition (its header date in a later Friday-to-
+# Thursday week, not a correction to the current one), then email everyone's weekly Alerts. An unchanged List ends the run after
+# the check. A manual run ingests the List whether it has changed or not, unless told to skip the ingest;
+# pushes to main only rebuild the site.
 on:
   schedule:
-    # Saturday 06:37 UTC = Friday 11:37pm PDT / 10:37pm PST: late enough that a dispatched run has normally
-    # already finished, and off the clock's popular minutes so GitHub's own scheduler is less likely to
-    # delay it further.
-    - cron: '37 6 * * 6'
+    # Off the clock's popular minutes, so GitHub's own scheduler is less likely to delay it.
+    - cron: '17 * * * *'
   workflow_dispatch:
     inputs:
       skip_ingest:
@@ -34,8 +33,79 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  ingest:
+  check:
+    # Has the List changed since the last successful ingest, and is it a new edition? (python -m app.cli check)
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !inputs.skip_ingest)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write   # for the keep-alive step below
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+      new_edition: ${{ steps.check.outputs.new_edition }}
+
+    steps:
+      # GitHub disables a public repository's scheduled workflows after 60 days without "repository activity", which
+      # it doesn't define. Enabling this workflow on every run keeps it active, the way keep-alive actions do; that
+      # this resets the 60 days isn't documented either. First, so it runs even when the check fails.
+      - name: Keep the hourly schedule enabled
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method PUT "repos/${{ github.repository }}/actions/workflows/deploy.yml/enable"
+
+      - uses: actions/checkout@v4
+
+      - name: Check out the database from the data branch
+        uses: actions/checkout@v4
+        with:
+          ref: data
+          path: data
+          sparse-checkout: the_list.db   # the last ingestion run is all the check reads
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+
+      - id: check
+        name: Check the List
+        working-directory: backend
+        env:
+          DATABASE_URL: sqlite:///${{ github.workspace }}/data/the_list.db
+          PYTHONUNBUFFERED: 1   # the log keeps the commands' lines in order
+        # Migrates this copy only (the ingest migrates the data branch's), so the check can read the runs right
+        # after a migration is merged. Fails, and GitHub emails the maintainer, when the List can't be fetched.
+        # The output also goes to a log for the failure email; pipefail keeps each command's exit status, and the
+        # check writes its outputs to $GITHUB_OUTPUT itself, not through the pipe.
+        run: |
+          set -o pipefail
+          { alembic upgrade head && python -m app.cli check; } 2>&1 | tee "$RUNNER_TEMP/check.log"
+
+      - name: Email the maintainer if the ingest has been failing for two weeks
+        # After a failed check (Steve's page unreachable, or not the List). Sends at most one email a day, and only
+        # once the last successful ingest is 14 days old (app/notifications.py). The job stays failed either way.
+        if: failure()
+        continue-on-error: true
+        working-directory: backend
+        env:
+          DATABASE_URL: sqlite:///${{ github.workspace }}/data/the_list.db
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ALERTS_FROM: ${{ vars.ALERTS_FROM || 'The List <alerts@list.sturgis.me>' }}
+          MAINTAINER_EMAIL: ${{ secrets.MAINTAINER_EMAIL }}
+          SITE_URL: https://list.sturgis.me
+        run: python -m app.cli notify-failure --stage check --log "$RUNNER_TEMP/check.log"
+
+  ingest:
+    needs: check
+    # A changed List, or a manual run (which ingests it either way).
+    if: needs.check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write   # commit the new database to the data branch
@@ -90,27 +160,31 @@ jobs:
           FAISS_INDEX_PATH: ${{ github.workspace }}/data/faiss
           IMAGES_PATH: ${{ github.workspace }}/data/images
           OLLAMA_BASE_URL: http://localhost:11434
-          DRIVE_LATEST_FILE_ID: ${{ vars.DRIVE_LATEST_FILE_ID }}
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
           LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
           DISCOGS_CONSUMER_KEY: ${{ secrets.DISCOGS_CONSUMER_KEY }}
           DISCOGS_CONSUMER_SECRET: ${{ secrets.DISCOGS_CONSUMER_SECRET }}
+          PYTHONUNBUFFERED: 1   # the log keeps the commands' lines in order
+        # The output also goes to a log for the failure email; pipefail keeps each command's exit status.
         run: |
-          alembic upgrade head
-          python -m app.cli ingest
+          set -o pipefail
+          { alembic upgrade head && python -m app.cli ingest; } 2>&1 | tee "$RUNNER_TEMP/ingest.log"
 
       - name: Commit the data
         working-directory: data
+        # Appends to the ingest's log, so a failed commit or push is what the failure email shows.
         run: |
+          set -o pipefail
+          {
           # Fold the write-ahead log into the database so the committed file is complete.
           python -c "
           import sqlite3
           db = sqlite3.connect('the_list.db')
           db.execute('PRAGMA wal_checkpoint(TRUNCATE)')
           db.execute('PRAGMA journal_mode=DELETE')
-          run = db.execute('SELECT id, status, email_subject FROM ingestion_runs ORDER BY id DESC LIMIT 1').fetchone()
+          run = db.execute('SELECT id, status, edition_title FROM ingestion_runs ORDER BY id DESC LIMIT 1').fetchone()
           db.close()
-          open('$RUNNER_TEMP/message', 'w').write(f'Ingest run {run[0]} ({run[1]}): {run[2] or \"no new edition\"}')
+          open('$RUNNER_TEMP/message', 'w').write(f'Ingest run {run[0]} ({run[1]}): {run[2] or \"no edition\"}')
           "
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -119,6 +193,20 @@ jobs:
           if [ -d images ]; then git add -A images; fi
           git diff --cached --quiet || { git commit -q -F "$RUNNER_TEMP/message" && git push -q; }
           git log -1 --format='%h %s'
+          } 2>&1 | tee -a "$RUNNER_TEMP/ingest.log"
+
+      - name: Email the maintainer what the ingest added
+        # Only once the data is committed, from the committed database, so the email never reports data that
+        # wasn't saved. A failed send leaves the run as it is.
+        continue-on-error: true
+        working-directory: backend
+        env:
+          DATABASE_URL: sqlite:///${{ github.workspace }}/data/the_list.db
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ALERTS_FROM: ${{ vars.ALERTS_FROM || 'The List <alerts@list.sturgis.me>' }}
+          MAINTAINER_EMAIL: ${{ secrets.MAINTAINER_EMAIL }}
+          SITE_URL: https://list.sturgis.me
+        run: python -m app.cli notify-success
 
       - name: Keep the data branch short
         working-directory: data
@@ -131,10 +219,30 @@ jobs:
           fi
           git log --format='%h %s'
 
+      - name: Email the maintainer if the ingest has been failing for two weeks
+        # After any failed step of this job. This job's copy of the database has the failed ingestion run (with its
+        # traceback) though the data branch doesn't. Sends at most one email a day, and only once the last
+        # successful ingest is 14 days old (app/notifications.py). The job stays failed either way.
+        if: failure()
+        continue-on-error: true
+        working-directory: backend
+        env:
+          DATABASE_URL: sqlite:///${{ github.workspace }}/data/the_list.db
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ALERTS_FROM: ${{ vars.ALERTS_FROM || 'The List <alerts@list.sturgis.me>' }}
+          MAINTAINER_EMAIL: ${{ secrets.MAINTAINER_EMAIL }}
+          SITE_URL: https://list.sturgis.me
+          LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}             # only to take them out of the email
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          DISCOGS_CONSUMER_KEY: ${{ secrets.DISCOGS_CONSUMER_KEY }}
+          DISCOGS_CONSUMER_SECRET: ${{ secrets.DISCOGS_CONSUMER_SECRET }}
+        run: python -m app.cli notify-failure --stage ingest --log "$RUNNER_TEMP/ingest.log"
+
   build:
     needs: ingest
-    # Runs after a successful ingest, or when the ingest was skipped; never after a failed one.
-    if: ${{ !failure() && !cancelled() }}
+    # Runs after a successful ingest, or without one on a push or a manual run that skips it; never after a
+    # failed one, and not on an hourly run that found the List unchanged.
+    if: ${{ !failure() && !cancelled() && (github.event_name != 'schedule' || needs.ingest.result == 'success') }}
     runs-on: ubuntu-latest
     outputs:
       site_url: ${{ steps.pages.outputs.base_url }}
@@ -205,7 +313,9 @@ jobs:
 
   deploy:
     needs: build
-    if: ${{ !failure() && !cancelled() }}
+    # !cancelled(): without a status function GitHub adds success(), which is false whenever any earlier job in the
+    # chain was skipped (check and ingest on a push or a skip_ingest run), even though build succeeded.
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -218,11 +328,12 @@ jobs:
         uses: actions/deploy-pages@v4
 
   alerts:
-    # Email this week's Alerts (python -m app.cli alerts, ADR 0003): only after this run ingested an edition
-    # (never on a deploy-only run), and only once the site is live, so the emails' links work. A failure here
-    # leaves the deployed site as it is; the run shows red and GitHub emails the maintainer.
-    needs: [ingest, build, deploy]
-    if: ${{ needs.ingest.result == 'success' && needs.deploy.result == 'success' }}
+    # Email this week's Alerts (python -m app.cli alerts, ADR 0003): only after this run ingested a new edition
+    # (never for a correction to the current one, or on a deploy-only run), and only once the site is live, so
+    # the emails' links work. A failure here leaves the deployed site as it is; the run shows red and GitHub
+    # emails the maintainer.
+    needs: [check, ingest, build, deploy]
+    if: ${{ !cancelled() && needs.check.outputs.new_edition == 'true' && needs.ingest.result == 'success' && needs.deploy.result == 'success' }}
     runs-on: ubuntu-latest
 
     steps:

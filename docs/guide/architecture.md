@@ -1,12 +1,12 @@
 ---
 title: Architecture
-description: Diagrams of the site, the backend and the weekly jobs, and how they fit together.
+description: Diagrams of the site, the backend and the scheduled jobs, and how they fit together.
 ---
 
-The List has three parts. The **backend** (Python, in `backend/app`) ingests each week's edition into a SQLite
+The List has three parts. The **backend** (Python, in `backend/app`) ingests Steve's List into a SQLite
 database and exports it to JSON. The **frontend** (Astro, in `frontend/src`) builds a static site from that export.
-The **offline jobs** (GitHub Actions and two Google Apps Scripts) run the backend each week and publish the site to
-GitHub Pages. Nothing runs on a server: the published site is static files, plus Supabase for sign-in and Saved
+The **offline jobs** (GitHub Actions) check Steve's page every hour, run the backend when it has changed and publish
+the site to GitHub Pages. Nothing runs on a server: the published site is static files, plus Supabase for sign-in and Saved
 Filters (see [ADR 0002](https://github.com/jsturgis/the_list/blob/main/docs/adr/0002-static-site-on-github-pages.md)
 and [ADR 0003](https://github.com/jsturgis/the_list/blob/main/docs/adr/0003-saved-filter-alerts-on-supabase.md)).
 
@@ -110,15 +110,17 @@ flowchart TD
   models -->|"SQL via<br/>SQLAlchemy"| db
 ```
 
-- `cli.py` has five commands: `ingest`, `export`, `alerts`, `backfill` and `photo-focus`.
-- `ingestion/` and `pipeline/enrichment.py` call the services (Google Drive, Google Places, MusicBrainz, Last.fm,
+- `cli.py` has eight commands: `check`, `ingest`, `export`, `alerts`, `notify-success`, `notify-failure`,
+  `backfill` and `photo-focus`.
+- `ingestion/` and `pipeline/enrichment.py` call the services (Steve's page, Google Places, MusicBrainz, Last.fm,
   Discogs, Wikimedia Commons, Bandcamp). Ollama runs two models: `nomic-embed-text` for embeddings, and
   `tev1:0.8b`, which judges whether a new tag is a genre (`ingestion/genre_filter.py`).
 - `catalog.py` holds the read-only queries the API and the export share: filter options, Similar Bands (nearest
-  in the Band FAISS index) and the latest edition's subject.
+  in the Band FAISS index) and the latest edition's title.
 - `ingestion/band_photos.py` saves Band photos to `images/` (≤800px WebP, with a focal point from the faces in
   each, `photo_focus.py`).
-- `alerts.py` reads Supabase and sends through Resend (see [Offline jobs](#offline-jobs)).
+- `alerts.py` reads Supabase and sends through Resend (see [Offline jobs](#offline-jobs)). `notifications.py`
+  emails the maintainer how the ingest went, also through Resend (`mailer.py`).
 
 ### Data
 
@@ -170,13 +172,13 @@ Saved Filters and Alert subscriptions aren't in this database: they live in Supa
 
 ### When the Deploy workflow runs
 
-The Deploy workflow (`.github/workflows/deploy.yml`) has four jobs: `ingest`, `build`, `deploy` and `alerts`. An ingest happens only on the publisher's
-dispatch, the cron and a manual run that doesn't skip it; Alerts go out only after an ingest. Runs share the
-`pages` concurrency group with the Backfill workflow, so only one runs at a time.
+The Deploy workflow (`.github/workflows/deploy.yml`) has five jobs: `check`, `ingest`, `build`, `deploy` and
+`alerts`. An ingest happens when the hourly check finds the List changed, and on a manual run that doesn't skip it;
+Alerts go out only after the ingest of a new edition. Runs share the `pages` concurrency group with the Backfill
+workflow, so only one runs at a time.
 
-- **The Drive publisher's dispatch**: when it points `latest.json` at a new edition, Friday between 6 and 7pm
-  Pacific.
-- **The cron**, a fallback: `37 6 * * 6`, Saturday 06:37 UTC (Friday 11:37pm PDT).
+- **The hourly cron**: `17 * * * *`. The `check` job compares Steve's page with the last one ingested; an unchanged
+  page ends the run there.
 - **By hand**: Run workflow, or `gh workflow run deploy.yml`, with or without **Skip ingestion**.
 - **A push to `main`** that touches the site, the backend's app or the guides.
 - **The Backfill workflow**, after it commits to the `data` branch.
@@ -186,55 +188,56 @@ See [Deployment](deployment.md) for each.
 ```mermaid
 flowchart TD
   accTitle: When the Deploy workflow runs
-  accDescr: The Drive publisher's dispatch, the Friday-night cron and a manual run start the ingest job. A manual run that skips ingestion, a push to main and the Backfill workflow start at the build job. Build is followed by deploy, and deploy by alerts, but only after an ingest.
-  dispatch["Publisher's<br/>dispatch"]
-  cron["Cron<br/>fallback"]
+  accDescr: The hourly cron and a manual run start the check job; a changed List, or any manual run, goes on to the ingest job, and an unchanged List on the cron ends the run. A manual run that skips ingestion, a push to main and the Backfill workflow start at the build job. Build is followed by deploy, and deploy by alerts, but only after the ingest of a new edition.
+  cron["Hourly cron"]
   manual["By hand"]
+  check["check<br/>cli check"]
+  done(["unchanged:<br/>nothing to do"])
   ingest["ingest<br/>cli ingest"]
   push["Push to main"]
   backfillWf["Backfill<br/>workflow"]
   build["build<br/>cli export, astro build"]
   deploy["deploy<br/>GitHub Pages"]
   alerts["alerts<br/>cli alerts"]
-  dispatch --> ingest
-  cron --> ingest
-  manual -->|"ingest"| ingest
+  cron --> check
+  manual -->|"ingest"| check
+  check -->|"changed, or by hand"| ingest
+  check -->|"unchanged"| done
   ingest -->|"commit to data"| build
   manual -->|"skip ingest"| build
   push --> build
   backfillWf --> build
   build --> deploy
-  deploy -->|"after an ingest only"| alerts
+  deploy -->|"after a new edition only"| alerts
 ```
 
-### The weekly run
+### A new edition
 
-Steve's email arrives Friday around 5:20pm Pacific. Between 6 and 7pm the Drive publisher
-(`scripts/drive-publisher.gs`, on a daily trigger) moves the new edition into the public Drive folder, points
-`latest.json` at it, and dispatches the Deploy workflow. The cron runs later as a fallback: in a normal week it
-finds the edition already ingested, redeploys, and sends no one a second Alert.
+Steve updates his page ahead of each Friday's edition, and corrects it in between. The next hourly check finds the
+page changed and ingests it. A page whose header date is in a later week (Friday to Thursday) is a new edition, and its run ends by
+sending Alerts; a correction to the current edition is ingested and deployed the same way, without Alerts.
 
 ```mermaid
 sequenceDiagram
-  accTitle: The weekly run
-  accDescr: The Drive publisher updates latest.json and dispatches Deploy. The ingest job reads the edition from Drive, looks new Venues and Bands up on the services and commits to the data branch. The build and deploy jobs publish the site to Pages. The alerts job reads Saved Filters from Supabase and sends each person's Alert through Resend.
-  participant Drive
+  accTitle: A new edition
+  accDescr: The check job fetches Steve's page and finds it changed. The ingest job reads the page, looks new Venues and Bands up on the services and commits to the data branch. The build and deploy jobs publish the site to Pages. The alerts job reads Saved Filters from Supabase and sends each person's Alert through Resend.
+  participant Steve as stevelist.com
   participant GH as Deploy
   participant Svc as Services
   participant Data as data
   participant Pages
   participant SB as Supabase
-  Note over Drive: publisher updates<br/>latest.json
-  Drive->>GH: dispatch
+  Note over GH: check job, hourly
+  Steve->>GH: the List (changed)
   Note over GH: ingest job
-  Drive->>GH: edition JSON
+  Steve->>GH: the List
   GH->>Svc: new Venues,<br/>new Bands
   Svc->>GH: genres, links,<br/>photos
   GH->>Data: commit
   Note over GH: build, deploy
   Data->>GH: the data
   GH->>Pages: the site
-  Note over GH: alerts job
+  Note over GH: alerts job,<br/>new edition only
   SB->>GH: Saved Filters
   Note over GH: sends each Alert<br/>through Resend
 ```

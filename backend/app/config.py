@@ -6,8 +6,8 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str = ""
 
-    # Public Drive file (maintained by the Apps Script) pointing at the newest formatted edition.
-    drive_latest_file_id: str = ""
+    # Steve's List as he publishes it: a plain-text page, the source of every Show (app/ingestion/steve_list.py).
+    list_url: str = "https://stevelist.com/list"
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_embedding_model: str = "nomic-embed-text"
@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     # Alert emails are sent through Resend, from a domain verified there (list.sturgis.me).
     resend_api_key: str = ""
     alerts_from: str = "The List <alerts@list.sturgis.me>"
+    # Who gets the emails about the ingest (app/notifications.py): one after each successful ingest, and one a day
+    # while it has been failing for two weeks. Sent through Resend from alerts_from; empty sends none.
+    maintainer_email: str = ""
 
 
 settings = Settings()

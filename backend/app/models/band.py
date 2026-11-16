@@ -43,7 +43,7 @@ class Band(Base):
     spotify_url: Mapped[Optional[str]] = mapped_column(String(500))
     soundcloud_url: Mapped[Optional[str]] = mapped_column(String(500))
     bandcamp_url: Mapped[Optional[str]] = mapped_column(String(500))
-    # From the formatted edition
+    # From the formatted editions ingested until November 2026 (the List itself only names a Band), or a service
     website_url: Mapped[Optional[str]] = mapped_column(String(500))
     image_url: Mapped[Optional[str]] = mapped_column(String(500))
     # The photo's credit when it came from a service: {source ("Wikimedia Commons" or "Discogs"), author, license,

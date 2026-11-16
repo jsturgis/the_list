@@ -1,11 +1,11 @@
 ---
 title: Deployment
-description: The weekly Deploy workflow, the data branch, backfills and rollbacks.
+description: The Deploy workflow and its hourly check, the data branch, backfills and rollbacks.
 ---
 
 The site is published at **https://list.sturgis.me/** as a static site on GitHub Pages (see
 [ADR 0002](https://github.com/jsturgis/the_list/blob/main/docs/adr/0002-static-site-on-github-pages.md)). The old address, https://jsturgis.github.io/the_list/,
-redirects there. Diagrams of the Deploy workflow's triggers and of the weekly run are in
+redirects there. Diagrams of the Deploy workflow's triggers and of a new edition's run are in
 [Architecture](architecture.md#offline-jobs).
 
 ## The `data` branch
@@ -17,39 +17,77 @@ back to): after each ingest, older history is squashed into the oldest kept comm
 
 ## The Deploy workflow
 
-`.github/workflows/deploy.yml` has four jobs, in three stages:
+`.github/workflows/deploy.yml` has five jobs, in four stages:
 
+0. **Check** (the `check` job): runs `python -m app.cli check` against the `data` branch's database. It fetches
+   Steve's page ([stevelist.com/list](https://stevelist.com/list)) and compares its SHA-256 with the page the last
+   successful ingest read (`changed`), and the week (Friday to Thursday) of the date in its header with the newest edition
+   ingested (`new_edition`). On the hourly cron, an unchanged page ends the run here.
 1. **Ingest** (the `ingest` job): runs `python -m app.cli ingest` against the `data` branch's database (with an
    Ollama service container for embeddings) and commits the changed database, index and Band photos back to
-   `data`. Each run's row in `ingestion_runs` records its new Bands and, as percentages, how many have no
-   photo and how many fell back to the edition for genres, photo and links (`app/ingestion/ingest_stats.py`;
+   `data`. Each run's row in `ingestion_runs` records the edition's date, the page's hash, its new Venues, its new Bands and, as a
+   percentage, how many of them have no photo (`app/ingestion/ingest_stats.py`;
    also in the `ingestionRuns` GraphQL query and the ingest log), to follow the lookups' coverage.
 2. **Build and deploy** (the `build` and `deploy` jobs): checks out `main` and the `data` branch, runs
    `python -m app.cli export`, copies `images/` into the site's static files, builds the static site and deploys
    it to Pages.
-3. **Alerts** (the `alerts` job): after a successful ingest and deploy only, runs `python -m app.cli alerts`. That
-   emails each person whose Saved Filters match Upcoming Shows (see [Weekly Alerts](alerts.md)). It never
-   runs on deploy-only runs. If it fails, the site stays deployed and the run shows red.
+3. **Alerts** (the `alerts` job): after the successful ingest and deploy of a new edition only, runs
+   `python -m app.cli alerts`. That emails each person whose Saved Filters match Upcoming Shows (see
+   [Weekly Alerts](alerts.md)). It never runs for a correction to the current edition, or on deploy-only runs. If it fails, the site stays deployed and the run shows red.
 
 Only one run at a time: a newer run waits for the one in progress.
 
-- **A week with no new edition** still succeeds and redeploys (the run is recorded as `no_email`).
-- **A failed ingest** fails the run: the `data` branch is left untouched and nothing is deployed.
+- **An unchanged List** costs one short `check` job an hour: no ingest, no deploy, no row in `ingestion_runs`.
+- **A page that can't be fetched, or isn't the List** (no edition date, or fewer than 20 listings) fails the run;
+  the next hour's check tries again.
+- **A failed ingest** fails the run: the `data` branch is left untouched and nothing is deployed. The page still
+  counts as changed, so the next hour's run tries it again.
   GitHub emails you about failed scheduled runs (Settings → Notifications → Actions).
+
+## The maintainer's emails
+
+Besides GitHub's own emails about failed runs, the workflow emails the maintainer (`MAINTAINER_EMAIL`) about the
+ingest, through Resend from `ALERTS_FROM` (`app/notifications.py`). These aren't Alerts: they go to the maintainer
+only, and say how the ingest went.
+
+- **After each successful ingest**: "The List: ingest succeeded: 12 new bands, 2 new venues", with the edition,
+  its Shows parsed, upserted and new, the share of new Bands without a photo, and a link to the site. The
+  `ingest` job sends it (`python -m app.cli notify-success`) once the data is committed to the `data` branch, from
+  the committed database, so it never reports data that wasn't saved.
+- **While the ingest has been failing for two weeks**: "The List: ingest failing for 15 days: ListError: …", with
+  the root cause (the final exception, one line), which job failed (`check` or `ingest`), when the last successful
+  ingest was and its edition, the last 60 lines of the failing job's log, and a link to the Actions run. A step
+  with `if: failure()` at the end of the `check` and `ingest` jobs sends it (`python -m app.cli notify-failure
+  --stage check|ingest --log PATH`); the jobs' commands also write their output to that log.
+
+  A failed ingest isn't committed to the `data` branch (the job stops before the commit), and a failed check
+  records nothing, so the database can't count failures. "Failing for two weeks" is: this attempt just failed,
+  and the newest successful ingest finished 14 days ago or more (`FAILING_AFTER_DAYS`). A List that hasn't
+  changed for two weeks isn't a failure: its checks succeed and nothing is sent. A database with no successful
+  ingest sends nothing. The root cause of a failed ingest comes from its run's traceback, in the job's own copy of
+  the database; otherwise from the log.
+
+  The cron is hourly, so a lasting failure would email every hour: the email goes **at most once a day** (the Bay
+  Area's day). Its Resend `Idempotency-Key` is the recipient and the date, and Resend refuses the day's later,
+  different emails with that key. The root cause and the log are sent with credentials taken out (query-string
+  `api_key=`, `key=`, `token=`, `secret=`, Authorization and Bearer values, and every key in the settings).
+
+Without `MAINTAINER_EMAIL` or `RESEND_API_KEY` both commands log that they're skipping and exit 0. A failed send
+fails only its own step, which has `continue-on-error`, so it can't change the ingest's result. Both commands take
+`--dry-run`, which prints the email instead (`notify-failure --dry-run` prints it whether or not it's due).
 
 ## When it runs
 
-- **The Drive publisher's dispatch, first**: when it updates `latest.json` with a new edition (between
-  6 and 7pm Pacific Friday), it starts this workflow itself (`workflow_dispatch`, ingestion on) through
-  GitHub's API. Ingest, then deploy. See the script's header comment and
-  [Drive setup](configuration.md#drive-setup).
-- **The Friday-night cron, as a fallback**: `37 6 * * 6` (Saturday 06:37 UTC = Friday 11:37pm PDT /
-  10:37pm PST), late enough that a dispatched run has normally already finished. In a normal week this
-  finds the edition already ingested and just redeploys, sending no one a second Alerts email (same
-  Pacific day, so it reuses the dispatch run's idempotency key); in a week the dispatch didn't fire, it
-  ingests, deploys and sends Alerts the way the scheduled run always has.
+- **Every hour**, at 17 minutes past (`17 * * * *`): check, and only when Steve's page has changed, ingest and
+  deploy. Steve posts each Friday's edition ahead of it (the November 13, 2026 edition went up the Thursday night),
+  so a new edition's Alerts go out within about an hour of his posting it, at whatever hour that is.
+  GitHub disables a public repository's scheduled workflows after 60 days without activity, so each hourly run
+  first re-enables the workflow through GitHub's API (the "Keep the hourly schedule enabled" step). GitHub doesn't
+  document that this resets the 60 days. If the schedule ever stops anyway, the Actions tab shows the workflow as
+  disabled: click **Enable workflow**, or run `gh workflow enable deploy.yml`. No failure email can warn you of
+  this, as no run happens.
 - **By hand** from the Actions tab (**Deploy → Run workflow**) or `gh workflow run deploy.yml`.
-  A manual run with ingest also sends Alerts (re-running the same day sends no one a second email).
+  A manual run ingests the List whether or not it has changed, and sends Alerts only if it's a new edition.
   Tick **Skip ingestion** (`gh workflow run deploy.yml -f skip_ingest=true`) to rebuild from the
   existing data without sending Alerts.
 - **On pushes to `main`** that touch `frontend/`, `backend/app/`, `docs/guide/` (these docs) or the workflow's
@@ -64,9 +102,10 @@ Only one run at a time: a newer run waits for the one in progress.
   (`PAGES_BASE_PATH`, `PAGES_SITE_URL`): `""` and `https://list.sturgis.me` with the domain, `/the_list` and
   `https://jsturgis.github.io/the_list` without it. Local builds default to `/the_list`.
 - **The ingest** uses the `GOOGLE_MAPS_API_KEY`, `LASTFM_API_KEY`, `DISCOGS_CONSUMER_KEY` and
-  `DISCOGS_CONSUMER_SECRET` secrets and the `DRIVE_LATEST_FILE_ID` repository variable (Settings → Secrets and
-  variables → Actions). No Anthropic key: ingestion makes no LLM calls.
+  `DISCOGS_CONSUMER_SECRET` secrets (Settings → Secrets and variables → Actions). Steve's page needs none. No Anthropic key: ingestion makes no LLM calls.
 - **Alerts** have their own secrets and variables: see [Weekly Alerts](alerts.md).
+- **The maintainer's emails** need the `MAINTAINER_EMAIL` secret (where they go) and the Alerts' `RESEND_API_KEY`
+  secret and `ALERTS_FROM` variable. Without `MAINTAINER_EMAIL` none are sent.
 
 ## The Backfill workflow
 

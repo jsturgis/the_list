@@ -5,7 +5,6 @@ services:
       - "8000:8000"
     volumes:
       - ./data:/app/data          # SQLite DB + FAISS indices (persisted on host)
-      - ./samples:/samples:ro     # sample emails — available for seed script
     env_file:
       - ./backend/.env
     environment:

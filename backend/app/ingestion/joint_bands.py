@@ -61,7 +61,7 @@ def split_joint_name(name: str, search: Search | None = None, tagged: Tagged = _
 def split_joint_acts(data: dict, split: Callable[[str], list[str]]) -> list[tuple[str, list[str]]]:
     """Split joint billings in one upsert-ready Show dict (bands, act notes, band enrichment) in place.
 
-    Each half keeps the edition's genres and whether it's local; the link and image were for the billing
+    Each half keeps the billing's genres and whether it's local; a link or image was for the billing
     as a whole, so they're dropped. An act note stays with the first half. Returns (name, halves) per split.
     """
     done = []

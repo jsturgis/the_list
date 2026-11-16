@@ -1,10 +1,13 @@
 """Command-line entry point.
 
-    python -m app.cli ingest                              # maintenance, then import the newest edition
+    python -m app.cli check                               # has Steve's List changed since the last ingest?
+    python -m app.cli ingest                              # maintenance, then ingest the List as it is now
     python -m app.cli export --out ../frontend/export
     python -m app.cli alerts                              # send this week's Alert emails
     python -m app.cli alerts --dry-run                    # print them instead
     python -m app.cli alerts --only me@example.com        # send only to one person (a test)
+    python -m app.cli notify-success                      # email the maintainer about the ingest that just succeeded
+    python -m app.cli notify-failure --stage ingest --log ingest.log   # ... or, after two weeks of failures, why
     python -m app.cli backfill --max-minutes 300          # look existing Bands up on the services (resumable)
     python -m app.cli backfill --redo "Sunblind"          # ... first redoing a Band matched to the wrong artist
     python -m app.cli backfill --recheck-photos           # ... first marking Bands that could have a Bandcamp photo
@@ -16,22 +19,46 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import os
 import sys
 
+from app import notifications
 from app.alerts import SendError, SupabaseError, run_alerts
 from app.config import settings
 from app.database import SessionLocal
 from app.export import export
-from app.scheduler import _run_ingestion_async, run_daily_maintenance
+from app.ingestion.steve_list import ListError, fetch_list
+from app.scheduler import _run_ingestion_async, list_status, run_daily_maintenance
 
 logger = logging.getLogger(__name__)
 
 
-def ingest() -> None:
-    """Mark Past Shows and delete old ones, then ingest the newest edition from Drive.
+def check() -> None:
+    """Fetch the List and say whether it has changed since the last successful ingest, and whether it's a new
+    edition: `changed=true|false` and `new_edition=true|false`, printed and, in a GitHub Actions job, written to the
+    step's outputs. The Deploy workflow runs this hourly and ingests only a changed List. Exits 1 when the List
+    can't be fetched.
+    """
+    db = SessionLocal()
+    try:
+        page = fetch_list()
+        status = list_status(db, page)
+    except ListError as exc:
+        logger.error("check failed: %s: %s", type(exc).__name__, exc)
+        sys.exit(1)
+    finally:
+        db.close()
+    lines = [f"{name}={str(value).lower()}" for name, value in status.items()]
+    print(f"the List for {page.edition_date}: " + ", ".join(lines))
+    if output := os.environ.get("GITHUB_OUTPUT"):
+        with open(output, "a") as f:
+            f.write("\n".join(lines) + "\n")
 
-    Exits 1 when either step fails (the failed ingestion run is recorded in the database); a week with
-    no new edition is a success.
+
+def ingest() -> None:
+    """Mark Past Shows and delete old ones, then ingest the List as Steve's page has it now, changed or not.
+
+    Exits 1 when either step fails (the failed ingestion run is recorded in the database).
     """
     try:
         run_daily_maintenance()
@@ -48,6 +75,30 @@ def alerts(dry_run: bool, only: str | None) -> None:
         run_alerts(db, dry_run=dry_run, out=sys.stdout, only=only)
     except (SupabaseError, SendError) as exc:
         logger.error("alerts failed: %s", exc)
+        sys.exit(1)
+    finally:
+        db.close()
+
+
+def notify_success(dry_run: bool) -> None:
+    """Email the maintainer about the ingest that just succeeded (app/notifications.py). Sends nothing, and exits 0,
+    without MAINTAINER_EMAIL and RESEND_API_KEY; exits 1 only when the send itself fails."""
+    _notify(lambda db: notifications.notify_success(db, dry_run=dry_run, out=sys.stdout))
+
+
+def notify_failure(stage: str, log: str | None, dry_run: bool) -> None:
+    """After a failed check or ingest, email the maintainer the root cause and the end of the log at `log`, when
+    the ingest has been failing for two weeks and today's email hasn't gone out (app/notifications.py). Exits as
+    notify-success does."""
+    _notify(lambda db: notifications.notify_failure(db, stage=stage, log_path=log, dry_run=dry_run, out=sys.stdout))
+
+
+def _notify(send) -> None:
+    db = SessionLocal()
+    try:
+        send(db)
+    except SendError as exc:
+        logger.error("notify failed: %s", exc)
         sys.exit(1)
     finally:
         db.close()
@@ -101,12 +152,20 @@ def photo_focus(recompute: bool) -> None:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("ingest", help="run daily maintenance, then ingest the newest edition")
+    commands.add_parser("check", help="say whether Steve's List has changed since the last ingest")
+    commands.add_parser("ingest", help="run daily maintenance, then ingest Steve's List")
     export_cmd = commands.add_parser("export", help="write the static JSON data files")
     export_cmd.add_argument("--out", required=True, help="directory to write shows/venues/bands/meta.json into")
     alerts_cmd = commands.add_parser("alerts", help="build this week's Alert emails from everyone's Saved Filters")
     alerts_cmd.add_argument("--dry-run", action="store_true", help="print the emails instead of sending them")
     alerts_cmd.add_argument("--only", metavar="EMAIL", help="build and send only this person's Alert (a test send)")
+    success_cmd = commands.add_parser("notify-success", help="email the maintainer about the ingest that just succeeded")
+    success_cmd.add_argument("--dry-run", action="store_true", help="print the email instead of sending it")
+    failure_cmd = commands.add_parser("notify-failure",
+                                      help="email the maintainer when the ingest has been failing for two weeks")
+    failure_cmd.add_argument("--stage", required=True, choices=notifications.STAGES, help="the job that just failed")
+    failure_cmd.add_argument("--log", metavar="PATH", help="the failing command's output; its end goes in the email")
+    failure_cmd.add_argument("--dry-run", action="store_true", help="print the email (due or not) instead of sending it")
     backfill_cmd = commands.add_parser("backfill", help="look existing Bands up on the services (resumable)")
     backfill_cmd.add_argument("--max-minutes", type=float, default=300, help="stop after this long (default 300)")
     backfill_cmd.add_argument("--limit", type=int, default=None, help="look up at most this many Bands")
@@ -123,7 +182,9 @@ def main(argv: list[str] | None = None) -> None:
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     logging.getLogger("musicbrainzngs").setLevel(logging.WARNING)
-    if args.command == "ingest":
+    if args.command == "check":
+        check()
+    elif args.command == "ingest":
         ingest()
     elif args.command == "export":
         db = SessionLocal()
@@ -134,6 +195,10 @@ def main(argv: list[str] | None = None) -> None:
         print(f"exported to {args.out}: " + ", ".join(f"{n} {name}" for name, n in counts.items()))
     elif args.command == "alerts":
         alerts(dry_run=args.dry_run, only=args.only)
+    elif args.command == "notify-success":
+        notify_success(dry_run=args.dry_run)
+    elif args.command == "notify-failure":
+        notify_failure(stage=args.stage, log=args.log, dry_run=args.dry_run)
     elif args.command == "backfill":
         backfill(max_minutes=args.max_minutes, limit=args.limit, recheck=args.recheck_genres, redo=args.redo,
                  recheck_photos=args.recheck_photos)

@@ -1,9 +1,20 @@
+"""Parse the plain text of Steve's List (https://stevelist.com/list) into RawShow records.
+
+The page is typed by hand: a banner, a header line with the edition date ("Upcoming shows of Interest
+November 13, 2026"), then one listing per Show, a legend for the flags, radio shows and a club directory.
+
+    nov 13 fri Charger (record release), Ancient Rage, Phantasmal Abyss, Commoner
+           at Gilman Brewing Co., 912 Gilman Street, Berkeley a/a $20/$25 7pm/8pm
+
+Listings have no year (it follows from the edition date), and typos: a misspelt or missing weekday, a city
+run into what follows it. What can't be read as part of a listing ends up in its notes rather than being lost.
+"""
 from __future__ import annotations
 
-"""Parse raw Steve List plain-text email body into RawShow records."""
+import difflib
 import re
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, timedelta
 
 _NBSP = "\xa0"
 
@@ -13,17 +24,26 @@ _MONTH_MAP = {
 }
 
 _DATE_RE = re.compile(
-    r"^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)"
-    r"\s+(\d{1,2})(?:\s+(\d{4}))?(?:\s+(mon|tue|wed|thr|fri|sat|sun))?(?=\s|$)",
+    r"^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+(\d{1,2})(?:\s+(\d{4}))?(?=\s|$)",
     re.IGNORECASE,
 )
+# The weekday after the date, as Steve types it ("thr" is his Thursday). It's only skipped, never used.
+_WEEKDAYS = ("mon", "tue", "wed", "thr", "thu", "fri", "sat", "sun")
+_WEEKDAY_TOKEN_RE = re.compile(r"^\s*([a-z]{2,4})\s+")
+# Lowercase words a lineup can start with that look a little like a weekday.
+_NOT_WEEKDAYS = {"the", "thee", "dj", "an", "a"}
+# The header's edition date: "Upcoming shows of Interest      November 13, 2026".
+_EDITION_DATE_RE = re.compile(r"\b([A-Z][a-z]+)\s+(\d{1,2}),\s+(20\d{2})\b")
+_HEADER_LINES = 20
+# A listing dated more than this before the edition is next year's: the List only looks ahead.
+_PAST_LISTING_DAYS = 60
 
+_CLOCK = r"(?:\d{1,2}(?::\d{2})?(?:am|pm)|noon|midnight)"
 _TIME_RE = re.compile(
-    r"(\d{1,2}(?::\d{2})?(?:am|pm))"
-    r"(?:[/\\](\d{1,2}(?::\d{2})?(?:am|pm)))?"
-    r"(?:\s+til\s+\d{1,2}(?::\d{2})?(?:am|pm))?",
+    rf"(?<!\w)({_CLOCK})(?:[/\\]({_CLOCK}))?(?:\s+til\s+{_CLOCK})?(?!\w)",
     re.IGNORECASE,
 )
+_NAMED_TIMES = {"noon": "12pm", "midnight": "12am"}
 
 _PRICE_RE = re.compile(
     r"(?:free|\$[\d.]+(?:[/\-]\$[\d.]+)*\+?)",
@@ -31,7 +51,15 @@ _PRICE_RE = re.compile(
 )
 
 _AGE_RE = re.compile(r"\b(a/a|\d{1,2}\+)(?!\w)", re.IGNORECASE)
-_STATUS_RE = re.compile(r"^(CANCELLED|POSTPONED)[:\s\xa0]+", re.IGNORECASE)
+_STATUS_RE = re.compile(r"^(CANCELLED|CANCELED|POSTPONED|INCORRECT LISTING)[:\s\xa0]+", re.IGNORECASE)
+# A listing Steve has marked as wrong isn't happening as listed: it's Cancelled, with a note saying why.
+_STATUSES = {"cancelled": "cancelled", "canceled": "cancelled", "postponed": "postponed",
+             "incorrect listing": "cancelled"}
+_INCORRECT_LISTING_NOTE = "incorrect listing"
+# Details Steve doesn't know yet: "a/a ?/?".
+_UNKNOWN_RE = re.compile(r"(?<!\S)[?/]+(?!\S)")
+# "Charger (record release)": the Band, and a note on its Act. The ")" may be missing.
+_PARENTHETICAL_RE = re.compile(r"^(.*?)\s*\((.*?)\)?\s*$", re.DOTALL)
 _DJ_RE = re.compile(r"^dj\s+", re.IGNORECASE)
 # The flag legend ("* All bands deserve 3 stars ...") follows the last listing; everything after it
 # (legend, radio links, EmailOctopus footer) is not show data.
@@ -71,11 +99,47 @@ class RawShow:
     status: str = "upcoming"        # upcoming | cancelled | postponed
     notes: str | None = None
     venue_address: str | None = None  # street address listed after the venue name, if any
+    act_notes: list[str | None] = field(default_factory=list)  # one per band: "(record release)" after its name
 
 
-def _extract_year(text: str) -> int:
-    m = re.search(r"\b(20\d{2})\b", text[:500])
-    return int(m.group(1)) if m else date.today().year
+class ListFormatError(ValueError):
+    """The text isn't the List as we know it (no edition date in its header)."""
+
+
+def edition_date(text: str) -> date:
+    """The date in the List's header: the Friday the edition is for."""
+    for line in text.replace("\r", "\n").split("\n")[:_HEADER_LINES]:
+        for month, day, year in _EDITION_DATE_RE.findall(line):
+            try:
+                return datetime.strptime(f"{month} {day} {year}", "%B %d %Y").date()
+            except ValueError:
+                continue
+    raise ListFormatError("no edition date in the List's header")
+
+
+def _listing_date(month: int, day: int, year: int | None, edition: date) -> date | None:
+    """A listing's date. Without a year it's the edition's, or the next when that would be well before the edition
+    ("jan 15" in a November edition)."""
+    for candidate_year in ([year] if year else [edition.year, edition.year + 1]):
+        try:
+            candidate = date(candidate_year, month, day)
+        except ValueError:  # feb 29
+            continue
+        if year or candidate >= edition - timedelta(days=_PAST_LISTING_DAYS):
+            return candidate
+    return None
+
+
+def _skip_weekday(text: str) -> str:
+    """`text` without a leading weekday, however it's spelled ("fri", "ri", "dsat")."""
+    m = _WEEKDAY_TOKEN_RE.match(text)
+    if m and m.group(1) not in _NOT_WEEKDAYS and difflib.get_close_matches(m.group(1), _WEEKDAYS, n=1, cutoff=0.6):
+        return text[m.end():]
+    return text
+
+
+def _clock(text: str | None) -> str | None:
+    return _NAMED_TIMES.get(text.lower(), text) if text else None
 
 
 def _parse_venue_part(s: str) -> dict:
@@ -114,10 +178,12 @@ def _parse_venue_part(s: str) -> dict:
             kept.append(tok)
     s = " ".join(kept)
 
+    s = _UNKNOWN_RE.sub(" ", s)
+
     tm = _TIME_RE.search(s)
     if tm:
-        result["door_time"] = tm.group(1)
-        result["set_time"] = tm.group(2)
+        result["door_time"] = _clock(tm.group(1))
+        result["set_time"] = _clock(tm.group(2))
         s = s[: tm.start()] + s[tm.end():]
 
     pm = _PRICE_RE.search(s)
@@ -168,22 +234,78 @@ def clean_band_name(name: str) -> str:
     return name
 
 
-def _parse_bands_str(s: str) -> tuple[str, list[str]]:
-    status = "upcoming"
+def _split_outside_parentheses(text: str, separator: str) -> list[str]:
+    """Split at each `separator` that isn't inside parentheses: "Black Flag (Greg Ginn, Max Zanelly), Fifteen"."""
+    parts, depth, current = [], 0, []
+    for char in text:
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth = max(depth - 1, 0)
+        if char == separator and depth == 0:
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    parts.append("".join(current))
+    return parts
+
+
+def _find_outside_parentheses(text: str, needle: str) -> int:
+    """Index of the first `needle` that isn't inside parentheses, or -1."""
+    depth = 0
+    for i, char in enumerate(text):
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth = max(depth - 1, 0)
+        elif depth == 0 and text.startswith(needle, i):
+            return i
+    return -1
+
+
+def _parse_bands_str(s: str) -> tuple[str, list[str], list[str | None], str | None]:
+    """(status, bands, a note per band, a note for the Show) from the lineup before " at "."""
+    status, show_note = "upcoming", None
     sm = _STATUS_RE.match(s)
     if sm:
-        status = sm.group(1).lower()
+        prefix = " ".join(sm.group(1).lower().split())
+        status = _STATUSES[prefix]
+        show_note = _INCORRECT_LISTING_NOTE if prefix == "incorrect listing" else None
         s = s[sm.end():].strip()
     s = s.replace(_NBSP, " ")
-    raw = [_SET_TIME_SUFFIX_RE.sub("", b).strip() for b in s.split(",")]
-    bands = [b for b in raw if b and not _DJ_RE.match(b) and not _B2B_RE.search(b)]
-    bands = list(dict.fromkeys(bands))
-    return status, bands
+    acts: dict[str, str | None] = {}
+    for raw in _split_outside_parentheses(s, ","):
+        name, note = _SET_TIME_SUFFIX_RE.sub("", raw).strip(), None
+        if "(" in name:
+            band, note = _PARENTHETICAL_RE.match(name).groups()
+            name, note = (band.strip(), note.strip() or None) if band.strip() else (name, None)
+        if name and not _DJ_RE.match(name) and not _B2B_RE.search(name):
+            acts.setdefault(name, note)
+    return status, list(acts), list(acts.values()), show_note
 
 
-def parse_email_body(plain_text: str) -> list[RawShow]:
-    """Parse decoded email plain text into a list of RawShow records."""
-    base_year = _extract_year(plain_text)
+def _split_listing(lines: list[str]) -> tuple[str, str] | None:
+    """(lineup, venue and details) of a listing's lines, the date already off the first; None when it names no Venue.
+
+    The Venue starts at the last line that opens with "at ", else at the first " at " ("Tyla at the Fox Theater
+    Oakland a/a 8pm (was listed as at the SF Civic Auditorium)"; "... at Temescal Arts Center, 511 48th St. at
+    Telegraph, Oakland").
+    """
+    for i in range(len(lines) - 1, 0, -1):
+        if lines[i].lower().startswith("at "):
+            return " ".join(lines[:i]), " ".join(lines[i:])[3:]
+    content = " ".join(lines)
+    at = _find_outside_parentheses(content, " at ")
+    if at < 0:
+        return None
+    return content[:at], content[at + 4:]
+
+
+def parse_list(plain_text: str) -> list[RawShow]:
+    """Every listing in the List's text, in order. Lines that aren't a Show ("nov 27 fri record store day") and
+    listings that name no Venue are left out."""
+    edition = edition_date(plain_text)
     text = plain_text.replace("\r\n", "\n").replace("\r", "\n")
     lines = text.split("\n")
 
@@ -206,36 +328,19 @@ def parse_email_body(plain_text: str) -> list[RawShow]:
         raw_text = "\n".join(block)
         first = block[0].lstrip(_NBSP)
         dm = _DATE_RE.match(first)
-        if not dm:
+        show_date = _listing_date(_MONTH_MAP[dm.group(1).lower()], int(dm.group(2)),
+                                  int(dm.group(3)) if dm.group(3) else None, edition)
+        if not show_date:
             continue
 
-        month = _MONTH_MAP[dm.group(1).lower()]
-        day = int(dm.group(2))
-        year = int(dm.group(3)) if dm.group(3) else base_year
-
-        try:
-            show_date = date(year, month, day)
-        except ValueError:
+        parts = [_skip_weekday(first[dm.end():].replace(_NBSP, " ")).strip()]
+        parts += [line.replace(_NBSP, " ").strip() for line in block[1:]]
+        split = _split_listing([p for p in parts if p] or [""])
+        if not split:
             continue
-
-        parts: list[str] = []
-        after_date = first[dm.end():].strip().replace(_NBSP, " ")
-        if after_date:
-            parts.append(after_date)
-        for line in block[1:]:
-            cleaned = line.lstrip(_NBSP).strip().replace(_NBSP, " ")
-            if cleaned:
-                parts.append(cleaned)
-
-        content = " ".join(parts)
-
-        # Split on the last ' at ' to separate band list from venue
-        at_idx = content.rfind(" at ")
-        if at_idx < 0:
-            continue
-
-        bands_str = content[:at_idx].strip()
-        venue_str = content[at_idx + 4:].strip()
+        bands_str, venue_str = (part.strip() for part in split)
+        # "at at On Broadway", "at the Fillmore": the venue's name starts after them.
+        venue_str = re.sub(r"^(?:at\s+)+", "", venue_str)
 
         # Details occasionally sit before " at " instead of after the venue; move them out of the
         # last band name and use them for any fields the venue part doesn't provide.
@@ -245,18 +350,21 @@ def parse_email_body(plain_text: str) -> list[RawShow]:
             details = dm_.group(0)
             bands_str = bands_str[: dm_.start()]
 
-        status, bands = _parse_bands_str(bands_str)
+        status, bands, act_notes, show_note = _parse_bands_str(bands_str)
         venue_data = _parse_venue_part(venue_str)
         if details:
             extra = _parse_venue_part(details)
             for key in ("age_restriction", "price_raw", "door_time", "set_time"):
                 if venue_data[key] is None:
                     venue_data[key] = extra[key]
+        if show_note:
+            venue_data["notes"] = "; ".join(n for n in (show_note, venue_data["notes"]) if n)
 
         shows.append(RawShow(
             raw_text=raw_text,
             date=show_date,
             bands=bands,
+            act_notes=act_notes,
             status=status,
             **venue_data,
         ))

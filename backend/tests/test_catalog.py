@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from app.catalog import filter_options, latest_email_subject, similar_band_ids
+from app.catalog import filter_options, latest_edition_title, similar_band_ids
 from app.clock import local_today
 from app.models.act import Act
 from app.models.band import Band
@@ -94,20 +94,20 @@ def test_similar_band_ids_without_embedding_is_empty(db):
         search.assert_not_called()
 
 
-# ── latest_email_subject ──────────────────────────────────────────────────────
+# ── latest_edition_title ──────────────────────────────────────────────────────
 
 def _run(db, started_at, status, subject):
-    db.add(IngestionRun(started_at=started_at, status=status, email_subject=subject))
+    db.add(IngestionRun(started_at=started_at, status=status, edition_title=subject))
     db.flush()
 
 
-def test_latest_email_subject_uses_newest_successful_run(db):
+def test_latest_edition_title_uses_newest_successful_run(db):
     _run(db, datetime(2026, 9, 18, 9), IngestionStatus.success, "List for Friday, September 18th")
-    _run(db, datetime(2026, 9, 25, 9), IngestionStatus.success, "List for Friday, September 25th")
+    _run(db, datetime(2026, 9, 25, 9), IngestionStatus.success, "The List for Sep 25, 2026")
     _run(db, datetime(2026, 10, 2, 9), IngestionStatus.failure, "List for Friday, October 2nd")
-    assert latest_email_subject(db) == "List for Friday, September 25th"
+    assert latest_edition_title(db) == "The List for Sep 25, 2026"
 
 
-def test_latest_email_subject_none_without_successful_runs(db):
-    _run(db, datetime(2026, 10, 2, 9), IngestionStatus.no_email, None)
-    assert latest_email_subject(db) is None
+def test_latest_edition_title_none_without_successful_runs(db):
+    _run(db, datetime(2026, 10, 2, 9), IngestionStatus.failure, None)
+    assert latest_edition_title(db) is None

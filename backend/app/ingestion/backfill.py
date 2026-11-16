@@ -112,7 +112,7 @@ def backfill_band(band: Band, images_dir: Path, client: httpx.Client, genre_filt
         except BandcampUnavailable as exc:
             logger.info("backfill: %s's Bandcamp page, to try again next run: %s", band.name, exc)
             return changed  # without enriched_at
-    if _photo(band, photo_candidates(found["commons_photo"], artist, bandcamp, None), images_dir, client):
+    if _photo(band, photo_candidates(found["commons_photo"], artist, bandcamp), images_dir, client):
         band.enriched_at = datetime.utcnow()
     return changed
 
@@ -126,7 +126,7 @@ def redo_bands(db: Session, names: list[str], images_dir: str | Path) -> list[st
     """Mark Bands matched to the wrong artist to be looked up again from scratch by the next backfill, first dropping
     what the services gave them: genres, MusicBrainz's links (and each link field holding one of them), Discogs'
     members, and a service's photo (one with a credit) with its focal point and stored file. The edition's links and
-    photo are kept; its genres come back with the next edition that lists the Band, or from its correction.
+    photo are kept; its genres come back from the services, or from its correction.
     Names are matched by Slug (app/ingestion/upsert.find_band). Returns the names no Band was found for."""
     missing, photos = [], []
     for name in names:
