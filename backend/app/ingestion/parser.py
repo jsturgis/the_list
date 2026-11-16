@@ -6,8 +6,9 @@ November 13, 2026"), then one listing per Show, a legend for the flags, radio sh
     nov 13 fri Charger (record release), Ancient Rage, Phantasmal Abyss, Commoner
            at Gilman Brewing Co., 912 Gilman Street, Berkeley a/a $20/$25 7pm/8pm
 
-Listings have no year (it follows from the edition date), and typos: a misspelt or missing weekday, a city
-run into what follows it. What can't be read as part of a listing ends up in its notes rather than being lost.
+Listings have no year (it follows from the edition date, and from the weekday for a date just before it), and
+typos: a misspelt or missing weekday, a city run into what follows it. What can't be read as part of a listing
+ends up in its notes rather than being lost.
 """
 from __future__ import annotations
 
@@ -27,16 +28,19 @@ _DATE_RE = re.compile(
     r"^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+(\d{1,2})(?:\s+(\d{4}))?(?=\s|$)",
     re.IGNORECASE,
 )
-# The weekday after the date, as Steve types it ("thr" is his Thursday). It's only skipped, never used.
-_WEEKDAYS = ("mon", "tue", "wed", "thr", "thu", "fri", "sat", "sun")
+# The weekday after the date, as Steve types it ("thr" is his Thursday), and its number (Monday is 0).
+_WEEKDAY_NUMBERS = {"mon": 0, "tue": 1, "wed": 2, "thr": 3, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
+_WEEKDAYS = tuple(_WEEKDAY_NUMBERS)
 _WEEKDAY_TOKEN_RE = re.compile(r"^\s*([a-z]{2,4})\s+")
 # Lowercase words a lineup can start with that look a little like a weekday.
 _NOT_WEEKDAYS = {"the", "thee", "dj", "an", "a"}
 # The header's edition date: "Upcoming shows of Interest      November 13, 2026".
 _EDITION_DATE_RE = re.compile(r"\b([A-Z][a-z]+)\s+(\d{1,2}),\s+(20\d{2})\b")
 _HEADER_LINES = 20
-# A listing dated more than this before the edition is next year's: the List only looks ahead.
-_PAST_LISTING_DAYS = 60
+# A listing dated more than this before the edition is next year's: the List only looks ahead. An edition stays up
+# through its week and Steve dates the page the day he updates it, so a listing before the edition is a few days
+# old at most; a month leaves room for a late update without taking a listing 11 months out for a past one.
+_PAST_LISTING_DAYS = 30
 
 _CLOCK = r"(?:\d{1,2}(?::\d{2})?(?:am|pm)|noon|midnight)"
 _TIME_RE = re.compile(
@@ -117,25 +121,41 @@ def edition_date(text: str) -> date:
     raise ListFormatError("no edition date in the List's header")
 
 
-def _listing_date(month: int, day: int, year: int | None, edition: date) -> date | None:
-    """A listing's date. Without a year it's the edition's, or the next when that would be well before the edition
-    ("jan 15" in a November edition)."""
-    for candidate_year in ([year] if year else [edition.year, edition.year + 1]):
+def _listing_date(month: int, day: int, year: int | None, weekday: int | None, edition: date) -> date | None:
+    """A listing's date. A year Steve typed is used as it is. Otherwise it's the edition's year when that puts it on
+    or after the edition, and the next when that would be more than `_PAST_LISTING_DAYS` before it ("jan 15" in a
+    November edition). Between the two, the listing's weekday says which: "oct 30 sat" in a November 2026 edition
+    is 2027's (Oct 30, 2026 was a Friday). A date falls on different weekdays in consecutive years, so the weekday
+    never fits both; when it fits neither (a typo) or there is none, a listing a few days old stays this year's."""
+    if year:
         try:
-            candidate = date(candidate_year, month, day)
-        except ValueError:  # feb 29
-            continue
-        if year or candidate >= edition - timedelta(days=_PAST_LISTING_DAYS):
-            return candidate
-    return None
+            return date(year, month, day)
+        except ValueError:
+            return None
+    try:
+        this_year = date(edition.year, month, day)
+    except ValueError:  # feb 29
+        this_year = None
+    try:
+        next_year = date(edition.year + 1, month, day)
+    except ValueError:
+        next_year = None
+    if this_year is None or this_year < edition - timedelta(days=_PAST_LISTING_DAYS):
+        return next_year
+    if this_year < edition and next_year and next_year.weekday() == weekday != this_year.weekday():
+        return next_year
+    return this_year
 
 
-def _skip_weekday(text: str) -> str:
-    """`text` without a leading weekday, however it's spelled ("fri", "ri", "dsat")."""
+def _weekday(text: str) -> tuple[int | None, str]:
+    """The weekday at the start of `text`, however it's spelled ("fri", "ri", "dsat"), and the text after it; None
+    and `text` when it doesn't start with one."""
     m = _WEEKDAY_TOKEN_RE.match(text)
-    if m and m.group(1) not in _NOT_WEEKDAYS and difflib.get_close_matches(m.group(1), _WEEKDAYS, n=1, cutoff=0.6):
-        return text[m.end():]
-    return text
+    if m and m.group(1) not in _NOT_WEEKDAYS:
+        match = difflib.get_close_matches(m.group(1), _WEEKDAYS, n=1, cutoff=0.6)
+        if match:
+            return _WEEKDAY_NUMBERS[match[0]], text[m.end():]
+    return None, text
 
 
 def _clock(text: str | None) -> str | None:
@@ -328,12 +348,13 @@ def parse_list(plain_text: str) -> list[RawShow]:
         raw_text = "\n".join(block)
         first = block[0].lstrip(_NBSP)
         dm = _DATE_RE.match(first)
+        weekday, rest = _weekday(first[dm.end():].replace(_NBSP, " "))
         show_date = _listing_date(_MONTH_MAP[dm.group(1).lower()], int(dm.group(2)),
-                                  int(dm.group(3)) if dm.group(3) else None, edition)
+                                  int(dm.group(3)) if dm.group(3) else None, weekday, edition)
         if not show_date:
             continue
 
-        parts = [_skip_weekday(first[dm.end():].replace(_NBSP, " ")).strip()]
+        parts = [rest.strip()]
         parts += [line.replace(_NBSP, " ").strip() for line in block[1:]]
         split = _split_listing([p for p in parts if p] or [""])
         if not split:

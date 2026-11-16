@@ -41,12 +41,15 @@ flowchart TD
   An **edition** is the page as of the date in its header; Steve also corrects the page between editions. The page's
   SHA-256 is kept on the ingestion run, which is how the hourly check (`python -m app.cli check`) tells a changed
   page. A page with no edition date, or with fewer than 20 listings, isn't taken for the List: the run fails.
-- **Each listing** is parsed by `app/ingestion/parser.py`: the date (the year follows from the edition's), the
-  lineup, the Venue, city and street, age, price, door and set times, flags, and `CANCELLED:`, `POSTPONED:` or
-  `INCORRECT LISTING:` (also Cancelled). A parenthetical after a band ("Charger (record release)") is a note on
-  its Act; one after the details ("(sold out)") is a note on the Show. The page is typed by hand, so typos are
-  expected: a misspelt weekday or city is read as the one meant, and what can't be read goes to the Show's notes.
-  Lines that aren't a Show ("record store day") are left out.
+- **Each listing** is parsed by `app/ingestion/parser.py`: the date, the lineup, the Venue, city and street, age,
+  price, door and set times, flags, and `CANCELLED:`, `POSTPONED:` or `INCORRECT LISTING:` (also Cancelled). A
+  listing's year is the edition's, or the next when that would put it more than 30 days before the edition ("jan
+  15" in a November edition); for a date in the 30 days before the edition, it's the year the listing's weekday
+  falls on ("oct 30 sat" in the Nov 16, 2026 edition is 2027's), and the edition's when the weekday fits neither.
+  A parenthetical after a band ("Charger (record release)") is a note on its Act; one after the details ("(sold
+  out)") is a note on the Show. The page is typed by hand, so typos are expected: a misspelt weekday or city is
+  read as the one meant, and what can't be read goes to the Show's notes. Lines that aren't a Show ("record store
+  day") are left out.
 - **Venue names** are matched to stored Venues ignoring case, a leading "the", punctuation and theater/theatre,
   then by Steve's other names for a Venue (`_VENUE_ALIASES` in `app/ingestion/upsert.py`: "the Castro" is The
   Castro Theatre; "Hopmonk" is a different tavern in Novato and in Sebastopol), then by a one-typo match

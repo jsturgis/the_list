@@ -11,8 +11,8 @@ _PAGE = (Path(__file__).parent / "fixtures" / "the_list.txt").read_text()
 _HEADER = "funk-punk-thrash-ska      Upcoming shows of Interest      November 13, 2026\n\n"
 
 
-def _parse(*listings: str) -> list[RawShow]:
-    return parse_list(_HEADER + "\n".join(listings) + "\n")
+def _parse(*listings: str, header: str = _HEADER) -> list[RawShow]:
+    return parse_list(header + "\n".join(listings) + "\n")
 
 
 @pytest.fixture(scope="module")
@@ -73,6 +73,7 @@ def test_listings_are_dated_from_the_edition(shows):
 def test_months_before_the_editions_are_next_year(shows):
     assert _find(shows, "Mike Dillon And Punkadelic").date == date(2027, 1, 1)
     assert _find(shows, "Sampa The Great").date == date(2027, 9, 8)
+    assert _find(shows, "Kings Of Leon").date == date(2027, 9, 17)  # 57 days before the edition
 
 
 def test_a_listing_just_before_the_edition_is_this_year():
@@ -81,8 +82,61 @@ def test_a_listing_just_before_the_edition_is_this_year():
 
 
 def test_an_explicit_year_is_used():
+    # Jan 15, 2028 is a Saturday: the year Steve typed wins over the weekday.
     [show] = _parse("jan 15 2028 fri Band A at the Chapel, S.F. a/a 8pm")
     assert show.date == date(2028, 1, 15)
+
+
+_NOV_16_HEADER = "funk-punk-thrash-ska      Upcoming shows of Interest      November 16, 2026\n\n"
+
+
+def test_a_listing_two_months_before_the_edition_is_next_years():
+    # Sep 17, 2026 is 60 days before the edition (and a Thursday); Sep 17, 2027 is the Friday Steve typed.
+    [show] = _parse("sep 17 fri Kings Of Leon, Dexter And The Moonrocks",
+                    "       at Shoreline Amphitheater Mountain View a/a $40+ 5:30pm/7pm #", header=_NOV_16_HEADER)
+    assert show.date == date(2027, 9, 17)
+    assert show.bands == ["Kings Of Leon", "Dexter And The Moonrocks"]
+
+
+def test_a_weekday_of_next_year_dates_a_listing_before_the_edition_next_year():
+    # Oct 30, 2026 is a Friday, 17 days before the edition; Oct 30, 2027 is a Saturday.
+    [show] = _parse("oct 30 sat Band A at the Chapel, S.F. a/a 8pm", header=_NOV_16_HEADER)
+    assert show.date == date(2027, 10, 30)
+
+
+def test_a_misspelt_weekday_still_picks_the_year():
+    [show] = _parse("oct 30 dsat Band A at the Chapel, S.F. a/a 8pm", header=_NOV_16_HEADER)
+    assert show.date == date(2027, 10, 30)
+
+
+def test_a_weekday_of_neither_year_leaves_a_listing_before_the_edition_this_year():
+    # Oct 30 is a Friday in 2026 and a Saturday in 2027.
+    [show] = _parse("oct 30 mon Band A at the Chapel, S.F. a/a 8pm", header=_NOV_16_HEADER)
+    assert show.date == date(2026, 10, 30)
+
+
+def test_a_listing_a_day_before_the_edition_on_its_weekday_is_this_year():
+    [show] = _parse("nov 15 sun Band A at the Chapel, S.F. a/a 8pm", header=_NOV_16_HEADER)
+    assert show.date == date(2026, 11, 15)
+
+
+def test_a_wrong_weekday_doesnt_move_a_listing_after_the_edition_a_year_out():
+    # Nov 20, 2026 is a Friday; Nov 20, 2027 the Saturday Steve typed.
+    [show] = _parse("nov 20 sat Big Richard at Hopmonk, Sebastopol 21+ $30.71 7pm/8pm", header=_NOV_16_HEADER)
+    assert show.date == date(2026, 11, 20)
+
+
+def test_a_weekday_doesnt_date_a_listing_long_past():
+    # Mar 26, 2026 was a Thursday, but the List doesn't list Shows months gone.
+    [show] = _parse("mar 26 thr Band A at the Chapel, S.F. a/a 8pm")
+    assert show.date == date(2027, 3, 26)
+
+
+def test_without_a_weekday_the_window_decides():
+    days_before, weeks_before = _parse("oct 30 Band A at the Chapel, S.F. a/a 8pm",
+                                      "sep 17 Band B at the Chapel, S.F. a/a 8pm", header=_NOV_16_HEADER)
+    assert days_before.date == date(2026, 10, 30)
+    assert weeks_before.date == date(2027, 9, 17)
 
 
 def test_a_misspelt_or_missing_weekday_isnt_part_of_the_lineup(shows):
