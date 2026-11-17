@@ -348,6 +348,16 @@ def test_a_url_the_llm_miscopied_is_taken_as_the_one_on_the_page():
     assert entry.flyer_url == _SEE_TICKETS
 
 
+def test_a_malformed_url_on_the_page_or_from_the_llm_is_skipped_not_fatal():
+    """Seen live: a page with an "http://[" in it made urljoin raise "Invalid IPv6 URL", losing the Venue's read."""
+    page = '<a href="http://[broken">x</a><img src="/f/1.jpg">'
+
+    (entry,) = _read(_entry(flyer_url="/f/1.jpg", more_info_url="http://[also-broken"), page=page)
+
+    assert entry.flyer_url == "https://venue.example/f/1.jpg"
+    assert entry.more_info_url is None
+
+
 def test_a_url_found_nowhere_on_the_page_is_dropped():
     (entry,) = _read(_entry(flyer_url="https://venue.example/made-up.jpg", more_info_url="/shows/99"),
                      page='<a href="/about">About</a><img src="https://cdn.example/logo.png">')
