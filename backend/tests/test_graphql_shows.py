@@ -407,4 +407,30 @@ def test_edition_extra_fields_are_exposed(db, client):
     assert (show["isSoldOut"], show["ticketProvider"], show["isBenefit"], show["benefitCause"],
             show["specialEvent"], show["isMatinee"]) == (True, "ticketweb", True, "food drive", "Fest", True)
     assert show["venue"] == {"neighborhood": "Mission", "isCashOnly": True, "instagram": "@venue", "isSoberSpace": None}
-    assert show["acts"][0]["band"] == {"imageUrl": "https://img.example/heroes.jpg", "websiteUrl": "https://heroes.com", "isLocal": True}
+    # A photo not stored yet is never hot-linked.
+    assert show["acts"][0]["band"] == {"imageUrl": None, "websiteUrl": "https://heroes.com", "isLocal": True}
+
+
+_CREDIT = {"author": "Jane Photographer", "license": "CC BY-SA 3.0",
+           "license_url": "https://creativecommons.org/licenses/by-sa/3.0",
+           "source_url": "https://commons.wikimedia.org/wiki/File:924_Gilman_Street.JPG"}
+
+
+def test_a_venue_photo_is_shown_only_once_stored_with_its_credit(db, client):
+    stored, remote = _venue(db, name="924 Gilman Street"), _venue(db, name="The Warfield")
+    stored.image_url, stored.image_credit = "venues/1-3f9c2a1b7e.webp", _CREDIT
+    remote.image_url, remote.image_credit = "https://upload.wikimedia.org/wikipedia/commons/x.jpg", _CREDIT
+    _show(db, stored)
+    _show(db, remote)
+
+    data = _gql(client, """{ shows { venue { name imageUrl
+        imageCredit { source author license licenseUrl sourceUrl } } } }""")
+
+    venues = {s["venue"]["name"]: s["venue"] for s in data["shows"]}
+    assert venues["924 Gilman Street"] == {
+        "name": "924 Gilman Street", "imageUrl": "/images/venues/1-3f9c2a1b7e.webp",
+        "imageCredit": {"source": "Wikimedia Commons", "author": "Jane Photographer", "license": "CC BY-SA 3.0",
+                        "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+                        "sourceUrl": "https://commons.wikimedia.org/wiki/File:924_Gilman_Street.JPG"}}
+    # Not downloaded yet: neither the photo nor its credit.
+    assert venues["The Warfield"] == {"name": "The Warfield", "imageUrl": None, "imageCredit": None}

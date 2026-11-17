@@ -28,16 +28,17 @@ class VenueType:
     is_sober_space: bool | None
     is_cash_only: bool | None
     membership_required: bool | None
+    image_credit: PhotoCreditType | None
 
 
 @strawberry.type
 class PhotoCreditType:
-    """Where a Band's photo came from, who took it and its licence; the site shows it with the photo."""
-    source: str     # "Wikimedia Commons" or "Discogs"
+    """Where a Band's or Venue's photo came from, who took it and its licence; the site shows it with the photo."""
+    source: str     # "Wikimedia Commons", "Discogs" or "Bandcamp"
     author: str | None
     license: str | None
     license_url: str | None
-    source_url: str     # the photo's page on Wikimedia Commons
+    source_url: str     # the photo's page on Wikimedia Commons, or the artist's page on Discogs or Bandcamp
 
 
 @strawberry.type

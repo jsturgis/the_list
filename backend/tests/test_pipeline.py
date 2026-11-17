@@ -35,6 +35,7 @@ def offline_musicbrainz():
                                                            "soundcloud_url": None, "bandcamp_url": None}), \
          patch("app.scheduler.split_joint_name", side_effect=lambda name: [name]), \
          patch("app.scheduler.save_band_photos", return_value=0), \
+         patch("app.scheduler.save_venue_photos", return_value=0), \
          patch("app.scheduler.commons_photo", return_value=None), \
          patch("app.scheduler.lastfm_tags", return_value=[]), \
          patch("app.scheduler.discogs_artist", return_value=None), \
@@ -704,6 +705,21 @@ async def test_pipeline_drops_a_band_photo_that_cannot_be_downloaded(mock_batch,
 
     assert db.query(Band).filter(Band.name == "Deafheaven").one().image_url is None
     assert not any(tmp_path.rglob("*.webp"))
+
+
+@patch("app.scheduler.fetch_list", return_value=_LIST)
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_stores_the_photos_of_the_venues_it_ingested(mock_batch, mock_venue, mock_fetch, db,
+                                                                    tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "images_path", str(tmp_path))
+
+    with patch("app.scheduler.save_venue_photos", return_value=0) as save:
+        await _run_ingestion_async(db=db)
+
+    venues, images_dir = save.call_args.args
+    assert {v.id for v in venues} == {v.id for v in db.query(Venue)}
+    assert images_dir == str(tmp_path)
 
 
 _COMMONS_CREDIT = {"author": "S. Bollmann", "license": "CC BY-SA 4.0",

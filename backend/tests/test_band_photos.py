@@ -109,7 +109,7 @@ def test_stored_paths_and_site_paths():
     assert not is_stored("https://img.example/x.jpg")
     assert not is_stored(None)
     assert site_path("bands/7-abc.webp") == "/images/bands/7-abc.webp"
-    assert site_path("https://img.example/x.jpg") == "https://img.example/x.jpg"  # not stored yet: as it is
+    assert site_path("https://img.example/x.jpg") is None  # not stored yet: never hot-linked
     assert site_path(None) is None
 
 

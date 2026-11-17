@@ -163,6 +163,19 @@ test("a Band's stored photo loads from the site, under its base path", async ({ 
   await expect(page.getByRole('figure')).toHaveText('Photo via Discogs')
 })
 
+test("a Venue's stored photo loads from the site with its Commons credit; a Venue without one has none", async ({ page }) => {
+  await page.goto('venues/924-gilman-street/')
+  const photo = page.getByRole('img', { name: '924 Gilman Street' })
+  await expect(photo).toHaveAttribute('src', /^\/the_list\/images\/venues\/2-[0-9a-f]{10}\.webp$/)
+  await expect.poll(() => photo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBeGreaterThan(0)
+  const credit = page.getByRole('figure').locator('figcaption')
+  await expect(credit).toHaveText('Photo: Coro ( talk ), CC BY-SA 3.0, via Wikimedia Commons')
+  await expect(credit.getByRole('link', { name: 'Wikimedia Commons' }))
+    .toHaveAttribute('href', 'https://commons.wikimedia.org/wiki/File:924_Gilman_Street.JPG')
+  await page.goto('venues/the-fillmore/')
+  await expect(page.locator('main img')).toHaveCount(0)
+})
+
 const LONG_NAME = 'Neon Harbor and the Extremely Long Band Name That Wraps Onto Several Lines'
 
 for (const name of ['Neon Harbor', LONG_NAME]) {

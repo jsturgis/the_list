@@ -203,12 +203,16 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
   point (`imageFocus`), an inline `object-position: x% y%`: worked out at ingest from the faces in it
   (`backend/app/ingestion/photo_focus.py`), so the circle and the banner keep faces whole rather than cutting
   them off at the centre. A photo without one (no face, or not looked at yet) is anchored at `50% 35%`: centred
-  across, a little above the middle, where heads tend to be (`src/lib/photoFocus.ts`). A Venue's photo, a remote
-  URL never looked at, takes the same default. If the banner's or circle's size changes, update the crop sizes in
+  across, a little above the middle, where heads tend to be (`src/lib/photoFocus.ts`). A Venue's photo, never
+  looked at for faces, takes the same default. If the banner's or circle's size changes, update the crop sizes in
   `photo_focus.py` (`BANNER_ASPECT`) too. A photo from Wikimedia Commons is a `<figure>`
   whose `<figcaption>` credits it, as its licence requires: "Photo: <author>, <licence>, via Wikimedia Commons" in
   `text-xs ink-muted`, with the licence and "Wikimedia Commons" (the photo's page) as running-text links. A photo
   from Discogs reads "Photo via Discogs", linking the artist's Discogs page. The edition's photos have no credit.
+- **Venue photo:** at the top of a Venue page, above its name at every width: full column width, at most 288px
+  tall (`max-h-72`, `object-cover`), 8px radius, with the Venue's name as its alt text. The site's own copy (≤800px
+  WebP, saved at ingest), never hot-linked: a Venue whose photo isn't stored yet has none. A photo from Wikimedia
+  Commons is a `<figure>` with the same credit as a Band photo's (`PhotoCredit`), 6px under it; others have none.
 - **Band members (`BandMembers`):** a **Members** section after Upcoming Shows, from Discogs: current members as a
   wrapping list of `text-sm` semibold `ink` names, then a `text-xs ink-muted` "Formerly" label over a wrapping list
   of past members in `ink-soft`. Each is a real `<ul>`, named "Current members" and "Formerly". Hidden without

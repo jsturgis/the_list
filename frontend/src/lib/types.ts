@@ -20,7 +20,10 @@ export interface Venue {
   venueType?: string | null
   nearestTransit?: string | null
   instagram?: string | null
+  /** The site's own copy of the Venue's photo ("/images/venues/…"); none until it's stored. */
   imageUrl?: string | null
+  /** Set for a photo from Wikimedia Commons, whose licence requires it to be shown with the photo. */
+  imageCredit?: PhotoCredit | null
   defaultAgeRestriction?: string | null
   isSoberSpace?: boolean | null
   isCashOnly?: boolean | null
@@ -33,7 +36,7 @@ export interface ImageFocus {
   y: number
 }
 
-/** Where a Band's photo came from, who took it and its licence: shown with the photo. */
+/** Where a Band's or Venue's photo came from, who took it and its licence: shown with the photo. */
 export interface PhotoCredit {
   /** "Wikimedia Commons", "Discogs" or "Bandcamp". */
   source: string
@@ -72,6 +75,7 @@ export interface Band {
   bandcampUrl: string | null
   // From the formatted edition
   websiteUrl?: string | null
+  /** The site's own copy of the Band's photo ("/images/bands/…"); none until it's stored. */
   imageUrl?: string | null
   /** Set when the photo came from a service (Wikimedia Commons or Discogs); not for the edition's. */
   imageCredit?: PhotoCredit | null
