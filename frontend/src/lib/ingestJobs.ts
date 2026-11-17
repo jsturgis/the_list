@@ -1,8 +1,8 @@
 import { supabase } from './supabase'
 
 /**
- * The Admin page's ingest jobs (docs/adr/0006-admin-ingest-jobs.md): Shows an admin asked for, one per TicketWeb link
- * or screenshot. They're added through the admin Edge Function (supabase/functions/admin), run by the Ingest jobs
+ * The Admin page's ingest jobs (docs/adr/0006-admin-ingest-jobs.md): Shows an admin asked for, one per link to an
+ * event's page or screenshot. They're added through the admin Edge Function (supabase/functions/admin), run by the Ingest jobs
  * workflow, and read back from Supabase's ingest_jobs table, which says how far each has got.
  */
 
@@ -10,7 +10,7 @@ export type JobStatus = 'queued' | 'running' | 'added' | 'live' | 'failed'
 
 export interface IngestJob {
   id: string
-  provider: 'ticketweb' | 'screenshot'
+  provider: 'ticketweb' | 'page' | 'screenshot'
   url: string | null
   screenshot_path: string | null
   status: JobStatus
@@ -50,6 +50,14 @@ export function phasesFor(provider: IngestJob['provider']): Phase[] {
 /** Whether the job is still on its way (so the page keeps it up to date). */
 export function inProgress(job: Pick<IngestJob, 'status'>): boolean {
   return job.status === 'queued' || job.status === 'running' || job.status === 'added'
+}
+
+/** Whether a link's job failed because its page couldn't be read, so a screenshot of the event is the way to add it
+ * (the workflow's message ends with this; backend/app/ingest_jobs.py). */
+export const SCREENSHOT_INSTEAD = 'Take a screenshot of the event and add that instead.'
+
+export function wantsScreenshot(job: Pick<IngestJob, 'status' | 'provider' | 'message'>): boolean {
+  return job.status === 'failed' && job.provider !== 'screenshot' && (job.message ?? '').endsWith(SCREENSHOT_INSTEAD)
 }
 
 export const RECENT_JOBS = 25

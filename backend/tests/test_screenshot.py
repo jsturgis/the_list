@@ -1,14 +1,17 @@
 """Reading an event's screenshot (app/ingestion/screenshot.py): what the vision model read, as a Show."""
 from __future__ import annotations
 
+import base64
+import io
 import json
 from datetime import date
 from unittest.mock import patch
 
 import httpx
 import pytest
+from PIL import Image
 
-from app.ingestion.screenshot import ScreenshotError, event_summary, read_screenshot, screenshot_show
+from app.ingestion.screenshot import MAX_PIXELS, ScreenshotError, event_summary, fit, read_screenshot, screenshot_show
 from app.ingestion.upsert import upsert_shows
 from app.models.show import AgeRestriction, ShowStatus
 from app.models.venue import Region
@@ -110,24 +113,52 @@ def _answer(fields) -> httpx.Response:
                           request=httpx.Request("POST", "http://ollama/api/chat"))
 
 
+def _png(width: int, height: int) -> bytes:
+    out = io.BytesIO()
+    Image.new("RGB", (width, height), "white").save(out, format="PNG")
+    return out.getvalue()
+
+
 @patch("app.ingestion.screenshot.httpx.post")
 def test_asks_the_vision_model_with_the_image(post):
     post.return_value = _answer(_fields())
+    image = _png(800, 600)
 
-    data = read_screenshot(b"\x89PNG...", _TODAY)
+    data = read_screenshot(image, _TODAY)
 
     request = post.call_args.kwargs["json"]
     assert request["model"] == "qwen2.5vl:3b"
     assert request["format"]["required"][0] == "performers"
-    assert request["messages"][0]["images"] == ["iVBORy4uLg=="]
+    assert request["options"]["num_ctx"] == 8192
+    assert request["messages"][0]["images"] == [base64.b64encode(image).decode()]   # small enough as it is
     assert data["bands"] == ["Wet Leg", "Idles"]
     assert data["fields"] == _fields()
+
+
+def test_a_full_screen_retina_screenshot_is_scaled_down_to_fit_the_models_context():
+    with Image.open(io.BytesIO(fit(_png(3456, 2234)))) as smaller:
+        width, height = smaller.size
+    assert width * height <= MAX_PIXELS
+    assert abs(width / height - 3456 / 2234) < 0.01
+
+
+def test_a_file_that_isnt_an_image_is_refused():
+    with pytest.raises(ScreenshotError, match="isn't an image"):
+        fit(b"not a png")
+
+
+@patch("app.ingestion.screenshot.httpx.post")
+def test_says_why_ollama_refused(post):
+    post.return_value = httpx.Response(400, json={"error": "request (4252 tokens) exceeds the available context size"},
+                                       request=httpx.Request("POST", "http://ollama/api/chat"))
+    with pytest.raises(ScreenshotError, match="Ollama answered 400: .*exceeds the available context size"):
+        read_screenshot(_png(10, 10), _TODAY)
 
 
 @patch("app.ingestion.screenshot.httpx.post", side_effect=httpx.ConnectError("refused"))
 def test_says_when_the_model_cant_be_asked(post):
     with pytest.raises(ScreenshotError, match="couldn't read the screenshot"):
-        read_screenshot(b"png", _TODAY)
+        read_screenshot(_png(10, 10), _TODAY)
 
 
 @patch("app.ingestion.screenshot.httpx.post")
@@ -135,4 +166,4 @@ def test_says_when_the_model_answers_nonsense(post):
     post.return_value = httpx.Response(200, json={"message": {"content": "not json"}},
                                        request=httpx.Request("POST", "http://ollama/api/chat"))
     with pytest.raises(ScreenshotError, match="couldn't read the screenshot"):
-        read_screenshot(b"png", _TODAY)
+        read_screenshot(_png(10, 10), _TODAY)

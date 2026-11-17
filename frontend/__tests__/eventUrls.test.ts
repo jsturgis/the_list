@@ -8,7 +8,11 @@ const LINKS = [
   'http://www.ticketweb.com/event/x/1',
   'https://www.ticketweb.com/venue/1',
   'https://www.bandsintown.com/e/1',
+  'https://www.eventbrite.com/e/123?aff=x#tickets',
   'https://evil.com/ticketweb.com/event/x',
+  'http://localhost:11434/api',
+  'http://127.0.0.1/x',
+  'http://intranet/x',
   'ftp://www.ticketweb.com/event/x',
   'not a link',
   '',
@@ -23,8 +27,18 @@ describe('event links', () => {
     })
   })
 
-  it('sends Bandsintown links to screenshots', () => {
-    expect(page.checkEventUrl('https://www.bandsintown.com/e/1')).toMatchObject({ ok: false, reason: expect.stringMatching(/screenshot/) })
+  it("takes any other site's page, keeping its query but not its fragment", () => {
+    expect(page.checkEventUrl('https://www.eventbrite.com/e/123?aff=x#tickets')).toEqual({
+      ok: true,
+      url: 'https://www.eventbrite.com/e/123?aff=x',
+      provider: 'page',
+    })
+  })
+
+  it('refuses what is not a public web page', () => {
+    for (const link of ['http://localhost:11434/api', 'http://127.0.0.1/x', 'http://intranet/x', 'ftp://example.com/x']) {
+      expect(page.checkEventUrl(link).ok, link).toBe(false)
+    }
   })
 
   it('are checked the same way by the page and the admin Edge Function', () => {

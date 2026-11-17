@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Add Shows from event pages (TicketWeb) to the published data, and push it to the data branch.
+# Add Shows from event pages (TicketWeb, or any site that describes its event as schema.org JSON-LD) to the
+# published data, and push it to the data branch.
 #
 #   scripts/add-event.sh URL [URL ...]               # add, commit and push to the data branch
 #   scripts/add-event.sh --no-publish URL [URL ...]  # add only: review the changes in ../the_list-data yourself
@@ -12,7 +13,7 @@
 # and force-pushes it, which would drop the new Shows.
 set -euo pipefail
 
-usage() { sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 die() { echo "add-event: $*" >&2; exit 1; }
 
 publish=1

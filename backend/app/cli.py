@@ -2,7 +2,7 @@
 
     python -m app.cli check                               # has Steve's List changed since the last ingest?
     python -m app.cli ingest                              # maintenance, then ingest the List as it is now
-    python -m app.cli add-event https://www.ticketweb.com/event/...   # add a Show from a TicketWeb event page
+    python -m app.cli add-event https://www.ticketweb.com/event/...   # add a Show from an event page (any site)
     python -m app.cli ingest-jobs --jobs JOB_ID:MSG_ID,...   # run the Admin page's ingest jobs (the Ingest jobs workflow)
     python -m app.cli ingest-jobs-phase --jobs JOB_ID,... --phase committing   # ... and record how far they've got
     python -m app.cli export --out ../frontend/export
@@ -75,13 +75,13 @@ def ingest() -> None:
 
 
 def add_event(url: str) -> None:
-    """Add the Show on an event page (TicketWeb, app/ingestion/ticketweb.py) to the database, looking its new Venue
+    """Add the Show on an event page (any site, app/ingestion/event_page.py) to the database, looking its new Venue
     and Bands up as the ingest does. Run it against the data branch's database (DATABASE_URL), and push that. An event
     Steve already lists only adds its ticket link: the List wins. Exits 1 when the page can't be read, isn't a Bay
     Area event, or a service key the lookups need is missing or rejected.
     """
     from app.ingest_jobs import add_show, describe
-    from app.ingestion.ticketweb import EventError, fetch_event
+    from app.ingestion.event_page import EventError, fetch_event
 
     _require_service_keys("add-event")
     try:
@@ -261,7 +261,7 @@ def main(argv: list[str] | None = None) -> None:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("check", help="say whether Steve's List has changed since the last ingest")
     commands.add_parser("ingest", help="run daily maintenance, then ingest Steve's List")
-    add_cmd = commands.add_parser("add-event", help="add the Show on an event page (TicketWeb) to the database")
+    add_cmd = commands.add_parser("add-event", help="add the Show on an event page (any site) to the database")
     add_cmd.add_argument("url", help="the event's page, e.g. https://www.ticketweb.com/event/...")
     jobs_cmd = commands.add_parser("ingest-jobs", help="run the Admin page's ingest jobs against the database")
     jobs_cmd.add_argument("--jobs", required=True, metavar="JOB_ID:MSG_ID,...", help="the jobs, as the worker gives them")

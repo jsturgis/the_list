@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from 'react'
 import { CheckIcon, PhotoIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import { href } from '@/lib/basePath'
 import { checkEventUrl, SCREENSHOT_MAX_BYTES, SCREENSHOT_TYPES } from '@/lib/eventUrls'
@@ -12,6 +12,7 @@ import {
   type AddResult,
   type IngestJob,
   type JobStatus,
+  wantsScreenshot,
 } from '@/lib/ingestJobs'
 import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/useSession'
@@ -27,7 +28,7 @@ export const POLL_MS = 10_000
 const adminPageUrl = () => new URL(href('/admin/'), window.location.origin).toString()
 
 /**
- * The Admin page (/admin/): add Shows from TicketWeb links and event screenshots, and follow each ingest job to the
+ * The Admin page (/admin/): add Shows from links to event pages and screenshots of events, and follow each ingest job to the
  * site. Only admins see it; the admin Edge Function and the database check again for everything it does.
  */
 export default function AdminPage() {
@@ -35,7 +36,7 @@ export default function AdminPage() {
 
   return (
     <article className="flex flex-col gap-6">
-      <PageHeader title="Admin" subtitle="Add shows the List doesn't have yet, from TicketWeb links or screenshots." />
+      <PageHeader title="Admin" subtitle="Add shows the List doesn't have yet, from links to their pages or screenshots." />
 
       {session.status === 'loading' && (
         <div data-ghost="" className="flex flex-col gap-3">
@@ -192,6 +193,24 @@ function AddShowsForm({ onAdded }: { onAdded: (result: AddResult) => void }) {
       addFiles(files)
     }
   }
+  // Screenshots dropped anywhere on the form; the drop zone lights up while files are dragged over it.
+  const [dragging, setDragging] = useState(false)
+  const carriesFiles = (e: DragEvent) => [...e.dataTransfer.types].includes('Files')
+  const dragOver = (e: DragEvent) => {
+    if (!carriesFiles(e)) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+    setDragging(true)
+  }
+  const dragLeave = (e: DragEvent) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false)
+  }
+  const drop = (e: DragEvent) => {
+    if (!carriesFiles(e)) return
+    e.preventDefault()
+    setDragging(false)
+    addFiles(e.dataTransfer.files)
+  }
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -217,22 +236,23 @@ function AddShowsForm({ onAdded }: { onAdded: (result: AddResult) => void }) {
 
   return (
     <Section title="Add shows">
-      <form onSubmit={submit} onPaste={paste} className="flex flex-col gap-4">
+      <form onSubmit={submit} onPaste={paste} onDragOver={dragOver} onDragLeave={dragLeave} onDrop={drop} className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
           <label htmlFor="admin-links" className="text-sm font-semibold text-ink">
-            TicketWeb links
+            Event links
           </label>
           <textarea
             id="admin-links"
             rows={4}
             value={text}
             onChange={e => setText(e.target.value)}
-            placeholder="https://www.ticketweb.com/event/…"
+            placeholder="https://…"
             aria-describedby="admin-links-help"
             className="rounded-lg border border-line-strong bg-field px-3 py-2 text-base text-ink placeholder:text-ink-faint"
           />
           <p id="admin-links-help" className="text-xs text-ink-muted">
-            One per line. For anything else (Bandsintown, a venue&apos;s site), add a screenshot of the event.
+            One per line, to the event&apos;s page on any site: TicketWeb, a venue&apos;s site, Eventbrite… If a site
+            won&apos;t let its page be read, the job asks for a screenshot instead.
           </p>
           {checks.length > 0 && (
             <ul aria-label="Links" className="flex flex-col gap-1 text-sm">
@@ -257,9 +277,25 @@ function AddShowsForm({ onAdded }: { onAdded: (result: AddResult) => void }) {
           <span id="admin-screenshots" className="text-sm font-semibold text-ink">
             Screenshots
           </span>
-          <p className="text-xs text-ink-muted">
-            Paste a screenshot here, or choose one. Each is read by a vision model: check the job to see what it read.
-          </p>
+          <div
+            id="admin-drop-zone"
+            data-dragging={dragging || undefined}
+            className={`flex flex-col items-center gap-3 rounded-lg border-2 border-dashed px-4 py-6 text-center ${
+              dragging ? 'border-accent bg-accent-soft text-accent-soft-ink' : 'border-line-strong text-ink-muted'
+            }`}
+          >
+            <PhotoIcon aria-hidden="true" className={`size-6 ${dragging ? '' : 'text-ink-faint'}`} />
+            <p className="text-sm">{dragging ? 'Drop to add' : 'Drag screenshots here, paste one, or'}</p>
+            <button
+              type="button"
+              onClick={() => fileInput.current?.click()}
+              data-choose-screenshots=""
+              className="h-9 w-fit rounded-full border border-line-strong bg-surface px-4 text-sm font-bold text-ink hover:bg-muted"
+            >
+              Choose screenshots
+            </button>
+          </div>
+          <p className="text-xs text-ink-muted">Each is read by a vision model: check the job to see what it read.</p>
           {screenshots.length > 0 && (
             <ul aria-labelledby="admin-screenshots" className="flex flex-wrap gap-2">
               {screenshots.map((file, i) => (
@@ -292,13 +328,6 @@ function AddShowsForm({ onAdded }: { onAdded: (result: AddResult) => void }) {
               e.target.value = ''
             }}
           />
-          <button
-            type="button"
-            onClick={() => fileInput.current?.click()}
-            className="h-9 w-fit rounded-full border border-line-strong px-4 text-sm font-bold text-ink hover:bg-muted"
-          >
-            Choose screenshots
-          </button>
         </div>
 
         <button
@@ -353,10 +382,19 @@ function jobTitle(job: IngestJob): string {
   if (job.provider === 'screenshot') return 'Screenshot'
   try {
     const url = new URL(job.url ?? '')
-    return url.pathname.split('/').filter(Boolean)[1]?.replace(/-tickets$/, '').replace(/-/g, ' ') || url.hostname
+    if (job.provider === 'ticketweb') {
+      return url.pathname.split('/').filter(Boolean)[1]?.replace(/-tickets$/, '').replace(/-/g, ' ') || url.hostname
+    }
+    return url.hostname.replace(/^www\./, '')
   } catch {
     return job.url ?? 'Link'
   }
+}
+
+/** Takes the admin to the screenshot drop zone, ready to choose one. */
+function toScreenshots() {
+  document.getElementById('admin-drop-zone')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  document.querySelector<HTMLElement>('[data-choose-screenshots]')?.focus({ preventScroll: true })
 }
 
 /** What the vision model read from a screenshot, in a line: "Wet Leg, Idles · The Chapel, San Francisco · 12/5". */
@@ -392,7 +430,7 @@ function JobRow({ job }: { job: IngestJob }) {
             {status.label}
           </span>
           {job.url ? (
-            <a href={job.url} target="_blank" rel="noreferrer" className="min-w-0 truncate font-bold text-ink capitalize hover:underline">
+            <a href={job.url} target="_blank" rel="noreferrer" className={`min-w-0 truncate font-bold text-ink hover:underline ${job.provider === 'ticketweb' ? 'capitalize' : ''}`}>
               {jobTitle(job)}
             </a>
           ) : (
@@ -441,6 +479,15 @@ function JobRow({ job }: { job: IngestJob }) {
         </p>
       )}
       {job.message && <p className={`text-sm ${failed ? 'text-danger' : 'text-ink-soft'}`}>{job.message}</p>}
+      {wantsScreenshot(job) && (
+        <button
+          type="button"
+          onClick={toScreenshots}
+          className="h-9 w-fit rounded-full border border-line-strong px-4 text-sm font-bold text-ink hover:bg-muted"
+        >
+          Add a screenshot instead
+        </button>
+      )}
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
         {job.status === 'live' && job.show_id !== null && (

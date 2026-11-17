@@ -13,7 +13,7 @@ from app import ingest_jobs
 from app.alerts import SupabaseError
 from app.cli import main
 from app.ingest_jobs import Job, parse_specs, run_jobs
-from app.ingestion.ticketweb import EventError, event_show
+from app.ingestion.ticketweb import EventError, UnreadablePage, event_show
 from app.ingestion.upsert import upsert_shows
 from app.models.show import Show
 from app.scheduler import ingest_shows
@@ -120,6 +120,16 @@ def test_an_unexpected_error_fails_the_job(fetch, db, supabase):
 
     assert supabase[-1] == ("finish", "job-1", "failed", {"message": "RuntimeError: database is locked",
                                                           "extracted": None})
+
+
+@patch("app.ingest_jobs.fetch_event", side_effect=UnreadablePage("couldn't fetch it: 530 Unknown Error"))
+def test_a_link_whose_page_cant_be_read_says_to_add_a_screenshot(fetch, db, supabase):
+    run_jobs(db, [Job("job-5", 15, "page", "https://www.bandsintown.com/e/1", None)], _TODAY)
+
+    assert supabase[1] == ("update", ["job-5"], {"phase": "fetching_page", "detail": "https://www.bandsintown.com/e/1"})
+    assert supabase[-1] == ("finish", "job-5", "failed", {
+        "message": "couldn't fetch it: 530 Unknown Error. Take a screenshot of the event and add that instead.",
+        "extracted": None})
 
 
 @patch("app.ingest_jobs.fetch_event")
