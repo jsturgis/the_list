@@ -23,9 +23,8 @@ _PAGE = (Path(__file__).parent / "fixtures" / "ticketweb_event.html").read_text(
 _TODAY = date(2026, 11, 17)
 _TICKETWEB = Job("job-1", 11, "ticketweb", _URL, None)
 _SCREENSHOT = Job("job-2", 12, "screenshot", None, "user/shot.png")
-_FIELDS = {"performers": ["Wet Leg"], "venue": "The Chapel", "city": "San Francisco", "year": None, "month": 12,
-           "day": 5, "doors_time": "8pm", "show_time": None, "price": "$25", "age": None, "sold_out": False,
-           "cancelled": False}
+_FIELDS = {"performers": ["Wet Leg"], "venue": "The Chapel", "city": "San Francisco", "date": "Dec 5",
+           "doors_time": "8pm", "show_time": None, "price": "$25", "age": None, "status": None}
 
 
 def test_reads_the_workflows_jobs():

@@ -41,6 +41,11 @@ function fakeClient() {
       return channel
     }),
     removeChannel: vi.fn(),
+    storage: {
+      from: vi.fn(() => ({
+        createSignedUrl: vi.fn(async (path: string) => ({ data: { signedUrl: `https://signed.example/${path}` }, error: null })),
+      })),
+    },
   }
   return { client, state }
 }
@@ -80,6 +85,9 @@ const fetchMock = vi.fn()
 
 beforeEach(() => {
   fake.current = fakeClient()
+  // Not in jsdom: a preview's image comes from memory.
+  URL.createObjectURL = vi.fn((file: Blob) => `blob:preview/${(file as File).name}`)
+  URL.revokeObjectURL = vi.fn()
   vi.stubEnv('PUBLIC_SUPABASE_URL', 'https://project.supabase.co')
   vi.stubEnv('PUBLIC_SUPABASE_ANON_KEY', 'sb_publishable_1')
   vi.stubGlobal('fetch', fetchMock)
@@ -150,6 +158,35 @@ describe('Admin page, as an admin', () => {
     expect(screen.getByRole('button', { name: 'Add shows' })).toBeEnabled()
   })
 
+  it('lets a screenshot be taken out again, letting go of its preview', async () => {
+    render(<AdminPage />)
+    fireEvent.change(await screen.findByLabelText('Screenshots'), {
+      target: { files: [new File(['png'], 'event.png', { type: 'image/png' })] },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Remove event.png' }))
+
+    expect(screen.queryByRole('img', { name: 'Preview of event.png' })).not.toBeInTheDocument()
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview/event.png')
+  })
+
+  it('says why a screenshot it can’t take is refused, instead of showing it', async () => {
+    render(<AdminPage />)
+    fireEvent.change(await screen.findByLabelText('Screenshots'), {
+      target: { files: [new File(['gif'], 'event.gif', { type: 'image/gif' })] },
+    })
+
+    expect(screen.getByText(/isn.t a PNG, JPEG or WebP image/)).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: 'Preview of event.gif' })).not.toBeInTheDocument()
+  })
+
+  it('shows the screenshot a job was added from, to check what was read', async () => {
+    fake.current!.state.jobs = [job({ provider: 'screenshot', url: null, screenshot_path: 'user-1/a.png', status: 'running', phase: 'reading_screenshot' })]
+    render(<AdminPage />)
+
+    const image = await screen.findByRole('img', { name: 'The screenshot this job was added from' })
+    expect(image).toHaveAttribute('src', 'https://signed.example/user-1/a.png')
+  })
+
   it('offers a screenshot instead when a link’s page could not be read', async () => {
     fake.current!.state.jobs = [
       job({ provider: 'page', url: 'https://www.bandsintown.com/e/1', status: 'failed', phase: 'fetching_page',
@@ -175,7 +212,7 @@ describe('Admin page, as an admin', () => {
     fireEvent.change(screen.getByLabelText('Event links'), { target: { value: `${URL_1}\nnot a link` } })
     const shot = new File(['png'], 'event.png', { type: 'image/png' })
     fireEvent.change(screen.getByLabelText('Screenshots'), { target: { files: [shot] } })
-    expect(screen.getByText('event.png')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Preview of event.png' })).toHaveAttribute('src', 'blob:preview/event.png')
     fireEvent.click(screen.getByRole('button', { name: 'Add shows' }))
 
     expect(await screen.findByRole('status')).toHaveTextContent('Added 1 job')
@@ -264,6 +301,7 @@ describe('Admin page, as an admin', () => {
 describe('readLine', () => {
   it('says what the model read, leaving out what it did not', () => {
     expect(readLine({ performers: ['A', 'B'], venue: 'V', city: null, month: 1, day: 2, year: 2027 })).toBe('A, B · V · 1/2/2027')
+    expect(readLine({ performers: ['A'], venue: 'V', city: 'C', date: 'Fri, Dec 12' })).toBe('A · V, C · Fri, Dec 12')
     expect(readLine({})).toBeNull()
     expect(readLine(null)).toBeNull()
   })

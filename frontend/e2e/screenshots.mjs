@@ -52,6 +52,10 @@ const PAGES = [
   ['admin-signed-out', 'admin/'],
   ['admin', 'admin/', page => page.getByText('Looking up Band 2 of 3: Static Bloom').waitFor(),
     page => signedInAsAdmin(page, 'screenshots.invalid')],
+  ['admin-adding-screenshot', 'admin/', async page => {
+    await page.locator('input[type=file]').setInputFiles('e2e/fixtures/data/images/venues/2-44c7090e55.webp')
+    await page.getByRole('img', { name: /^Preview of/ }).waitFor()
+  }, page => signedInAsAdmin(page, 'screenshots.invalid')],
   ['not-found', 'shows/99999/'],
   ['docs', 'docs/'],
   ['docs-guide', 'docs/local-setup/'],

@@ -2,6 +2,9 @@
 // Supabase's REST API answered locally with a job at each stage. `host` is the build's placeholder Supabase host
 // (e2e.invalid, screenshots.invalid). Realtime can't connect, so the page falls back to polling these.
 
+// Relative to frontend/, where Playwright and the screenshots script run.
+const SCREENSHOT = 'e2e/fixtures/data/images/venues/2-44c7090e55.webp'
+
 const job = (changes) => ({
   id: 'job-1', provider: 'ticketweb', url: 'https://www.ticketweb.com/event/neon-harbor-the-chapel-tickets/14446334',
   screenshot_path: null, status: 'queued', phase: 'queued', detail: null, message: null, extracted: null, show_id: null,
@@ -17,7 +20,7 @@ export const ADMIN_JOBS = [
         message: "couldn't fetch https://www.bandsintown.com/e/1012345-redwood-sirens-at-the-chapel: Client error '403 Forbidden'. Take a screenshot of the event and add that instead." }),
   job({ id: 'job-3', provider: 'screenshot', url: null, screenshot_path: 'user-1/a.png', status: 'failed',
         phase: 'reading_screenshot', message: 'The Fillmore is in Portland, not a Bay Area city we know',
-        extracted: { performers: ['Redwood Sirens'], venue: 'The Fillmore', city: 'Portland', month: 10, day: 9, year: null },
+        extracted: { performers: ['Redwood Sirens'], venue: 'The Fillmore', city: 'Portland', date: 'Fri, Oct 9' },
         created_at: '2026-10-01T18:40:00Z' }),
   job({ id: 'job-2', status: 'added', phase: 'deploying', detail: 'https://github.com/jsturgis/the_list/actions/runs/2',
         message: 'Added Neon Harbor at The Chapel, San Francisco on Sat Oct 3, 2026', show_id: 1,
@@ -35,6 +38,11 @@ export async function signedInAsAdmin(page, host) {
               app_metadata: { permissions: ['admin'] }, user_metadata: {} },
     }))
   }, `sb-${ref}-auth-token`)
+  // A screenshot job's image: Storage signs a link to it, then serves it (a fixture photo stands in).
+  await page.route(`https://${host}/storage/v1/**`, route =>
+    route.request().method() === 'POST'   // the signing; the image itself is a GET of the signed link
+      ? route.fulfill({ json: { signedURL: '/object/sign/ingest-screenshots/user-1/a.png?token=e2e' } })
+      : route.fulfill({ path: SCREENSHOT, contentType: 'image/webp' }))
   await page.route(`https://${host}/rest/v1/**`, route =>
     new URL(route.request().url()).pathname.endsWith('/ingest_jobs')
       ? route.fulfill({ json: ADMIN_JOBS })

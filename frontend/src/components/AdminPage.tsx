@@ -12,6 +12,7 @@ import {
   type AddResult,
   type IngestJob,
   type JobStatus,
+  screenshotUrl,
   wantsScreenshot,
 } from '@/lib/ingestJobs'
 import { supabase } from '@/lib/supabase'
@@ -297,22 +298,14 @@ function AddShowsForm({ onAdded }: { onAdded: (result: AddResult) => void }) {
           </div>
           <p className="text-xs text-ink-muted">Each is read by a vision model: check the job to see what it read.</p>
           {screenshots.length > 0 && (
-            <ul aria-labelledby="admin-screenshots" className="flex flex-wrap gap-2">
+            <ul aria-labelledby="admin-screenshots" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {screenshots.map((file, i) => (
-                <li key={`${i}-${file.name}`} className="flex items-center gap-2 rounded-full bg-muted py-1 pl-3 pr-1 text-sm text-ink-soft">
-                  <PhotoIcon aria-hidden="true" className="size-4 shrink-0 text-ink-faint" />
-                  <span className="max-w-48 truncate">{file.name}</span>
-                  {badScreenshots[i] && <span className="text-danger">{badScreenshots[i]}</span>}
-                  <button
-                    type="button"
-                    onClick={() => setScreenshots(current => current.filter((_, j) => j !== i))}
-                    aria-label={`Remove ${file.name}`}
-                    title="Remove"
-                    className="rounded-full p-1 text-ink-faint hover:bg-muted-hover hover:text-ink"
-                  >
-                    <XMarkIcon className="size-4" />
-                  </button>
-                </li>
+                <ScreenshotPreview
+                  key={`${i}-${file.name}-${file.lastModified}`}
+                  file={file}
+                  problem={badScreenshots[i]}
+                  onRemove={() => setScreenshots(current => current.filter((_, j) => j !== i))}
+                />
               ))}
             </ul>
           )}
@@ -360,6 +353,36 @@ function AddShowsForm({ onAdded }: { onAdded: (result: AddResult) => void }) {
   )
 }
 
+/** A screenshot waiting to be added: the image itself, its name, and a button to take it out again. */
+function ScreenshotPreview({ file, problem, onRemove }: { file: File; problem: string | null; onRemove: () => void }) {
+  // The file shown from memory; let go of when the preview goes.
+  const src = useMemo(() => URL.createObjectURL(file), [file])
+  useEffect(() => () => URL.revokeObjectURL(src), [src])
+
+  return (
+    <li className="relative flex min-w-0 flex-col gap-1">
+      <div className="aspect-[4/3] overflow-hidden rounded-lg border border-line bg-muted">
+        {!problem && <img src={src} alt={`Preview of ${file.name}`} className="size-full object-contain" />}
+        {problem && (
+          <div className="flex size-full items-center justify-center p-2 text-center text-xs text-danger">{problem}</div>
+        )}
+      </div>
+      <span className="truncate text-xs text-ink-muted" title={file.name}>
+        {file.name}
+      </span>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remove ${file.name}`}
+        title="Remove"
+        className="absolute right-1.5 top-1.5 rounded-full border border-line bg-surface p-1 text-ink-soft hover:bg-muted hover:text-ink"
+      >
+        <XMarkIcon className="size-4" />
+      </button>
+    </li>
+  )
+}
+
 // ── Following ─────────────────────────────────────────────────────────────────
 
 const STATUS: Record<JobStatus, { label: string; className: string }> = {
@@ -397,17 +420,40 @@ function toScreenshots() {
   document.querySelector<HTMLElement>('[data-choose-screenshots]')?.focus({ preventScroll: true })
 }
 
-/** What the vision model read from a screenshot, in a line: "Wet Leg, Idles · The Chapel, San Francisco · 12/5". */
+/** What the vision model read from a screenshot, in a line: "Wet Leg, Idles · The Chapel, San Francisco · Fri, Dec 5". */
 export function readLine(extracted: Record<string, unknown> | null): string | null {
   if (!extracted) return null
   const performers = Array.isArray(extracted.performers) ? extracted.performers.filter(p => typeof p === 'string') : []
   const where = [extracted.venue, extracted.city].filter(v => typeof v === 'string' && v).join(', ')
-  const when = [extracted.month, extracted.day, extracted.year].filter(v => typeof v === 'number').join('/')
+  // The date as the screenshot writes it (older jobs have it as numbers).
+  const when = typeof extracted.date === 'string' && extracted.date
+    ? extracted.date
+    : [extracted.month, extracted.day, extracted.year].filter(v => typeof v === 'number').join('/')
   const parts = [performers.join(', '), where, when].filter(Boolean)
   return parts.length ? parts.join(' · ') : null
 }
 
 const isUrl = (text: string | null): text is string => !!text && /^https?:\/\//.test(text)
+
+/** The screenshot a job was added from, to check what the model read against: a thumbnail that opens it full size. */
+function JobScreenshot({ path }: { path: string }) {
+  const [src, setSrc] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    screenshotUrl(path).then(url => {
+      if (!cancelled) setSrc(url)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [path])
+  if (!src) return null
+  return (
+    <a href={src} target="_blank" rel="noreferrer" className="block w-fit" title="Open the screenshot">
+      <img src={src} alt="The screenshot this job was added from" className="max-h-40 w-auto rounded-lg border border-line" />
+    </a>
+  )
+}
 
 function JobRow({ job }: { job: IngestJob }) {
   const [now, setNow] = useState(() => Date.now())
@@ -440,6 +486,7 @@ function JobRow({ job }: { job: IngestJob }) {
         <span className="text-xs text-ink-muted">{ago(job.updated_at, now)}</span>
       </div>
 
+      {job.screenshot_path && <JobScreenshot path={job.screenshot_path} />}
       {read && <p className="text-sm text-ink-soft">Read: {read}</p>}
 
       <ol aria-label="Steps" className="flex flex-wrap gap-1">

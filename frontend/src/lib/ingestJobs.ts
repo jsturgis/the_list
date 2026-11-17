@@ -88,6 +88,13 @@ export function watchJobs(onChange: (job: IngestJob) => void, onState: (live: bo
   }
 }
 
+/** A link to a job's screenshot, good for an hour (the bucket is private; admins may read it), or null. */
+export async function screenshotUrl(path: string): Promise<string | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase.storage.from('ingest-screenshots').createSignedUrl(path, 3600)
+  return error ? null : data.signedUrl
+}
+
 export interface AddResult {
   jobs: IngestJob[]
   rejected: { input: string; reason: string }[]

@@ -34,28 +34,25 @@ _SCHEMA = {
         "performers": {"type": "array", "items": {"type": "string"}},
         "venue": {"type": ["string", "null"]},
         "city": {"type": ["string", "null"]},
-        "year": {"type": ["integer", "null"]},
-        "month": {"type": ["integer", "null"]},
-        "day": {"type": ["integer", "null"]},
+        "date": {"type": ["string", "null"]},
         "doors_time": {"type": ["string", "null"]},
         "show_time": {"type": ["string", "null"]},
         "price": {"type": ["string", "null"]},
         "age": {"type": ["string", "null"]},
-        "sold_out": {"type": "boolean"},
-        "cancelled": {"type": "boolean"},
+        "status": {"type": ["string", "null"]},
     },
-    "required": ["performers", "venue", "city", "year", "month", "day", "doors_time", "show_time", "price", "age",
-                 "sold_out", "cancelled"],
+    "required": ["performers", "venue", "city", "date", "doors_time", "show_time", "price", "age", "status"],
 }
 _PROMPT = """This is a screenshot of one live music event. Read the event's details from it, exactly as written.
 
 - performers: every band or artist playing, headliner first, each name exactly as written. Not the tour name,
   not the promoter ("presents"), not the venue.
 - venue: the venue's name. city: its city, without the state ("San Francisco", "Oakland").
-- year, month, day: the event's date as numbers. year is null when the screenshot doesn't show one.
+- date: the event's date, copied exactly as written ("Fri, Dec 12", "December 12, 2026", "12/12/26").
 - doors_time and show_time: as written ("7:00 PM"); doors_time only when it's labelled as doors.
 - price: as written, e.g. "$25", "$20 - $25", "Free". age: e.g. "21+", "18+", "All Ages".
-- sold_out, cancelled: true only when the screenshot says so.
+- status: words on the screenshot about the event's state, copied exactly ("Sold Out", "Cancelled",
+  "Postponed"); null when there are none.
 
 Use null for anything the screenshot doesn't show. Don't guess."""
 # The model sees an image as one token per 28×28 pixels, and a full-screen Retina screenshot (3456×2234) is more tokens
@@ -127,16 +124,47 @@ def _str(value) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
+_MONTHS = {name: i for i, name in enumerate(
+    ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), start=1)}
+_MONTH = r"(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?" \
+         r"|nov(?:ember)?|dec(?:ember)?)\.?"
+_DAY = r"(\d{1,2})(?:st|nd|rd|th)?"
+_YEAR = r"(?:,?\s+(\d{4}))?"
+_DATE_FORMS = [   # (pattern, which groups are month, day, year)
+    (re.compile(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b"), (2, 3, 1)),
+    (re.compile(rf"\b{_MONTH}\s+{_DAY}\b{_YEAR}", re.IGNORECASE), (1, 2, 3)),
+    (re.compile(rf"\b{_DAY}\s+(?:of\s+)?{_MONTH}{_YEAR}", re.IGNORECASE), (2, 1, 3)),
+    (re.compile(r"\b(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?\b"), (1, 2, 3)),   # US: month first
+]
+
+
+def parse_date(text: str, today: date) -> date | None:
+    """A date as a screenshot shows it ("Fri, Dec 12", "December 12, 2026", "12/12/26", "12 Dec"); with no year,
+    its next one on or after today. None when there's no date in it."""
+    for pattern, (m, d, y) in _DATE_FORMS:
+        found = pattern.search(text)
+        if not found:
+            continue
+        month_text = found.group(m)
+        month = int(month_text) if month_text.isdigit() else _MONTHS[month_text[:3].lower()]
+        day, year = int(found.group(d)), found.group(y)
+        try:
+            if year:
+                return date(int(year) + (2000 if len(year) == 2 else 0), month, day)
+            this_year = date(today.year, month, day)
+            return this_year if this_year >= today else date(today.year + 1, month, day)
+        except ValueError:
+            return None
+    return None
+
+
 def _date(fields: dict, today: date) -> date:
-    """The event's date; with no year on the screenshot, its next one on or after today."""
-    month, day, year = fields.get("month"), fields.get("day"), fields.get("year")
-    try:
-        if year:
-            return date(int(year), int(month), int(day))
-        found = date(today.year, int(month), int(day))
-        return found if found >= today else date(today.year + 1, int(month), int(day))
-    except (TypeError, ValueError) as exc:
-        raise ScreenshotError("no date on the screenshot") from exc
+    """The event's date, from the text the model copied off the screenshot."""
+    found = parse_date(_str(fields.get("date")), today)
+    if found is None:
+        raise ScreenshotError(f"no date on the screenshot (read {fields.get('date')!r})" if fields.get("date")
+                              else "no date on the screenshot")
+    return found
 
 
 def _price(text: str) -> str | None:
@@ -145,6 +173,19 @@ def _price(text: str) -> str | None:
         return "free"
     amounts = [float(a) for a in _AMOUNT_RE.findall(text)]
     return _money_range(min(amounts), max(amounts)) if amounts else None
+
+
+# What a screenshot says about the event's state. The model copies the words, and these decide: a small model asked
+# for a yes or no called events sold out that said nothing of the kind.
+_SOLD_OUT_RE = re.compile(r"\bsold[\s-]*out\b", re.IGNORECASE)
+_CANCELLED_RE = re.compile(r"\bcancel+ed\b", re.IGNORECASE)
+_POSTPONED_RE = re.compile(r"\bpostponed\b", re.IGNORECASE)
+
+
+def _status(text: str) -> str:
+    if _CANCELLED_RE.search(text):
+        return "cancelled"
+    return "postponed" if _POSTPONED_RE.search(text) else "upcoming"
 
 
 def _age(text: str) -> str | None:
@@ -186,7 +227,7 @@ def screenshot_show(fields: dict, today: date, venue_city: Callable[[str], str |
         "city": city,
         "address": None,
         "venue_website": None,
-        "status": "cancelled" if fields.get("cancelled") is True else "upcoming",
+        "status": _status(_str(fields.get("status"))),
         "age_restriction": _age(_str(fields.get("age"))),
         "price_raw": _price(_str(fields.get("price"))),
         # With only one time, it's the Show's time, as for a listing with one time.
@@ -198,7 +239,7 @@ def screenshot_show(fields: dict, today: date, venue_city: Callable[[str], str |
         "is_pit": False,
         "is_drink_tickets": False,
         "is_no_reentry": False,
-        "is_sold_out": fields.get("sold_out") is True,
+        "is_sold_out": bool(_SOLD_OUT_RE.search(_str(fields.get("status")))),
         "is_matinee": bool(start and start < _MATINEE_BEFORE),
         "is_benefit": False,
         # No ticket link on a screenshot; the Venue's calendar may give one at ingest (app/ingestion/venue_calendar.py).
