@@ -517,6 +517,30 @@ def test_an_early_and_a_late_show_by_one_headliner_stay_two_shows(db):
     assert sorted(str(s.door_time) for s in db.query(Show)) == ["19:00:00", "21:30:00"]
 
 
+def test_a_headliner_listed_twice_within_two_hours_is_one_show(db):
+    """"dec 3 thr Pattie Gonia at the Fillmore, S.F. a/a $71 7pm/8pm #", and further down, "... a/a 8pm #"."""
+    full = _show(bands=["Pattie Gonia"], door_time="7pm", set_time="8pm", price_raw="$71")
+    bare = _show(bands=["Pattie Gonia"], door_time="8pm", price_raw=None)
+
+    for listings in ([full, bare], [bare, full], [full, bare]):   # the one that says more, wherever it's listed
+        assert len(upsert_shows(db, listings)) == 1
+
+    show = db.query(Show).one()
+    assert (str(show.door_time), str(show.set_time), show.price_min) == ("19:00:00", "20:00:00", 71.0)
+
+
+def test_listings_exactly_two_hours_apart_are_one_show(db):
+    upsert_shows(db, [_show(bands=["Snarky Puppy"], door_time="7pm"), _show(bands=["Snarky Puppy"], door_time="9pm")])
+    assert db.query(Show).count() == 1
+
+
+def test_a_headliner_listed_within_two_hours_at_another_venue_or_on_another_day_is_another_show(db):
+    upsert_shows(db, [_show(bands=["Pattie Gonia"], door_time="7pm"),
+                      _show(bands=["Pattie Gonia"], door_time="8pm", venue_name="The Warfield"),
+                      _show(bands=["Pattie Gonia"], door_time="8pm", date_=date(2026, 9, 26))])
+    assert db.query(Show).count() == 3
+
+
 def test_another_headliner_at_the_venue_that_day_is_another_show(db):
     upsert_shows(db, [_show(bands=["Band A"], door_time="7pm")])
     upsert_shows(db, [_show(bands=["Band B"], door_time="9pm"), _show(bands=["Band C"], door_time=None)])

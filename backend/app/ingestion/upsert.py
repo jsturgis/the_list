@@ -469,12 +469,49 @@ def _upsert_acts(db: Session, show: Show, data: dict) -> None:
     db.expire(show, ["acts"])   # the Acts were replaced by id, so a lineup loaded earlier is stale
 
 
+def _minutes(t: time) -> int:
+    return t.hour * 60 + t.minute
+
+
+# Listings of one headliner at a Venue on a day whose door times are at most this far apart are one Show: Steve
+# lists it twice, once as "7pm/8pm" and once as just "8pm". An early and a late show are further apart.
+_SAME_SHOW_MINUTES = 120
+
+
+def _details(data: dict) -> int:
+    """How much a listing says about its Show: times and price."""
+    return sum(bool(data.get(field)) for field in ("door_time", "set_time", "price_raw"))
+
+
+def _one_listing_per_show(venues: list[Venue], enriched_shows: list[dict]) -> list[int]:
+    """Indexes of the listings to store, in page order: of two with the same date, Venue and headliner and door
+    times within _SAME_SHOW_MINUTES of each other, only the one that says more (the later, when they say as much,
+    as a repeated line has always been).
+    Listings without a time or a Band are all kept."""
+    kept: list[int] = []
+    for i, (venue, data) in enumerate(zip(venues, enriched_shows)):
+        door, headliner = _parse_time(data.get("door_time")), _headliner(_listed_bands(data))
+        same = None
+        if door is not None and headliner is not None:
+            same = next((k for k in kept
+                         if (enriched_shows[k]["date"], venues[k].id) == (data["date"], venue.id)
+                         and _headliner(_listed_bands(enriched_shows[k])) == headliner
+                         and (other := _parse_time(enriched_shows[k].get("door_time"))) is not None
+                         and abs(_minutes(other) - _minutes(door)) <= _SAME_SHOW_MINUTES), None)
+        if same is None:
+            kept.append(i)
+        elif _details(data) >= _details(enriched_shows[same]):
+            kept[kept.index(same)] = i
+    return sorted(kept)
+
+
 def upsert_shows(db: Session, enriched_shows: list[dict]) -> list[Show]:
     """Persist a batch of enriched show dicts. Idempotent.
 
     A Show's identity is its date, Venue and door time, and its headliner tells apart the Shows that share one: a
     Venue with two rooms lists a Show in each at the same time ("(upstairs)", "(downstairs)"). Listings with the
-    same identity and headliner are one Show (Steve repeats a line). Each listing is, in turn:
+    same identity and headliner are one Show (Steve repeats a line), and so are a headliner's listings at the Venue
+    that day with door times up to two hours apart (see _one_listing_per_show). Each listing is, in turn:
 
     - a stored Show with its identity: the one with its headliner, else one left over once the other listings with
       that identity have taken theirs (see _claim_shows). A lone listing with an identity is that identity's Show
@@ -487,6 +524,8 @@ def upsert_shows(db: Session, enriched_shows: list[dict]) -> list[Show]:
     and nothing to show.
     """
     venues = [_upsert_venue(db, data) for data in enriched_shows]
+    kept = _one_listing_per_show(venues, enriched_shows)
+    venues, enriched_shows = [venues[i] for i in kept], [enriched_shows[i] for i in kept]
     slots = [(data["date"], venue.id, _parse_time(data.get("door_time")), _headliner(_listed_bands(data)))
              for venue, data in zip(venues, enriched_shows)]
     by_identity: dict[tuple, list[tuple]] = {}
