@@ -159,40 +159,36 @@ describe('ShowDetail', () => {
     expect(screen.getByText('Hardly Strictly Bluegrass')).toBeInTheDocument()
   })
 
-  it('shows the flyer from the venue calendar as a blurred background when there is one', () => {
+  it("shows the venue's flyer beside the header, linking to the venue's page for the show", () => {
     vi.stubEnv('BASE_URL', '/the_list/')
-    render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp' })} />)
-    const bg = screen.getByTestId('show-flyer-background')
-    expect(bg).toHaveAttribute('aria-hidden', 'true')
+    render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp', moreInfoUrl: 'https://venue.example/shows/1' })} />)
+    const link = screen.getByRole('link', { name: /Flyer: see this show on/ })
+    expect(link).toHaveAttribute('href', 'https://venue.example/shows/1')
+    expect(link).toHaveAttribute('target', '_blank')
     // Under the base path the site is served from, like a Band's photo, or it 404s on GitHub Pages.
-    expect(bg.querySelector('img')).toHaveAttribute('src', '/the_list/images/shows/1-abc.webp')
+    expect(screen.getByTestId('show-flyer')).toHaveAttribute('src', '/the_list/images/shows/1-abc.webp')
   })
 
-  it('has no flyer background when there is none', () => {
+  it('shows the flyer without a link when there is no page for the show on the venue site', () => {
+    render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp', moreInfoUrl: null })} />)
+    expect(screen.getByTestId('show-flyer').closest('a')).toBeNull()
+  })
+
+  it('has no flyer when there is none', () => {
     render(<ShowDetail show={show} />)
-    expect(screen.queryByTestId('show-flyer-background')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('show-flyer')).not.toBeInTheDocument()
   })
 
-  it("sets the flyer's accent colour as a CSS variable, for the panels to tint themselves with", () => {
-    render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp', flyerAccentColor: '#336699' })} />)
-    expect(screen.getByRole('article').style.getPropertyValue('--flyer-accent')).toBe('#336699')
-  })
-
-  it('has no accent colour variable when the flyer has none', () => {
-    render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp', flyerAccentColor: null })} />)
-    expect(screen.getByRole('article').style.getPropertyValue('--flyer-accent')).toBe('')
-  })
-
-  it('shows a More Info icon linking to the venue calendar entry when there is one', () => {
-    render(<ShowDetail show={makeShow({ moreInfoUrl: 'https://venue.example/shows/1' })} />)
+  it('shows a More Info icon linking to the venue calendar entry when there is no flyer', () => {
+    render(<ShowDetail show={makeShow({ flyerImageUrl: null, moreInfoUrl: 'https://venue.example/shows/1' })} />)
     const link = screen.getByRole('link', { name: 'More info' })
     expect(link).toHaveAttribute('href', 'https://venue.example/shows/1')
     expect(link).toHaveAttribute('target', '_blank')
   })
 
-  it('shows the More Info icon even without a flyer image', () => {
-    render(<ShowDetail show={makeShow({ flyerImageUrl: null, moreInfoUrl: 'https://venue.example/shows/1' })} />)
-    expect(screen.getByRole('link', { name: 'More info' })).toBeInTheDocument()
+  it('has no More Info icon when the flyer already links there', () => {
+    render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp', moreInfoUrl: 'https://venue.example/shows/1' })} />)
+    expect(screen.queryByRole('link', { name: 'More info' })).not.toBeInTheDocument()
   })
 
   it('has no More Info icon when there is no more-info URL', () => {
@@ -200,7 +196,7 @@ describe('ShowDetail', () => {
     expect(screen.queryByRole('link', { name: 'More info' })).not.toBeInTheDocument()
   })
 
-  it('Tickets stays the only action when there is also a flyer background and more-info link', () => {
+  it('Tickets stays the only action when there is also a flyer and more-info link', () => {
     render(<ShowDetail show={makeShow({ ticketUrl: 'https://tix.example/1', flyerImageUrl: '/images/shows/1-abc.webp', moreInfoUrl: 'https://venue.example/shows/1' })} />)
     expect(screen.getByRole('link', { name: 'Tickets' })).toHaveClass('bg-accent')
   })

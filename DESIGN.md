@@ -185,13 +185,13 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
 - **Actions (`ActionLinks`):** a wrapping row of pill links, 14px bold: primary (`bg-accent text-on-accent`, at
   most one: Tickets), or secondary (outline `line-strong`, `ink`). External ones carry an
   outward-arrow icon. A Band's listening links sit in the same row as logo buttons (below). A Show has no
-  separate More Info action: when the Venue's own calendar gave it one, a small icon beside the date links there
-  instead (see "Show flyer" below).
+  separate More Info action: its flyer links there, or without one a small icon beside the date (see "Show
+  flyer" below).
 - **Detail pages (Show, Venue, Band):** in order: Back, `PageHeader`, key facts, actions, then `Section`s. A Show
   has Lineup, Venue and Notes; a Venue has Details, Upcoming Shows and About; a Band has Upcoming Shows, Members, Social
   and Similar Bands. Upcoming Shows on Venue and Band pages are one panel of Show list items, each with its compact
-  date, with no date headings. A Show's flyer, when the Venue's own calendar had one, is a blurred backdrop behind
-  the whole page, not a photo of its own (see "Show flyer" below).
+  date, with no date headings. A Show's flyer, when the Venue's own calendar had one, sits beside its `PageHeader`
+  (see "Show flyer" below).
 - **Loading (`Ghost`):** anything waiting on Supabase (who's signed in, their alerts and weekly email setting, an
   unsubscribe) shows ghost placeholders: `line`-coloured bars in the shape of the content to come, pulsing
   (`motion-safe:animate-pulse`, so still for reduced motion). Headings that are already known stay real. Ghosts are
@@ -212,21 +212,14 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
   whose `<figcaption>` credits it, as its licence requires: "Photo: <author>, <licence>, via Wikimedia Commons" in
   `text-xs ink-muted`, with the licence and "Wikimedia Commons" (the photo's page) as running-text links. A photo
   from Discogs reads "Photo via Discogs", linking the artist's Discogs page. The edition's photos have no credit.
-- **Show flyer:** when the Venue's own calendar had one (`backend/app/ingestion/venue_calendar.py`), a backdrop
-  filling the Show page's full height (`PageHeader` through Notes) and the full viewport width — it breaks out
-  of the page's column (`left-1/2 -translate-x-1/2 w-screen`, centred on the column since nothing else on the
-  page is asymmetric), edge to edge like Plex's artist page, not boxed into the content column. `object-cover`,
-  lightly blurred (`blur-md`) so it reads as the actual poster rather than an abstract wash, behind a
-  `bg-page/60` scrim for contrast. It fades to the plain `page` background toward the bottom (a `mask-image`
-  gradient, not a hard crop), so it never competes with whatever's below the fold. Square corners, since it's
-  edge to edge. It's `aria-hidden` with empty `alt`; it carries no credit, since a flyer carries its own
-  branding. The Facts panel and every `Section` panel (`bg-flyer-tint`, not plain `bg-surface`) pick up a
-  light tint of the flyer's accent colour (`backend/app/ingestion/flyer_color.py`, worked out at ingest, its
-  one most colourful swatch) instead of sitting as plain white/dark boxes on top of it — a 12% `color-mix`
-  toward `surface`, close enough to `surface`'s own lightness that `ink`'s contrast on it is unaffected. When
-  the entry also gave a more-info link, a small icon (`InformationCircleIcon`) beside the date in `PageHeader`'s
-  aside links there, alongside the "add to calendar" icons — shown whenever there's a more-info link, flyer or
-  not. A Show without a flyer has no backdrop and plain `bg-surface` panels, as before.
+- **Show flyer:** when the Venue's own calendar had one (`backend/app/ingestion/venue_calendar.py`), the flyer
+  sits at the right of the Show's `PageHeader`, top-aligned with it, at its own aspect ratio: 96px wide and at
+  most 192px tall on phones, 160px by 256px from `sm` (`object-contain`, `rounded-md`), with the header taking the
+  rest of the row. It's the site's own copy, served under the base path, like a Band's photo. When the entry also
+  gave the Venue's page for the Show, the flyer links there (new tab, named "Flyer: see this show on <Venue>'s
+  site"); otherwise it's just the image, with alt "Flyer for <headliner>". A Show with a more-info link but no
+  flyer gets a small icon (`InformationCircleIcon`) beside the date in `PageHeader`'s aside instead, alongside
+  the "add to calendar" icons. The rest of the page is unchanged by a flyer: no backdrop, no tint.
 - **Band members (`BandMembers`):** a **Members** section after Upcoming Shows, from Discogs: current members as a
   wrapping list of `text-sm` semibold `ink` names, then a `text-xs ink-muted` "Formerly" label over a wrapping list
   of past members in `ink-soft`. Each is a real `<ul>`, named "Current members" and "Formerly". Hidden without
