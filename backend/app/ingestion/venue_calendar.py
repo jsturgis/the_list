@@ -28,6 +28,7 @@ from urllib.parse import urljoin
 import httpx
 from pydantic import BaseModel
 
+from app.config import settings
 from app.ingestion.upsert import band_key
 from app.ingestion.venue_corrections import venue_correction
 from app.pipeline.providers import get_enrichment_llm
@@ -73,42 +74,48 @@ class CalendarUpdate:
         return not (self.flyer_image_url or self.more_info_url or self.ticket_url)
 
 
-def _match_one(candidates: list[ShowLike], entry: CalendarEntry) -> ShowLike | None:
-    """The one Show among `candidates` (all on the entry's date) the entry belongs to, or None.
+def _match_night(shows: list[ShowLike], entries: list[CalendarEntry]) -> list[tuple[ShowLike, CalendarEntry]]:
+    """Which of one night's entries belongs to which of that night's Shows.
 
-    A single Show that night is the match outright -- a Venue rarely doubles up. More than one (an early/late
-    pair) is disambiguated by fuzzy-matching the entry's title against each Show's headliner, the same name
-    normalization app.ingestion.upsert uses to recognise a Band under another spelling; anything less than exactly
-    one match (no title, no match, more than one) is never guessed at.
+    One Show and one entry that night are a match outright, title or not -- a Venue rarely doubles up. Anything
+    more (an early/late pair, or a calendar listing a second room or a late DJ night that Steve doesn't) is matched
+    by the entry's title against each Show's headliner, the same name normalization app.ingestion.upsert uses to
+    recognise a Band under another spelling. A Show with no entry of its own, or claimed by more than one, is never
+    guessed at.
     """
-    if len(candidates) == 1:
-        return candidates[0]
-    if not entry.title:
-        return None
-    key = band_key(entry.title)
-    matches = [show for show in candidates if band_key(show.headliner) == key]
-    return matches[0] if len(matches) == 1 else None
+    if len(shows) == 1 and len(entries) == 1:
+        return [(shows[0], entries[0])]
+    claims: dict[int, list[CalendarEntry]] = {}
+    for entry in entries:
+        if not entry.title:
+            continue
+        key = band_key(entry.title)
+        matches = [show for show in shows if band_key(show.headliner) == key]
+        if len(matches) == 1:
+            claims.setdefault(matches[0].id, []).append(entry)
+    return [(show, claims[show.id][0]) for show in shows if len(claims.get(show.id, [])) == 1]
 
 
 def match_calendar(shows: list[ShowLike], entries: list[CalendarEntry]) -> dict[int, CalendarUpdate]:
     """Which entry belongs to which Show, and what it still needs."""
-    by_date: dict[date, list[ShowLike]] = {}
+    shows_by_date: dict[date, list[ShowLike]] = {}
     for show in shows:
-        by_date.setdefault(show.date, []).append(show)
+        shows_by_date.setdefault(show.date, []).append(show)
+    entries_by_date: dict[date, list[CalendarEntry]] = {}
+    for entry in entries:
+        if entry.date in shows_by_date:
+            entries_by_date.setdefault(entry.date, []).append(entry)
 
     updates: dict[int, CalendarUpdate] = {}
-    for entry in entries:
-        candidates = by_date.get(entry.date, [])
-        show = _match_one(candidates, entry)
-        if show is None:
-            continue
-        update = CalendarUpdate(
-            flyer_image_url=None if show.has_flyer else entry.flyer_url,
-            more_info_url=None if show.has_more_info else entry.more_info_url,
-            ticket_url=None if show.has_ticket else entry.ticket_url,
-        )
-        if not update.is_empty():
-            updates[show.id] = update
+    for night, night_entries in entries_by_date.items():
+        for show, entry in _match_night(shows_by_date[night], night_entries):
+            update = CalendarUpdate(
+                flyer_image_url=None if show.has_flyer else entry.flyer_url,
+                more_info_url=None if show.has_more_info else entry.more_info_url,
+                ticket_url=None if show.has_ticket else entry.ticket_url,
+            )
+            if not update.is_empty():
+                updates[show.id] = update
     return updates
 
 
@@ -230,6 +237,10 @@ def enrich_shows_from_venue_calendars(shows: list) -> int:
     """For every Venue among `shows` that isn't fully filled in yet, find (or reuse, or apply a correction for)
     its calendar, and fill each Show's gaps from whatever it lists. Steve's own data is never overwritten.
     Returns how many Shows were matched. A failure for one Venue never stops the others."""
+    if not settings.anthropic_api_key:
+        # Without the LLM every lookup would fail, and each Venue would be marked as having no calendar for good.
+        logger.warning("venue calendar: skipped, no ANTHROPIC_API_KEY")
+        return 0
     by_venue: dict[int, list] = {}
     for show in shows:
         by_venue.setdefault(show.venue_id, []).append(show)

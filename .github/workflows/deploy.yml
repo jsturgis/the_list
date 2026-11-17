@@ -187,6 +187,7 @@ jobs:
           IMAGES_PATH: ${{ github.workspace }}/data/images
           OLLAMA_BASE_URL: http://localhost:11434
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # venue calendars (app/ingestion/venue_calendar.py)
           LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
           DISCOGS_CONSUMER_KEY: ${{ secrets.DISCOGS_CONSUMER_KEY }}
           DISCOGS_CONSUMER_SECRET: ${{ secrets.DISCOGS_CONSUMER_SECRET }}

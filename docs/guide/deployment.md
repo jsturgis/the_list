@@ -101,8 +101,10 @@ fails only its own step, which has `continue-on-error`, so it can't change the i
   `sturgis.me` DNS. The build takes its base path and site URL from `actions/configure-pages`
   (`PAGES_BASE_PATH`, `PAGES_SITE_URL`): `""` and `https://list.sturgis.me` with the domain, `/the_list` and
   `https://jsturgis.github.io/the_list` without it. Local builds default to `/the_list`.
-- **The ingest** uses the `GOOGLE_MAPS_API_KEY`, `LASTFM_API_KEY`, `DISCOGS_CONSUMER_KEY` and
-  `DISCOGS_CONSUMER_SECRET` secrets (Settings → Secrets and variables → Actions). Steve's page needs none. No Anthropic key: ingestion makes no LLM calls.
+- **The ingest** uses the `GOOGLE_MAPS_API_KEY`, `ANTHROPIC_API_KEY`, `LASTFM_API_KEY`, `DISCOGS_CONSUMER_KEY` and
+  `DISCOGS_CONSUMER_SECRET` secrets (Settings → Secrets and variables → Actions). Steve's page needs none. The
+  Anthropic key is only for reading Venues' own calendars (flyers and more-info links); without it that step is
+  skipped and nothing else changes.
 - **Alerts** have their own secrets and variables: see [Weekly Alerts](alerts.md).
 - **The maintainer's emails** need the `MAINTAINER_EMAIL` secret (where they go) and the Alerts' `RESEND_API_KEY`
   secret and `ALERTS_FROM` variable. Without `MAINTAINER_EMAIL` none are sent.

@@ -726,6 +726,7 @@ async def test_pipeline_matches_a_show_against_its_venues_calendar(mock_batch, m
     mock_entries.return_value = [CalendarEntry(date=date(2026, 10, 1), title="Mdou Moctar",
                                                flyer_url="https://thechapel.com/flyer.jpg",
                                                more_info_url="https://thechapel.com/shows/mdou-moctar")]
+    monkeypatch.setattr(settings, "anthropic_api_key", "test-key")
     monkeypatch.setattr(settings, "images_path", str(tmp_path))
     monkeypatch.setattr(show_flyers.httpx, "Client", _photo_client(
         {"https://thechapel.com/flyer.jpg": httpx.Response(200, content=_jpeg_bytes())}))

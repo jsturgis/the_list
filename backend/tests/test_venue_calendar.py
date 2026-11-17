@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import httpx
+import pytest
 
 from app.ingestion.venue_calendar import (
     CalendarEntry, CalendarUpdate, ShowLike, enrich_shows_from_venue_calendars, fetch_calendar_entries,
@@ -19,6 +20,13 @@ from app.ingestion.venue_calendar import (
 from app.ingestion.venue_corrections import CORRECTIONS, VenueCorrection
 
 NIGHT = date(2026, 11, 14)
+
+
+@pytest.fixture(autouse=True)
+def _llm_key(monkeypatch):
+    """The calendar step is skipped without an LLM key (CI has none); these tests stand the LLM in themselves."""
+    from app.config import settings
+    monkeypatch.setattr(settings, "anthropic_api_key", "test-key")
 
 
 def _show(id=1, day=NIGHT, headliner="Redwood Sirens", has_flyer=False, has_more_info=False, has_ticket=False):
@@ -37,6 +45,58 @@ def test_a_show_alone_on_its_night_is_matched_by_date_and_gains_every_field():
         1: CalendarUpdate(flyer_image_url="https://venue.example/flyer.jpg",
                           more_info_url="https://venue.example/shows/1", ticket_url="https://tix.example/1"),
     }
+
+
+def test_a_show_alone_on_its_night_takes_the_entry_with_its_headliner_not_the_last_one_that_night():
+    """A second room or a late DJ night: the calendar lists more than the one Show Steve has."""
+    show = _show(headliner="Deafheaven")
+    ours = CalendarEntry(date=NIGHT, title="Deafheaven", flyer_url="https://venue.example/a.jpg",
+                         more_info_url="https://venue.example/a")
+    other = CalendarEntry(date=NIGHT, title="Late Night DJ Party", flyer_url="https://venue.example/b.jpg",
+                          more_info_url="https://venue.example/b")
+
+    assert match_calendar([show], [ours, other]) == match_calendar([show], [other, ours]) == {
+        1: CalendarUpdate(flyer_image_url="https://venue.example/a.jpg", more_info_url="https://venue.example/a"),
+    }
+
+
+def test_a_show_alone_on_its_night_with_several_entries_none_its_headliner_is_left_unmatched():
+    show = _show(headliner="Deafheaven")
+    entries = [CalendarEntry(date=NIGHT, title="Comedy Night", flyer_url="https://venue.example/a.jpg"),
+               CalendarEntry(date=NIGHT, title="Late Night DJ Party", flyer_url="https://venue.example/b.jpg")]
+
+    assert match_calendar([show], entries) == {}
+
+
+def test_a_show_two_entries_both_claim_is_left_unmatched():
+    show = _show(headliner="Deafheaven")
+    entries = [CalendarEntry(date=NIGHT, title="Deafheaven", flyer_url="https://venue.example/a.jpg"),
+               CalendarEntry(date=NIGHT, title="Deafheaven", flyer_url="https://venue.example/b.jpg")]
+
+    assert match_calendar([show], entries) == {}
+
+
+def test_a_show_alone_with_one_untitled_entry_that_night_still_matches_by_date():
+    show = _show()
+    entry = CalendarEntry(date=NIGHT, title=None, flyer_url="https://venue.example/flyer.jpg")
+
+    assert match_calendar([show], [entry]) == {1: CalendarUpdate(flyer_image_url="https://venue.example/flyer.jpg")}
+
+
+@patch("app.ingestion.venue_calendar.fetch_calendar_entries")
+@patch("app.ingestion.venue_calendar.find_calendar_url")
+def test_without_an_llm_key_no_venue_is_looked_at_or_marked_checked(mock_find, mock_fetch, monkeypatch):
+    """Otherwise a run without the key would mark every Venue as having no calendar, for good."""
+    from app.config import settings
+    monkeypatch.setattr(settings, "anthropic_api_key", "")
+    venue = _venue(calendar_url="https://venue.example/shows/")
+    show = _real_show(venue)
+
+    assert enrich_shows_from_venue_calendars([show]) == 0
+
+    mock_find.assert_not_called()
+    mock_fetch.assert_not_called()
+    assert venue.calendar_checked_at is None
 
 
 def test_an_entry_with_no_date_is_never_guessed_at():
