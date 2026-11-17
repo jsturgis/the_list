@@ -287,6 +287,7 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
 
     logger.info("ingestion: embedding and indexing")
     await batch_embed_and_index(db, shows)
+    db.commit()   # the embeddings
     return shows
 
 

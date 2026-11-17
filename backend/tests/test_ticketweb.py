@@ -198,6 +198,26 @@ async def test_an_events_new_venue_and_bands_are_looked_up_as_the_lists_are(
     mock_batch.assert_called_once()
 
 
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.split_joint_name", side_effect=lambda name: [name])
+@patch("app.scheduler.save_band_photos", return_value=0)
+@patch("app.scheduler.commons_photo", return_value=None)
+@patch("app.scheduler.discogs_artist", return_value=None)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_an_events_embedding_is_saved(mock_batch, mock_discogs, mock_commons, mock_photos, mock_split,
+                                            mock_venue, db):
+    """With no ingestion run to finish (and commit) after it, as for `add-event`."""
+    async def embed(_db, shows):
+        for show in shows:
+            show.embedding = b"vector"
+    mock_batch.side_effect = embed
+
+    (show,) = await ingest_shows(db, [event_show(_PAGE, _URL)])
+    db.rollback()   # what closing the session does to anything not committed
+
+    assert db.get(Show, show.id).embedding == b"vector"
+
+
 # ── the command ───────────────────────────────────────────────────────────────
 
 @pytest.fixture
