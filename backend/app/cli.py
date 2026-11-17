@@ -3,6 +3,8 @@
     python -m app.cli check                               # has Steve's List changed since the last ingest?
     python -m app.cli ingest                              # maintenance, then ingest the List as it is now
     python -m app.cli add-event https://www.ticketweb.com/event/...   # add a Show from a TicketWeb event page
+    python -m app.cli ingest-jobs --jobs JOB_ID:MSG_ID,...   # run the Admin page's ingest jobs (the Ingest jobs workflow)
+    python -m app.cli ingest-jobs-phase --jobs JOB_ID,... --phase committing   # ... and record how far they've got
     python -m app.cli export --out ../frontend/export
     python -m app.cli alerts                              # send this week's Alert emails
     python -m app.cli alerts --dry-run                    # print them instead
@@ -30,6 +32,7 @@ from app.alerts import SendError, SupabaseError, run_alerts
 from app.config import settings
 from app.database import SessionLocal
 from app.export import export
+from app.ingest_jobs import PHASES, STATUSES
 from app.ingestion.steve_list import ListError, fetch_list
 from app.scheduler import _run_ingestion_async, list_status, run_daily_maintenance
 
@@ -77,31 +80,84 @@ def add_event(url: str) -> None:
     Steve already lists only adds its ticket link: the List wins. Exits 1 when the page can't be read, isn't a Bay
     Area event, or a service key the lookups need is missing or rejected.
     """
-    from app.ingestion.discogs import discogs_key_problem
-    from app.ingestion.lastfm import lastfm_key_problem
+    from app.ingest_jobs import add_show, describe
     from app.ingestion.ticketweb import EventError, fetch_event
-    from app.scheduler import ingest_shows
 
-    # The lookups treat a missing key as "nothing found" and mark the Bands looked up, so they'd never be asked again.
-    problems = [p for p in (lastfm_key_problem(), discogs_key_problem()) if p]
-    if problems:
-        sys.exit("add-event: " + "; ".join(problems))
+    _require_service_keys("add-event")
     try:
         data = fetch_event(url)
     except EventError as exc:
         sys.exit(f"add-event: {exc}")
     db = SessionLocal()
     try:
-        (show,) = asyncio.run(ingest_shows(db, [data]))
-        lineup = ", ".join(act.band.name for act in show.acts)
-        where = f"{show.venue.name}, {show.venue.city}"
-        if show.source == data["source"]:
-            print(f"add-event: show {show.id}: {lineup} at {where} on {show.date:%a %b %-d, %Y}")
+        show, listed = add_show(db, data)
+        if listed:
+            print(f"add-event: the List already has it (show {show.id}: {describe(show)}); added its ticket link")
         else:
-            print(f"add-event: the List already has it (show {show.id}: {lineup} at {where} on "
-                  f"{show.date:%a %b %-d, %Y}); added its ticket link")
+            print(f"add-event: show {show.id}: {describe(show)}")
     finally:
         db.close()
+
+
+def _require_service_keys(command: str) -> None:
+    """Exit unless the Last.fm and Discogs keys work: the lookups treat a missing key as "nothing found" and mark
+    the Bands looked up, so they'd never be asked again."""
+    from app.ingestion.discogs import discogs_key_problem
+    from app.ingestion.lastfm import lastfm_key_problem
+
+    problems = [p for p in (lastfm_key_problem(), discogs_key_problem()) if p]
+    if problems:
+        sys.exit(f"{command}: " + "; ".join(problems))
+
+
+def ingest_jobs(specs: str) -> None:
+    """Run the Admin page's ingest jobs (app/ingest_jobs.py), given as "job_id:msg_id,..." (the worker's), against
+    the data branch's database, recording each job's progress and outcome in Supabase. A job that fails is recorded
+    and doesn't stop the others. Writes `added=<job ids>` (the jobs that added a Show) to the step's outputs in a
+    GitHub Actions job. Exits 1 when Supabase can't be reached or a service key is missing or rejected; the jobs
+    then stay on the queue and are tried again.
+    """
+    from app.clock import local_today
+    from app.ingest_jobs import fetch_jobs, parse_specs, run_jobs
+
+    _require_service_keys("ingest-jobs")
+    try:
+        jobs = fetch_jobs(parse_specs(specs))
+    except (ValueError, SupabaseError) as exc:
+        sys.exit(f"ingest-jobs: {exc}")
+    run_url = None
+    if os.environ.get("GITHUB_RUN_ID"):
+        run_url = (f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/{os.environ['GITHUB_REPOSITORY']}"
+                   f"/actions/runs/{os.environ['GITHUB_RUN_ID']}")
+    db = SessionLocal()
+    try:
+        added = run_jobs(db, jobs, local_today(), run_url)
+    except SupabaseError as exc:
+        sys.exit(f"ingest-jobs: {exc}")
+    finally:
+        db.close()
+    print(f"ingest-jobs: {len(added)} of {len(jobs)} added")
+    if output := os.environ.get("GITHUB_OUTPUT"):
+        with open(output, "a") as f:
+            f.write(f"added={','.join(added)}\n")
+
+
+def ingest_jobs_phase(job_ids: str, phase: str | None, status: str | None, detail: str | None,
+                      message: str | None, unfinished_only: bool) -> None:
+    """Record how far these ingest jobs have got after ingesting (committing, deploying, live), or, with
+    --unfinished-only, fail those a broken run left unfinished. Exits 1 when Supabase can't be reached."""
+    from app.ingest_jobs import unfinished, update_jobs
+
+    ids = [i.strip() for i in job_ids.split(",") if i.strip()]
+    fields = {k: v for k, v in (("phase", phase), ("status", status), ("detail", detail), ("message", message))
+              if v is not None}
+    try:
+        if unfinished_only:
+            ids = unfinished(ids)
+        update_jobs(ids, **fields)
+    except SupabaseError as exc:
+        sys.exit(f"ingest-jobs-phase: {exc}")
+    print(f"ingest-jobs-phase: {len(ids)} job(s): " + ", ".join(f"{k}={v}" for k, v in fields.items()))
 
 
 def alerts(dry_run: bool, only: str | None) -> None:
@@ -207,6 +263,16 @@ def main(argv: list[str] | None = None) -> None:
     commands.add_parser("ingest", help="run daily maintenance, then ingest Steve's List")
     add_cmd = commands.add_parser("add-event", help="add the Show on an event page (TicketWeb) to the database")
     add_cmd.add_argument("url", help="the event's page, e.g. https://www.ticketweb.com/event/...")
+    jobs_cmd = commands.add_parser("ingest-jobs", help="run the Admin page's ingest jobs against the database")
+    jobs_cmd.add_argument("--jobs", required=True, metavar="JOB_ID:MSG_ID,...", help="the jobs, as the worker gives them")
+    phase_cmd = commands.add_parser("ingest-jobs-phase", help="record how far ingest jobs have got after ingesting")
+    phase_cmd.add_argument("--jobs", required=True, metavar="JOB_ID,...", help="the jobs")
+    phase_cmd.add_argument("--phase", choices=PHASES)
+    phase_cmd.add_argument("--status", choices=STATUSES)
+    phase_cmd.add_argument("--detail")
+    phase_cmd.add_argument("--message")
+    phase_cmd.add_argument("--unfinished-only", action="store_true",
+                           help="only the jobs still queued or running (a run that broke off)")
     export_cmd = commands.add_parser("export", help="write the static JSON data files")
     export_cmd.add_argument("--out", required=True, help="directory to write shows/venues/bands/meta.json into")
     alerts_cmd = commands.add_parser("alerts", help="build this week's Alert emails from everyone's Saved Filters")
@@ -244,6 +310,10 @@ def main(argv: list[str] | None = None) -> None:
         ingest()
     elif args.command == "add-event":
         add_event(args.url)
+    elif args.command == "ingest-jobs":
+        ingest_jobs(args.jobs)
+    elif args.command == "ingest-jobs-phase":
+        ingest_jobs_phase(args.jobs, args.phase, args.status, args.detail, args.message, args.unfinished_only)
     elif args.command == "export":
         db = SessionLocal()
         try:

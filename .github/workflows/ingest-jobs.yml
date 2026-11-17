@@ -1,0 +1,178 @@
+name: Ingest jobs
+
+# Started by the ingest worker (supabase/functions/ingest-worker) for the Admin page's ingest jobs: add each job's
+# Show (a TicketWeb event page, or a screenshot read by a vision model) to the data branch's database, commit it,
+# and republish the site, recording each job's progress in Supabase (ingest_jobs) for the Admin page. See
+# docs/adr/0006-admin-ingest-jobs.md. Can be run by hand with the jobs the worker would give: "job_id:msg_id,...".
+on:
+  workflow_dispatch:
+    inputs:
+      jobs:
+        description: The jobs to run, as "job_id:msg_id,..." (the worker's)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # Shares the Deploy workflow's group: never runs alongside an ingest or a Backfill (all commit to data), and a
+    # Deploy waits for it. GitHub keeps one waiting run per group, cancelling the older: a cancelled run's jobs are
+    # handed out again by the worker once their queue messages time out.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      contents: write   # commit the data branch
+    outputs:
+      added: ${{ steps.ingest.outputs.added }}
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      JOBS: ${{ inputs.jobs }}
+
+    services:
+      ollama:
+        image: ollama/ollama:latest
+        ports:
+          - 11434:11434
+        volumes:
+          - /home/runner/.ollama:/root/.ollama   # models, cached between runs
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out the data branch
+        uses: actions/checkout@v4
+        with:
+          ref: data
+          path: data
+          fetch-depth: 5
+
+      - name: Restore the Ollama model cache
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.ollama
+          key: ollama-nomic-embed-text-tev1-0.8b-qwen2.5vl-3b-v1
+
+      - name: Pull the embedding, genre and vision models
+        run: |
+          until curl -sf http://localhost:11434/api/version > /dev/null; do sleep 2; done
+          curl -sf http://localhost:11434/api/pull -d '{"model": "nomic-embed-text", "stream": false}'
+          curl -sf http://localhost:11434/api/pull -d '{"model": "tev1:0.8b", "stream": false}'
+          # The vision model (app/ingestion/screenshot.py): reads an event's screenshot.
+          curl -sf http://localhost:11434/api/pull -d '{"model": "qwen2.5vl:3b", "stream": false}'
+          sudo chown -R "$USER" /home/runner/.ollama
+
+      - name: Set up Python 3.12
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Restore Python virtual environment
+        id: cache-venv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-py${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('backend/requirements.txt') }}
+
+      - name: Install backend dependencies
+        run: |
+          if [ "${{ steps.cache-venv.outputs.cache-hit }}" != "true" ]; then
+            python -m venv .venv
+            .venv/bin/pip install --upgrade pip
+            .venv/bin/pip install -r backend/requirements.txt
+          fi
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Ingest the jobs
+        id: ingest
+        working-directory: backend
+        env:
+          DATABASE_URL: sqlite:///${{ github.workspace }}/data/the_list.db
+          FAISS_INDEX_PATH: ${{ github.workspace }}/data/faiss
+          IMAGES_PATH: ${{ github.workspace }}/data/images
+          OLLAMA_BASE_URL: http://localhost:11434
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # venue calendars (app/ingestion/venue_calendar.py)
+          LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
+          DISCOGS_CONSUMER_KEY: ${{ secrets.DISCOGS_CONSUMER_KEY }}
+          DISCOGS_CONSUMER_SECRET: ${{ secrets.DISCOGS_CONSUMER_SECRET }}
+          PYTHONUNBUFFERED: 1
+        run: |
+          alembic upgrade head
+          python -m app.cli ingest-jobs --jobs "$JOBS"
+
+      - name: Say the jobs are being committed
+        if: steps.ingest.outputs.added != ''
+        continue-on-error: true
+        working-directory: backend
+        env:
+          ADDED: ${{ steps.ingest.outputs.added }}
+        run: python -m app.cli ingest-jobs-phase --jobs "$ADDED" --phase committing --detail "Committing the data branch"
+
+      - name: Commit the data
+        if: steps.ingest.outputs.added != ''
+        working-directory: data
+        run: |
+          python -c "
+          import sqlite3
+          db = sqlite3.connect('the_list.db')
+          db.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+          db.execute('PRAGMA journal_mode=DELETE')
+          db.close()
+          "
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add the_list.db faiss
+          if [ -d images ]; then git add -A images; fi
+          git diff --cached --quiet || { git commit -q -m "Add Shows from the Admin page's ingest jobs" && git push -q; }
+          git log -1 --format='%h %s'
+
+      - name: Keep the data branch short
+        if: steps.ingest.outputs.added != ''
+        working-directory: data
+        run: |
+          before=$(git rev-parse HEAD)
+          after=$("$GITHUB_WORKSPACE/.github/scripts/prune-history.sh" 4)
+          if [ "$after" != "$before" ]; then
+            git push -q --force-with-lease="data:$before" origin HEAD:data
+          fi
+          git log --format='%h %s'
+
+      - name: Fail the jobs this run didn't finish
+        # The run broke off (a step failed, or it was cancelled): its jobs still on the queue are tried again.
+        if: failure() || cancelled()
+        working-directory: backend
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          ids=$(echo "$JOBS" | tr ',' '\n' | cut -d: -f1 | paste -sd, -)
+          python -m app.cli ingest-jobs-phase --jobs "$ids" --unfinished-only --status failed \
+            --message "The run broke off ($RUN_URL); it will be tried again" || true
+
+  publish:
+    # Outside the pages group, so the Deploy it starts can run while this waits to see it through.
+    needs: ingest
+    if: needs.ingest.outputs.added != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: write   # start the Deploy workflow
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      ADDED: ${{ needs.ingest.outputs.added }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Republish the site and see it through
+        run: .github/scripts/await-deploy.sh

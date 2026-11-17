@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { TrashIcon } from '@heroicons/react/16/solid'
-import { FIELD } from '@/lib/field'
 import { href } from '@/lib/basePath'
 import { MAX_ALERTS, alertsPageUrl, supabase, type SavedFilter } from '@/lib/supabase'
 import { findSameFilter } from '@/lib/filters'
@@ -8,6 +7,7 @@ import { useSession } from '@/lib/useSession'
 import { GhostLine, GhostRows, LoadingLabel } from './Ghost'
 import PageHeader from './PageHeader'
 import Section from './Section'
+import SignInByEmail from './SignInByEmail'
 import Toast from './Toast'
 
 /** The Saved Filter a sign-in link carries (?save=<query>&name=<name>), removed from the address bar. */
@@ -45,7 +45,9 @@ export default function AlertsPage() {
       {session.status === 'unavailable' && (
         <p className="text-sm text-ink-muted">Alerts aren&apos;t available on this copy of the site.</p>
       )}
-      {session.status === 'signedOut' && <SignInByEmail />}
+      {session.status === 'signedOut' && (
+        <SignInByEmail redirectTo={alertsPageUrl} intro="We'll email you a link to see and manage your alerts." />
+      )}
       {session.status === 'signedIn' && <YourAlerts email={session.email} userId={session.userId} />}
     </article>
   )
@@ -210,64 +212,5 @@ function YourAlerts({ email, userId }: { email: string; userId: string }) {
 
       {toast && <Toast onDismiss={dismissToast}>{toast}</Toast>}
     </div>
-  )
-}
-
-function SignInByEmail() {
-  const [email, setEmail] = useState('')
-  const [sent, setSent] = useState(false)
-  const [sending, setSending] = useState(false)
-  const dismissToast = useCallback(() => setSent(false), [])
-  const [error, setError] = useState<string | null>(null)
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!supabase) return
-    setSending(true)
-    setError(null)
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: alertsPageUrl() },
-    })
-    setSending(false)
-    if (error) {
-      setError(error.message)
-    } else {
-      setEmail('')
-      setSent(true)
-    }
-  }
-
-  return (
-    <>
-      <Section title="Sign in">
-      <form onSubmit={submit} className="flex flex-col gap-3 max-w-sm">
-        <p className="text-sm text-ink-soft">We&apos;ll email you a link to see and manage your alerts.</p>
-        <input
-          type="email"
-          required
-          autoComplete="email"
-          aria-label="Email"
-          placeholder="Email"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          className={`${FIELD} px-3`}
-        />
-        <button
-          type="submit"
-          disabled={sending}
-          className="h-9 rounded-full bg-accent px-4 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50"
-        >
-          Email me a sign-in link
-        </button>
-        {error && (
-          <p role="alert" className="text-xs text-danger">
-            {error}
-          </p>
-        )}
-      </form>
-      </Section>
-      {sent && <Toast onDismiss={dismissToast}>Check your email for a sign-in link.</Toast>}
-    </>
   )
 }

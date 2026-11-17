@@ -7,7 +7,7 @@ A weekly SF Bay Area music discovery app that ingests Steve List's curated list 
 ### Core entities
 
 **Show**:
-A single booking at a Venue on a specific date — one or more Acts performing together. The primary unit of discovery. A Show is from the List, or added by hand from an event page the List doesn't have yet (TicketWeb, `python -m app.cli add-event`); its `source` says which. The List wins: an event Steve already lists only adds its ticket link to his Show, and an added Show becomes the List's once he lists it.
+A single booking at a Venue on a specific date — one or more Acts performing together. The primary unit of discovery. A Show is from the List, or added by hand when the List doesn't have it yet: from a TicketWeb event page (`python -m app.cli add-event`, or an ingest job on the Admin page), or from a screenshot of the event read by a vision model (an ingest job). Its `source` (`list`, `ticketweb`, `screenshot`) says which. The List wins: an event Steve already lists only adds its ticket link to his Show, and an added Show becomes the List's once he lists it.
 _Avoid_: Event, listing, gig
 
 **Act**:
@@ -19,7 +19,7 @@ A named musical act — a group, solo artist, or ensemble. DJs and back-to-back 
 _Avoid_: Artist, performer, act (when referring to the entity itself rather than its role in a Show)
 
 **The List**:
-Steve's list as he publishes it: the plain-text page at https://stevelist.com/list, the source of every Show but those added by hand from an event page. It is checked every hour and ingested whenever it has changed.
+Steve's list as he publishes it: the plain-text page at https://stevelist.com/list, the source of every Show but those added by hand. It is checked every hour and ingested whenever it has changed.
 _Avoid_: Email, newsletter, feed
 
 **Edition**:

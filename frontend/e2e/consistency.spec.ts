@@ -10,6 +10,7 @@ const NARROW: [name: string, path: string][] = [
   ['Band page', 'bands/neon-harbor/'],
   ['Alerts page', 'alerts/'],
   ['Unsubscribe page', 'alerts/unsubscribe/'],
+  ['Admin page', 'admin/'],
   ['not-found page', 'shows/99999/'],
 ]
 const DETAIL = new Set(['Show page', 'Venue page', 'Band page'])

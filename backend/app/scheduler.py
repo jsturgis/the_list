@@ -6,7 +6,7 @@ import asyncio
 import logging
 import traceback
 from datetime import date, datetime, timedelta
-from typing import Optional
+from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -108,16 +108,37 @@ def list_status(db: Session, page: ListPage) -> dict[str, bool]:
     }
 
 
+PhaseReporter = Callable[[str, Optional[str]], None]
+
+
+def _reporter(on_phase: Optional[PhaseReporter]) -> PhaseReporter:
+    """`on_phase`, made safe to call: telling someone how far the ingest has got never fails the ingest."""
+    def report(phase: str, detail: Optional[str] = None) -> None:
+        if on_phase is None:
+            return
+        try:
+            on_phase(phase, detail)
+        except Exception:
+            logger.warning("ingestion: couldn't report phase %s", phase, exc_info=True)
+    return report
+
+
 async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[IngestionRun] = None,
-                       source_hash: Optional[str] = None) -> list[Show]:
-    """Store Shows read from a source (the List, or an event page from app/ingestion/ticketweb.py): enrich the new
-    Venues and Bands, upsert, save the Band photos, embed. Each dict is shaped as `upsert_shows` takes it.
+                       source_hash: Optional[str] = None, on_phase: Optional[PhaseReporter] = None) -> list[Show]:
+    """Store Shows read from a source (the List, an event page from app/ingestion/ticketweb.py, or a screenshot
+    from app/ingestion/screenshot.py): enrich the new Venues and Bands, upsert, save the Band photos, embed. Each
+    dict is shaped as `upsert_shows` takes it.
 
     With `run`, its counts are recorded on it, and `source_hash` once the Shows are stored (the hourly check's mark
     that the List was ingested); without, as for one event added by hand, no ingestion run is kept.
+
+    `on_phase(phase, detail)` is told as each step starts ("venue", "bands", "photos", "saving", "embedding"), for
+    an ingest job's progress on the Admin page (app/ingest_jobs.py). A failure to report is logged, never raised.
     """
+    report = _reporter(on_phase)
     # Only Venues we haven't seen need Google Places.
     loop = asyncio.get_event_loop()
+    report("venue", ", ".join(dict.fromkeys(d["venue_name"] for d in shows_data if d["venue_name"])) or None)
     venue_cache: dict[tuple, dict] = {}
     for data in shows_data:
         name, city = data["venue_name"], data["city"]
@@ -127,6 +148,7 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
         key = (name, city, street)
         if key not in venue_cache:
             logger.info("ingestion: enriching new venue %s (%s)", name, city)
+            report("venue", f"Looking up {name} on Google Places")
             # No LLM calls at ingest: the name is searched as Steve lists it, and there's no Wikipedia description.
             found = await loop.run_in_executor(None, _enrich_venue, name, city or "", street, False)
             # Google's best guess is kept only as far as it's the listed Venue (app/ingestion/venue_check.py).
@@ -163,6 +185,7 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
     genre_cache: dict[str, list[str]] = {}  # each new Band's genres from the services, asked once
     # Keeps only genres. If the genre model is down, unknown tags are kept this run rather than lost for good.
     genre_filter = GenreFilter.load(db, keep_unknown=True)
+    report("bands", None)
     for data in shows_data:
         for i, (name, enrichment) in enumerate(data["band_enrichment"]):
             if name not in band_cache:
@@ -170,6 +193,7 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
                     band_cache[name] = None
                 else:
                     logger.info("ingestion: looking up genres for %s", name)
+                    report("bands", f"Looking up Band {i + 1} of {len(data['band_enrichment'])}: {name}")
                     found = await loop.run_in_executor(None, _enrich_band, name, False)
                     # Its photo on Wikimedia Commons, through MusicBrainz's Wikidata link, with its credit.
                     photo = await loop.run_in_executor(None, commons_photo, found.get("links") or [])
@@ -215,6 +239,7 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
         for url in ([c["url"] for c in e["image_candidates"]] if e.get("image_candidates") else [e.get("image_url")])
         if url]
     if image_urls:
+        report("photos", f"Checking {len(image_urls)} photo{'s' if len(image_urls) != 1 else ''}")
         checked = await loop.run_in_executor(None, check_image_urls, image_urls)
         for data in shows_data:
             if data.get("venue_image_url"):
@@ -242,6 +267,7 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
                     if enrichment.get(field) in broken:
                         enrichment[field] = None
 
+    report("saving", None)
     shows_before, venues_before = db.query(Show).count(), db.query(Venue).count()
     shows = upsert_shows(db, shows_data)
     shows_new, new_venues = db.query(Show).count() - shows_before, db.query(Venue).count() - venues_before
@@ -309,6 +335,7 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
         logger.warning("ingestion: venue calendars skipped this run", exc_info=True)
 
     logger.info("ingestion: embedding and indexing")
+    report("embedding", None)
     await batch_embed_and_index(db, shows)
     db.commit()   # the embeddings
     return shows

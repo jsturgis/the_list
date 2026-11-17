@@ -20,4 +20,8 @@ describe('inSitemap', () => {
   it('leaves out the Unsubscribe page, which is noindex', () => {
     expect(inSitemap('https://list.sturgis.me/alerts/unsubscribe/')).toBe(false)
   })
+
+  it('leaves out the Admin page, which is noindex', () => {
+    expect(inSitemap('https://list.sturgis.me/admin/')).toBe(false)
+  })
 })

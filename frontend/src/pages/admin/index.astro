@@ -1,0 +1,9 @@
+---
+import Layout from '@/layouts/Layout.astro'
+import AdminPage from '@/components/AdminPage'
+---
+
+<!-- Admins only (docs/adr/0006-admin-ingest-jobs.md): not linked from anywhere, and not for search engines. -->
+<Layout title="Admin — The List" description="Add shows the List doesn't have yet." noindex>
+  <AdminPage client:only="react" />
+</Layout>

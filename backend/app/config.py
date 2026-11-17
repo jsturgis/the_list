@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     # and the probability from which its answer counts as yes. Needs Ollama 0.35 or later.
     genre_model: str = "tev1:0.8b"
     genre_model_threshold: float = 0.5
+    # The vision model that reads an event's screenshot added on the Admin page (app/ingestion/screenshot.py).
+    vision_model: str = "qwen2.5vl:3b"
 
     database_url: str = "sqlite:///./the_list.db"
     faiss_index_path: str = "./data/faiss"
