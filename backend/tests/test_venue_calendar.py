@@ -290,7 +290,14 @@ def _entry(**fields):
                               "more_info_url": None, "ticket_url": None, **fields})
 
 
-def _read(*entries, page="<html>a calendar</html>", status=200, website_url=None):
+def _page_with(*entries) -> str:
+    """A calendar page holding every URL the entries give, as a real one would."""
+    links = [getattr(e, field) for e in entries for field in ("flyer_url", "more_info_url", "ticket_url")]
+    return "<html>" + "".join(f'<a href="{url}">x</a>' for url in links if url) + "</html>"
+
+
+def _read(*entries, page=None, status=200, website_url=None):
+    page = _page_with(*entries) if page is None else page
     with patch("app.ingestion.venue_calendar._get", return_value=_html_response(page, status, _CALENDAR)), \
          patch("app.ingestion.venue_calendar.get_enrichment_llm", _llm(SimpleNamespace(entries=list(entries)))):
         return fetch_calendar_entries(_CALENDAR, today=_TODAY, wanted=[(NIGHT, "Redwood Sirens")],
@@ -325,6 +332,47 @@ def test_fetch_calendar_entries_accepts_links_on_the_venues_own_site_under_anoth
                      website_url="https://neckofthewoods.example/")
     assert entry.more_info_url == "https://www.neckofthewoods.example/e/1"
     assert entry.ticket_url == "https://tickets.neckofthewoods.example/1"
+
+
+_SEE_TICKETS = ("https://prod-images.seetickets.us/eyJidWNrZXQiOiJwcm9kLXNpaC5zZWV0aWNrZXRzdXNhLnVzIiwia2V5IjoiNGZkNGJj"
+                "OWUtYTdlYi00MmNiLWI1YzMtZWM3NWZkMjgxODhiIn0=")
+
+
+def test_a_url_the_llm_miscopied_is_taken_as_the_one_on_the_page():
+    """Seen live: a See Tickets image path is 300 characters of base64, and the LLM got "sih" as "sph"."""
+    miscopied = _SEE_TICKETS.replace("cm9kLXNpaC5", "cm9kLXNwaC5")
+    page = f'<img src="{_SEE_TICKETS}"><img src="https://prod-images.seetickets.us/other.jpg">'
+
+    (entry,) = _read(_entry(flyer_url=miscopied), page=page)
+
+    assert entry.flyer_url == _SEE_TICKETS
+
+
+def test_a_url_found_nowhere_on_the_page_is_dropped():
+    (entry,) = _read(_entry(flyer_url="https://venue.example/made-up.jpg", more_info_url="/shows/99"),
+                     page='<a href="/about">About</a><img src="https://cdn.example/logo.png">')
+
+    assert (entry.flyer_url, entry.more_info_url) == (None, None)
+
+
+def test_a_url_as_close_to_two_on_the_page_is_dropped_not_guessed():
+    page = '<a href="/shows/1">One</a><a href="/shows/3">Three</a>'
+
+    (entry,) = _read(_entry(more_info_url="/shows/2"), page=page)
+
+    assert entry.more_info_url is None
+
+
+def test_urls_in_json_ld_srcset_and_css_backgrounds_count_as_on_the_page():
+    page = ("""<script type="application/ld+json">{"url": "https:\\/\\/venue.example\\/e\\/1"}</script>"""
+            '<img srcset="/f/1-400.jpg 400w, /f/1-800.jpg 800w"><div style="background-image: url(\'/f/2.jpg\')">')
+
+    entries = _read(_entry(more_info_url="https://venue.example/e/1", flyer_url="/f/1-800.jpg"),
+                    _entry(date="2026-11-15", flyer_url="/f/2.jpg"), page=page)
+
+    assert [e.flyer_url for e in entries] == [_CALENDAR.replace("/shows/", "") + "/f/1-800.jpg",
+                                              _CALENDAR.replace("/shows/", "") + "/f/2.jpg"]
+    assert entries[0].more_info_url == "https://venue.example/e/1"
 
 
 def test_fetch_calendar_entries_with_an_unparseable_date_keeps_the_entry_undated():

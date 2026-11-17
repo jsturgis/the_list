@@ -19,13 +19,16 @@ is a thin IO wrapper:
 """
 from __future__ import annotations
 
+import dataclasses
+import difflib
+import html as html_lib
 import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, wait
-import dataclasses
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from html.parser import HTMLParser
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 from pydantic import BaseModel
@@ -362,11 +365,50 @@ def fetch_calendar_entries(calendar_url: str, *, today: date, wanted: list[tuple
 
     page = _clean_html(resp.text)
     base = str(resp.url)
+    on_page = _page_urls(resp.text, base)
     entries = []
     for chunk in _by_night_chunks(sorted(wanted)) or [[]]:
         entries += _read_page(page, chunk, today=today, calendar_url=calendar_url, base=base, venue_name=venue_name,
-                              website_url=website_url)
+                              website_url=website_url, on_page=on_page)
     return entries
+
+
+_ATTR_URL_RE = re.compile(r'(?:href|src|data-src|data-lazy-src)\s*=\s*["\']([^"\']+)["\']', re.IGNORECASE)
+_SRCSET_RE = re.compile(r'(?:srcset|data-srcset)\s*=\s*["\']([^"\']+)["\']', re.IGNORECASE)
+_ABS_URL_RE = re.compile(r'https?://[^\s"\'<>()\\]+')
+_CSS_URL_RE = re.compile(r"url\(\s*['\"]?([^'\")]+)")
+
+
+def _page_urls(html: str, base: str) -> set[str]:
+    """Every URL the page holds, absolute: in its links and images (srcset and CSS backgrounds too), and anywhere
+    in its text or JSON-LD (whose slashes are often escaped)."""
+    found = set(_ATTR_URL_RE.findall(html)) | set(_CSS_URL_RE.findall(html))
+    for srcset in _SRCSET_RE.findall(html):
+        found.update(part.strip().split(" ")[0] for part in srcset.split(","))
+    found.update(_ABS_URL_RE.findall(html.replace("\\/", "/")))
+    urls = set()
+    for url in found:
+        url = html_lib.unescape(url.strip())
+        if url and not url.startswith(("#", "javascript:", "data:", "mailto:", "tel:")):
+            urls.add(urljoin(base, url))
+    return urls
+
+
+def _on_page(url: str | None, on_page: set[str], base: str) -> str | None:
+    """`url` as the page has it. An LLM copying a long URL (a base64 image path, a tracking query) sometimes gets
+    a few characters wrong, so a near miss is taken as the one page URL it's clearly closest to; a URL that's on
+    the page nowhere near, or as close to two (a made-up /shows/2 between /shows/1 and /shows/3), is dropped."""
+    if not url:
+        return None
+    url = urljoin(base, html_lib.unescape(url.strip()))
+    if url in on_page:
+        return url
+    host = urlsplit(url).hostname
+    candidates = [u for u in on_page if urlsplit(u).hostname == host and abs(len(u) - len(url)) <= max(8, len(url) // 10)]
+    scored = sorted(((difflib.SequenceMatcher(None, url, u).ratio(), u) for u in candidates), reverse=True)[:2]
+    if not scored or scored[0][0] < 0.9 or (len(scored) > 1 and scored[0][0] - scored[1][0] < 0.02):
+        return None
+    return scored[0][1]
 
 
 def _by_night_chunks(wanted: list[tuple[date, str]]) -> list[list[tuple[date, str]]]:
@@ -380,7 +422,7 @@ def _by_night_chunks(wanted: list[tuple[date, str]]) -> list[list[tuple[date, st
 
 
 def _read_page(page: str, wanted: list[tuple[date, str]], *, today: date, calendar_url: str, base: str,
-               venue_name: str, website_url: str | None) -> list[CalendarEntry]:
+               venue_name: str, website_url: str | None, on_page: set[str]) -> list[CalendarEntry]:
     """One LLM call: the entries for `wanted`'s nights on the cut-down `page`, their links checked."""
     looking_for = "\n".join(f"- {d.isoformat()}: {name}" for d, name in wanted)
     prompt = (
@@ -405,12 +447,12 @@ def _read_page(page: str, wanted: list[tuple[date, str]], *, today: date, calend
 
     entries = []
     for e in result.entries:
-        more_info = public_url(e.more_info_url, base)
+        more_info = public_url(_on_page(e.more_info_url, on_page, base))
         entries.append(CalendarEntry(
             date=_parse_date(e.date, today), title=e.title,
-            flyer_url=public_url(e.flyer_url, base),
+            flyer_url=public_url(_on_page(e.flyer_url, on_page, base)),
             more_info_url=more_info if more_info and same_site(more_info, base, calendar_url, website_url) else None,
-            ticket_url=_ticket_url(e.ticket_url, base, calendar_url, website_url),
+            ticket_url=_ticket_url(_on_page(e.ticket_url, on_page, base), base, calendar_url, website_url),
         ))
     return entries
 
