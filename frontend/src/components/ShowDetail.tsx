@@ -90,7 +90,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
                       </>
                     )}
                     {moreInfoIcon && (
-                      <a href={show.moreInfoUrl} target="_blank" rel="noopener noreferrer" aria-label="More info" title="More info"
+                      <a href={show.moreInfoUrl ?? undefined} target="_blank" rel="noopener noreferrer" aria-label="More info" title="More info"
                          className="rounded-full p-1 hover:bg-muted hover:text-link">
                         <InformationCircleIcon className="size-4" />
                       </a>

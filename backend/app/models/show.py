@@ -67,8 +67,6 @@ class Show(Base):
     # has none) a ticket link. Never overwrites what the edition already gave the Show.
     flyer_image_url: Mapped[Optional[str]] = mapped_column(String(500))
     more_info_url: Mapped[Optional[str]] = mapped_column(String(500))
-    # The flyer's accent colour (app/ingestion/flyer_color.py), as "#rrggbb": used to tint the Show page's panels.
-    flyer_accent_color: Mapped[Optional[str]] = mapped_column(String(7))
     raw_text: Mapped[Optional[str]] = mapped_column(Text)
     # Where the Show comes from: "list" (Steve's List), or the event page it was added from by hand
     # (`python -m app.cli add-event`), e.g. "ticketweb". The List wins: once Steve lists it, it's the List's.

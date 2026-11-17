@@ -117,7 +117,6 @@ class ShowType:
     special_event: str | None
     flyer_image_url: str | None
     more_info_url: str | None
-    flyer_accent_color: str | None
 
 
 @strawberry.type
