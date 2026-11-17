@@ -14,6 +14,7 @@
     python -m app.cli backfill --recheck-photos           # ... first marking Bands that could have a Bandcamp photo
     python -m app.cli photo-focus                         # focal points for stored Band photos without one
     python -m app.cli photo-focus --all                   # ... or for every stored Band photo
+    python -m app.cli venue-photos                        # store Venue photos that are still remote URLs
 """
 from __future__ import annotations
 
@@ -183,6 +184,19 @@ def photo_focus(recompute: bool) -> None:
           f"{counts['skipped']} skipped (photo missing or unreadable)")
 
 
+def venue_photos() -> None:
+    """Store every Venue photo that's still a remote URL in the images folder, with its Commons credit."""
+    from app.ingestion.venue_photos import store_venue_photos
+
+    db = SessionLocal()
+    try:
+        counts = store_venue_photos(db, settings.images_path)
+    finally:
+        db.close()
+    print(f"venue-photos: stored {counts['stored']} of {counts['pending']}; "
+          f"{counts['remote']} still remote (try again later)")
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -214,6 +228,7 @@ def main(argv: list[str] | None = None) -> None:
                                    "it up again from scratch; repeatable")
     focus_cmd = commands.add_parser("photo-focus", help="work out the focal point of stored Band photos (no network)")
     focus_cmd.add_argument("--all", action="store_true", help="every stored photo, not only those without a focal point")
+    commands.add_parser("venue-photos", help="download Venue photos that are still remote URLs into the images folder")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -242,6 +257,8 @@ def main(argv: list[str] | None = None) -> None:
                  recheck_photos=args.recheck_photos)
     elif args.command == "photo-focus":
         photo_focus(recompute=args.all)
+    elif args.command == "venue-photos":
+        venue_photos()
 
 
 if __name__ == "__main__":

@@ -5,8 +5,10 @@ import {
 import type { Show, Venue } from '@/lib/types'
 import ActionLinks, { ActionLink } from './ActionLinks'
 import PageHeader from './PageHeader'
+import PhotoCredit from './PhotoCredit'
 import Section from './Section'
 import VenueShowRows from './VenueShowRows'
+import { href } from '@/lib/basePath'
 import { REGION_LABELS, mapsHref, telHref } from '@/lib/format'
 import { objectPosition } from '@/lib/photoFocus'
 
@@ -47,9 +49,13 @@ export default function VenueDetail({ venue, upcomingShows, bell }: VenueDetailP
   return (
     <article className="flex flex-col gap-6">
       {venue.imageUrl && (
-        // A Venue's photo is a remote URL from the edition, never looked at for faces: it takes the default anchor.
-        <img src={venue.imageUrl} alt={venue.name} style={{ objectPosition: objectPosition() }}
-             className="w-full max-h-72 object-cover rounded-lg" />
+        // The site's own copy ("/images/venues/…"), served under the base path; a photo not stored yet isn't
+        // exported. Never looked at for faces, it takes the default anchor (DESIGN.md, "Venue photo").
+        <figure>
+          <img src={href(venue.imageUrl)} alt={venue.name} style={{ objectPosition: objectPosition() }}
+               className="w-full max-h-72 object-cover rounded-lg" />
+          {venue.imageCredit && <PhotoCredit credit={venue.imageCredit} className="mt-1.5 block" />}
+        </figure>
       )}
 
       <PageHeader title={venue.name} aside={bell} asideBesideTitle subtitle={[venue.city, region].filter(Boolean).join(' · ')}>

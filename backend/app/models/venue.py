@@ -8,6 +8,7 @@ from sqlalchemy import Boolean, DateTime, Enum, Float, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.band import JSONDict
 
 
 class Region(str, enum.Enum):
@@ -40,7 +41,12 @@ class Venue(Base):
     venue_type: Mapped[Optional[str]] = mapped_column(String(100))
     nearest_transit: Mapped[Optional[str]] = mapped_column(String(255))
     instagram: Mapped[Optional[str]] = mapped_column(String(100))
+    # The Venue's photo: a stored file in the images folder (app/ingestion/venue_photos.py), or a remote URL
+    # still to be downloaded, which the site never shows.
     image_url: Mapped[Optional[str]] = mapped_column(String(500))
+    # Who took a Wikimedia Commons photo and its licence (author, license, license_url, source_url), which the
+    # licence requires the site to show; None for a photo from anywhere else.
+    image_credit: Mapped[Optional[dict]] = mapped_column(JSONDict)
     default_age_restriction: Mapped[Optional[str]] = mapped_column(String(50))
     is_sober_space: Mapped[Optional[bool]] = mapped_column(Boolean)
     is_cash_only: Mapped[Optional[bool]] = mapped_column(Boolean)

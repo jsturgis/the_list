@@ -30,6 +30,7 @@ from app.ingestion.links import check_links
 from app.ingestion.steve_list import ListPage, edition_title, fetch_list, list_shows
 from app.ingestion.upsert import find_venue, known_region, upsert_shows
 from app.ingestion.venue_check import CONFIRMED, NOT_CHECKED, check_venue, checked_details
+from app.ingestion.venue_photos import save_venue_photos
 from app.ingestion.wikimedia import commons_photo
 from app.models.act import Act
 from app.models.band import Band
@@ -270,6 +271,12 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
     db.commit()
     if stored:
         logger.info("ingestion: saved %d band photos", stored)
+    # And each Venue's that's still a remote URL (the site shows none until it's stored).
+    venues = list({s.venue.id: s.venue for s in shows}.values())
+    stored = await loop.run_in_executor(None, save_venue_photos, venues, settings.images_path)
+    db.commit()
+    if stored:
+        logger.info("ingestion: saved %d venue photos", stored)
 
     # How the new Bands came out: how many, and the share no service had a photo for.
     new_names = {name for name, found in band_cache.items() if found is not None}

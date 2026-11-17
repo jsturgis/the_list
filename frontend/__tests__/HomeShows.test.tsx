@@ -15,7 +15,7 @@ const TODAY = '2026-10-01'
 const venue = (id: number, name: string, neighborhood: string | null = null): ExportVenue => ({
   id, name, slug: name.toLowerCase(), address: null, city: 'San Francisco', region: 'sf', websiteUrl: null, latitude: null, longitude: null,
   timezone: null, phone: null, googleRating: null, googlePlaceId: null, description: null, wikipediaUrl: null,
-  neighborhood, venueType: null, nearestTransit: null, instagram: null, imageUrl: null, defaultAgeRestriction: null,
+  neighborhood, venueType: null, nearestTransit: null, instagram: null, imageUrl: null, imageCredit: null, defaultAgeRestriction: null,
   isSoberSpace: null, isCashOnly: null, membershipRequired: null,
 })
 const band = (id: number, name: string): ExportBand => ({
