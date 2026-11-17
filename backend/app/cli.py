@@ -2,6 +2,7 @@
 
     python -m app.cli check                               # has Steve's List changed since the last ingest?
     python -m app.cli ingest                              # maintenance, then ingest the List as it is now
+    python -m app.cli add-event https://www.ticketweb.com/event/...   # add a Show from a TicketWeb event page
     python -m app.cli export --out ../frontend/export
     python -m app.cli alerts                              # send this week's Alert emails
     python -m app.cli alerts --dry-run                    # print them instead
@@ -66,6 +67,39 @@ def ingest() -> None:
     except Exception:
         logger.exception("ingest failed")
         sys.exit(1)
+
+
+def add_event(url: str) -> None:
+    """Add the Show on an event page (TicketWeb, app/ingestion/ticketweb.py) to the database, looking its new Venue
+    and Bands up as the ingest does. Run it against the data branch's database (DATABASE_URL), and push that. An event
+    Steve already lists only adds its ticket link: the List wins. Exits 1 when the page can't be read, isn't a Bay
+    Area event, or a service key the lookups need is missing or rejected.
+    """
+    from app.ingestion.discogs import discogs_key_problem
+    from app.ingestion.lastfm import lastfm_key_problem
+    from app.ingestion.ticketweb import EventError, fetch_event
+    from app.scheduler import ingest_shows
+
+    # The lookups treat a missing key as "nothing found" and mark the Bands looked up, so they'd never be asked again.
+    problems = [p for p in (lastfm_key_problem(), discogs_key_problem()) if p]
+    if problems:
+        sys.exit("add-event: " + "; ".join(problems))
+    try:
+        data = fetch_event(url)
+    except EventError as exc:
+        sys.exit(f"add-event: {exc}")
+    db = SessionLocal()
+    try:
+        (show,) = asyncio.run(ingest_shows(db, [data]))
+        lineup = ", ".join(act.band.name for act in show.acts)
+        where = f"{show.venue.name}, {show.venue.city}"
+        if show.source == data["source"]:
+            print(f"add-event: show {show.id}: {lineup} at {where} on {show.date:%a %b %-d, %Y}")
+        else:
+            print(f"add-event: the List already has it (show {show.id}: {lineup} at {where} on "
+                  f"{show.date:%a %b %-d, %Y}); added its ticket link")
+    finally:
+        db.close()
 
 
 def alerts(dry_run: bool, only: str | None) -> None:
@@ -154,6 +188,8 @@ def main(argv: list[str] | None = None) -> None:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("check", help="say whether Steve's List has changed since the last ingest")
     commands.add_parser("ingest", help="run daily maintenance, then ingest Steve's List")
+    add_cmd = commands.add_parser("add-event", help="add the Show on an event page (TicketWeb) to the database")
+    add_cmd.add_argument("url", help="the event's page, e.g. https://www.ticketweb.com/event/...")
     export_cmd = commands.add_parser("export", help="write the static JSON data files")
     export_cmd.add_argument("--out", required=True, help="directory to write shows/venues/bands/meta.json into")
     alerts_cmd = commands.add_parser("alerts", help="build this week's Alert emails from everyone's Saved Filters")
@@ -186,6 +222,8 @@ def main(argv: list[str] | None = None) -> None:
         check()
     elif args.command == "ingest":
         ingest()
+    elif args.command == "add-event":
+        add_event(args.url)
     elif args.command == "export":
         db = SessionLocal()
         try:

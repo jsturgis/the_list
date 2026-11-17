@@ -63,6 +63,9 @@ class Show(Base):
     benefit_cause: Mapped[Optional[str]] = mapped_column(String(255))
     special_event: Mapped[Optional[str]] = mapped_column(String(255))
     raw_text: Mapped[Optional[str]] = mapped_column(Text)
+    # Where the Show comes from: "list" (Steve's List), or the event page it was added from by hand
+    # (`python -m app.cli add-event`), e.g. "ticketweb". The List wins: once Steve lists it, it's the List's.
+    source: Mapped[str] = mapped_column(String(20), default="list", server_default="list")
     embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
