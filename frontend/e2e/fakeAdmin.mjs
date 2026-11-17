@@ -12,6 +12,9 @@ const job = (changes) => ({
 export const ADMIN_JOBS = [
   job({ id: 'job-4', status: 'running', phase: 'bands', detail: 'Looking up Band 2 of 3: Static Bloom',
         workflow_run_url: 'https://github.com/jsturgis/the_list/actions/runs/1', created_at: '2026-10-01T18:55:00Z' }),
+  job({ id: 'job-5', provider: 'page', url: 'https://www.bandsintown.com/e/1012345-redwood-sirens-at-the-chapel',
+        status: 'failed', phase: 'fetching_page', created_at: '2026-10-01T18:52:00Z',
+        message: "couldn't fetch https://www.bandsintown.com/e/1012345-redwood-sirens-at-the-chapel: Client error '403 Forbidden'. Take a screenshot of the event and add that instead." }),
   job({ id: 'job-3', provider: 'screenshot', url: null, screenshot_path: 'user-1/a.png', status: 'failed',
         phase: 'reading_screenshot', message: 'The Fillmore is in Portland, not a Bay Area city we know',
         extracted: { performers: ['Redwood Sirens'], venue: 'The Fillmore', city: 'Portland', month: 10, day: 9, year: null },

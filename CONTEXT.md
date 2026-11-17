@@ -7,7 +7,7 @@ A weekly SF Bay Area music discovery app that ingests Steve List's curated list 
 ### Core entities
 
 **Show**:
-A single booking at a Venue on a specific date — one or more Acts performing together. The primary unit of discovery. A Show is from the List, or added by hand when the List doesn't have it yet: from a TicketWeb event page (`python -m app.cli add-event`, or an ingest job on the Admin page), or from a screenshot of the event read by a vision model (an ingest job). Its `source` (`list`, `ticketweb`, `screenshot`) says which. The List wins: an event Steve already lists only adds its ticket link to his Show, and an added Show becomes the List's once he lists it.
+A single booking at a Venue on a specific date — one or more Acts performing together. The primary unit of discovery. A Show is from the List, or added by hand when the List doesn't have it yet: from the event's page on TicketWeb or any other site that describes its event as schema.org data (`python -m app.cli add-event`, or an ingest job on the Admin page), or from a screenshot of the event read by a vision model (an ingest job; the way to add one whose site won't let its page be read). Its `source` (`list`, `ticketweb`, `page`, `screenshot`) says which. The List wins: an event Steve already lists only adds its ticket link to his Show, and an added Show becomes the List's once he lists it.
 _Avoid_: Event, listing, gig
 
 **Act**:

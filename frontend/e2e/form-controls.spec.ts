@@ -21,7 +21,7 @@ const STATES: [string, string, (page: Page) => Promise<void>, number][] = [
   ['Admin page', 'admin/', async page => {
     await signedInAsAdmin(page, 'e2e.invalid')
     await page.reload()
-    await expect(page.getByLabel('TicketWeb links')).toBeVisible()
+    await expect(page.getByLabel('Event links')).toBeVisible()
   }, 1],
 ]
 

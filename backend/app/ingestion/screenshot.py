@@ -11,12 +11,14 @@ know, a date that isn't past), and anything it couldn't make out is left empty r
 from __future__ import annotations
 
 import base64
+import io
 import json
 import re
 from datetime import date
 from typing import Callable
 
 import httpx
+from PIL import Image, UnidentifiedImageError
 
 from app.config import settings
 from app.ingestion.parser import clean_band_name
@@ -56,6 +58,11 @@ _PROMPT = """This is a screenshot of one live music event. Read the event's deta
 - sold_out, cancelled: true only when the screenshot says so.
 
 Use null for anything the screenshot doesn't show. Don't guess."""
+# The model sees an image as one token per 28×28 pixels, and a full-screen Retina screenshot (3456×2234) is more tokens
+# than its default context holds (Ollama answers 400, exceed_context_size_error). Larger screenshots are scaled down
+# to this many pixels (about 2,000 tokens), and the context is set to hold them with the prompt and the answer.
+MAX_PIXELS = 1_600_000
+_CONTEXT_TOKENS = 8192
 _AMOUNT_RE = re.compile(r"\$\s?(\d+(?:\.\d{2})?)")
 
 
@@ -68,6 +75,23 @@ class ScreenshotError(EventError):
         self.fields = fields
 
 
+def fit(image: bytes) -> bytes:
+    """The screenshot, scaled down to at most MAX_PIXELS (as a PNG) when it's bigger; as it is otherwise."""
+    try:
+        with Image.open(io.BytesIO(image)) as picture:
+            width, height = picture.size
+            if width * height <= MAX_PIXELS:
+                return image
+            scale = (MAX_PIXELS / (width * height)) ** 0.5
+            smaller = picture.convert("RGB").resize((max(1, int(width * scale)), max(1, int(height * scale))),
+                                                    Image.Resampling.LANCZOS)
+    except (UnidentifiedImageError, OSError) as exc:
+        raise ScreenshotError(f"the screenshot isn't an image that can be read: {exc}") from exc
+    out = io.BytesIO()
+    smaller.save(out, format="PNG")
+    return out.getvalue()
+
+
 def read_fields(image: bytes) -> dict:
     """The event's fields as the vision model reads them from the screenshot (see _SCHEMA)."""
     try:
@@ -75,10 +99,12 @@ def read_fields(image: bytes) -> dict:
             "model": settings.vision_model,
             "stream": False,
             "format": _SCHEMA,
-            "options": {"temperature": 0},
-            "messages": [{"role": "user", "content": _PROMPT, "images": [base64.b64encode(image).decode()]}],
+            "options": {"temperature": 0, "num_ctx": _CONTEXT_TOKENS},
+            "messages": [{"role": "user", "content": _PROMPT, "images": [base64.b64encode(fit(image)).decode()]}],
         })
-        response.raise_for_status()
+        if response.is_error:   # Ollama says why in the body ({"error": ...})
+            raise ScreenshotError(f"couldn't read the screenshot with {settings.vision_model}: "
+                                  f"Ollama answered {response.status_code}: {response.text[:300]}")
         fields = json.loads(response.json()["message"]["content"])
     except (httpx.HTTPError, KeyError, ValueError) as exc:
         raise ScreenshotError(f"couldn't read the screenshot with {settings.vision_model}: {exc}") from exc

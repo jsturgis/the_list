@@ -56,6 +56,11 @@ class EventError(RuntimeError):
     """The page couldn't be fetched, or isn't a TicketWeb event in the Bay Area."""
 
 
+class UnreadablePage(EventError):
+    """The page couldn't be fetched (the site turned the request away), or has no event details on it: a
+    screenshot of the event is the way to add it (app/ingestion/screenshot.py)."""
+
+
 def is_ticketweb_url(url: str) -> bool:
     host = urlsplit(url).hostname or ""
     return host == "ticketweb.com" or host.endswith(".ticketweb.com")
@@ -76,7 +81,7 @@ def fetch_event(url: str) -> dict:
         response = httpx.get(url, headers=_HEADERS, follow_redirects=True, timeout=30.0)
         response.raise_for_status()
     except httpx.HTTPError as exc:
-        raise EventError(f"couldn't fetch {url}: {exc}") from exc
+        raise UnreadablePage(f"couldn't fetch {url}: {exc}") from exc
     return event_show(response.text, url)
 
 
@@ -165,11 +170,13 @@ def _money_range(low: float, high: float) -> str:
     return money(low) if low == high else f"{money(low)}/{money(high)}"
 
 
-def event_show(page: str, url: str) -> dict:
-    """The Show on a TicketWeb event page (its HTML), as a dict for `ingest_shows`."""
+def event_show(page: str, url: str, source: str = SOURCE, provider: str | None = PROVIDER) -> dict:
+    """The Show on a TicketWeb event page (its HTML), as a dict for `ingest_shows`. Another site's page that
+    describes its event the same way (schema.org JSON-LD) is read the same, with its own `source` and `provider`
+    (app/ingestion/event_page.py)."""
     event = _event(page)
     if event is None:
-        raise EventError(f"{url} has no event on it (TicketWeb may have turned the request away)")
+        raise UnreadablePage(f"{url} has no event details on it (the site may have turned the request away)")
     title = _title(event)
     bands = _bands(event, title)
     if not bands:
@@ -199,7 +206,7 @@ def event_show(page: str, url: str) -> dict:
     website = place.get("sameAs")
 
     return {
-        "source": SOURCE,
+        "source": source,
         "date": start.date(),
         "bands": bands,
         "act_notes": [None] * len(bands),
@@ -223,7 +230,7 @@ def event_show(page: str, url: str) -> dict:
         "is_sold_out": any(str(o.get("availability", "")).endswith("SoldOut") for o in offers),
         "is_matinee": bool((door or shown) and (door or shown) < _MATINEE_BEFORE),
         "is_benefit": False,
-        "ticket_provider": PROVIDER,
+        "ticket_provider": provider,
         "ticket_url": event_url(event.get("url") or url),
         "raw_text": f"{title} at {venue_name}" + (f", {city}" if city else ""),
     }

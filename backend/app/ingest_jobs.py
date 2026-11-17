@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.alerts import SupabaseError, _require_supabase
 from app.config import settings
-from app.ingestion.ticketweb import EventError, fetch_event
+from app.ingestion.event_page import EventError, UnreadablePage, fetch_event
 from app.ingestion.upsert import find_venue
 from app.models.show import Show
 
@@ -30,6 +30,8 @@ logger = logging.getLogger(__name__)
 TABLE = "ingest_jobs"
 BUCKET = "ingest-screenshots"
 STATUSES = ("queued", "running", "added", "live", "failed")
+# What a failed link's message ends with when its page couldn't be read: the Admin page offers a screenshot then.
+SCREENSHOT_INSTEAD = "Take a screenshot of the event and add that instead."
 PHASES = ("queued", "dispatched", "fetching_page", "reading_screenshot", "venue", "bands", "photos", "saving",
           "embedding", "committing", "deploying", "live")
 
@@ -38,7 +40,7 @@ PHASES = ("queued", "dispatched", "fetching_page", "reading_screenshot", "venue"
 class Job:
     id: str
     msg_id: int
-    provider: str  # "ticketweb" or "screenshot"
+    provider: str  # "ticketweb" or "page" (a link, app/ingestion/event_page.py), or "screenshot"
     url: str | None
     screenshot_path: str | None
     status: str = "queued"
@@ -132,7 +134,7 @@ def describe(show: Show) -> str:
 
 def read_job(db: Session, job: Job, today: date) -> tuple[dict, dict | None]:
     """The Show a job asks for, as a dict for `ingest_shows`, and for a screenshot what the model read."""
-    if job.provider == "ticketweb":
+    if job.provider in ("ticketweb", "page"):
         update_jobs([job.id], phase="fetching_page", detail=job.url)
         return fetch_event(job.url or ""), None
     if job.provider == "screenshot":
@@ -169,7 +171,8 @@ def run_jobs(db: Session, jobs: list[Job], today: date, run_url: str | None = No
             raise
         except EventError as exc:
             logger.warning("ingest-jobs: job %s: %s", job.id, exc)
-            finish_job(job, "failed", message=str(exc), extracted=getattr(exc, "fields", None) or extracted)
+            message = f"{exc}. {SCREENSHOT_INSTEAD}" if isinstance(exc, UnreadablePage) else str(exc)
+            finish_job(job, "failed", message=message, extracted=getattr(exc, "fields", None) or extracted)
             continue
         except Exception as exc:
             db.rollback()
@@ -178,7 +181,7 @@ def run_jobs(db: Session, jobs: list[Job], today: date, run_url: str | None = No
             continue
         if listed:
             message = f"The List already has it ({describe(show)})" + (
-                "; added its ticket link" if job.provider == "ticketweb" else "; nothing added")
+                "; added its ticket link" if job.provider != "screenshot" else "; nothing added")
         else:
             message = f"Added {describe(show)}"
         print(f"ingest-jobs: job {job.id}: {message}")

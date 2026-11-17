@@ -111,7 +111,7 @@ describe('Admin page, signed in but not an admin', () => {
     render(<AdminPage />)
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/isn.t an admin/)
-    expect(screen.queryByLabelText('TicketWeb links')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Event links')).not.toBeInTheDocument()
     expect(fake.current!.client.from).not.toHaveBeenCalled()
   })
 })
@@ -121,16 +121,50 @@ describe('Admin page, as an admin', () => {
     fake.current!.state.user = ADMIN
   })
 
-  it('checks each link as it is typed', async () => {
+  it('checks each link as it is typed: any site, but only web pages', async () => {
     render(<AdminPage />)
-    fireEvent.change(await screen.findByLabelText('TicketWeb links'), {
-      target: { value: `${URL_1}\nhttps://www.bandsintown.com/e/1\n` },
+    fireEvent.change(await screen.findByLabelText('Event links'), {
+      target: { value: `${URL_1}\nhttps://www.bandsintown.com/e/1\nhttp://localhost:11434/api\n` },
     })
 
     const links = within(screen.getByRole('list', { name: 'Links' })).getAllByRole('listitem')
-    expect(links).toHaveLength(2)
+    expect(links).toHaveLength(3)
     expect(within(links[0]).getByLabelText('Ready')).toBeInTheDocument()
-    expect(links[1]).toHaveTextContent(/screenshot of the event instead/)
+    expect(within(links[1]).getByLabelText('Ready')).toBeInTheDocument()
+    expect(links[2]).toHaveTextContent(/isn.t a public website/)
+  })
+
+  it('takes screenshots dropped on the form, and lights the drop zone while they are dragged over it', async () => {
+    render(<AdminPage />)
+    const zone = (await screen.findByText(/drag screenshots here/i)).closest('#admin-drop-zone')!
+    const shot = new File(['png'], 'dropped.png', { type: 'image/png' })
+    const dataTransfer = { types: ['Files'], files: [shot], dropEffect: 'none' }
+
+    fireEvent.dragOver(zone, { dataTransfer })
+    expect(zone).toHaveAttribute('data-dragging')
+    expect(screen.getByText('Drop to add')).toBeInTheDocument()
+    fireEvent.drop(zone, { dataTransfer })
+
+    expect(zone).not.toHaveAttribute('data-dragging')
+    expect(screen.getByText('dropped.png')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add shows' })).toBeEnabled()
+  })
+
+  it('offers a screenshot instead when a link’s page could not be read', async () => {
+    fake.current!.state.jobs = [
+      job({ provider: 'page', url: 'https://www.bandsintown.com/e/1', status: 'failed', phase: 'fetching_page',
+            message: "couldn't fetch https://www.bandsintown.com/e/1: 403. Take a screenshot of the event and add that instead." }),
+      job({ id: 'job-2', status: 'failed', phase: 'fetching_page', message: 'The Chapel is in Portland, not a Bay Area city we know' }),
+    ]
+    Element.prototype.scrollIntoView = vi.fn()   // not in jsdom
+    render(<AdminPage />)
+
+    expect(await screen.findByText('bandsintown.com')).toBeInTheDocument()
+    const offers = screen.getAllByRole('button', { name: 'Add a screenshot instead' })
+    expect(offers).toHaveLength(1)   // not for the event that can't be added at all
+    fireEvent.click(offers[0])
+    expect(screen.getByRole('button', { name: 'Choose screenshots' })).toHaveFocus()
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalled()
   })
 
   it('adds the valid links and screenshots as the signed-in admin, and lists the new jobs', async () => {
@@ -138,7 +172,7 @@ describe('Admin page, as an admin', () => {
     render(<AdminPage />)
     expect(await screen.findByText(/no jobs yet/i)).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('TicketWeb links'), { target: { value: `${URL_1}\nnot a link` } })
+    fireEvent.change(screen.getByLabelText('Event links'), { target: { value: `${URL_1}\nnot a link` } })
     const shot = new File(['png'], 'event.png', { type: 'image/png' })
     fireEvent.change(screen.getByLabelText('Screenshots'), { target: { files: [shot] } })
     expect(screen.getByText('event.png')).toBeInTheDocument()
@@ -153,7 +187,7 @@ describe('Admin page, as an admin', () => {
     expect((form.getAll('screenshot')[0] as File).name).toBe('event.png')
     // The job is listed; what wasn't sent stays in the box to fix.
     expect(screen.getByRole('link', { name: /wet leg the chapel/i })).toBeInTheDocument()
-    expect(screen.getByLabelText('TicketWeb links')).toHaveValue('not a link')
+    expect(screen.getByLabelText('Event links')).toHaveValue('not a link')
     expect(screen.queryByText('event.png')).not.toBeInTheDocument()
   })
 
