@@ -349,6 +349,23 @@ def test_fetch_calendar_entries_tells_the_llm_today_and_the_shows_it_is_looking_
     assert llm.call_args.kwargs["max_tokens"] >= 4096
 
 
+def test_a_busy_calendar_is_asked_about_in_batches_never_splitting_a_night():
+    """One call for 50 Shows can run out of output tokens and lose the whole answer."""
+    from datetime import timedelta as td
+    wanted = [(NIGHT + td(days=i), f"Band {i}") for i in range(45)] + [(NIGHT + td(days=19), "Late Band")]
+    llm = _llm(SimpleNamespace(entries=[]))
+    with patch("app.ingestion.venue_calendar._get", return_value=_html_response("<p>cal</p>", url=_CALENDAR)), \
+         patch("app.ingestion.venue_calendar.get_enrichment_llm", llm):
+        fetch_calendar_entries(_CALENDAR, today=_TODAY, wanted=wanted)
+
+    prompts = [c.args[0] for c in llm.return_value.with_structured_output.return_value.invoke.call_args_list]
+    assert len(prompts) == 3
+    night = (NIGHT + td(days=19)).isoformat()
+    assert [sum(night in p for p in prompts[:1]), sum(night in p for p in prompts[1:])] == [1, 0]  # both on one call
+    for i in range(45):   # each Show asked about exactly once
+        assert sum(f": Band {i}\n" in p for p in prompts) == 1
+
+
 def test_fetch_calendar_entries_raises_calendar_gone_when_the_page_has_gone():
     with pytest.raises(CalendarGone):
         _read(status=404)
@@ -383,8 +400,10 @@ def test_the_page_is_cut_down_to_its_text_links_images_and_event_data():
     assert '<a href="/shows/1">Redwood Sirens</a>' in cleaned
     assert '<img src="/img/2.jpg" alt="Night Owls">' in cleaned
     assert 'background="/flyers/1.jpg"' in cleaned and 'datetime="2026-11-14"' in cleaned
-    for gone in ("tracking", "color:red", "<path", "onclick", "class=", "<meta"):
+    for gone in ("tracking", "color:red", "<path", "onclick", "class=", "<meta", "<body", "<html", "</div>"):
         assert gone not in cleaned
+    assert '<div background="/flyers/1.jpg">' in cleaned       # a wrapper is kept only for what it carries
+    assert "Shows\n" in cleaned                                 # a block element is a line break
 
 
 # ── enrich_shows_from_venue_calendars: tying it together for one ingestion run ─────────────────────────────────
