@@ -722,6 +722,19 @@ async def test_pipeline_stores_the_photos_of_the_venues_it_ingested(mock_batch, 
     assert images_dir == str(tmp_path)
 
 
+@patch("app.scheduler.fetch_list", return_value=_LIST)
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.enrich_shows_from_venue_calendars", side_effect=RuntimeError("calendar bug"))
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_a_venue_calendar_failure_does_not_fail_the_ingest(mock_batch, mock_calendars, mock_venue, mock_fetch,
+                                                                 db):
+    await _run_ingestion_async(db=db)
+
+    run = db.query(IngestionRun).one()
+    assert run.status == IngestionStatus.success
+    mock_batch.assert_awaited_once()   # the Shows are still embedded and indexed
+
+
 # ── venue calendar matching ────────────────────────────────────────────────────
 
 @patch("app.ingestion.venue_calendar.find_calendar_url",
@@ -744,6 +757,7 @@ async def test_pipeline_matches_a_show_against_its_venues_calendar(mock_batch, m
                                                more_info_url="https://thechapel.com/shows/mdou-moctar")]
     monkeypatch.setattr(settings, "anthropic_api_key", "test-key")
     monkeypatch.setattr("app.ingestion.venue_calendar.local_today", lambda: date(2026, 9, 25))  # the List's Friday
+    monkeypatch.setattr("app.scheduler.local_today", lambda: date(2026, 9, 25))   # so its flyer isn't pruned as past
     monkeypatch.setattr(settings, "images_path", str(tmp_path))
     monkeypatch.setattr(show_flyers, "guarded_client", _photo_client(
         {"https://thechapel.com/flyer.jpg": httpx.Response(200, content=_jpeg_bytes())}))

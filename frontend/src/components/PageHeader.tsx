@@ -32,11 +32,11 @@ export default function PageHeader({ eyebrow, title, aside, asideBesideTitle = f
     </div>
   ) : aside ? (
     <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-      <h1 className="text-3xl text-ink sm:text-4xl">{title}</h1>
+      <h1 className="text-3xl text-ink [overflow-wrap:anywhere] sm:text-4xl">{title}</h1>
       <div className="flex items-center gap-2 text-sm text-ink-muted">{aside}</div>
     </div>
   ) : (
-    <h1 className="text-3xl text-ink sm:text-4xl">{title}</h1>
+    <h1 className="text-3xl text-ink [overflow-wrap:anywhere] sm:text-4xl">{title}</h1>
   )
   return (
     <header className="flex flex-col gap-2">

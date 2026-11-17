@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, wait
+import dataclasses
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from html.parser import HTMLParser
@@ -62,6 +63,7 @@ class ShowLike:
     has_flyer: bool
     has_more_info: bool
     has_ticket: bool
+    acts: tuple[str, ...] = ()  # every Act's Band name, headliner first
 
 
 @dataclass(frozen=True)
@@ -80,21 +82,36 @@ def _match_night(shows: list[ShowLike], entries: list[CalendarEntry]) -> list[tu
 
     One Show and one entry that night are a match outright, title or not -- a Venue rarely doubles up. Anything
     more (an early/late pair, or a calendar listing a second room or a late DJ night that Steve doesn't) is matched
-    by the entry's title against each Show's headliner, the same name normalization app.ingestion.upsert uses to
-    recognise a Band under another spelling. A Show with no entry of its own, or claimed by more than one, is never
+    by the entry's title (`_title_matches`). A Show with no entry of its own, or claimed by more than one, is never
     guessed at.
     """
     if len(shows) == 1 and len(entries) == 1:
         return [(shows[0], entries[0])]
     claims: dict[int, list[CalendarEntry]] = {}
     for entry in entries:
-        if not entry.title:
-            continue
-        key = band_key(entry.title)
-        matches = [show for show in shows if band_key(show.headliner) == key]
+        matches = _title_matches(shows, entry.title)
         if len(matches) == 1:
             claims.setdefault(matches[0].id, []).append(entry)
     return [(show, claims[show.id][0]) for show in shows if len(claims.get(show.id, [])) == 1]
+
+
+def _title_matches(shows: list[ShowLike], title: str | None) -> list[ShowLike]:
+    """The Shows an entry's title names, by the same name normalization app.ingestion.upsert uses to recognise a
+    Band under another spelling, most certain first: the title is the headliner; else it holds the headliner's
+    name as whole words ("Deafheaven w/ Special Guests"); else it holds another Act's ("Touché Amoré, Deafheaven").
+    The first of those that finds any Show decides."""
+    key = band_key(title or "")
+    if not key:
+        return []
+    padded = f"-{key}-"
+
+    def names(show: ShowLike, name: str) -> bool:
+        name_key = band_key(name)
+        return bool(name_key) and f"-{name_key}-" in padded
+
+    return ([s for s in shows if band_key(s.headliner) == key]
+            or [s for s in shows if names(s, s.headliner)]
+            or [s for s in shows if any(names(s, act) for act in s.acts)])
 
 
 def match_calendar(shows: list[ShowLike], entries: list[CalendarEntry]) -> dict[int, CalendarUpdate]:
@@ -505,13 +522,18 @@ def _apply(venue, venue_shows: list, visit: _Visit, now: datetime) -> int:
     # candidate for that night (and vice versa).
     show_likes = [
         ShowLike(id=s.id, date=s.date, headliner=_headliner(s), has_flyer=bool(s.flyer_image_url),
-                 has_more_info=bool(s.more_info_url), has_ticket=bool(s.ticket_url))
+                 has_more_info=bool(s.more_info_url), has_ticket=bool(s.ticket_url),
+                 acts=tuple(a.band.name for a in sorted(s.acts, key=lambda a: a.position)))
         for s in venue_shows
     ]
     by_id = {s.id: s for s in venue_shows}
     matched = 0
     for show_id, update in match_calendar(show_likes, visit.entries).items():
         show = by_id[show_id]
+        if update.flyer_image_url and update.flyer_image_url == show.flyer_gone_url:
+            update = dataclasses.replace(update, flyer_image_url=None)  # it was gone last time it was downloaded
+            if update.is_empty():
+                continue
         show.flyer_image_url = update.flyer_image_url or show.flyer_image_url
         show.more_info_url = update.more_info_url or show.more_info_url
         show.ticket_url = update.ticket_url or show.ticket_url

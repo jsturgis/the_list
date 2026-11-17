@@ -67,6 +67,8 @@ class Show(Base):
     # has none) a ticket link. Never overwrites what the edition already gave the Show.
     flyer_image_url: Mapped[Optional[str]] = mapped_column(String(500))
     more_info_url: Mapped[Optional[str]] = mapped_column(String(500))
+    # A flyer URL that was gone (404/410, or not an image) when downloaded, so it isn't taken from the calendar again.
+    flyer_gone_url: Mapped[Optional[str]] = mapped_column(String(500))
     raw_text: Mapped[Optional[str]] = mapped_column(Text)
     # Where the Show comes from: "list" (Steve's List), or the event page it was added from by hand
     # (`python -m app.cli add-event`), e.g. "ticketweb". The List wins: once Steve lists it, it's the List's.

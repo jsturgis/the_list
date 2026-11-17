@@ -9,8 +9,12 @@ import io
 import httpx
 from PIL import Image
 
-from app.ingestion.show_flyers import MAX_WIDTH, is_stored, save_show_flyer, save_show_flyers
-from app.models.show import Show
+from datetime import date
+
+from app.ingestion.show_flyers import MAX_WIDTH, is_stored, prune_show_flyers, save_show_flyer, save_show_flyers
+
+from app.models.show import Show, ShowStatus
+from app.models.venue import Region, Venue
 
 _RealClient = httpx.Client
 
@@ -106,3 +110,50 @@ def test_an_unexpected_error_for_one_show_does_not_stop_the_others(tmp_path, mon
 
     assert show_flyers.save_show_flyers([bad, ok], tmp_path) == 1
     assert is_stored(ok.flyer_image_url) and bad.flyer_image_url == "https://venue.example/bad.jpg"
+
+
+def test_a_gone_flyer_is_remembered_so_the_calendar_does_not_hand_it_back(tmp_path):
+    url = "https://venue.example/gone.jpg"
+    show = _show(flyer_image_url=url)
+
+    assert save_show_flyer(show, url, tmp_path, _client({})) is False   # 404
+
+    assert (show.flyer_image_url, show.flyer_gone_url) == (None, url)
+
+
+def test_a_flyer_that_fails_for_now_is_not_remembered_as_gone(tmp_path):
+    url = "https://venue.example/busy.jpg"
+    show = _show(flyer_image_url=url)
+
+    save_show_flyer(show, url, tmp_path, _client({url: httpx.Response(503)}))
+
+    assert (show.flyer_image_url, show.flyer_gone_url) == (url, None)
+
+
+def test_pruning_deletes_the_flyers_the_site_no_longer_shows(db, tmp_path):
+    """The export has only Shows from today on that aren't Past (app/export.py), so their flyers are dead weight
+    on the data branch, as is any file no Show points at."""
+    today = date(2026, 11, 17)
+    venue = Venue(name="The Chapel", city="San Francisco", region=Region.sf)
+    db.add(venue)
+    db.flush()
+    folder = tmp_path / "shows"
+    folder.mkdir()
+
+    def show(day, name, status=ShowStatus.upcoming):
+        (folder / name).write_bytes(b"webp")
+        s = Show(date=day, venue_id=venue.id, status=status, flyer_image_url=f"shows/{name}")
+        db.add(s)
+        return s
+
+    upcoming = show(today, "1-a.webp")
+    yesterday = show(date(2026, 11, 16), "2-b.webp")
+    marked_past = show(today, "3-c.webp", status=ShowStatus.past)
+    (folder / "4-orphan.webp").write_bytes(b"webp")
+    db.flush()
+
+    assert prune_show_flyers(db, tmp_path, today) == 3
+
+    assert sorted(p.name for p in folder.iterdir()) == ["1-a.webp"]
+    assert upcoming.flyer_image_url == "shows/1-a.webp"
+    assert yesterday.flyer_image_url is None and marked_past.flyer_image_url is None

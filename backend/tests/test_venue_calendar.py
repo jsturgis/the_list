@@ -84,6 +84,41 @@ def test_a_show_alone_with_one_untitled_entry_that_night_still_matches_by_date()
     assert match_calendar([show], [entry]) == {1: CalendarUpdate(flyer_image_url="https://venue.example/flyer.jpg")}
 
 
+def test_a_title_that_holds_the_headliner_among_other_words_matches_it():
+    """Calendars dress titles up: "Deafheaven w/ Special Guests", "Deafheaven / Touché Amoré"."""
+    early = _show(id=1, headliner="Deafheaven")
+    late = _show(id=2, headliner="Night Owls")
+    entry = CalendarEntry(date=NIGHT, title="Deafheaven w/ Special Guests", flyer_url="https://venue.example/a.jpg")
+
+    assert match_calendar([early, late], [entry]) == {1: CalendarUpdate(flyer_image_url="https://venue.example/a.jpg")}
+
+
+def test_a_title_naming_another_act_on_the_bill_matches_that_show():
+    early = ShowLike(id=1, date=NIGHT, headliner="Touché Amoré", has_flyer=False, has_more_info=False,
+                     has_ticket=False, acts=("Touché Amoré", "Deafheaven"))
+    late = _show(id=2, headliner="Night Owls")
+    entry = CalendarEntry(date=NIGHT, title="Deafheaven (co-headline)", flyer_url="https://venue.example/a.jpg")
+
+    assert match_calendar([early, late], [entry]) == {1: CalendarUpdate(flyer_image_url="https://venue.example/a.jpg")}
+
+
+def test_a_name_only_matches_as_whole_words():
+    """"X" isn't in "Xiu Xiu"'s title as a name, only as letters."""
+    early = _show(id=1, headliner="X")
+    late = _show(id=2, headliner="Night Owls")
+    entry = CalendarEntry(date=NIGHT, title="Xiu Xiu", flyer_url="https://venue.example/a.jpg")
+
+    assert match_calendar([early, late], [entry]) == {}
+
+
+def test_a_title_naming_both_shows_headliners_is_left_unmatched():
+    early = _show(id=1, headliner="Deafheaven")
+    late = _show(id=2, headliner="Night Owls")
+    entry = CalendarEntry(date=NIGHT, title="Deafheaven + Night Owls", flyer_url="https://venue.example/a.jpg")
+
+    assert match_calendar([early, late], [entry]) == {}
+
+
 def test_an_entry_with_no_date_is_never_guessed_at():
     show = _show()
     entry = CalendarEntry(date=None, title="Redwood Sirens", flyer_url="https://venue.example/flyer.jpg")
@@ -379,10 +414,10 @@ def _found_venue(**fields):
 
 
 def _real_show(venue, id=1, day=NIGHT, headliner="Redwood Sirens", flyer_image_url=None, more_info_url=None,
-               ticket_url=None, venue_id=1, created_at=_RECENTLY):
+               ticket_url=None, venue_id=1, created_at=_RECENTLY, flyer_gone_url=None):
     return SimpleNamespace(id=id, venue_id=venue_id, venue=venue, date=day, acts=[_act(headliner)],
                            flyer_image_url=flyer_image_url, more_info_url=more_info_url, ticket_url=ticket_url,
-                           created_at=created_at)
+                           created_at=created_at, flyer_gone_url=flyer_gone_url)
 
 
 def _enrich(shows, **kwargs):
@@ -510,6 +545,19 @@ def test_a_matched_entry_fills_the_real_shows_gaps(mock_fetch):
     assert show.flyer_image_url == "https://venue.example/flyer.jpg"
     assert show.more_info_url == "https://venue.example/shows/1"
     assert show.ticket_url == "https://steves-pick.example/1"  # kept: never overwritten
+
+
+@patch("app.ingestion.venue_calendar.fetch_calendar_entries")
+def test_a_flyer_url_that_was_gone_is_not_taken_again_but_the_rest_of_the_entry_is(mock_fetch):
+    venue = _found_venue()
+    show = _real_show(venue, flyer_gone_url="https://venue.example/dead.jpg")
+    mock_fetch.return_value = [CalendarEntry(date=NIGHT, title="Redwood Sirens", flyer_url="https://venue.example/dead.jpg",
+                                             more_info_url="https://venue.example/shows/1")]
+
+    assert _enrich([show]) == 1
+
+    assert show.flyer_image_url is None
+    assert show.more_info_url == "https://venue.example/shows/1"
 
 
 @patch("app.ingestion.venue_calendar.fetch_calendar_entries", side_effect=CalendarGone("gone"))
