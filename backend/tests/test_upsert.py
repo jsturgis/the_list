@@ -5,7 +5,7 @@ from datetime import date
 
 import pytest
 
-from app.ingestion.upsert import find_venue, region_for_city, upsert_shows
+from app.ingestion.upsert import find_venue, region_for_city, remove_unlisted_shows, upsert_shows
 from app.models.act import Act
 from app.models.band import Band
 from app.models.show import AgeRestriction, Show, ShowStatus
@@ -734,3 +734,45 @@ def test_band_extras_fill_only_empty_fields(db):
     upsert_shows(db, [_show(bands=["Sleep"], date_=date(2026, 9, 26), band_enrichment=[("Sleep", {"image_url": "b.jpg", "is_local": True})])])
     b = db.query(Band).one()
     assert (b.image_url, b.website_url, b.is_local) == ("a.jpg", "https://sleep.com", False)
+
+
+# ── Shows gone from the List ──────────────────────────────────────────────────
+
+@pytest.fixture
+def any_share_unlisted(monkeypatch):
+    """The Lists here are a few listings, so one gone is a big share of them; the real List has hundreds."""
+    monkeypatch.setattr("app.ingestion.upsert._MAX_UNLISTED_SHARE", 1.0)
+
+
+def test_a_copy_the_page_no_longer_lists_is_removed(db, any_share_unlisted):
+    # The old edition misread the headliner and had no time, so the page's listing became a second Show.
+    (old,) = upsert_shows(db, [_show(bands=["Fifteen (Jeff", "John"], door_time=None, date_=date(2027, 1, 28))])
+    listing = _show(bands=["Fifteen", "All Girl Summer Fun Band"], door_time="7pm", date_=date(2027, 1, 28))
+    (current,) = upsert_shows(db, [listing])
+    assert old.id != current.id
+
+    listed = upsert_shows(db, [listing])
+    assert remove_unlisted_shows(db, listed, date(2027, 1, 28)) == [old.id]
+
+    assert [s.id for s in db.query(Show)] == [current.id]
+    assert db.query(Act).filter(Act.show_id == old.id).count() == 0
+
+
+def test_only_the_lists_shows_from_the_pages_first_date_are_removed(db, any_share_unlisted):
+    (earlier,) = upsert_shows(db, [_show(bands=["Past Band"], date_=date(2026, 9, 24))])
+    (event,) = upsert_shows(db, [_show(bands=["Event Band"], venue_name="The Chapel", source="ticketweb")])
+    (gone,) = upsert_shows(db, [_show(bands=["Gone Band"], venue_name="Bottom of the Hill")])
+    listed = upsert_shows(db, [_show(bands=["Listed Band"])])
+
+    assert remove_unlisted_shows(db, listed, date(2026, 9, 25)) == [gone.id]
+    assert {s.id for s in db.query(Show)} == {earlier.id, event.id, listed[0].id}
+
+
+def test_nothing_is_removed_when_too_many_shows_are_off_the_page(db, caplog):
+    stored = upsert_shows(db, [_show(bands=[f"Band {n}"], venue_name=f"Venue {n}") for n in range(10)])
+
+    assert remove_unlisted_shows(db, stored[:8], date(2026, 9, 25)) == []   # 2 of 10 gone: more than a tenth
+    assert db.query(Show).count() == 10
+    assert "aren't on the page" in caplog.text
+
+    assert len(remove_unlisted_shows(db, stored[:9], date(2026, 9, 25))) == 1

@@ -17,6 +17,7 @@ from app.models.show import Show, ShowStatus
 from app.models.venue import Region, Venue
 from app.pipeline.embed import batch_embed_and_index, embed_and_index_band, embed_and_index_show
 from app.clock import local_today
+from app.embeddings.indexer import SHOW_INDEX_PATH
 from app.scheduler import _run_ingestion_async, list_status, run_daily_maintenance
 
 
@@ -216,6 +217,24 @@ async def test_pipeline_idempotent_and_enriches_only_new_venues(mock_batch, mock
     mock_venue.assert_not_called()
     again = db.query(IngestionRun).order_by(IngestionRun.id.desc()).first()
     assert (again.shows_new, again.new_venues) == (0, 0)
+
+
+@patch("app.scheduler.fetch_list")
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.remove_from_index")
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_a_show_gone_from_the_list_is_removed(mock_batch, mock_remove, mock_venue, mock_fetch, db,
+                                                    monkeypatch):
+    monkeypatch.setattr("app.ingestion.upsert._MAX_UNLISTED_SHARE", 1.0)   # one of two Shows is half the List
+    mock_fetch.return_value = _LIST
+    await _run_ingestion_async(db=db)
+    gone = db.query(Show).join(Venue).filter(Venue.name == "the Chapel").one()
+
+    mock_fetch.return_value = _list(_LISTINGS[0])
+    await _run_ingestion_async(db=db)
+
+    assert [s.venue.name for s in db.query(Show)] == ["Bottom of the Hill"]
+    mock_remove.assert_called_once_with(SHOW_INDEX_PATH, [gone.id])
 
 
 def _places(name, city, street=None, use_llm=True):

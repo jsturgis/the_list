@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """Persist enriched show dicts to the database (idempotent)."""
 import difflib
+import logging
 import re
 from datetime import date, datetime, time
 from urllib.parse import urlparse
@@ -13,6 +14,8 @@ from app.models.act import Act
 from app.models.band import Band
 from app.models.show import AgeRestriction, Show, ShowStatus
 from app.models.venue import Region, Venue
+
+logger = logging.getLogger(__name__)
 
 _DJ_RE = re.compile(r"^dj\s+", re.IGNORECASE)
 _B2B_RE = re.compile(r"\s+b2b\s+", re.IGNORECASE)
@@ -527,3 +530,31 @@ def upsert_shows(db: Session, enriched_shows: list[dict]) -> list[Show]:
             _upsert_acts(db, show, data)
         results.append(show)
     return results
+
+
+# More than this share of the List's stored Shows gone from one page isn't Steve's corrections: a page that has
+# changed shape, or listings this code no longer reads. Nothing is removed then.
+_MAX_UNLISTED_SHARE = 0.1
+
+
+def remove_unlisted_shows(db: Session, listed: list[Show], since: date) -> list[int]:
+    """Delete the List's Shows on or after `since` (the page's first date) that none of its listings is, now that
+    `listed` (what upsert_shows returned for the whole page) are. Returns their ids.
+
+    Steve's page lists every upcoming Show, so a stored one it doesn't list is gone from it: a copy kept when a
+    listing changed in a way upsert_shows couldn't follow (a time added before a Show could take one; a headliner
+    the old edition misread), a Show moved to another Venue or day, or one Steve took down. Shows from elsewhere
+    (an event page, a Venue's calendar) aren't the List's to remove. When too many would go (see
+    _MAX_UNLISTED_SHARE), none are.
+    """
+    listed_ids = {show.id for show in listed}
+    stored = db.query(Show).filter(Show.date >= since, Show.source == "list").all()
+    unlisted = [show for show in stored if show.id not in listed_ids]
+    if len(unlisted) > _MAX_UNLISTED_SHARE * len(stored):
+        logger.warning("ingestion: %d of the %d stored Shows from %s on aren't on the page; kept them all",
+                       len(unlisted), len(stored), since)
+        return []
+    for show in unlisted:
+        db.delete(show)
+    db.flush()
+    return [show.id for show in unlisted]
