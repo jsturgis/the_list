@@ -27,8 +27,10 @@ from app.ingestion.ingest_stats import new_band_stats
 from app.ingestion.joint_bands import joint_parts, split_joint_acts, split_joint_name
 from app.ingestion.lastfm import lastfm_tags
 from app.ingestion.links import check_links
+from app.ingestion.show_flyers import prune_show_flyers, save_show_flyers
 from app.ingestion.steve_list import ListPage, edition_title, fetch_list, list_shows
 from app.ingestion.upsert import find_venue, known_region, upsert_shows
+from app.ingestion.venue_calendar import enrich_shows_from_venue_calendars
 from app.ingestion.venue_check import CONFIRMED, NOT_CHECKED, check_venue, checked_details
 from app.ingestion.venue_photos import save_venue_photos
 from app.ingestion.wikimedia import commons_photo
@@ -291,6 +293,19 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
     db.commit()
     logger.info("ingestion: %s new bands; %s%% without a photo", band_stats["new_bands"],
                 band_stats["new_bands_without_photo_pct"])
+
+    # Each Show's own Venue calendar, when it has one: a flyer, a more-info link, and (when the List has none) a
+    # ticket link. Never overwrites what the List gave the Show. Never worth failing the ingest over.
+    try:
+        matched = await loop.run_in_executor(None, enrich_shows_from_venue_calendars, shows)
+        stored_flyers = await loop.run_in_executor(None, save_show_flyers, shows, settings.images_path)
+        pruned = prune_show_flyers(db, settings.images_path, local_today())
+        db.commit()
+        logger.info("ingestion: matched %d shows against their venue's calendar; saved %d flyers, deleted %d",
+                    matched, stored_flyers, pruned)
+    except Exception:
+        db.rollback()
+        logger.warning("ingestion: venue calendars skipped this run", exc_info=True)
 
     logger.info("ingestion: embedding and indexing")
     await batch_embed_and_index(db, shows)

@@ -34,6 +34,15 @@ def no_genre_model():
         yield ask
 
 
+@pytest.fixture(autouse=True)
+def no_venue_calendars():
+    """Finding and reading a Venue's calendar goes over the network and the LLM; tests answer "nothing found"
+    for both unless they say otherwise, so ingestion tests never make a real request to a Venue's real website."""
+    with patch("app.ingestion.venue_calendar.find_calendar_url", return_value=None) as find, \
+         patch("app.ingestion.venue_calendar.fetch_calendar_entries", return_value=[]) as fetch:
+        yield find, fetch
+
+
 @pytest.fixture
 def db():
     session = _TestingSession()

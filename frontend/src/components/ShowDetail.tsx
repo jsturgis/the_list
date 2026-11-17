@@ -1,6 +1,7 @@
 import type { Show } from '@/lib/types'
 import { formatTime, formatPrice, formatDateLongYear, mapsHref, ticketProviderLabel } from '@/lib/format'
-import { ArrowDownTrayIcon, BanknotesIcon, CalendarDaysIcon, ClockIcon, GlobeAltIcon, MapPinIcon, SparklesIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
+import { ArrowDownTrayIcon, BanknotesIcon, CalendarDaysIcon, ClockIcon, GlobeAltIcon, InformationCircleIcon, MapPinIcon, SparklesIcon, TicketIcon, UserIcon } from '@heroicons/react/20/solid'
+import { href } from '@/lib/basePath'
 import { googleCalendarUrl, icsFilename, icsHref } from '@/lib/calendar'
 import ActionLinks, { ActionLink } from './ActionLinks'
 import BandLink from './BandLink'
@@ -45,6 +46,14 @@ export default function ShowDetail({ show }: ShowDetailProps) {
   const ticketsLabel = provider ? `Tickets via ${provider}` : 'Tickets'
   const acts = show.acts.slice().sort((a, b) => a.position - b.position)
   const upcoming = show.status === 'upcoming'
+  // The Venue's own flyer for the Show (DESIGN.md, "Show flyer"), beside the header, linking to the Venue's page for it.
+  const flyer = show.flyerImageUrl ? (
+    <img src={href(show.flyerImageUrl)}
+         alt={`Flyer for ${acts[0]?.band.name ?? 'this show'}`} data-testid="show-flyer"
+         className="block h-auto max-h-48 w-24 rounded-md object-contain sm:max-h-64 sm:w-40" />
+  ) : null
+  // The flyer is the link to the Venue's page when there is one; without a flyer, a small icon by the date is.
+  const moreInfoIcon = Boolean(show.moreInfoUrl) && !flyer
 
   return (
     <article className="flex flex-col gap-6">
@@ -59,28 +68,48 @@ export default function ShowDetail({ show }: ShowDetailProps) {
         </div>
       )}
 
-      <PageHeader
-        eyebrow={show.status === 'cancelled' || show.status === 'postponed' ? <StatusBadge status={show.status} size="detail" /> : undefined}
-        aside={
-          <>
-            <span>{formatDateLongYear(show.date)}</span>
-            {upcoming && (
-              <span className="flex items-center">
-                <a href={icsHref(show.id)} download={icsFilename(show)} aria-label="Add to calendar (.ics)" title="Add to calendar (.ics)"
-                   className="rounded-full p-1 hover:bg-muted hover:text-link">
-                  <ArrowDownTrayIcon className="size-4" />
-                </a>
-                <a href={googleCalendarUrl(show)} target="_blank" rel="noopener noreferrer" aria-label="Add to Google Calendar"
-                   title="Add to Google Calendar" className="rounded-full p-1 hover:bg-muted hover:text-link">
-                  <CalendarDaysIcon className="size-4" />
-                </a>
-              </span>
-            )}
-          </>
-        }
-        title={acts[0]?.band.name ?? 'Unknown'}
-        subtitle={<>at <VenueLink slug={show.venue.slug} className="text-link underline underline-offset-2">{show.venue.name}</VenueLink> · {show.venue.city}</>}
-      />
+      <div className="flex items-start gap-4 sm:gap-6">
+        <div className="min-w-0 flex-1">
+          <PageHeader
+            eyebrow={show.status === 'cancelled' || show.status === 'postponed' ? <StatusBadge status={show.status} size="detail" /> : undefined}
+            aside={
+              <>
+                <span>{formatDateLongYear(show.date)}</span>
+                {(upcoming || moreInfoIcon) && (
+                  <span className="flex items-center">
+                    {upcoming && (
+                      <>
+                        <a href={icsHref(show.id)} download={icsFilename(show)} aria-label="Add to calendar (.ics)" title="Add to calendar (.ics)"
+                           className="rounded-full p-1 hover:bg-muted hover:text-link">
+                          <ArrowDownTrayIcon className="size-4" />
+                        </a>
+                        <a href={googleCalendarUrl(show)} target="_blank" rel="noopener noreferrer" aria-label="Add to Google Calendar"
+                           title="Add to Google Calendar" className="rounded-full p-1 hover:bg-muted hover:text-link">
+                          <CalendarDaysIcon className="size-4" />
+                        </a>
+                      </>
+                    )}
+                    {moreInfoIcon && (
+                      <a href={show.moreInfoUrl ?? undefined} target="_blank" rel="noopener noreferrer" aria-label="More info" title="More info"
+                         className="rounded-full p-1 hover:bg-muted hover:text-link">
+                        <InformationCircleIcon className="size-4" />
+                      </a>
+                    )}
+                  </span>
+                )}
+              </>
+            }
+            title={acts[0]?.band.name ?? 'Unknown'}
+            subtitle={<>at <VenueLink slug={show.venue.slug} className="text-link underline underline-offset-2">{show.venue.name}</VenueLink> · {show.venue.city}</>}
+          />
+        </div>
+        {flyer && (show.moreInfoUrl ? (
+          <a href={show.moreInfoUrl} target="_blank" rel="noopener noreferrer" aria-label={`Flyer: see this show on ${show.venue.name}'s site`}
+             title={`See this show on ${show.venue.name}'s site`} className="shrink-0 rounded-md hover:opacity-90">
+            {flyer}
+          </a>
+        ) : <div className="shrink-0">{flyer}</div>)}
+      </div>
 
       <div className="flex flex-col gap-4 rounded-lg bg-surface p-5">
         <FactList facts={[

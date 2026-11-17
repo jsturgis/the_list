@@ -62,6 +62,13 @@ class Show(Base):
     is_benefit: Mapped[bool] = mapped_column(Boolean, default=False)
     benefit_cause: Mapped[Optional[str]] = mapped_column(String(255))
     special_event: Mapped[Optional[str]] = mapped_column(String(255))
+    # From the Venue's own calendar (app/ingestion/venue_calendar.py): a stored path (as Band.image_url) or a
+    # remote URL not yet downloaded, a link to the Show's own page on the Venue's site, and (when Steve's edition
+    # has none) a ticket link. Never overwrites what the edition already gave the Show.
+    flyer_image_url: Mapped[Optional[str]] = mapped_column(String(500))
+    more_info_url: Mapped[Optional[str]] = mapped_column(String(500))
+    # A flyer URL that was gone (404/410, or not an image) when downloaded, so it isn't taken from the calendar again.
+    flyer_gone_url: Mapped[Optional[str]] = mapped_column(String(500))
     raw_text: Mapped[Optional[str]] = mapped_column(Text)
     # Where the Show comes from: "list" (Steve's List), or the event page it was added from by hand
     # (`python -m app.cli add-event`), e.g. "ticketweb". The List wins: once Steve lists it, it's the List's.

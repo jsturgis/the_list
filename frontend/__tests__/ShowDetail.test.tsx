@@ -1,7 +1,9 @@
 import { render, screen } from '@testing-library/react'
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import ShowDetail from '@/components/ShowDetail'
 import { makeShow, makeVenue, makeBand } from './fixtures'
+
+afterEach(() => { vi.unstubAllEnvs() })
 
 describe('ShowDetail', () => {
   const show = makeShow({
@@ -155,6 +157,48 @@ describe('ShowDetail', () => {
   it('shows the special event when known', () => {
     render(<ShowDetail show={makeShow({ specialEvent: 'Hardly Strictly Bluegrass' })} />)
     expect(screen.getByText('Hardly Strictly Bluegrass')).toBeInTheDocument()
+  })
+
+  it("shows the venue's flyer beside the header, linking to the venue's page for the show", () => {
+    vi.stubEnv('BASE_URL', '/the_list/')
+    render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp', moreInfoUrl: 'https://venue.example/shows/1' })} />)
+    const link = screen.getByRole('link', { name: /Flyer: see this show on/ })
+    expect(link).toHaveAttribute('href', 'https://venue.example/shows/1')
+    expect(link).toHaveAttribute('target', '_blank')
+    // Under the base path the site is served from, like a Band's photo, or it 404s on GitHub Pages.
+    expect(screen.getByTestId('show-flyer')).toHaveAttribute('src', '/the_list/images/shows/1-abc.webp')
+  })
+
+  it('shows the flyer without a link when there is no page for the show on the venue site', () => {
+    render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp', moreInfoUrl: null })} />)
+    expect(screen.getByTestId('show-flyer').closest('a')).toBeNull()
+  })
+
+  it('has no flyer when there is none', () => {
+    render(<ShowDetail show={show} />)
+    expect(screen.queryByTestId('show-flyer')).not.toBeInTheDocument()
+  })
+
+  it('shows a More Info icon linking to the venue calendar entry when there is no flyer', () => {
+    render(<ShowDetail show={makeShow({ flyerImageUrl: null, moreInfoUrl: 'https://venue.example/shows/1' })} />)
+    const link = screen.getByRole('link', { name: 'More info' })
+    expect(link).toHaveAttribute('href', 'https://venue.example/shows/1')
+    expect(link).toHaveAttribute('target', '_blank')
+  })
+
+  it('has no More Info icon when the flyer already links there', () => {
+    render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp', moreInfoUrl: 'https://venue.example/shows/1' })} />)
+    expect(screen.queryByRole('link', { name: 'More info' })).not.toBeInTheDocument()
+  })
+
+  it('has no More Info icon when there is no more-info URL', () => {
+    render(<ShowDetail show={makeShow({ moreInfoUrl: null })} />)
+    expect(screen.queryByRole('link', { name: 'More info' })).not.toBeInTheDocument()
+  })
+
+  it('Tickets stays the only action when there is also a flyer and more-info link', () => {
+    render(<ShowDetail show={makeShow({ ticketUrl: 'https://tix.example/1', flyerImageUrl: '/images/shows/1-abc.webp', moreInfoUrl: 'https://venue.example/shows/1' })} />)
+    expect(screen.getByRole('link', { name: 'Tickets' })).toHaveClass('bg-accent')
   })
 
   it('lists where tickets are sold among the key facts, by name', () => {

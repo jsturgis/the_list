@@ -112,8 +112,8 @@ unless given `--apply`.
 - **A tag that isn't a genre** (or one wrongly dropped): edit its row in the `genre_tags` table (`is_genre`, and
   `decided_by = 'hand'`), then run the backfill with `--recheck-genres`.
 - **A Venue's details** (address, coordinates, description): the `refreshVenueEnrichment` GraphQL mutation on the
-  local API looks one Venue up again (`venueId`), or every Venue without one, overwriting what's stored. It's the
-  only job that uses `ANTHROPIC_API_KEY`, to tidy the name and write the description.
+  local API looks one Venue up again (`venueId`), or every Venue without one, overwriting what's stored. It uses
+  `ANTHROPIC_API_KEY` to tidy the name and write the description (the ingest uses it too, for Venues' calendars).
 - **The same Band stored twice** under different spellings: `python -m app.ingestion.dedupe_bands`. Then
   `python -m app.ingestion.index_stored_vectors`, which adds any stored vector the FAISS indexes are missing, so
   the kept Band still comes up as a Similar Band.

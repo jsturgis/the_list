@@ -184,11 +184,14 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
   icon and a `text-xs ink-muted` label, over a `text-base font-semibold ink` value (Doors, Price, Ages).
 - **Actions (`ActionLinks`):** a wrapping row of pill links, 14px bold: primary (`bg-accent text-on-accent`, at
   most one: Tickets), or secondary (outline `line-strong`, `ink`). External ones carry an
-  outward-arrow icon. A Band's listening links sit in the same row as logo buttons (below).
+  outward-arrow icon. A Band's listening links sit in the same row as logo buttons (below). A Show has no
+  separate More Info action: its flyer links there, or without one a small icon beside the date (see "Show
+  flyer" below).
 - **Detail pages (Show, Venue, Band):** in order: Back, `PageHeader`, key facts, actions, then `Section`s. A Show
   has Lineup, Venue and Notes; a Venue has Details, Upcoming Shows and About; a Band has Upcoming Shows, Members, Social
   and Similar Bands. Upcoming Shows on Venue and Band pages are one panel of Show list items, each with its compact
-  date, with no date headings.
+  date, with no date headings. A Show's flyer, when the Venue's own calendar had one, sits beside its `PageHeader`
+  (see "Show flyer" below).
 - **Loading (`Ghost`):** anything waiting on Supabase (who's signed in, their alerts and weekly email setting, an
   unsubscribe) shows ghost placeholders: `line`-coloured bars in the shape of the content to come, pulsing
   (`motion-safe:animate-pulse`, so still for reduced motion). Headings that are already known stay real. Ghosts are
@@ -209,6 +212,14 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
   whose `<figcaption>` credits it, as its licence requires: "Photo: <author>, <licence>, via Wikimedia Commons" in
   `text-xs ink-muted`, with the licence and "Wikimedia Commons" (the photo's page) as running-text links. A photo
   from Discogs reads "Photo via Discogs", linking the artist's Discogs page. The edition's photos have no credit.
+- **Show flyer:** when the Venue's own calendar had one (`backend/app/ingestion/venue_calendar.py`), the flyer
+  sits at the right of the Show's `PageHeader`, top-aligned with it, at its own aspect ratio: 96px wide and at
+  most 192px tall on phones, 160px by 256px from `sm` (`object-contain`, `rounded-md`), with the header taking the
+  rest of the row. It's the site's own copy, served under the base path, like a Band's photo. When the entry also
+  gave the Venue's page for the Show, the flyer links there (new tab, named "Flyer: see this show on <Venue>'s
+  site"); otherwise it's just the image, with alt "Flyer for <headliner>". A Show with a more-info link but no
+  flyer gets a small icon (`InformationCircleIcon`) beside the date in `PageHeader`'s aside instead, alongside
+  the "add to calendar" icons. The rest of the page is unchanged by a flyer: no backdrop, no tint.
 - **Venue photo:** at the top of a Venue page, above its name at every width: full column width, at most 288px
   tall (`max-h-72`, `object-cover`), 8px radius, with the Venue's name as its alt text. The site's own copy (≤800px
   WebP, saved at ingest), never hot-linked: a Venue whose photo isn't stored yet has none. A photo from Wikimedia

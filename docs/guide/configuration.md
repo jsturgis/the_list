@@ -68,7 +68,7 @@ The `notify-success` and `notify-failure` commands email the maintainer how the 
 |---|---|---|
 | `DATA_RETENTION_DAYS` | `90` | Shows older than this are hard-deleted |
 | `TIMEZONE` | `America/Los_Angeles` | Timezone for "today" and Upcoming vs Past |
-| `ANTHROPIC_API_KEY` | (none) | Only for refreshing a Venue's details by hand (LLM name clean-up and Wikipedia descriptions; see [How ingestion works](ingestion.md#fixing-data-by-hand)); ingestion makes no LLM calls |
+| `ANTHROPIC_API_KEY` | (none) | Reading Venues' own calendars at ingest (flyers and more-info links; skipped without it), and refreshing a Venue's details by hand (LLM name clean-up and Wikipedia descriptions; see [How ingestion works](ingestion.md#fixing-data-by-hand)) |
 
 The site's build has its own settings (`PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY`, `PAGES_BASE_PATH`,
 `PAGES_SITE_URL`, `SITE_DATA_DIR`): see the

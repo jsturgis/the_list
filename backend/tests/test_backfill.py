@@ -12,7 +12,7 @@ from PIL import Image
 from app.clock import local_today
 from app.ingestion import backfill
 from app.ingestion import band_corrections
-from app.ingestion.backfill import pending_bands, recheck_genres, recheck_photos, redo_bands, run_backfill
+from app.ingestion.backfill import pending_bands, recheck_calendars, recheck_genres, recheck_photos, redo_bands, run_backfill
 from app.ingestion.band_corrections import BandCorrection
 from app.ingestion.band_photos import is_stored
 from app.ingestion.bandcamp import BandcampPhoto, BandcampUnavailable, bandcamp_credit
@@ -306,6 +306,20 @@ def test_recheck_photos_marks_bands_with_a_bandcamp_page_and_no_service_photo(db
     db.expire_all()
     assert (edition_photo.enriched_at, no_photo.enriched_at) == (None, None)
     assert (commons.enriched_at, no_page.enriched_at) == (looked_up, looked_up)
+
+
+def test_recheck_calendars_marks_every_checked_venue_to_look_again(db):
+    checked = Venue(name="Neck of the Woods", city="San Francisco", region=Region.sf,
+                    calendar_url="https://venue.example/shows/", calendar_checked_at=datetime(2026, 10, 1))
+    never_checked = Venue(name="924 Gilman", city="Berkeley", region=Region.east_bay)
+    db.add_all([checked, never_checked])
+    db.commit()
+
+    assert recheck_calendars(db) == 1
+
+    db.expire_all()
+    assert checked.calendar_checked_at is None
+    assert never_checked.calendar_checked_at is None
 
 
 def test_recheck_marks_bands_with_tags_that_arent_genres(db, no_genre_model):

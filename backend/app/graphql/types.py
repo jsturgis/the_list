@@ -116,6 +116,8 @@ class ShowType:
     is_benefit: bool
     benefit_cause: str | None
     special_event: str | None
+    flyer_image_url: str | None
+    more_info_url: str | None
 
 
 @strawberry.type
