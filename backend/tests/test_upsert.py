@@ -529,9 +529,11 @@ def test_a_headliner_listed_twice_within_two_hours_is_one_show(db):
     assert (str(show.door_time), str(show.set_time), show.price_min) == ("19:00:00", "20:00:00", 71.0)
 
 
-def test_listings_exactly_two_hours_apart_are_one_show(db):
-    upsert_shows(db, [_show(bands=["Snarky Puppy"], door_time="7pm"), _show(bands=["Snarky Puppy"], door_time="9pm")])
-    assert db.query(Show).count() == 1
+def test_listings_two_hours_apart_are_an_early_and_a_late_show(db):
+    upsert_shows(db, [_show(bands=["Snarky Puppy"], door_time="7pm"), _show(bands=["Snarky Puppy"], door_time="9pm"),
+                      _show(bands=["Snarky Puppy"], door_time="8:59pm", date_=date(2026, 9, 26)),
+                      _show(bands=["Snarky Puppy"], door_time="7pm", date_=date(2026, 9, 26))])
+    assert sorted(str(s.door_time) for s in db.query(Show)) == ["19:00:00", "19:00:00", "21:00:00"]
 
 
 def test_a_headliner_listed_within_two_hours_at_another_venue_or_on_another_day_is_another_show(db):
