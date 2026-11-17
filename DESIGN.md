@@ -215,9 +215,11 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
 - **Show flyer:** when the Venue's own calendar had one (`backend/app/ingestion/venue_calendar.py`), the flyer
   sits at the right of the Show's `PageHeader`, top-aligned with it, at its own aspect ratio: 96px wide and at
   most 192px tall on phones, 160px by 256px from `sm` (`object-contain`, `rounded-md`), with the header taking the
-  rest of the row. It's the site's own copy, served under the base path, like a Band's photo. When the entry also
-  gave the Venue's page for the Show, the flyer links there (new tab, named "Flyer: see this show on <Venue>'s
-  site"); otherwise it's just the image, with alt "Flyer for <headliner>". A Show with a more-info link but no
+  rest of the row. It's the site's own copy, served under the base path, like a Band's photo. The flyer links to the
+  Venue's page for the Show when the calendar gave one (new tab, named "Flyer: See this show on <Venue>'s site"),
+  else to the Show's tickets, since many Venues only link out to a ticket seller ("Flyer: Tickets via <seller>",
+  or "Flyer: Tickets", the same words as the Tickets button); with neither it's just the image, alt "Flyer for
+  <headliner>". A Show with a more-info link but no
   flyer gets a small icon (`InformationCircleIcon`) beside the date in `PageHeader`'s aside instead, alongside
   the "add to calendar" icons. The rest of the page is unchanged by a flyer: no backdrop, no tint.
 - **Venue photo:** at the top of a Venue page, above its name at every width: full column width, at most 288px

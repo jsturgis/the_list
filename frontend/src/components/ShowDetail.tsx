@@ -52,8 +52,14 @@ export default function ShowDetail({ show }: ShowDetailProps) {
          alt={`Flyer for ${acts[0]?.band.name ?? 'this show'}`} data-testid="show-flyer"
          className="block h-auto max-h-48 w-24 rounded-md object-contain sm:max-h-64 sm:w-40" />
   ) : null
-  // The flyer is the link to the Venue's page when there is one; without a flyer, a small icon by the date is.
+  // The flyer is the link to the Venue's page for the Show when there is one, else to its tickets (many Venues
+  // only link out to a ticket seller); without a flyer, a small icon by the date links to the Venue's page.
   const moreInfoIcon = Boolean(show.moreInfoUrl) && !flyer
+  const flyerLink = show.moreInfoUrl
+    ? { href: show.moreInfoUrl, label: `See this show on ${show.venue.name}'s site` }
+    : show.ticketUrl
+      ? { href: show.ticketUrl, label: provider ? `Tickets via ${provider}` : 'Tickets' }
+      : null
 
   return (
     <article className="flex flex-col gap-6">
@@ -103,9 +109,9 @@ export default function ShowDetail({ show }: ShowDetailProps) {
             subtitle={<>at <VenueLink slug={show.venue.slug} className="text-link underline underline-offset-2">{show.venue.name}</VenueLink> · {show.venue.city}</>}
           />
         </div>
-        {flyer && (show.moreInfoUrl ? (
-          <a href={show.moreInfoUrl} target="_blank" rel="noopener noreferrer" aria-label={`Flyer: see this show on ${show.venue.name}'s site`}
-             title={`See this show on ${show.venue.name}'s site`} className="shrink-0 rounded-md hover:opacity-90">
+        {flyer && (flyerLink ? (
+          <a href={flyerLink.href} target="_blank" rel="noopener noreferrer" aria-label={`Flyer: ${flyerLink.label}`}
+             title={flyerLink.label} className="shrink-0 rounded-md hover:opacity-90">
             {flyer}
           </a>
         ) : <div className="shrink-0">{flyer}</div>)}

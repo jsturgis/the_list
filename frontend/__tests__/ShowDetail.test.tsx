@@ -162,15 +162,35 @@ describe('ShowDetail', () => {
   it("shows the venue's flyer beside the header, linking to the venue's page for the show", () => {
     vi.stubEnv('BASE_URL', '/the_list/')
     render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp', moreInfoUrl: 'https://venue.example/shows/1' })} />)
-    const link = screen.getByRole('link', { name: /Flyer: see this show on/ })
+    const link = screen.getByRole('link', { name: /Flyer: See this show on/ })
     expect(link).toHaveAttribute('href', 'https://venue.example/shows/1')
     expect(link).toHaveAttribute('target', '_blank')
     // Under the base path the site is served from, like a Band's photo, or it 404s on GitHub Pages.
     expect(screen.getByTestId('show-flyer')).toHaveAttribute('src', '/the_list/images/shows/1-abc.webp')
   })
 
-  it('shows the flyer without a link when there is no page for the show on the venue site', () => {
-    render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp', moreInfoUrl: null })} />)
+  it("links the flyer to the show's tickets when the venue site has no page for it", () => {
+    render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp', moreInfoUrl: null,
+                                        ticketUrl: 'https://www.ticketmaster.com/event/1' })} />)
+    const link = screen.getByRole('link', { name: 'Flyer: Tickets' })
+    expect(link).toHaveAttribute('href', 'https://www.ticketmaster.com/event/1')
+    expect(link).toHaveAttribute('target', '_blank')
+  })
+
+  it("names the ticket seller on the flyer's link when it's known", () => {
+    render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp', moreInfoUrl: null,
+                                        ticketUrl: 'https://www.ticketweb.com/event/1', ticketProvider: 'ticketweb' })} />)
+    expect(screen.getByRole('link', { name: 'Flyer: Tickets via TicketWeb' })).toBeInTheDocument()
+  })
+
+  it("prefers the venue's page for the show over its tickets", () => {
+    render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp', moreInfoUrl: 'https://venue.example/shows/1',
+                                        ticketUrl: 'https://www.ticketmaster.com/event/1' })} />)
+    expect(screen.getByTestId('show-flyer').closest('a')).toHaveAttribute('href', 'https://venue.example/shows/1')
+  })
+
+  it('shows the flyer without a link when there is neither a page for the show nor tickets', () => {
+    render(<ShowDetail show={makeShow({ flyerImageUrl: '/images/shows/1-abc.webp', moreInfoUrl: null, ticketUrl: null })} />)
     expect(screen.getByTestId('show-flyer').closest('a')).toBeNull()
   })
 
