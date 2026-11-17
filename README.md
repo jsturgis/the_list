@@ -42,6 +42,14 @@ cd frontend && npm ci && npm run dev    # http://localhost:3000/the_list/
 
 See [Local setup](docs/guide/local-setup.md) for the details.
 
+To add a Show the List doesn't have from its TicketWeb page to the published data (the data branch, through the
+`../the_list-data` worktree), with `LASTFM_API_KEY`, `DISCOGS_CONSUMER_KEY` and `DISCOGS_CONSUMER_SECRET` in
+`backend/.env`:
+
+```bash
+scripts/add-event.sh --deploy 'https://www.ticketweb.com/event/...'   # add, push, and republish the site
+```
+
 ## Tests
 
 ```bash
