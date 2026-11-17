@@ -8,7 +8,7 @@ import type { ExportBand, ExportShow, ExportVenue } from '@/lib/types'
 const venue = (id: number, name: string): ExportVenue => ({
   id, name, slug: name.toLowerCase(), address: null, city: 'San Francisco', region: 'sf', websiteUrl: null, latitude: null, longitude: null,
   timezone: null, phone: null, googleRating: null, googlePlaceId: null, description: null, wikipediaUrl: null,
-  neighborhood: null, venueType: null, nearestTransit: null, instagram: null, imageUrl: null,
+  neighborhood: null, venueType: null, nearestTransit: null, instagram: null, imageUrl: null, imageCredit: null,
   defaultAgeRestriction: null, isSoberSpace: null, isCashOnly: null, membershipRequired: null,
 })
 const band = (id: number, similar: number[] = []): ExportBand => ({

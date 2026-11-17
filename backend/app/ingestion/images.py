@@ -21,7 +21,7 @@ _THUMB_WIDTH = 960
 _BATCH = 50  # the API's limit on titles per request
 
 
-def _wikimedia_title(url: str) -> str | None:
+def wikimedia_file_title(url: str) -> str | None:
     """'File:Name.jpg' for an upload.wikimedia.org URL (original or thumbnail), else None."""
     parsed = urlparse(url)
     if not parsed.netloc.endswith("wikimedia.org"):
@@ -66,7 +66,7 @@ def check_image_urls(urls: Iterable[str], client: httpx.Client | None = None) ->
     own_client = client is None
     client = client or httpx.Client(timeout=20, headers={"User-Agent": _USER_AGENT})
     try:
-        titles = {url: _wikimedia_title(url) for url in urls}
+        titles = {url: wikimedia_file_title(url) for url in urls}
         resolved = _resolve_wikimedia(client, sorted({t for t in titles.values() if t}))
         result = {url: resolved.get(title) if title else (url if _loads_as_image(client, url) else None)
                   for url, title in titles.items()}

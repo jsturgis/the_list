@@ -1,7 +1,8 @@
 """Shared download → resize → store pipeline for images kept with the data (Band photos, app/ingestion/band_photos.py;
-Show flyers, app/ingestion/show_flyers.py): downloaded at ingest, resized, re-encoded as WebP, and saved in the
-images folder on the data branch, hash-named so a changed image gets a new name and caches never show a stale one.
-A replaced image's old file is deleted. The site serves these from the images folder rather than hot-linking.
+Venue photos, app/ingestion/venue_photos.py; Show flyers, app/ingestion/show_flyers.py): downloaded at ingest,
+resized, re-encoded as WebP, and saved in the images folder on the data branch, hash-named so a changed image gets
+a new name and caches never show a stale one. A replaced image's old file is deleted. The site serves these from
+the images folder and never hot-links: an image not stored yet isn't shown (site_path).
 
 A caller decides for itself what "gone" (404/410, or a body that isn't a usable image) should mean for its own
 field — dropped, or kept as a remote URL to retry: this module only reports which it was.
@@ -27,8 +28,9 @@ def is_stored(image_url: str | None) -> bool:
 
 
 def site_path(image_url: str | None) -> str | None:
-    """The URL the site serves an image at: a stored file under /images/, a remote URL as it is."""
-    return _SITE_PREFIX + image_url if is_stored(image_url) else image_url
+    """The URL the site serves an image at: a stored file under /images/. A remote URL (one not downloaded yet,
+    after a temporary failure) is None: the site shows no image rather than hot-link one."""
+    return _SITE_PREFIX + image_url if is_stored(image_url) else None
 
 
 def to_webp(data: bytes, max_width: int, quality: int = _QUALITY) -> bytes | None:

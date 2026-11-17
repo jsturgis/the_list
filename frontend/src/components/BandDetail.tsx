@@ -6,8 +6,9 @@ import ActionLinks from './ActionLinks'
 import BandMembers from './BandMembers'
 import ListeningLink from './ListeningLink'
 import PageHeader from './PageHeader'
+import PhotoCredit from './PhotoCredit'
 import SocialLinks from './SocialLinks'
-import type { Band, PhotoCredit, Show } from '@/lib/types'
+import type { Band, Show } from '@/lib/types'
 import BandShows from './BandShows'
 import SimilarBands from './SimilarBands'
 
@@ -62,41 +63,15 @@ export default function BandDetail({ band, upcomingShows, similarBands, bell }: 
 function BandPhoto({ band, imageUrl }: { band: Band, imageUrl: string }) {
   return (
     <figure className="contents">
-      {/* A stored photo is a site path ("/images/bands/…"), served under the base path; others are remote URLs. */}
+      {/* The site's own copy ("/images/bands/…"), served under the base path; a photo not stored yet isn't exported. */}
       {/* Both crops (the circle and the banner) are anchored at the photo's focal point, so they keep its faces. */}
-      <img src={imageUrl.startsWith('/') ? href(imageUrl) : imageUrl} alt={band.name}
+      <img src={href(imageUrl)} alt={band.name}
            style={{ objectPosition: objectPosition(band.imageFocus) }}
            className={`size-16 shrink-0 rounded-full object-cover sm:h-auto sm:max-h-72 sm:w-full sm:basis-full sm:rounded-lg ${band.imageCredit ? '' : 'sm:mb-6'}`} />
-      {band.imageCredit && <PhotoCreditLine credit={band.imageCredit} />}
+      {band.imageCredit && <PhotoCredit credit={band.imageCredit} className={creditPlace} />}
     </figure>
   )
 }
 
-const creditLink = 'text-link underline underline-offset-2'
 // Under the photo from `sm`; on phones, on its own line under the photo and the name.
-const creditLine = 'order-last mt-2 basis-full text-xs text-ink-muted sm:order-none sm:mt-1.5 sm:mb-6'
-
-/**
- * "Photo: <author>, <licence>, via Wikimedia Commons", as a Commons photo's licence requires; "Photo via Discogs" or
- * "Photo via Bandcamp" for a photo from one of them, which has no author or licence to name.
- */
-function PhotoCreditLine({ credit }: { credit: PhotoCredit }) {
-  if (credit.source !== 'Wikimedia Commons') {
-    return (
-      <figcaption className={creditLine}>
-        Photo via <a href={credit.sourceUrl} target="_blank" rel="noopener noreferrer" className={creditLink}>{credit.source}</a>
-      </figcaption>
-    )
-  }
-  return (
-    <figcaption className={creditLine}>
-      Photo: {credit.author ?? 'unknown author'}
-      {credit.license && (
-        <>, {credit.licenseUrl
-          ? <a href={credit.licenseUrl} target="_blank" rel="noopener noreferrer license" className={creditLink}>{credit.license}</a>
-          : credit.license}</>
-      )}
-      , via <a href={credit.sourceUrl} target="_blank" rel="noopener noreferrer" className={creditLink}>Wikimedia Commons</a>
-    </figcaption>
-  )
-}
+const creditPlace = 'order-last mt-2 basis-full sm:order-none sm:mt-1.5 sm:mb-6'

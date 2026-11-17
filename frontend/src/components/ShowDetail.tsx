@@ -48,7 +48,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
   const upcoming = show.status === 'upcoming'
   // The Venue's own flyer for the Show (DESIGN.md, "Show flyer"), beside the header, linking to the Venue's page for it.
   const flyer = show.flyerImageUrl ? (
-    <img src={show.flyerImageUrl.startsWith('/') ? href(show.flyerImageUrl) : show.flyerImageUrl}
+    <img src={href(show.flyerImageUrl)}
          alt={`Flyer for ${acts[0]?.band.name ?? 'this show'}`} data-testid="show-flyer"
          className="block h-auto max-h-48 w-24 rounded-md object-contain sm:max-h-64 sm:w-40" />
   ) : null

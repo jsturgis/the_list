@@ -47,12 +47,21 @@ def _venue(v: Venue) -> VenueType:
         venue_type=v.venue_type,
         nearest_transit=v.nearest_transit,
         instagram=v.instagram,
-        image_url=v.image_url,
+        image_url=site_path(v.image_url),  # only a stored photo: a remote one isn't hot-linked
         default_age_restriction=v.default_age_restriction,
         is_sober_space=v.is_sober_space,
         is_cash_only=v.is_cash_only,
         membership_required=v.membership_required,
+        image_credit=_credit(v.image_url, v.image_credit),
     )
+
+
+def _credit(image_url: str | None, credit: dict | None) -> PhotoCreditType | None:
+    """A shown photo's credit; none for a photo that isn't shown (not stored yet). Credits saved before photos could
+    come from Discogs are all Wikimedia Commons ones."""
+    if not credit or site_path(image_url) is None:
+        return None
+    return PhotoCreditType(**{"source": "Wikimedia Commons", **credit})
 
 
 def _band(b: Band) -> BandType:
@@ -64,9 +73,8 @@ def _band(b: Band) -> BandType:
         soundcloud_url=b.soundcloud_url,
         bandcamp_url=b.bandcamp_url,
         website_url=b.website_url,
-        image_url=site_path(b.image_url),
-        # Credits saved before photos could come from Discogs are all Wikimedia Commons ones.
-        image_credit=PhotoCreditType(**{"source": "Wikimedia Commons", **b.image_credit}) if b.image_credit else None,
+        image_url=site_path(b.image_url),  # only a stored photo: a remote one isn't hot-linked
+        image_credit=_credit(b.image_url, b.image_credit),
         image_focus=ImageFocusType(x=b.image_focus["x"], y=b.image_focus["y"]) if b.image_focus else None,
         is_local=b.is_local,
         description=b.description,

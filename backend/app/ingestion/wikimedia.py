@@ -15,6 +15,8 @@ from dataclasses import dataclass
 
 import httpx
 
+from app.ingestion.images import wikimedia_file_title
+
 logger = logging.getLogger(__name__)
 
 _USER_AGENT = "the-list/0.1 (https://github.com/jsturgis/the_list)"  # Wikimedia rejects requests without one
@@ -55,6 +57,40 @@ def _plain(markup: str | None) -> str | None:
     return " ".join(html.unescape(_TAG.sub(" ", markup)).split()) or None
 
 
+def _credit(info: dict) -> dict:
+    """A Commons file's credit, from its image info: author, licence, licence URL and its file page."""
+    meta = info.get("extmetadata", {})
+    return {
+        "source": "Wikimedia Commons",
+        "author": _plain(meta.get("Artist", {}).get("value")),
+        "license": _plain(meta.get("LicenseShortName", {}).get("value")),
+        "license_url": (meta.get("LicenseUrl", {}).get("value") or None),
+        "source_url": info["descriptionurl"],
+    }
+
+
+def commons_credit(url: str, client: httpx.Client | None = None) -> dict | None:
+    """The credit of the Commons file at `url` (an upload.wikimedia.org original or thumbnail), for a photo known
+    by its URL rather than found through Wikidata (a Venue's). None when `url` isn't a Commons file, or the file
+    can't be looked up right now; this never raises."""
+    title = wikimedia_file_title(url)
+    if title is None:
+        return None
+    own_client = client is None
+    client = client or httpx.Client(timeout=20, follow_redirects=True, headers={"User-Agent": _USER_AGENT})
+    try:
+        pages = client.get(_COMMONS_API, params={
+            "action": "query", "format": "json", "prop": "imageinfo", "iiprop": "url|extmetadata", "titles": title,
+        }).raise_for_status().json()["query"]["pages"]
+        return _credit(next(iter(pages.values()))["imageinfo"][0])
+    except Exception:
+        logger.info("wikimedia: no credit for %s", url, exc_info=True)
+        return None
+    finally:
+        if own_client:
+            client.close()
+
+
 def commons_photo(links: list[dict], client: httpx.Client | None = None) -> CommonsPhoto | None:
     """The Band's Commons photo and its credit, from its MusicBrainz links; None when there isn't one."""
     qid = _wikidata_id(links)
@@ -72,15 +108,8 @@ def commons_photo(links: list[dict], client: httpx.Client | None = None) -> Comm
             "iiurlwidth": _THUMB_WIDTH, "titles": f"File:{file_name}",
         }).raise_for_status().json()["query"]["pages"]
         info = next(iter(pages.values()))["imageinfo"][0]
-        meta = info.get("extmetadata", {})
         url = (info.get("thumburl") or info["url"]).split("?")[0]  # drop Commons' tracking parameters
-        return CommonsPhoto(url, {
-            "source": "Wikimedia Commons",
-            "author": _plain(meta.get("Artist", {}).get("value")),
-            "license": _plain(meta.get("LicenseShortName", {}).get("value")),
-            "license_url": (meta.get("LicenseUrl", {}).get("value") or None),
-            "source_url": info["descriptionurl"],
-        })
+        return CommonsPhoto(url, _credit(info))
     except Exception:
         logger.info("wikimedia: no Commons photo for %s", qid, exc_info=True)
         return None

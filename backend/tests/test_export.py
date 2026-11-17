@@ -51,8 +51,11 @@ def _gql(client, query):
 
 @pytest.fixture
 def data(db):
-    fillmore = _venue(db, google_place_id="ChIJfillmore", neighborhood="Western Addition", is_cash_only=False)
-    chapel = _venue(db, "The Chapel")
+    fillmore = _venue(db, google_place_id="ChIJfillmore", neighborhood="Western Addition", is_cash_only=False,
+                      image_url="venues/1-5d1e0c3b2a.webp", image_credit={
+                          "author": "Jane Photographer", "license": "CC BY-SA 3.0", "license_url": None,
+                          "source_url": "https://commons.wikimedia.org/wiki/File:Fillmore.jpg"})
+    chapel = _venue(db, "The Chapel", image_url="https://images.example/chapel.jpg")  # not stored yet
     unused_venue = _venue(db, "Closed Venue")
     headliner = _band(db, "Headliner", embedding=VEC, website_url="https://headliner.com", is_local=True,
                       members=[{"name": "Ana", "active": True}, {"name": "Bo", "active": False}],
@@ -111,6 +114,13 @@ def test_venue_and_band_fields(exported, data):
     assert (fillmore["name"], fillmore["city"], fillmore["region"], fillmore["googlePlaceId"]) == (
         "The Fillmore", "San Francisco", "sf", "ChIJfillmore")
     assert (fillmore["neighborhood"], fillmore["isCashOnly"], fillmore["isSoberSpace"]) == ("Western Addition", False, None)
+    # A Venue's stored photo at the site's URL for it, with its credit; one not stored yet isn't exported.
+    assert fillmore["imageUrl"] == "/images/venues/1-5d1e0c3b2a.webp"
+    assert fillmore["imageCredit"] == {
+        "source": "Wikimedia Commons", "author": "Jane Photographer", "license": "CC BY-SA 3.0", "licenseUrl": None,
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:Fillmore.jpg"}
+    chapel = next(v for v in exported["venues"] if v["id"] == data["chapel"].id)
+    assert (chapel["imageUrl"], chapel["imageCredit"]) == (None, None)
     headliner = next(b for b in exported["bands"] if b["id"] == data["headliner"].id)
     assert (headliner["name"], headliner["genres"], headliner["websiteUrl"], headliner["isLocal"]) == (
         "Headliner", ["punk"], "https://headliner.com", True)
