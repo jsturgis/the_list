@@ -727,8 +727,9 @@ async def test_pipeline_matches_a_show_against_its_venues_calendar(mock_batch, m
                                                flyer_url="https://thechapel.com/flyer.jpg",
                                                more_info_url="https://thechapel.com/shows/mdou-moctar")]
     monkeypatch.setattr(settings, "anthropic_api_key", "test-key")
+    monkeypatch.setattr("app.ingestion.venue_calendar.local_today", lambda: date(2026, 9, 25))  # the List's Friday
     monkeypatch.setattr(settings, "images_path", str(tmp_path))
-    monkeypatch.setattr(show_flyers.httpx, "Client", _photo_client(
+    monkeypatch.setattr(show_flyers, "guarded_client", _photo_client(
         {"https://thechapel.com/flyer.jpg": httpx.Response(200, content=_jpeg_bytes())}))
 
     await _run_ingestion_async(db=db)

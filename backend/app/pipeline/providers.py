@@ -5,11 +5,12 @@ from langchain_core.language_models import BaseChatModel
 from app.config import settings
 
 
-def get_enrichment_llm() -> BaseChatModel:
+def get_enrichment_llm(max_tokens: int = 1024, timeout: float | None = None) -> BaseChatModel:
     # To switch to a local Ollama model, replace with ChatOllama and set
     # OLLAMA_ENRICHMENT_MODEL in .env — no other code changes needed.
     return ChatAnthropic(
         model="claude-haiku-4-5-20251001",
         api_key=settings.anthropic_api_key,
-        max_tokens=1024,
+        max_tokens=max_tokens,
+        default_request_timeout=timeout,
     )

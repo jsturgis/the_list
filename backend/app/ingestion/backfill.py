@@ -166,9 +166,10 @@ def recheck_photos(db: Session) -> int:
 def recheck_calendars(db: Session) -> int:
     """Mark every checked Venue to look for its calendar again next ingest (app/ingestion/venue_calendar.py),
     e.g. after adding or changing a correction (app/ingestion/venue_corrections.py). Returns how many were marked."""
-    venues = db.query(Venue).filter(Venue.calendar_checked_at.is_not(None)).all()
+    venues = db.query(Venue).filter(Venue.calendar_checked_at.is_not(None) | Venue.calendar_read_at.is_not(None)
+                                    | Venue.calendar_retry_at.is_not(None)).all()
     for venue in venues:
-        venue.calendar_checked_at = None
+        venue.calendar_checked_at = venue.calendar_read_at = venue.calendar_retry_at = None
     db.commit()
     return len(venues)
 

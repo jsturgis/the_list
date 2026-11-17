@@ -22,10 +22,14 @@ def upgrade() -> None:
     with op.batch_alter_table("venues") as batch:
         batch.add_column(sa.Column("calendar_url", sa.String(500), nullable=True))
         batch.add_column(sa.Column("calendar_checked_at", sa.DateTime(), nullable=True))
+        batch.add_column(sa.Column("calendar_read_at", sa.DateTime(), nullable=True))
+        batch.add_column(sa.Column("calendar_retry_at", sa.DateTime(), nullable=True))
 
 
 def downgrade() -> None:
     with op.batch_alter_table("venues") as batch:
+        batch.drop_column("calendar_retry_at")
+        batch.drop_column("calendar_read_at")
         batch.drop_column("calendar_checked_at")
         batch.drop_column("calendar_url")
     with op.batch_alter_table("shows") as batch:

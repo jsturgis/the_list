@@ -5,7 +5,8 @@ serves its own copy instead of hot-linking.
 A Show's flyer_image_url is filled by app/ingestion/venue_calendar.py's matching, as a remote URL; this module
 downloads and stores it, the same way save_band_photos does for Bands. Unlike a Band photo, a flyer has no focal
 point (it's shown whole, never cropped to a face) and no credit (it carries no attribution requirement). A flyer
-that's gone or unusable counts as none: no flyer beats a broken one.
+that's gone or unusable counts as none: no flyer beats a broken one. Flyer URLs come from an LLM reading a
+Venue's page, so they're fetched through a client that refuses anything but public hosts (app/ingestion/public_urls.py).
 """
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ from pathlib import Path
 
 import httpx
 
+from app.ingestion.public_urls import guarded_client
 from app.ingestion.image_store import is_stored, fetch_image, site_path, store
 from app.models.show import Show
 
@@ -33,7 +35,7 @@ def save_show_flyer(show: Show, url: str, images_dir: str | Path, client: httpx.
     flyer beats a hot-linked or broken one.
     """
     own_client = client is None
-    client = client or httpx.Client(timeout=20, follow_redirects=True, headers={"User-Agent": _USER_AGENT})
+    client = client or guarded_client(timeout=20, follow_redirects=True, headers={"User-Agent": _USER_AGENT})
     try:
         fetched = fetch_image(url, client, max_download_bytes=MAX_DOWNLOAD_BYTES, max_width=MAX_WIDTH)
     finally:
@@ -59,7 +61,7 @@ def save_show_flyers(shows: list[Show], images_dir: str | Path) -> int:
     stored = 0
     if not pending:
         return stored
-    with httpx.Client(timeout=20, follow_redirects=True, headers={"User-Agent": _USER_AGENT}) as client:
+    with guarded_client(timeout=20, follow_redirects=True, headers={"User-Agent": _USER_AGENT}) as client:
         for show in pending:
             try:
                 if save_show_flyer(show, show.flyer_image_url, images_dir, client):

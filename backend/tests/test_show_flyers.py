@@ -85,7 +85,7 @@ def test_save_show_flyers_stores_only_remote_flyers_and_skips_stored_ones(tmp_pa
     remote = _show(1, flyer_image_url=url)
     already_stored = _show(2, flyer_image_url="shows/2-abc.webp")
     none = _show(3)
-    monkeypatch.setattr(show_flyers.httpx, "Client", lambda **kw: _client({url: httpx.Response(200, content=_jpeg())}))
+    monkeypatch.setattr(show_flyers, "guarded_client", lambda **kw: _client({url: httpx.Response(200, content=_jpeg())}))
 
     assert save_show_flyers([remote, already_stored, none], tmp_path) == 1
     assert is_stored(remote.flyer_image_url)
