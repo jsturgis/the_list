@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright'
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
+import { signedInAsAdmin } from './fakeAdmin.mjs'
 
 // Accessibility checks with axe on every page and state, in light and dark mode. Any serious or critical
 // violation of WCAG 2.1 A/AA fails the test. Fix violations rather than disabling rules; a disabled rule needs a
@@ -31,6 +32,13 @@ const STATES: [string, string, (page: Page) => Promise<void>][] = [
   ['not-found page', 'shows/99999/', page => expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()],
   ['Alerts page, signed out', 'alerts/', page => expect(page.getByRole('button', { name: /sign-in link/i })).toBeVisible()],
   ['Unsubscribe page', 'alerts/unsubscribe/', page => expect(page.getByRole('heading', { level: 1 })).toBeVisible()],
+  ['Admin page, signed out', 'admin/', page => expect(page.getByRole('button', { name: /sign-in link/i })).toBeVisible()],
+  // A job at each stage, so every status badge and step colour is checked.
+  ['Admin page, with jobs', 'admin/', async page => {
+    await signedInAsAdmin(page, 'e2e.invalid')
+    await page.reload()
+    await expect(page.getByText('Looking up Band 2 of 3: Static Bloom')).toBeVisible()
+  }],
   ['Docs page', 'docs/', page => expect(page.getByRole('link', { name: /Local setup/ }).first()).toBeVisible()],
   // Its code blocks, tables, lists and inline code.
   ['guide page', 'docs/configuration/', page => expect(page.getByRole('table').first()).toBeVisible()],

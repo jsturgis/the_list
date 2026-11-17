@@ -229,7 +229,7 @@ def keys_work():
 
 def _stored(db):
     """`ingest_shows` without the services: it stores the Shows and commits."""
-    async def ingest(_db, shows_data):
+    async def ingest(_db, shows_data, **kwargs):
         shows = upsert_shows(db, shows_data)
         db.commit()
         return shows

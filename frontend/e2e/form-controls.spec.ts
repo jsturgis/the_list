@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
+import { signedInAsAdmin } from './fakeAdmin.mjs'
 
 // iOS Safari zooms the page in when a focused field's text is under 16px (DESIGN.md, section 4). Every text entry
 // control on the site is at least 16px, so it never does; the viewport still allows pinch zoom.
@@ -17,6 +18,11 @@ const STATES: [string, string, (page: Page) => Promise<void>, number][] = [
     await expect(page.getByLabel('Email')).toBeVisible()
   }, 1],
   ['Alerts page, signed out', 'alerts/', page => expect(page.getByRole('button', { name: /sign-in link/i })).toBeVisible(), 1],
+  ['Admin page', 'admin/', async page => {
+    await signedInAsAdmin(page, 'e2e.invalid')
+    await page.reload()
+    await expect(page.getByLabel('TicketWeb links')).toBeVisible()
+  }, 1],
 ]
 
 test.use({ viewport: { width: 390, height: 844 } })

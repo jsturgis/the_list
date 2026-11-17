@@ -10,6 +10,7 @@ import { mkdirSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { chromium } from '@playwright/test'
+import { signedInAsAdmin } from './fakeAdmin.mjs'
 
 const [outArg, siteArg] = process.argv.slice(2)
 if (!outArg) {
@@ -39,7 +40,7 @@ const port = 4400 + Math.floor(Math.random() * 500)
 const server = spawn('node', ['e2e/server.mjs', site, String(port)], { stdio: 'ignore' })
 const base = `http://127.0.0.1:${port}/the_list/`
 
-/** [file name, path, optional step before the screenshot] */
+/** [file name, path, optional step before the screenshot, optional setup before the page loads] */
 const PAGES = [
   ['home', ''],
   ['show', 'shows/neon-harbor-2026-10-03/'],
@@ -48,6 +49,9 @@ const PAGES = [
   ['band-fallback', 'bands/redwood-sirens/'],
   ['alerts', 'alerts/'],
   ['unsubscribe', 'alerts/unsubscribe/'],
+  ['admin-signed-out', 'admin/'],
+  ['admin', 'admin/', page => page.getByText('Looking up Band 2 of 3: Static Bloom').waitFor(),
+    page => signedInAsAdmin(page, 'screenshots.invalid')],
   ['not-found', 'shows/99999/'],
   ['docs', 'docs/'],
   ['docs-guide', 'docs/local-setup/'],
@@ -65,8 +69,9 @@ try {
   const DEVICES = [['desktop', { viewport: { width: 1100, height: 900 } }], ['phone', { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 }]]
   for (const [device, options] of DEVICES) for (const scheme of ['light', 'dark']) {
     const context = await browser.newContext({ ...options, colorScheme: scheme })
-    for (const [name, path, step] of PAGES) {
+    for (const [name, path, step, setup] of PAGES) {
       const page = await context.newPage()
+      if (setup) await setup(page)
       await page.clock.setFixedTime(new Date('2026-10-01T12:00:00-07:00'))  // the fixtures' "today"
       await page.goto(base + path, { waitUntil: 'networkidle' })
       if (step) await step(page)
