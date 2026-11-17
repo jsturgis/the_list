@@ -5,7 +5,7 @@ from datetime import date
 
 import pytest
 
-from app.ingestion.dedupe_venues import merge_duplicate_venues, strip_street_from_names
+from app.ingestion.dedupe_venues import merge_duplicate_venues, rename_variant_names, strip_street_from_names
 from app.ingestion.upsert import venue_key
 from app.models.show import Show
 from app.models.venue import Region, Venue
@@ -31,6 +31,15 @@ def _show(db, venue, day):
     ("Neck Of The Woods", "neck of the woods"),
     ("  The   Planetarium ", "planetarium"),
     ("Theater of Dreams", "theater of dreams"),  # "the" must be a whole word
+    ("Hotel Utan", "hotel utah saloon"),  # a known variant reads as the Venue's usual name
+    ("the On Broadway", "mabuhay gardens"),
+    ("X Sports Bar", "xbar"),   # hyphens, apostrophes and full stops don't count
+    ("Winter's Tavern", "winters tavern"),
+    ("Henry J. Kaiser Center", "henry j kaiser center"),
+    ("The UC Theatre", "uc theater"),   # nor theatre for theater
+    ("Brick & Mortar Music Hall", "brick and mortar music hall"),
+    ("the Castro", "castro theater"),   # Steve's short name for The Castro Theatre
+    ("Point San Pablo Harbor", "knot club"),
 ])
 def test_venue_key(name, key):
     assert venue_key(name) == key
@@ -119,6 +128,36 @@ def test_same_name_in_same_region_is_merged_even_with_different_place_ids(db):
     assert len(merge.merged) == 1 and db.query(Venue).count() == 1
 
 
+def test_known_variant_names_are_merged_into_the_venue(db):
+    utah = _venue(db, "Hotel Utah Saloon", city="San Francisco", region=Region.sf, google_place_id="ChIJutah")
+    utan = _venue(db, "Hotel Utan", city="San Francisco", region=Region.sf, google_place_id="ChIJutahinn")
+    _show(db, utah, 1)
+    _show(db, utah, 2)
+    _show(db, utan, 3)
+    shed = _venue(db, "Shed A, Pier 48", city="San Francisco", region=Region.sf)
+    pier = _venue(db, "Pier 48", city="San Francisco", region=Region.sf)
+    _show(db, shed, 4)
+    _show(db, pier, 5)
+    lone = _venue(db, "X Sports Bar", city="Cupertino", region=Region.south_bay)
+    db.commit()
+    ids = (utah.id, utan.id, shed.id, pier.id, lone.id)
+
+    renames = rename_variant_names(db)
+    renamed = [(r.venue.id, r.old_name) for r in renames]
+    merges = merge_duplicate_venues(db, apply=True)
+
+    utah_id, utan_id, shed_id, pier_id, lone_id = ids
+    assert renamed == [(utan_id, "Hotel Utan"), (shed_id, "Shed A, Pier 48"), (lone_id, "X Sports Bar")]
+    assert {m.keep.id: [v.id for v in m.merged] for m in merges} == {utah_id: [utan_id], shed_id: [pier_id]}
+    # The kept Venue has the usual name, whichever record it was.
+    assert {v.id: v.name for v in db.query(Venue)} == {
+        utah_id: "Hotel Utah Saloon", shed_id: "Pier 48", lone_id: "The X-Bar",
+    }
+    assert {s.date.day: s.venue_id for s in db.query(Show)} == {
+        1: utah_id, 2: utah_id, 3: utah_id, 4: shed_id, 5: shed_id,
+    }
+
+
 def test_street_stripped_from_names_then_merged(db):
     with_street = _venue(db, "Felton Music Hall, 6275 Hwy 9", city="Felton", region=Region.santa_cruz)
     plain = _venue(db, "Felton Music Hall", city="Felton", region=Region.santa_cruz)
@@ -196,3 +235,33 @@ def test_combined_show_keeps_the_newer_listing_details(db, dup_is_newer):
     survivor = db.get(Show, a.id)
     expected = (ShowStatus.cancelled, 30.0) if dup_is_newer else (ShowStatus.upcoming, 15.0)
     assert (survivor.status, survivor.price_min) == expected
+
+
+def test_two_rooms_shows_at_the_same_time_are_not_combined(db):
+    """Neck Of The Woods lists a Show upstairs and one downstairs at the same time: two Shows, kept apart when a
+    duplicate of the Venue is merged into it."""
+    from datetime import time
+    from app.models.act import Act
+    from app.models.band import Band
+
+    keep = _venue(db, "Neck Of The Woods", city="San Francisco", region=Region.sf)
+    dup = _venue(db, "the Neck of the Woods", city="San Francisco", region=Region.sf)
+    _show(db, keep, 5)
+    upstairs = Show(date=date(2026, 12, 11), venue_id=keep.id, door_time=time(19))
+    downstairs = Show(date=date(2026, 12, 11), venue_id=dup.id, door_time=time(19))
+    db.add_all([upstairs, downstairs])
+    db.flush()
+    bands = {name: Band(name=name) for name in ("Pig City", "Opener A", "Sleepwalk", "Opener B")}
+    db.add_all(bands.values())
+    db.flush()
+    db.add_all([Act(show_id=show.id, band_id=bands[name].id, position=i)
+                for show, lineup in ((upstairs, ["Pig City", "Opener A"]), (downstairs, ["Sleepwalk", "Opener B"]))
+                for i, name in enumerate(lineup)])
+    db.commit()
+
+    [merge] = merge_duplicate_venues(db, apply=True)
+
+    assert (merge.shows_moved, merge.shows_combined) == (1, 0)
+    assert [a.band.name for a in db.get(Show, upstairs.id).acts] == ["Pig City", "Opener A"]
+    moved = db.get(Show, downstairs.id)
+    assert (moved.venue_id, [a.band.name for a in moved.acts]) == (keep.id, ["Sleepwalk", "Opener B"])

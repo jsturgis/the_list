@@ -31,7 +31,7 @@ const show = (id: number, date: string, bandId: number, extra: Partial<ExportSho
 
 const META: ExportMeta = {
   generatedAt: '2026-10-01T03:00:00Z',
-  emailSubject: 'Bay Area & Santa Cruz Concert Events — Sep 25, 2026',
+  editionTitle: 'The List for Sep 25, 2026',
   filterOptions: { regions: ['sf'], ages: ['a/a'], genres: [], dates: [TODAY] },
   totalUpcoming: 3,
 }

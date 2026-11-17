@@ -14,8 +14,8 @@ npm ci
 ```
 
 The site is built from the database export in `export/` (gitignored). The build reads it; it isn't published
-with the site. Export it from the repository root whenever the data changes (see the root README for the
-backend):
+with the site. Export it from the repository root whenever the data changes (see [Local setup](../docs/guide/local-setup.md)
+for the backend):
 
 ```bash
 docker compose run --rm -v "$PWD/frontend/export:/export" api python -m app.cli export --out /export
@@ -59,7 +59,14 @@ src/
     pastShows.ts        # CSS that hides Shows dated before today; inlined in each page's <head>
     navigation.ts       # the URL's query in React (useQuery, replaceQuery)
     basePath.ts         # href(): a site path under the base path
-  styles/globals.css    # Tailwind and the colour theme (see the root README)
+    docsMarkdown.ts     # adapts the guides in ../docs/guide/ for the docs: links between guides, Mermaid diagrams
+    diagrams.ts         # draws the docs' diagrams with Mermaid, in the theme's colours
+  content.config.ts     # the docs collection (Starlight): the Markdown guides in ../docs/guide/
+  components/docs/      # the two Starlight components the docs replace
+  styles/
+    tokens.css          # the colour theme's tokens (see DESIGN.md)
+    globals.css         # the site's stylesheet: Tailwind and the tokens
+    starlight.css       # the docs' theme: Starlight's colours and font, set from the tokens
 ```
 
 ## Screenshots

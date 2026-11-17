@@ -1,11 +1,11 @@
 /**
- * Test helpers for the colour theme in src/styles/globals.css: its light and dark token values, resolved to sRGB
+ * Test helpers for the colour theme in src/styles/tokens.css: its light and dark token values, resolved to sRGB
  * colours (Tailwind palette references, oklch values and `color-mix(…, transparent)` included), and WCAG contrast.
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-export const themeCss = readFileSync(join(process.cwd(), 'src', 'styles', 'globals.css'), 'utf8')
+export const themeCss = readFileSync(join(process.cwd(), 'src', 'styles', 'tokens.css'), 'utf8')
 const tailwindTheme = readFileSync(join(process.cwd(), 'node_modules', 'tailwindcss', 'theme.css'), 'utf8')
 
 function tokens(block: string): Map<string, string> {
@@ -16,7 +16,7 @@ const darkStart = themeCss.indexOf('@media (prefers-color-scheme: dark)')
 /** The theme's tokens as written, by mode. Dark mode only lists what it changes; `themeTokens.dark` merges in light. */
 export const rawTokens = {
   light: tokens(themeCss.slice(themeCss.indexOf(':root {'), darkStart)),
-  dark: tokens(themeCss.slice(darkStart, themeCss.indexOf('@theme inline'))),
+  dark: tokens(themeCss.slice(darkStart)),
 }
 export const themeTokens = {
   light: rawTokens.light,

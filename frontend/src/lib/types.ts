@@ -145,7 +145,7 @@ export interface ExportShow extends Required<Omit<Show, 'venue' | 'acts'>> {
 
 export interface ExportMeta {
   generatedAt: string
-  emailSubject: string | null
+  editionTitle: string | null
   filterOptions: { regions: string[]; ages: string[]; genres: string[]; dates: string[] }
   totalUpcoming: number
 }
@@ -161,7 +161,7 @@ export type HomeShow = Omit<Show, 'venue' | 'acts'> & {
 
 /** What the home page knows at build time: the edition, the filter options, and the first page of Shows. */
 export interface HomePage {
-  emailSubject: string | null
+  editionTitle: string | null
   filterOptions: ExportMeta['filterOptions']
   /** Upcoming Shows in the export ("of M shows"). */
   totalUpcoming: number

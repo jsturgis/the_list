@@ -1,7 +1,7 @@
 """add a Show's flyer and more-info link, and a Venue's calendar page (app/ingestion/venue_calendar.py)
 
 Revision ID: a1b2c3d4e5f6
-Revises: e6f8a0b2c4d7
+Revises: f3a5c7e9b1d4
 Create Date: 2026-10-21
 """
 from typing import Sequence, Union
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "a1b2c3d4e5f6"
-down_revision: Union[str, None] = "e6f8a0b2c4d7"
+down_revision: Union[str, None] = "f3a5c7e9b1d4"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

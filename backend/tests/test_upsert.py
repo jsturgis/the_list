@@ -5,7 +5,7 @@ from datetime import date
 
 import pytest
 
-from app.ingestion.upsert import region_for_city, upsert_shows
+from app.ingestion.upsert import find_venue, region_for_city, upsert_shows
 from app.models.act import Act
 from app.models.band import Band
 from app.models.show import AgeRestriction, Show, ShowStatus
@@ -388,6 +388,92 @@ def test_same_name_in_same_region_is_the_same_venue_even_if_place_id_changes(db)
     assert db.query(Venue).count() == 1
 
 
+def test_a_known_variant_name_joins_the_venue_it_is_a_variant_of(db):
+    upsert_shows(db, [
+        _show(venue_name="Hotel Utah Saloon", city="S.F.", date_=date(2026, 11, 1), google_place_id="ChIJutah"),
+        _show(venue_name="Hotel Utan", city="S.F.", date_=date(2026, 11, 8), google_place_id="ChIJutahinn"),
+        _show(venue_name="Mabuhay Gardens", city="S.F.", date_=date(2026, 11, 6)),
+        _show(venue_name="the On Broadway", city="S.F.", date_=date(2026, 11, 7)),
+        _show(venue_name="on Broadway", city="S.F.", date_=date(2026, 11, 22)),
+    ])
+    assert sorted(v.name for v in db.query(Venue)) == ["Hotel Utah Saloon", "Mabuhay Gardens"]
+    assert db.query(Show).count() == 5
+
+
+def test_a_variant_name_matches_by_name_before_google_place(db):
+    # Google places "on Broadway" at Broadway Studios, another Venue.
+    upsert_shows(db, [
+        _show(venue_name="Broadway Studios", city="S.F.", date_=date(2026, 11, 1), google_place_id="ChIJstudios"),
+        _show(venue_name="Mabuhay Gardens", city="S.F.", date_=date(2026, 11, 6), google_place_id="ChIJmabuhay"),
+        _show(venue_name="on Broadway", city="S.F.", date_=date(2026, 11, 7), google_place_id="ChIJstudios"),
+    ])
+    shows = {s.date.day: s.venue.name for s in db.query(Show)}
+    assert shows == {1: "Broadway Studios", 6: "Mabuhay Gardens", 7: "Mabuhay Gardens"}
+
+
+def test_a_new_venue_listed_under_a_variant_name_gets_its_usual_name(db):
+    upsert_shows(db, [_show(venue_name="Shed A, Pier 48", city="S.F.")])
+    assert db.query(Venue).one().name == "Pier 48"
+
+
+def _venue(db, name, city, region):
+    venue = Venue(name=name, city=city, region=region)
+    db.add(venue)
+    db.flush()
+    return venue
+
+
+def test_steves_names_for_a_venue_join_it(db):
+    """The Venues ingested before the List was read from Steve's page go by tidier names than his."""
+    stored = {name: _venue(db, name, city, region) for name, city, region in [
+        ("The Castro Theatre", "San Francisco", Region.sf),
+        ("The UC Theatre", "Berkeley", Region.east_bay),
+        ("Kilowatt Bar", "San Francisco", Region.sf),
+        ("Brick & Mortar Music Hall", "San Francisco", Region.sf),
+        ("Winter's Tavern", "Pacifica", Region.sf),
+        ("The Make-Out Room", "San Francisco", Region.sf),
+        ("Henry J Kaiser Center", "Oakland", Region.east_bay),
+    ]}
+    listed = [("the Castro", "San Francisco", "The Castro Theatre"), ("Castro Theater", "San Francisco", "The Castro Theatre"),
+              ("the UC Theater", "Berkeley", "The UC Theatre"), ("the Kilowatt", "San Francisco", "Kilowatt Bar"),
+              ("the Brick and Mortar", "San Francisco", "Brick & Mortar Music Hall"),
+              ("Winters Tavern", "Pacifica", "Winter's Tavern"), ("Makeout Room", "San Francisco", "The Make-Out Room"),
+              ("Henry J. Kaiser Center", "Oakland", "Henry J Kaiser Center")]
+    for name, city, usual in listed:
+        assert find_venue(db, name, None, (city,)) is stored[usual], name
+    upsert_shows(db, [_show(venue_name=name, city=city, date_=date(2026, 11, 1 + i))
+                      for i, (name, city, _) in enumerate(listed)])
+    assert db.query(Venue).count() == len(stored)
+
+
+def test_a_name_that_is_a_different_venue_in_each_city(db):
+    novato = _venue(db, "HopMonk Tavern (Novato)", "Novato", Region.north_bay)
+    sebastopol = _venue(db, "HopMonk Tavern (Sebastopol)", "Sebastopol", Region.north_bay)
+    bill_graham = _venue(db, "Bill Graham Civic Auditorium", "San Francisco", Region.sf)
+    san_jose = _venue(db, "San Jose Civic Center", "San Jose", Region.south_bay)
+
+    assert find_venue(db, "Hopmonk", None, ("Novato",)) is novato
+    assert find_venue(db, "Hopmonk Tavern", None, ("Sebastopol",)) is sebastopol
+    assert find_venue(db, "the Civic Auditorium", None, ("San Francisco",)) is bill_graham
+    assert find_venue(db, "Civic Auditorium", None, ("San Jose",)) is san_jose
+    assert find_venue(db, "Hopmonk", None, ("Petaluma",)) is None   # no Hopmonk we know there
+
+
+def test_a_typo_in_a_venues_name_still_finds_it(db):
+    independent = _venue(db, "The Independent", "San Francisco", Region.sf)
+    castro = _venue(db, "The Castro Theatre", "San Francisco", Region.sf)
+    ivy_room = _venue(db, "The Ivy Room", "Albany", Region.east_bay)
+    _venue(db, "The Ritz", "San Jose", Region.south_bay)
+
+    assert find_venue(db, "the Indpendent", None, ("San Francisco",)) is independent
+    assert find_venue(db, "the Ivy Roomm", None, ("Albany",)) is ivy_room
+    assert find_venue(db, "the eCastro", None, ("San Francisco",)) is castro   # a typo of his short name for it
+    # Not a typo: another name, a short name, or the same name in another Region.
+    assert find_venue(db, "the Independence", None, ("San Francisco",)) is None
+    assert find_venue(db, "the Rits", None, ("San Jose",)) is None
+    assert find_venue(db, "the Indpendent", None, ("San Jose",)) is None
+
+
 def test_google_neighbourhood_city_does_not_split_a_venue(db):
     # First run: Google reports the neighbourhood; later run: no Google result, listing city only.
     upsert_shows(db, [
@@ -398,7 +484,217 @@ def test_google_neighbourhood_city_does_not_split_a_venue(db):
     assert venue.region == Region.east_bay
 
 
-# ── extra edition fields ──────────────────────────────────────────────────────
+# ── a listing whose time changes ──────────────────────────────────────────────
+
+def test_a_listing_with_a_new_door_time_updates_its_show(db):
+    upsert_shows(db, [_show(bands=["Pendletons", "Blunt Force Karma"], door_time=None)])
+    upsert_shows(db, [_show(bands=["Pendletons", "Blunt Force Karma", "Third Band"], door_time="7pm")])   # time added
+    upsert_shows(db, [_show(bands=["The Pendletons"], door_time="7:30pm", date_=date(2026, 9, 26))])     # another day
+    upsert_shows(db, [_show(bands=["Pendletons", "Blunt Force Karma", "Third Band"], door_time="8pm")])   # corrected
+
+    first, other_day = db.query(Show).order_by(Show.date).all()
+    assert (first.date.day, str(first.door_time), len(first.acts)) == (25, "20:00:00", 3)
+    assert other_day.date.day == 26
+
+
+def test_a_postponed_listing_without_a_time_marks_its_show(db):
+    upsert_shows(db, [_show(bands=["Francisca Valenzuela", "Gabi Bravo"], door_time="7pm")])
+    upsert_shows(db, [_show(bands=["Francisca Valenzuela", "Gabi Bravo"], door_time=None, status="postponed",
+                            price_raw=None, age_restriction=None)])
+
+    show = db.query(Show).one()
+    assert (show.status, str(show.door_time)) == (ShowStatus.postponed, "19:00:00")   # keeps the time it had
+    upsert_shows(db, [_show(bands=["Francisca Valenzuela", "Gabi Bravo"], door_time=None, status="postponed")])
+    assert db.query(Show).count() == 1   # and stays one Show at the next ingest
+
+
+def test_an_early_and_a_late_show_by_one_headliner_stay_two_shows(db):
+    early, late = _show(bands=["Snarky Puppy"], door_time="7pm"), _show(bands=["Snarky Puppy"], door_time="9:30pm")
+    upsert_shows(db, [early])
+    upsert_shows(db, [late, early])   # the late show is added to the List, above the early one
+    upsert_shows(db, [late, early])
+
+    assert sorted(str(s.door_time) for s in db.query(Show)) == ["19:00:00", "21:30:00"]
+
+
+def test_another_headliner_at_the_venue_that_day_is_another_show(db):
+    upsert_shows(db, [_show(bands=["Band A"], door_time="7pm")])
+    upsert_shows(db, [_show(bands=["Band B"], door_time="9pm"), _show(bands=["Band C"], door_time=None)])
+    assert db.query(Show).count() == 3
+
+
+def test_a_listing_that_names_no_band_cancels_the_only_show_there_and_keeps_its_lineup(db):
+    """"INCORRECT LISTING: dj Raphi at August Hall, S.F.": no Band (DJs aren't), no time."""
+    upsert_shows(db, [_show(bands=["Raphi's Band"], venue_name="August Hall", door_time="5pm")])
+    upsert_shows(db, [_show(bands=["dj Raphi"], venue_name="August Hall", door_time=None, status="cancelled",
+                            notes="incorrect listing")])
+
+    show = db.query(Show).one()
+    assert (show.status, show.notes, [a.band.name for a in show.acts]) == (
+        ShowStatus.cancelled, "incorrect listing", ["Raphi's Band"])
+
+
+def test_a_cancelled_listing_that_names_no_band_and_matches_no_show_isnt_stored(db):
+    shows = upsert_shows(db, [_show(bands=["dj Raphi"], venue_name="August Hall", door_time=None, status="cancelled")])
+    assert shows == [] and db.query(Show).count() == 0
+    # An upcoming one is: a DJ night is still a Show at the Venue.
+    assert len(upsert_shows(db, [_show(bands=["dj Suzy"], door_time="7pm")])) == 1
+
+
+# ── two Shows at one Venue at the same time ──────────────────────────────────
+
+def _rooms(first: str = "Pig City", second: str = "Sleepwalk") -> list[dict]:
+    """Neck Of The Woods lists its two rooms as two listings with one date, Venue and door time."""
+    return [_show(bands=[first, "Opener A"], venue_name="Neck Of The Woods", door_time="7pm", notes="upstairs"),
+            _show(bands=[second, "Opener B"], venue_name="Neck Of The Woods", door_time="7pm", notes="downstairs")]
+
+
+def _lineups(db) -> dict[str, tuple[str | None, list[str]]]:
+    """Each Show's headliner: its notes and lineup."""
+    return {s.acts[0].band.name: (s.notes, [a.band.name for a in s.acts]) for s in db.query(Show)}
+
+
+def test_two_rooms_at_the_same_time_are_two_shows(db):
+    upsert_shows(db, _rooms())
+    assert _lineups(db) == {"Pig City": ("upstairs", ["Pig City", "Opener A"]),
+                            "Sleepwalk": ("downstairs", ["Sleepwalk", "Opener B"])}
+
+
+def test_two_rooms_at_the_same_time_are_idempotent(db):
+    upsert_shows(db, _rooms())
+    before = {s.id: (s.notes, [a.band.name for a in s.acts]) for s in db.query(Show)}
+    shows, acts, bands = db.query(Show).count(), db.query(Act).count(), db.query(Band).count()
+    upsert_shows(db, _rooms())
+    upsert_shows(db, list(reversed(_rooms())))   # and when Steve swaps their order
+    assert {s.id: (s.notes, [a.band.name for a in s.acts]) for s in db.query(Show)} == before
+    assert (db.query(Show).count(), db.query(Act).count(), db.query(Band).count()) == (shows, acts, bands)
+
+
+def test_a_collapsed_show_is_kept_by_its_headliners_listing(db):
+    """Before the fix the second room's listing overwrote the first's: one Show, with the second lineup."""
+    [collapsed] = upsert_shows(db, [_rooms()[1]])
+    upsert_shows(db, _rooms())
+
+    assert db.query(Show).count() == 2
+    assert db.get(Show, collapsed.id).acts[0].band.name == "Sleepwalk"
+    assert _lineups(db) == {"Pig City": ("upstairs", ["Pig City", "Opener A"]),
+                            "Sleepwalk": ("downstairs", ["Sleepwalk", "Opener B"])}
+    ids = {s.id for s in db.query(Show)}
+    upsert_shows(db, _rooms())
+    assert {s.id for s in db.query(Show)} == ids
+
+
+def test_a_lone_listing_whose_headliner_changed_updates_its_show(db):
+    [show] = upsert_shows(db, [_show(bands=["Old Headliner", "Support"])])
+    upsert_shows(db, [_show(bands=["New Headliner", "Support"])])
+    assert [s.id for s in db.query(Show)] == [show.id]
+    assert [a.band.name for a in show.acts] == ["New Headliner", "Support"]
+
+
+def test_one_of_two_rooms_changes_its_headliner(db):
+    pig_city, sleepwalk = upsert_shows(db, _rooms())
+    upsert_shows(db, _rooms(second="Someone Else"))
+    assert {s.id: s.acts[0].band.name for s in db.query(Show)} == {pig_city.id: "Pig City",
+                                                                   sleepwalk.id: "Someone Else"}
+
+
+def test_a_dj_night_and_a_band_at_one_venue_at_the_same_time_are_two_shows(db):
+    listings = [_show(bands=["dj Suzy"], venue_name="Neck Of The Woods", notes="upstairs"),
+                _show(bands=["Band A"], venue_name="Neck Of The Woods", notes="downstairs")]
+    upsert_shows(db, listings)
+    before = {s.id: (s.notes, [a.band.name for a in s.acts]) for s in db.query(Show)}
+    upsert_shows(db, listings)
+    assert {s.id: (s.notes, [a.band.name for a in s.acts]) for s in db.query(Show)} == before
+    assert sorted(before.values()) == [("downstairs", ["Band A"]), ("upstairs", [])]
+
+
+def test_one_cancelled_room_cancels_only_its_show(db):
+    pig_city, sleepwalk = upsert_shows(db, _rooms())
+    upstairs, downstairs = _rooms()
+    upsert_shows(db, [upstairs, {**downstairs, "status": "cancelled"}])
+    assert db.query(Show).count() == 2
+    assert (pig_city.status, sleepwalk.status) == (ShowStatus.upcoming, ShowStatus.cancelled)
+
+
+def test_the_whole_list_ingested_again_changes_no_show(db):
+    """The unique constraint on (date, Venue, door time) used to fail an ingest that made a duplicate Show;
+    without it, a second ingest of the same List must find every Show it stored."""
+    from pathlib import Path
+
+    from app.ingestion.steve_list import list_page, list_shows
+
+    listings = list_shows(list_page((Path(__file__).parent / "fixtures" / "the_list.txt").read_bytes()).text)
+
+    def stored():
+        return {s.id: (str(s.door_time), s.notes, [(a.band_id, a.position, a.note) for a in s.acts])
+                for s in db.query(Show)}
+
+    upsert_shows(db, listings)
+    db.commit()
+    first = stored()
+    upsert_shows(db, listings)
+    db.commit()
+    assert stored() == first
+
+
+def test_three_listings_with_one_identity_are_three_shows(db):
+    listings = [_show(bands=[name], venue_name="Neck Of The Woods", door_time="8pm", notes=room)
+                for name, room in [("Band A", "upstairs"), ("Band B", "downstairs"), ("Band C", "patio")]]
+    upsert_shows(db, listings)
+    ids = {s.id for s in db.query(Show)}
+    upsert_shows(db, listings)
+    assert {s.id for s in db.query(Show)} == ids
+    assert {k: v[0] for k, v in _lineups(db).items()} == {"Band A": "upstairs", "Band B": "downstairs",
+                                                          "Band C": "patio"}
+
+
+def test_a_repeated_listing_is_still_one_show(db):
+    upsert_shows(db, [_show(bands=["Band A"]), _show(bands=["Band A"], price_raw="$30")])
+    assert [s.price_min for s in db.query(Show)] == [30.0]
+
+
+def test_a_room_whose_time_changed_doesnt_take_the_other_rooms_show(db):
+    upsert_shows(db, [_show(bands=["Band A"], door_time="7pm"), _show(bands=["Band B"], door_time="8pm")])
+    ids = {s.id for s in db.query(Show)}
+    upsert_shows(db, [_show(bands=["Band A"], door_time="8pm"), _show(bands=["Band B"], door_time="8pm")])
+    assert {s.id for s in db.query(Show)} == ids
+    assert sorted((s.acts[0].band.name, str(s.door_time)) for s in db.query(Show)) == [
+        ("Band A", "20:00:00"), ("Band B", "20:00:00")]
+
+
+def test_the_migration_drops_the_one_show_per_identity_constraint(tmp_path):
+    import os
+    import sqlite3
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    def alembic(*args):
+        done = subprocess.run([sys.executable, "-m", "alembic", *args], cwd=Path(__file__).parent.parent,
+                              env={**os.environ, "DATABASE_URL": f"sqlite:///{db_path}"}, capture_output=True,
+                              text=True)
+        assert done.returncode == 0, done.stderr
+
+    db_path = tmp_path / "migrated.db"
+    with sqlite3.connect(db_path) as con:
+        con.execute("""CREATE TABLE shows (id INTEGER NOT NULL, date DATE NOT NULL, door_time TIME,
+            venue_id INTEGER NOT NULL, PRIMARY KEY (id),
+            CONSTRAINT uq_show_identity UNIQUE (date, venue_id, door_time))""")
+        con.execute("INSERT INTO shows VALUES (1, '2026-12-11', '19:00:00.000000', 5)")
+    alembic("stamp", "c8e2a4b6d0f3")
+
+    alembic("upgrade", "d2f4b6a8c0e1")
+    with sqlite3.connect(db_path) as con:
+        con.execute("INSERT INTO shows VALUES (2, '2026-12-11', '19:00:00.000000', 5)")   # the other room
+        assert con.execute("SELECT count(*) FROM shows").fetchone() == (2,)
+        con.execute("DELETE FROM shows WHERE id = 2")
+
+    alembic("downgrade", "c8e2a4b6d0f3")
+    with sqlite3.connect(db_path) as con:
+        assert "uq_show_identity" in con.execute("SELECT sql FROM sqlite_master WHERE name = 'shows'").fetchone()[0]
+
+
+# ── fields from the formatted editions ──────────────────────────────────────────────────────
 
 def test_show_extras_are_stored_and_refreshed(db):
     upsert_shows(db, [_show(is_sold_out=False, ticket_provider="ticketweb", is_benefit=True,
@@ -408,6 +704,19 @@ def test_show_extras_are_stored_and_refreshed(db):
     s = db.query(Show).one()
     assert (s.is_sold_out, s.ticket_provider, s.is_benefit, s.benefit_cause, s.is_matinee) == (
         True, "ticketweb", True, "food drive", True)
+
+
+def test_a_listing_keeps_what_the_show_already_has_and_the_list_doesnt_say(db):
+    """A Show ingested from a formatted edition, then again from Steve's page (app/ingestion/steve_list.py)."""
+    upsert_shows(db, [_show(ticket_url="https://tickets.example/1", ticket_provider="ticketweb", is_benefit=True,
+                            benefit_cause="food drive", special_event="record release", is_sold_out=True)])
+    listing = {k: v for k, v in _show(is_sold_out=False, is_matinee=False, is_benefit=False).items() if k != "ticket_url"}
+    upsert_shows(db, [listing])
+
+    s = db.query(Show).one()
+    assert (s.ticket_url, s.ticket_provider, s.benefit_cause, s.special_event, s.is_benefit) == (
+        "https://tickets.example/1", "ticketweb", "food drive", "record release", True)
+    assert s.is_sold_out is False   # the listing says: no longer "(sold out)"
 
 
 def test_venue_extras_fill_only_empty_fields(db):

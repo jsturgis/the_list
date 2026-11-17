@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 
-// Every page shares one shell (DESIGN.md §5 and §9): the same column, the same page title and the same section
+// Every page but the docs (Starlight's own layout) shares one shell (DESIGN.md §5 and §9): the same column, the same page title and the same section
 // headings. These compare the rendered pages with each other at desktop width.
 
 const NARROW: [name: string, path: string][] = [
@@ -26,7 +26,7 @@ async function measure(page: Page) {
     const s = getComputedStyle(el)
     return { size: s.fontSize, weight: s.fontWeight }
   })
-  const back = page.getByRole('link', { name: 'Back' })
+  const back = page.getByRole('link', { name: 'Back', exact: true })
   const backX = (await back.count()) ? (await back.boundingBox())!.x : null
   return { x: Math.round(box.x), width: Math.round(box.width), backX: backX === null ? null : Math.round(backX), ...type }
 }

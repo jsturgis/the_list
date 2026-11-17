@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from sqlalchemy import (
     Boolean, Date, DateTime, Enum, Float, ForeignKey,
-    LargeBinary, String, Text, Time, UniqueConstraint, func,
+    LargeBinary, String, Text, Time, func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -35,9 +35,6 @@ class ShowStatus(str, enum.Enum):
 
 class Show(Base):
     __tablename__ = "shows"
-    __table_args__ = (
-        UniqueConstraint("date", "venue_id", "door_time", name="uq_show_identity"),
-    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     date: Mapped[date] = mapped_column(Date, index=True)
@@ -55,7 +52,9 @@ class Show(Base):
     is_drink_tickets: Mapped[bool] = mapped_column(Boolean, default=False)
     is_no_reentry: Mapped[bool] = mapped_column(Boolean, default=False)
     notes: Mapped[Optional[str]] = mapped_column(Text)
-    # From the formatted edition
+    # Read from the listing (app/ingestion/steve_list.py): doors before 5pm, "(sold out)", a benefit or fundraiser.
+    # The ticket fields, the cause and the special event are from the formatted editions ingested until November
+    # 2026; the List itself doesn't have them.
     is_matinee: Mapped[bool] = mapped_column(Boolean, default=False)
     is_sold_out: Mapped[bool] = mapped_column(Boolean, default=False)
     ticket_provider: Mapped[Optional[str]] = mapped_column(String(100))
@@ -71,6 +70,9 @@ class Show(Base):
     # The flyer's accent colour (app/ingestion/flyer_color.py), as "#rrggbb": used to tint the Show page's panels.
     flyer_accent_color: Mapped[Optional[str]] = mapped_column(String(7))
     raw_text: Mapped[Optional[str]] = mapped_column(Text)
+    # Where the Show comes from: "list" (Steve's List), or the event page it was added from by hand
+    # (`python -m app.cli add-event`), e.g. "ticketweb". The List wins: once Steve lists it, it's the List's.
+    source: Mapped[str] = mapped_column(String(20), default="list", server_default="list")
     embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())

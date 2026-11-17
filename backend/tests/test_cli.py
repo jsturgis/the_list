@@ -1,11 +1,13 @@
-"""Tests for the `ingest` command the weekly GitHub Action runs."""
+"""Tests for the commands the GitHub Actions run: `check` and `ingest` (Deploy), `backfill`, `photo-focus`."""
 from __future__ import annotations
 
+from datetime import date
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from app.cli import main
+from app.ingestion.steve_list import ListError, ListPage
 
 
 @patch("app.cli._run_ingestion_async", new_callable=AsyncMock)
@@ -18,7 +20,7 @@ def test_ingest_runs_maintenance_then_ingestion(maintenance, ingestion):
     assert calls == ["maintenance", "ingestion"]
 
 
-@patch("app.cli._run_ingestion_async", new_callable=AsyncMock, side_effect=RuntimeError("Drive unreachable"))
+@patch("app.cli._run_ingestion_async", new_callable=AsyncMock, side_effect=RuntimeError("stevelist.com unreachable"))
 @patch("app.cli.run_daily_maintenance")
 def test_ingest_exits_non_zero_when_the_run_fails(maintenance, ingestion):
     with pytest.raises(SystemExit) as exit_:
@@ -33,6 +35,37 @@ def test_ingest_exits_non_zero_when_maintenance_fails(maintenance, ingestion):
         main(["ingest"])
     assert exit_.value.code == 1
     ingestion.assert_not_called()
+
+
+_PAGE = ListPage(text="", sha256="abc123", edition_date=date(2026, 11, 13))
+
+
+@patch("app.cli.list_status", return_value={"changed": True, "new_edition": False})
+@patch("app.cli.fetch_list", return_value=_PAGE)
+def test_check_says_whether_the_list_changed_and_tells_the_workflow(fetch, status, capsys, tmp_path, monkeypatch):
+    output = tmp_path / "github_output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+
+    main(["check"])
+
+    assert status.call_args.args[1] is _PAGE
+    assert capsys.readouterr().out == "the List for 2026-11-13: changed=true, new_edition=false\n"
+    assert output.read_text() == "changed=true\nnew_edition=false\n"   # the Deploy workflow's job outputs
+
+
+@patch("app.cli.list_status", return_value={"changed": False, "new_edition": False})
+@patch("app.cli.fetch_list", return_value=_PAGE)
+def test_check_works_outside_github_actions(fetch, status, capsys, monkeypatch):
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+    main(["check"])
+    assert "changed=false, new_edition=false" in capsys.readouterr().out
+
+
+@patch("app.cli.fetch_list", side_effect=ListError("couldn't fetch https://stevelist.com/list: 503"))
+def test_check_exits_non_zero_when_the_list_cannot_be_fetched(fetch):
+    with pytest.raises(SystemExit) as exit_:
+        main(["check"])
+    assert exit_.value.code == 1
 
 
 def _key_checks(lastfm=None, discogs=None, model=None):

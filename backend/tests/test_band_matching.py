@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from app.ingestion import band_corrections
-from app.ingestion.band_corrections import BandCorrection, band_correction, correct_edition
+from app.ingestion.band_corrections import BandCorrection, band_correction, corrected
 from app.ingestion.band_sources import service_genres
 from app.pipeline.enrichment import _enrich_band, _mb_search
 
@@ -138,14 +138,13 @@ def test_a_band_corrected_with_its_musicbrainz_artist_is_looked_up_by_it(correct
     assert (found["mbid"], found["bandcamp_url"], found["namesakes"]) == ("sf", "https://pettytheft.bandcamp.com/", False)
 
 
-def test_a_correction_replaces_the_editions_genres_and_links(corrections):
+def test_a_correction_gives_a_listed_band_its_genres_and_links(corrections):
     corrections["sunblind"] = BandCorrection(by_name=False, genres=("hardcore punk",),
                                              links={"bandcamp_url": "https://sunblindhc.bandcamp.com/"})
-    edition = {"genres": ["indie rock", "alternative"], "bandcamp_url": "https://sunblind.bandcamp.com/",
-               "is_local": None}
-    assert correct_edition("Sunblind", edition) == {
-        "genres": ["hardcore punk"], "bandcamp_url": "https://sunblindhc.bandcamp.com/", "is_local": None}
-    assert correct_edition("Chat Pile", edition) is edition
+    listed = {"genres": []}   # what the List gives for a Band (app/ingestion/steve_list.py)
+    assert corrected("Sunblind", listed) == {
+        "genres": ["hardcore punk"], "bandcamp_url": "https://sunblindhc.bandcamp.com/"}
+    assert corrected("Chat Pile", listed) is listed
 
 
 def test_sunblind_is_the_oakland_hardcore_band():

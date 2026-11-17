@@ -24,6 +24,7 @@ from app.clock import local_today
 from app.config import settings
 from app.graphql.queries import query_shows
 from app.graphql.types import ShowFilters
+from app.mailer import SendError, post_email  # noqa: F401  (SendError: part of this module's interface)
 from app.models.show import Show
 from app.slugs import site_slugs
 
@@ -40,11 +41,6 @@ class SupabaseError(RuntimeError):
     pass
 
 
-class SendError(RuntimeError):
-    pass
-
-
-_RESEND_URL = "https://api.resend.com/emails"
 # Resend allows a couple of requests a second; space the sends out under that.
 _SEND_INTERVAL = 0.6
 
@@ -427,24 +423,15 @@ def send_email(email: AlertEmail, site: str, *, once_a_day: bool = True) -> None
     the weekly job emails nobody twice. The content is in the key because Resend refuses a key reused for a
     different email (within 24 hours). A test send (--only) goes without it, so it can be repeated.
     """
-    headers = {"Authorization": f"Bearer {settings.resend_api_key}"}
+    key = None
     if once_a_day:
         content = hashlib.sha256(f"{email.subject}\n{email.html}\n{email.text}".encode()).hexdigest()[:16]
-        headers["Idempotency-Key"] = f"alert-{local_today().isoformat()}-{email.unsubscribe_token}-{content}"
-    response = httpx.post(
-        _RESEND_URL,
-        json={
-            "from": settings.alerts_from,
-            "to": [email.to],
-            "subject": email.subject,
-            "html": email.html,
-            "text": email.text,
-            "headers": {"List-Unsubscribe": f"<{unsubscribe_url(site, email.unsubscribe_token)}>"},
-        },
-        headers=headers,
-        timeout=30.0,
+        key = f"alert-{local_today().isoformat()}-{email.unsubscribe_token}-{content}"
+    post_email(
+        api_key=settings.resend_api_key, sender=settings.alerts_from, to=email.to, subject=email.subject,
+        html=email.html, text=email.text, idempotency_key=key,
+        headers={"List-Unsubscribe": f"<{unsubscribe_url(site, email.unsubscribe_token)}>"},
     )
-    response.raise_for_status()
 
 
 def run_alerts(db: Session, *, dry_run: bool, out: TextIO, only: str | None = None) -> list[AlertEmail]:

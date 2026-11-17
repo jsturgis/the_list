@@ -16,5 +16,5 @@ Single-context layout: one `CONTEXT.md` at root + `docs/adr/`. See `docs/agents/
 
 Before any UI work, read `DESIGN.md` (repository root): colours by semantic token (no Tailwind palette colours or
 `dark:` colour variants), Figtree, the type scale and the component styles. If you add a colour token, add it to both
-`frontend/src/styles/globals.css` and `DESIGN.md`; a test fails until they match. For visible changes, take before and
+`frontend/src/styles/tokens.css` and `DESIGN.md`; a test fails until they match. For visible changes, take before and
 after screenshots with `npm run screenshots -- <dir>` in `frontend/`.

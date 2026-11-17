@@ -1,5 +1,5 @@
-"""Merge duplicate Venues: names that differ only by case or a leading "the" (see upsert.venue_key),
-or records that resolve to the same Google place.
+"""Merge duplicate Venues: names that differ only by case or a leading "the", or that are known variants
+of one Venue's name (see upsert.venue_key), or records that resolve to the same Google place.
 
 Dry run by default:   python -m app.ingestion.dedupe_venues
 Apply the merge:      python -m app.ingestion.dedupe_venues --apply
@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from app.ingestion.parser import split_venue_street
-from app.ingestion.upsert import venue_key
+from app.ingestion.upsert import _show_headliner, canonical_venue_name, venue_key
 from app.models.venue import Venue
 
 # Detail fields copied onto the kept Venue when it's missing them.
@@ -43,7 +43,7 @@ class VenueMerge:
     keep: Venue
     merged: list[Venue]
     shows_moved: int
-    shows_combined: int  # listed under both Venues on the same date/door time; folded into one
+    shows_combined: int  # listed under both Venues on the same date/door time with one headliner; folded into one
     summary: str = ""    # captured before commit/rollback, which expires the ORM objects
 
 
@@ -58,6 +58,17 @@ def strip_street_from_names(db: Session) -> list[VenueRename]:
             v.name = name
             if street and not v.address:
                 v.address = ", ".join(p for p in (street, v.city) if p)
+    return renames
+
+
+def rename_variant_names(db: Session) -> list[VenueRename]:
+    """Give Venues stored under a known variant name ("Hotel Utan") their usual name (see upsert.canonical_venue_name)."""
+    renames = []
+    for v in db.query(Venue).order_by(Venue.id):
+        name = canonical_venue_name(v.name)
+        if name != v.name:
+            renames.append(VenueRename(v, v.name))
+            v.name = name
     return renames
 
 
@@ -106,7 +117,12 @@ def merge_duplicate_venues(db: Session, apply: bool = False) -> list[VenueMerge]
         keep = max(venues, key=lambda v: (len(v.shows), -v.id))
         dups = [v for v in venues if v is not keep]
         summary = f"keep {keep.id}:{keep.name!r} <- " + ", ".join(f"{d.id}:{d.name!r}" for d in dups)
-        kept_shows = {(s.date, s.door_time): s for s in keep.shows}
+        # A Show is the same one under both names when its date, door time and headliner are: two rooms at one
+        # Venue have Shows at the same time with different headliners.
+        def identity(show):
+            return show.date, show.door_time, _show_headliner(show)
+
+        kept_shows = {identity(s): s for s in keep.shows}
         moved = combined = 0
         for dup in dups:
             for field in _FILL_FIELDS:
@@ -115,10 +131,10 @@ def merge_duplicate_venues(db: Session, apply: bool = False) -> list[VenueMerge]
             # Move through the relationship: a bulk UPDATE would leave dup.shows stale, and
             # deleting dup would then null out those Shows' venue_id.
             for show in list(dup.shows):
-                same = kept_shows.get((show.date, show.door_time))
+                same = kept_shows.get(identity(show))
                 if same is None:
                     show.venue = keep
-                    kept_shows[(show.date, show.door_time)] = show
+                    kept_shows[identity(show)] = show
                     moved += 1
                     continue
                 # The same Show listed under both names: keep one, adding any Bands it lacks and
@@ -154,7 +170,7 @@ def main(argv: list[str]) -> None:
     apply = "--apply" in argv
     db = SessionLocal()
     try:
-        renames = strip_street_from_names(db)
+        renames = strip_street_from_names(db) + rename_variant_names(db)
         for r in renames:
             print(f"rename {r.venue.id}: {r.old_name!r} -> {r.venue.name!r}")
         merges = merge_duplicate_venues(db, apply=apply)

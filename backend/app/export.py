@@ -6,7 +6,7 @@ Writes four files to a directory:
   venues.json  Venues referenced by those Shows, each with its page `slug`
   bands.json   Bands referenced by those Shows, each with its page `slug` (app.slugs) and up to six `similar`
                Band ids (exported only)
-  meta.json    generation time, latest email subject, filter options, count of Upcoming Shows
+  meta.json    generation time, latest edition's title, filter options, count of Upcoming Shows
 
 Field names and values come from the GraphQL mappers (camelCased), so the export can't drift from
 what the API returns.
@@ -76,7 +76,7 @@ def export(db: Session, out_dir: str | Path) -> dict[str, int]:
 
     meta = {
         "generated_at": datetime.now(timezone.utc),
-        "email_subject": catalog.latest_email_subject(db),
+        "edition_title": catalog.latest_edition_title(db),
         "filter_options": dataclasses.asdict(catalog.filter_options(db)),
         "total_upcoming": sum(1 for s in shows if s.status == ShowStatus.upcoming),
     }

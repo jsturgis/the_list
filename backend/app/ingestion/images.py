@@ -1,6 +1,6 @@
-"""Check edition image URLs before saving them.
+"""Check image URLs before saving them.
 
-The edition's image URLs are often wrong: Wikimedia files that don't exist, or real files under the
+Image URLs that don't come straight from a service's API are often wrong: Wikimedia files that don't exist, or real files under the
 wrong hashed path. Wikimedia files are looked up by name through the Wikipedia API (which also
 resolves Commons files), and a file that exists gets its real thumbnail URL. Any other URL is kept
 only if it loads as an image. When in doubt the image is dropped: no image beats a broken one.
