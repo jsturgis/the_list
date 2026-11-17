@@ -544,7 +544,8 @@ def remove_unlisted_shows(db: Session, listed: list[Show], since: date) -> list[
     Steve's page lists every upcoming Show, so a stored one it doesn't list is gone from it: a copy kept when a
     listing changed in a way upsert_shows couldn't follow (a time added before a Show could take one; a headliner
     the old edition misread), a Show moved to another Venue or day, or one Steve took down. Shows from elsewhere
-    (an event page, a Venue's calendar) aren't the List's to remove. When too many would go (see
+    (an event page, a Venue's calendar) aren't the List's to remove. A copy's old-edition details go to the one
+    listed Show at its Venue that day with its headliner, when there is one. When too many would go (see
     _MAX_UNLISTED_SHARE), none are.
     """
     listed_ids = {show.id for show in listed}
@@ -555,6 +556,21 @@ def remove_unlisted_shows(db: Session, listed: list[Show], since: date) -> list[
                        len(unlisted), len(stored), since)
         return []
     for show in unlisted:
+        same = [s for s in listed if (s.date, s.venue_id) == (show.date, show.venue_id)
+                and s.acts and _show_headliner(s) == _show_headliner(show)]
+        if len(same) == 1:
+            _keep_edition_details(show, same[0])
         db.delete(show)
     db.flush()
     return [show.id for show in unlisted]
+
+
+def _keep_edition_details(copy: Show, show: Show) -> None:
+    """Give `show` what its unlisted `copy` has from the old formatted edition and it doesn't: a ticket link, a
+    benefit's cause, a special event. The page never says these, and the edition is gone."""
+    if copy.ticket_url and not show.ticket_url:
+        show.ticket_url, show.ticket_provider = copy.ticket_url, copy.ticket_provider
+    for field in ("benefit_cause", "special_event"):
+        if getattr(copy, field) and not getattr(show, field):
+            setattr(show, field, getattr(copy, field))
+    show.is_benefit = show.is_benefit or copy.is_benefit

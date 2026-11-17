@@ -758,6 +758,34 @@ def test_a_copy_the_page_no_longer_lists_is_removed(db, any_share_unlisted):
     assert db.query(Act).filter(Act.show_id == old.id).count() == 0
 
 
+def test_a_removed_copy_leaves_its_old_edition_details_to_the_listed_show(db, any_share_unlisted):
+    # Stored when both copies were listed: the old edition's, and the page's with its own time.
+    listing = _show(bands=["Ultra Mode"], door_time="8pm")
+    old, _ = upsert_shows(db, [_show(bands=["Ultra Mode"], door_time="6pm", ticket_url="https://tickets.example/1",
+                                     ticket_provider="ticketweb", special_event="tribute", is_benefit=True,
+                                     benefit_cause="Toy Drive"), listing])
+    listed = upsert_shows(db, [listing])
+    assert listed[0].id != old.id
+
+    remove_unlisted_shows(db, listed, date(2026, 9, 25))
+
+    show = db.query(Show).one()
+    assert (show.ticket_url, show.ticket_provider, show.special_event, show.is_benefit, show.benefit_cause) == (
+        "https://tickets.example/1", "ticketweb", "tribute", True, "Toy Drive")
+
+
+def test_a_removed_copy_doesnt_overwrite_the_listed_shows_details(db, any_share_unlisted):
+    listing = _show(bands=["Ultra Mode"], door_time="8pm", ticket_url="https://new.example/",
+                    ticket_provider="eventbrite")
+    upsert_shows(db, [_show(bands=["Ultra Mode"], door_time="6pm", ticket_url="https://old.example/",
+                            ticket_provider="ticketweb"), listing])
+    listed = upsert_shows(db, [listing])
+
+    remove_unlisted_shows(db, listed, date(2026, 9, 25))
+
+    assert (listed[0].ticket_url, listed[0].ticket_provider) == ("https://new.example/", "eventbrite")
+
+
 def test_only_the_lists_shows_from_the_pages_first_date_are_removed(db, any_share_unlisted):
     (earlier,) = upsert_shows(db, [_show(bands=["Past Band"], date_=date(2026, 9, 24))])
     (event,) = upsert_shows(db, [_show(bands=["Event Band"], venue_name="The Chapel", source="ticketweb")])
