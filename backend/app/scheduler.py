@@ -29,7 +29,7 @@ from app.ingestion.lastfm import lastfm_tags
 from app.ingestion.links import check_links
 from app.ingestion.show_flyers import prune_show_flyers, save_show_flyers
 from app.ingestion.steve_list import ListPage, edition_title, fetch_list, list_shows
-from app.ingestion.upsert import find_venue, known_region, upsert_shows
+from app.ingestion.upsert import find_venue, known_region, remove_unlisted_shows, upsert_shows
 from app.ingestion.venue_calendar import enrich_shows_from_venue_calendars
 from app.ingestion.venue_check import CONFIRMED, NOT_CHECKED, check_venue, checked_details
 from app.ingestion.venue_photos import save_venue_photos
@@ -39,6 +39,7 @@ from app.models.band import Band
 from app.models.ingestion_run import IngestionRun, IngestionStatus
 from app.models.show import Show, ShowStatus
 from app.models.venue import Venue
+from app.embeddings.indexer import SHOW_INDEX_PATH, remove_from_index
 from app.pipeline.embed import batch_embed_and_index
 from app.pipeline.enrichment import _clean_venue_name, _enrich_band, _enrich_venue
 
@@ -332,10 +333,15 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
         run.shows_parsed = len(shows_data)
         logger.info("ingestion: %d shows in %s", len(shows_data), run.edition_title)
 
-        await ingest_shows(db, shows_data, run, source_hash=the_list.sha256)
+        shows = await ingest_shows(db, shows_data, run, source_hash=the_list.sha256)
+        # The page lists every upcoming Show: the stored ones it no longer does are gone from the List.
+        removed = remove_unlisted_shows(db, shows, min(data["date"] for data in shows_data))
 
         run.finished_at = datetime.utcnow()
         db.commit()
+        if removed:
+            remove_from_index(SHOW_INDEX_PATH, removed)
+            logger.info("ingestion: removed %d shows no longer on the List: %s", len(removed), removed)
         logger.info("ingestion: done")
 
     except Exception as exc:
