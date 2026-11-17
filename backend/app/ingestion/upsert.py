@@ -400,6 +400,8 @@ def _upsert_show(db: Session, venue: Venue, data: dict, show: Show | None) -> Sh
         if data.get(field):
             setattr(show, field, data[field])
     show.raw_text = data.get("raw_text")
+    # Where the Show is listed: a Show added from an event page becomes the List's once Steve lists it.
+    show.source = data.get("source", "list")
     db.flush()
     return show
 
@@ -502,6 +504,19 @@ def upsert_shows(db: Session, enriched_shows: list[dict]) -> list[Show]:
         # An earlier listing in this batch may have just stored the slot's Show (Steve repeats a line).
         show = claimed.get(slot) or _find_changed_show(db, venue, data, taken)
         bands = _listed_bands(data)
+        if data.get("source", "list") != "list" and show is not None and show.source == "list":
+            if _show_headliner(show) != slot[3]:
+                show = None   # another Show at that time (the other room): an event from elsewhere isn't a correction
+            else:
+                # The List wins: Steve's Show stays as he lists it, and only takes the event's ticket link.
+                for field in ("ticket_provider", "ticket_url"):
+                    if data.get(field):
+                        setattr(show, field, data[field])
+                db.flush()
+                taken.add(show.id)
+                claimed[slot] = show
+                results.append(show)
+                continue
         if show is None and not bands and data.get("status", "upcoming") != "upcoming":
             continue
         kept_lineup = bool(show and not bands and show.acts)
