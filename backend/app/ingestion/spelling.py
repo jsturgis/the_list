@@ -82,7 +82,8 @@ def respell(name: str, candidates: Callable[[str], list[Candidate]], lookup: Cal
     found = lookup(fixed)
     artist = None if found.get("mbid") else discogs(fixed, found)
     if not found.get("mbid") and artist is None:
-        logger.info("spelling: %r looks like %r, which neither MusicBrainz nor Discogs has; kept as listed", name, fixed)
+        logger.info("spelling: %r looks like %r, which neither MusicBrainz nor Discogs has; kept as listed",
+                    name, fixed)
         return None
     logger.info("spelling: %r is %r", name, fixed)
     return Respelling(as_listed(fixed, name), found, artist)
