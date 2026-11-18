@@ -44,10 +44,10 @@ jobs:
           - /home/runner/.ollama:/root/.ollama   # models, cached between runs
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check out the data branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: data
           path: data
@@ -204,7 +204,7 @@ jobs:
       ADDED: ${{ needs.ingest.outputs.added }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Republish the site and see it through
         run: .github/scripts/await-deploy.sh
