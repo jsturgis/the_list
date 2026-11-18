@@ -6,6 +6,7 @@ run) are tested below with the network and LLM mocked, the same way tests/test_e
 get_enrichment_llm and tests/test_band_photos.py mocks httpx.Client."""
 from __future__ import annotations
 
+import json
 import time
 from datetime import date, datetime, timedelta
 from types import SimpleNamespace
@@ -15,7 +16,7 @@ import httpx
 import pytest
 
 from app.ingestion.venue_calendar import (
-    CalendarEntry, CalendarGone, CalendarUpdate, LookupFailed, ShowLike, _clean_html,
+    CalendarEntry, CalendarGone, CalendarUpdate, LookupFailed, ShowLike, _around_wanted, _clean_html, _page_text,
     enrich_shows_from_venue_calendars, fetch_calendar_entries, find_calendar_url, match_calendar,
 )
 from app.ingestion.venue_corrections import CORRECTIONS, VenueCorrection
@@ -290,6 +291,9 @@ def _entry(**fields):
                               "more_info_url": None, "ticket_url": None, **fields})
 
 
+_LISTING = "<p>Sat Nov 14 · Redwood Sirens</p>"   # the Show looked for, as a calendar lists it
+
+
 def _page_with(*entries) -> str:
     """A calendar page holding every URL the entries give, as a real one would."""
     links = [getattr(e, field) for e in entries for field in ("flyer_url", "more_info_url", "ticket_url")]
@@ -297,7 +301,7 @@ def _page_with(*entries) -> str:
 
 
 def _read(*entries, page=None, status=200, website_url=None):
-    page = _page_with(*entries) if page is None else page
+    page = _LISTING + (_page_with(*entries) if page is None else page)
     with patch("app.ingestion.venue_calendar._get", return_value=_html_response(page, status, _CALENDAR)), \
          patch("app.ingestion.venue_calendar.get_enrichment_llm", _llm(SimpleNamespace(entries=list(entries)))):
         return fetch_calendar_entries(_CALENDAR, today=_TODAY, wanted=[(NIGHT, "Redwood Sirens")],
@@ -397,7 +401,7 @@ def test_a_year_less_date_given_the_wrong_year_is_moved_on_to_the_coming_one():
 
 def test_fetch_calendar_entries_tells_the_llm_today_and_the_shows_it_is_looking_for():
     llm = _llm(SimpleNamespace(entries=[]))
-    with patch("app.ingestion.venue_calendar._get", return_value=_html_response("<p>cal</p>", url=_CALENDAR)), \
+    with patch("app.ingestion.venue_calendar._get", return_value=_html_response(_LISTING, url=_CALENDAR)), \
          patch("app.ingestion.venue_calendar.get_enrichment_llm", llm):
         fetch_calendar_entries(_CALENDAR, today=_TODAY, wanted=[(NIGHT, "Redwood Sirens")])
 
@@ -411,17 +415,117 @@ def test_a_busy_calendar_is_asked_about_in_batches_never_splitting_a_night():
     """One call for 50 Shows can run out of output tokens and lose the whole answer."""
     from datetime import timedelta as td
     wanted = [(NIGHT + td(days=i), f"Band {i}") for i in range(45)] + [(NIGHT + td(days=19), "Late Band")]
+    page = "".join(f"<p>{night.isoformat()} {name}</p>" for night, name in wanted)
     llm = _llm(SimpleNamespace(entries=[]))
-    with patch("app.ingestion.venue_calendar._get", return_value=_html_response("<p>cal</p>", url=_CALENDAR)), \
+    with patch("app.ingestion.venue_calendar._get", return_value=_html_response(page, url=_CALENDAR)), \
          patch("app.ingestion.venue_calendar.get_enrichment_llm", llm):
         fetch_calendar_entries(_CALENDAR, today=_TODAY, wanted=wanted)
 
     prompts = [c.args[0] for c in llm.return_value.with_structured_output.return_value.invoke.call_args_list]
     assert len(prompts) == 3
-    night = (NIGHT + td(days=19)).isoformat()
-    assert [sum(night in p for p in prompts[:1]), sum(night in p for p in prompts[1:])] == [1, 0]  # both on one call
+    night = f"- {(NIGHT + td(days=19)).isoformat()}: "   # as the Shows looked for are listed
+    assert [sum(p.count(night) for p in prompts[:1]), sum(p.count(night) for p in prompts[1:])] == [2, 0]  # one call
     for i in range(45):   # each Show asked about exactly once
         assert sum(f": Band {i}\n" in p for p in prompts) == 1
+
+
+# ── Sending only the parts of the page near the Shows looked for ─────────────────────────────────────────────
+
+def _lines(*text: str) -> str:
+    return "\n".join(text)
+
+
+def _filler(n: int, what: str = "another night") -> list[str]:
+    return [f"{what} {i}" for i in range(n)]
+
+
+@pytest.mark.parametrize("written", ["2026-11-14", "Sat, Nov 14", "November 14th", "NOV. 14", "14 Nov", "11/14",
+                                     "11.14", "<time datetime=\"2026-11-14T20:00\">"])
+def test_a_line_giving_a_wanted_night_any_common_way_is_kept_with_the_lines_around_it(written):
+    text = _lines(*_filler(30, "earlier"), f"{written} doors 8pm", *_filler(30, "later"))
+
+    page = _around_wanted(text, [(NIGHT, "Redwood Sirens")], {})
+
+    assert f"{written} doors 8pm" in page
+    assert "earlier 20" in page and "earlier 19" not in page   # ten lines either side
+    assert "later 9" in page and "later 10" not in page
+
+
+@pytest.mark.parametrize("written", ["11/4", "1/14", "Nov 1", "Nov 140", "Dec 14", "2026-11-15"])
+def test_another_night_is_not_taken_for_the_wanted_one(written):
+    assert _around_wanted(_lines(f"{written} Other Band"), [(NIGHT, "Redwood Sirens")], {}) == ""
+
+
+def test_a_line_naming_a_wanted_band_is_kept_even_far_from_its_date():
+    """Some calendars give the date once, in a header, above a long list of Shows."""
+    text = _lines("November", *_filler(40), "REDWOOD SIRENS w/ guests", *_filler(40, "after"))
+
+    page = _around_wanted(text, [(NIGHT, "Redwood Sirens")], {})
+
+    assert "REDWOOD SIRENS w/ guests" in page and "November" not in page
+
+
+def test_a_support_act_is_looked_for_too_but_not_inside_another_name():
+    text = _lines("Night Owls + more", *_filler(40), "Night Owlsley Tribute")
+
+    page = _around_wanted(text, [(NIGHT, "Redwood Sirens")], {NIGHT: ("Redwood Sirens", "Night Owls")})
+
+    assert "Night Owls + more" in page and "Owlsley" not in page
+
+
+def test_runs_of_kept_lines_are_marked_where_lines_were_left_out():
+    text = _lines("Nov 14 Redwood Sirens", *_filler(40), "Redwood Sirens tickets")
+
+    assert _around_wanted(text, [(NIGHT, "Redwood Sirens")], {}).count("…") == 2
+
+
+def test_json_ld_events_are_kept_only_for_the_wanted_nights():
+    events = [{"@type": "MusicEvent", "name": "Redwood Sirens", "startDate": "2026-11-14T20:00"},
+              {"@type": "MusicEvent", "name": "Other", "startDate": "2026-11-20T20:00"}]
+    page_html = (f'<script type="application/ld+json">{json.dumps({"@graph": events}, indent=2)}</script>'
+                 '<script type="application/ld+json">{"@type": "WebSite", "name": "Venue"}</script><p>Hello</p>')
+
+    page = _around_wanted(_page_text(page_html), [(NIGHT, "Redwood Sirens")], {})
+
+    assert '"name":"Redwood Sirens"' in page
+    assert "Other" not in page and "WebSite" not in page
+
+
+def test_a_srcset_is_cut_to_its_largest_image():
+    text = _page_text('<img srcset="/f/1-400.jpg 400w, /f/1-1200.jpg 1200w, /f/1-800.jpg 800w">')
+    assert text == '<img srcset="/f/1-1200.jpg">'
+
+
+def test_a_page_naming_none_of_the_shows_is_not_sent_to_the_llm():
+    """A calendar drawn by its scripts has no Shows in its HTML: reading it costs a call and finds nothing."""
+    llm = _llm(SimpleNamespace(entries=[]))
+    with patch("app.ingestion.venue_calendar._get",
+               return_value=_html_response("<p>Loading events…</p>", url=_CALENDAR)), \
+         patch("app.ingestion.venue_calendar.get_enrichment_llm", llm):
+        assert fetch_calendar_entries(_CALENDAR, today=_TODAY, wanted=[(NIGHT, "Redwood Sirens")]) == []
+    llm.assert_not_called()
+
+
+def test_only_the_part_of_the_page_near_the_show_is_sent_to_the_llm():
+    page_html = "".join(f"<p>Dec {d} Some Band</p>" for d in range(1, 31)) + "<p>Nov 14 Redwood Sirens</p>"
+    llm = _llm(SimpleNamespace(entries=[]))
+    with patch("app.ingestion.venue_calendar._get", return_value=_html_response(page_html, url=_CALENDAR)), \
+         patch("app.ingestion.venue_calendar.get_enrichment_llm", llm):
+        fetch_calendar_entries(_CALENDAR, today=_TODAY, wanted=[(NIGHT, "Redwood Sirens")])
+
+    prompt = llm.return_value.with_structured_output.return_value.invoke.call_args.args[0]
+    assert "Nov 14 Redwood Sirens" in prompt and "Dec 21 Some Band" in prompt and "Dec 20 Some Band" not in prompt
+
+
+@patch("app.ingestion.venue_calendar.fetch_calendar_entries", return_value=[])
+def test_a_calendar_is_read_looking_for_every_band_on_the_bill(mock_fetch):
+    venue = _found_venue()
+    show = _real_show(venue)
+    show.acts.append(SimpleNamespace(position=1, band=SimpleNamespace(name="Night Owls")))
+
+    _enrich([show])
+
+    assert mock_fetch.call_args.kwargs["acts"] == {NIGHT: ("Redwood Sirens", "Night Owls")}
 
 
 def test_fetch_calendar_entries_raises_calendar_gone_when_the_page_has_gone():
@@ -432,8 +536,8 @@ def test_fetch_calendar_entries_raises_calendar_gone_when_the_page_has_gone():
 @pytest.mark.parametrize("get, llm", [
     (httpx.ConnectError("unreachable"), _llm(SimpleNamespace(entries=[]))),
     (_html_response("busy", 503, _CALENDAR), _llm(SimpleNamespace(entries=[]))),
-    (_html_response("<p>cal</p>", 200, _CALENDAR), _llm(error=RuntimeError("down"))),
-    (_html_response("<p>cal</p>", 200, _CALENDAR), _llm(None)),
+    (_html_response(_LISTING, 200, _CALENDAR), _llm(error=RuntimeError("down"))),
+    (_html_response(_LISTING, 200, _CALENDAR), _llm(None)),
 ])
 def test_fetch_calendar_entries_fails_temporarily_when_the_page_or_the_llm_does_not_answer(get, llm):
     with patch("app.ingestion.venue_calendar._get", side_effect=[get] if isinstance(get, Exception) else None,
