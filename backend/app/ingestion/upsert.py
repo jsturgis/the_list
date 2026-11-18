@@ -608,6 +608,59 @@ def remove_unlisted_shows(db: Session, listed: list[Show], since: date) -> list[
     return [show.id for show in unlisted]
 
 
+def same_event(added: Show, listed: Show) -> bool:
+    """Whether two Shows at one Venue on one day are one event listed twice, spelled differently: their headliners are
+    one Band misspelt (as close as a Venue's typo, _TYPO_SIMILARITY: "Sunamo" and "Sunami" aren't, at 0.83), or half
+    the shorter lineup, at least two Bands, is the same Bands ("Sunamo with No Pressure, Outta Pocket, Middrift, Small
+    Crush..." and "Sunami with No Pressure, Midrift, Outta Pocket, Small Crush...")."""
+    if (added.date, added.venue_id) != (listed.date, listed.venue_id) or not added.acts or not listed.acts:
+        return False
+    first, second = _show_headliner(added), _show_headliner(listed)
+    if first == second or difflib.SequenceMatcher(None, first, second).ratio() >= _TYPO_SIMILARITY:
+        return True
+    keys = [{band_key(a.band.name) or a.band.name for a in show.acts} for show in (added, listed)]
+    shorter = min(len(k) for k in keys)
+    return shorter >= 2 and len(keys[0] & keys[1]) * 2 >= shorter
+
+
+def fold_added_shows(db: Session, shows: list[Show]) -> tuple[list[Show], list[int]]:
+    """Fold each Show from elsewhere (an event page, a screenshot) into the List's Show of the same event (see
+    same_event), whichever of `shows` was just stored: the List wins, as when the headliner is spelled the same (see
+    upsert_shows). The List's Show keeps its lineup and details and takes the other's ticket link if it has none; the
+    other is deleted. When the event is two of the List's Shows (an early and a late one), only the one at the same
+    door time takes it, and with none, nothing is folded.
+
+    Returns `shows` with each folded Show replaced by the List's, and the ids deleted."""
+    folded: dict[int, Show] = {}
+    for show in shows:
+        others = [s for s in db.query(Show).filter(Show.date == show.date, Show.venue_id == show.venue_id)
+                  if s.id != show.id and s.id not in folded]
+        if show.source == "list":
+            pairs = [(other, show) for other in others if other.source != "list"]
+        else:
+            pairs = [(show, other) for other in others if other.source == "list"]
+        for added, listed in pairs:
+            if added.id in folded or not same_event(added, listed):
+                continue
+            rivals = [s for s in db.query(Show).filter(Show.date == added.date, Show.venue_id == added.venue_id,
+                                                       Show.source == "list") if same_event(added, s)]
+            if len(rivals) > 1 and listed.door_time != added.door_time:
+                continue   # which of the List's Shows it is isn't clear
+            if added.ticket_url and not listed.ticket_url:
+                listed.ticket_url, listed.ticket_provider = added.ticket_url, added.ticket_provider
+            logger.info("ingestion: show %d (%s) is the List's show %d; folded into it", added.id, added.source,
+                        listed.id)
+            folded[added.id] = listed
+            db.delete(added)
+    db.flush()
+    survivors: list[Show] = []
+    for show in shows:
+        kept = folded.get(show.id, show)
+        if kept not in survivors:
+            survivors.append(kept)
+    return survivors, list(folded)
+
+
 def _keep_edition_details(copy: Show, show: Show) -> None:
     """Give `show` what its unlisted `copy` has from the old formatted edition and it doesn't: a ticket link, a
     benefit's cause, a special event. The page never says these, and the edition is gone."""

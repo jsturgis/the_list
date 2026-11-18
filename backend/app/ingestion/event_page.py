@@ -9,13 +9,15 @@ add it.
 
 A page often knows less than the site that sells the tickets, so more is read where the page points:
 - A Bandsintown event page's whole lineup, which its JSON-LD leaves at the headliner (app/ingestion/bandsintown.py).
+- A Ticketmaster event page's price, which its JSON-LD leaves out and its scripts draw (app/ingestion/ticketmaster.py),
+  whether the link is Ticketmaster's or Ticketmaster is the seller.
 - On a page of several events, each Show's own event page (its lineup and ticket link), for the first
   MAX_FOLLOWED Shows.
 - The ticket seller's page (`follow_seller`): the event's ticket link on another site, unwrapped from an affiliate
   redirect. Its event, on the same date, adds the Bands the page didn't name, fills in what the page left out (price,
   times, age) and has the last word on sold out and cancelled; the Show's ticket link becomes the seller's. A seller
-  whose page can't be read (Ticketmaster's asks a browser to prove itself) still gives the Show its ticket link. Any
-  of this failing leaves the Show as the page gave it.
+  whose page can't be read still gives the Show its ticket link. Any of this failing leaves the Show as the page gave
+  it.
 """
 from __future__ import annotations
 
@@ -23,7 +25,7 @@ import logging
 import re
 from urllib.parse import parse_qs, urlsplit
 
-from app.ingestion import bandsintown, ticketweb
+from app.ingestion import bandsintown, ticketmaster, ticketweb
 from app.ingestion.page_fetch import PageError, get_page
 from app.ingestion.ticketweb import (EventError, OutsideBayArea, UnreadablePage, event_shows, event_url,
                                      is_ticketweb_url)
@@ -64,9 +66,24 @@ def fetch_events(url: str) -> list[dict]:
 
 def _get(url: str) -> tuple[str, str]:
     try:
-        return get_page(url)
+        return _fetch(url)
     except PageError as exc:
         raise UnreadablePage(f"couldn't fetch {url}: {exc}") from exc
+
+
+def _fetch(url: str) -> tuple[str, str]:
+    """The page, drawn in the page fetcher's browser where its scripts draw what's read from it (Ticketmaster's
+    prices)."""
+    if ticketmaster.is_ticketmaster_url(url):
+        return get_page(url, wait_for=ticketmaster.READY)
+    return get_page(url)
+
+
+def _with_price(show: dict, html: str, page_url: str) -> dict:
+    """The Show with the price a Ticketmaster page drew, when it has none."""
+    if show.get("price_raw") or not ticketmaster.is_ticketmaster_url(page_url):
+        return show
+    return {**show, "price_raw": ticketmaster.price(html)}
 
 
 def _finish(show: dict) -> dict:
@@ -76,9 +93,10 @@ def _finish(show: dict) -> dict:
 
 
 def _with_page_details(show: dict, html: str, page_url: str) -> dict:
-    """What the page says beyond its JSON-LD: a Bandsintown event's whole lineup, and its seller's link."""
+    """What the page says beyond its JSON-LD: a Bandsintown event's whole lineup, and its seller's link; a
+    Ticketmaster event's price."""
     if not bandsintown.is_bandsintown_url(page_url):
-        return show
+        return _with_price(show, html, page_url)
     lineup = bandsintown.lineup(html)
     if len(lineup) > len(show["bands"]):
         show = _with_bands(show, _merged(show["bands"], lineup))
@@ -92,7 +110,7 @@ def _from_own_page(show: dict, page_url: str) -> dict:
     if site_name(own) != site_name(page_url) or event_url(own) == event_url(page_url):
         return show
     try:
-        html, final_url = get_page(own)
+        html, final_url = _fetch(own)
         found = [s for s in event_shows(html, event_url(final_url), source=show["source"],
                                         provider=show["ticket_provider"])
                  if s["date"] == show["date"] and s["venue_name"] == show["venue_name"]]
@@ -135,11 +153,13 @@ def follow_seller(show: dict) -> dict:
         return show
     with_link = {**show, "ticket_url": event_url(link), "ticket_provider": _provider(link)}
     try:
-        html, final_url = get_page(link)
+        html, final_url = _fetch(link)
         if is_ticketweb_url(final_url):
             sold = [ticketweb.event_show(html, event_url(final_url))]
         else:
             sold = event_shows(html, event_url(final_url), source=show["source"], provider=site_name(final_url))
+            if len(sold) == 1:   # the options drawn are its one event's
+                sold = [_with_price(sold[0], html, final_url)]
     except (PageError, EventError) as exc:
         logger.info("%s: its seller's page (%s) adds nothing: %s", show["ticket_url"], link, exc)
         return with_link

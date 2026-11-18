@@ -226,6 +226,24 @@ def test_a_challenge_from_a_site_not_listed_is_answered_as_it_is(fetcher):
     assert (page.status, page.via) == (403, "request")
 
 
+def test_a_page_waited_for_is_opened_in_the_browser_on_a_site_listed(fetcher):
+    drawn = scraper.Page(200, "https://www.ticketmaster.com/e/1", "<li data-price></li>", "browser")
+    with patch.object(scraper, "check_url"), patch.object(fetcher, "_request") as request, \
+            patch.object(fetcher, "_browse", return_value=drawn) as browse:
+        page = asyncio.run(fetcher.fetch("https://www.ticketmaster.com/e/1", wait_for="[data-price]"))
+    request.assert_not_called()
+    browse.assert_called_once_with("https://www.ticketmaster.com/e/1", "[data-price]")
+    assert page.via == "browser"
+
+
+def test_waiting_for_a_page_on_a_site_not_listed_doesnt_open_the_browser(fetcher):
+    answer = scraper.Answer(200, {}, "https://evil.example/", "<title>An event</title>")
+    with patch.object(fetcher, "_request", return_value=answer), patch.object(fetcher, "_browse") as browse:
+        page = asyncio.run(fetcher.fetch("https://evil.example/", wait_for="[data-price]"))
+    browse.assert_not_called()
+    assert page.via == "request"
+
+
 @pytest.mark.parametrize("address, allowed", [
     ("100.101.102.103", True), ("fd7a:115c:a1e0::5", True), ("127.0.0.1", True), ("::1", True),
     ("192.168.0.185", False), ("172.17.0.1", False), ("8.8.8.8", False), ("testclient", False), (None, False)])
