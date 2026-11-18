@@ -11,7 +11,8 @@ import httpx
 import pytest
 from PIL import Image
 
-from app.ingestion.screenshot import MAX_PIXELS, ScreenshotError, event_summary, fit, read_screenshot, screenshot_show
+from app.ingestion.screenshot import (MAX_PIXELS, ScreenshotError, event_summary, fit, parse_date, read_fields,
+                                      screenshot_show)
 from app.ingestion.upsert import upsert_shows
 from app.models.show import AgeRestriction, ShowStatus
 from app.models.venue import Region
@@ -21,9 +22,9 @@ _TODAY = date(2026, 11, 17)
 
 def _fields(**changes) -> dict:
     """What the model reads from a Bandsintown screenshot."""
-    return {"performers": ["Wet Leg", "Idles"], "venue": "The Chapel", "city": "San Francisco, CA", "year": None,
-            "month": 12, "day": 5, "doors_time": "7:00 PM", "show_time": "8:00 PM", "price": "$20 - $25",
-            "age": "21+", "sold_out": False, "cancelled": False, **changes}
+    return {"performers": ["Wet Leg", "Idles"], "venue": "The Chapel", "city": "San Francisco, CA",
+            "date": "Sat, Dec 5", "doors_time": "7:00 PM", "show_time": "8:00 PM", "price": "$20 - $25",
+            "age": "21+", "status": None, **changes}
 
 
 def test_reads_the_show_from_what_the_model_read():
@@ -40,18 +41,32 @@ def test_reads_the_show_from_what_the_model_read():
     assert event_summary(data) == "Wet Leg, Idles at The Chapel, San Francisco on Sat Dec 5, 2026"
 
 
-def test_a_date_with_no_year_is_its_next_one():
-    assert screenshot_show(_fields(month=1, day=9), _TODAY)["date"] == date(2027, 1, 9)
-    assert screenshot_show(_fields(month=11, day=17), _TODAY)["date"] == _TODAY
+@pytest.mark.parametrize("text, expected", [
+    ("Sat, Dec 5", date(2026, 12, 5)),
+    ("Saturday, December 5th • 8PM", date(2026, 12, 5)),
+    ("Jan 9", date(2027, 1, 9)),           # no year: its next one
+    ("Tue Nov 17", _TODAY),
+    ("March 1, 2027", date(2027, 3, 1)),
+    ("Sept. 3", date(2027, 9, 3)),
+    ("5 Dec", date(2026, 12, 5)),
+    ("the 5th of December", date(2026, 12, 5)),
+    ("12/5", date(2026, 12, 5)),           # US: month first
+    ("12/05/26", date(2026, 12, 5)),
+    ("2027-02-14", date(2027, 2, 14)),
+])
+def test_reads_the_date_as_the_screenshot_writes_it(text, expected):
+    assert parse_date(text, _TODAY) == expected
+    assert screenshot_show(_fields(date=text), _TODAY)["date"] == expected
 
 
-def test_a_date_with_a_year_is_taken_as_it_is():
-    assert screenshot_show(_fields(year=2027, month=3, day=1), _TODAY)["date"] == date(2027, 3, 1)
+@pytest.mark.parametrize("text", ["", "Tonight", "Feb 30", "13/45"])
+def test_no_date_in_the_text_is_none(text):
+    assert parse_date(text, _TODAY) is None
 
 
 def test_refuses_an_event_that_has_passed():
     with pytest.raises(ScreenshotError, match="has passed"):
-        screenshot_show(_fields(year=2026, month=11, day=1), _TODAY)
+        screenshot_show(_fields(date="November 1, 2026"), _TODAY)
 
 
 def test_one_time_is_the_shows_time():
@@ -69,9 +84,18 @@ def test_reads_all_ages():
     assert screenshot_show(_fields(age="All Ages"), _TODAY)["age_restriction"] == "a/a"
 
 
-def test_reads_a_cancelled_or_sold_out_event():
-    data = screenshot_show(_fields(cancelled=True, sold_out=True), _TODAY)
-    assert (data["status"], data["is_sold_out"]) == ("cancelled", True)
+@pytest.mark.parametrize("words, status, sold_out", [
+    (None, "upcoming", False),
+    ("SOLD OUT", "upcoming", True),
+    ("Sold-out", "upcoming", True),
+    ("Cancelled", "cancelled", False),
+    ("Event canceled", "cancelled", False),
+    ("Postponed", "postponed", False),
+    ("Low tickets", "upcoming", False),
+])
+def test_the_events_state_is_what_its_words_say(words, status, sold_out):
+    data = screenshot_show(_fields(status=words), _TODAY)
+    assert (data["status"], data["is_sold_out"]) == (status, sold_out)
 
 
 def test_drops_repeated_and_empty_performers():
@@ -88,8 +112,8 @@ def test_with_no_city_a_known_venues_is_used():
     ({"venue": None}, "no venue"),
     ({"city": "Portland"}, "not a Bay Area city"),
     ({"city": None}, "unknown city"),
-    ({"month": None}, "no date"),
-    ({"month": 2, "day": 30}, "no date"),
+    ({"date": None}, "no date on the screenshot$"),
+    ({"date": "Tonight"}, "no date on the screenshot \\(read 'Tonight'\\)"),
 ])
 def test_refuses_what_isnt_an_upcoming_bay_area_event(changes, error):
     with pytest.raises(ScreenshotError, match=error):
@@ -124,15 +148,14 @@ def test_asks_the_vision_model_with_the_image(post):
     post.return_value = _answer(_fields())
     image = _png(800, 600)
 
-    data = read_screenshot(image, _TODAY)
+    fields = read_fields(image)
 
     request = post.call_args.kwargs["json"]
     assert request["model"] == "qwen2.5vl:3b"
     assert request["format"]["required"][0] == "performers"
     assert request["options"]["num_ctx"] == 8192
     assert request["messages"][0]["images"] == [base64.b64encode(image).decode()]   # small enough as it is
-    assert data["bands"] == ["Wet Leg", "Idles"]
-    assert data["fields"] == _fields()
+    assert fields == _fields()
 
 
 def test_a_full_screen_retina_screenshot_is_scaled_down_to_fit_the_models_context():
@@ -147,18 +170,31 @@ def test_a_file_that_isnt_an_image_is_refused():
         fit(b"not a png")
 
 
+def test_a_small_image_is_decoded_in_full_so_a_corrupt_one_is_refused():
+    """Its header is fine; the picture is cut off."""
+    with pytest.raises(ScreenshotError, match="isn't an image"):
+        fit(_png(400, 300)[:200])
+
+
+def test_an_image_of_another_kind_is_refused():
+    out = io.BytesIO()
+    Image.new("RGB", (10, 10)).save(out, format="GIF")
+    with pytest.raises(ScreenshotError, match="GIF image, not a PNG, JPEG or WebP"):
+        fit(out.getvalue())
+
+
 @patch("app.ingestion.screenshot.httpx.post")
 def test_says_why_ollama_refused(post):
     post.return_value = httpx.Response(400, json={"error": "request (4252 tokens) exceeds the available context size"},
                                        request=httpx.Request("POST", "http://ollama/api/chat"))
     with pytest.raises(ScreenshotError, match="Ollama answered 400: .*exceeds the available context size"):
-        read_screenshot(_png(10, 10), _TODAY)
+        read_fields(_png(10, 10))
 
 
 @patch("app.ingestion.screenshot.httpx.post", side_effect=httpx.ConnectError("refused"))
 def test_says_when_the_model_cant_be_asked(post):
     with pytest.raises(ScreenshotError, match="couldn't read the screenshot"):
-        read_screenshot(_png(10, 10), _TODAY)
+        read_fields(_png(10, 10))
 
 
 @patch("app.ingestion.screenshot.httpx.post")
@@ -166,4 +202,4 @@ def test_says_when_the_model_answers_nonsense(post):
     post.return_value = httpx.Response(200, json={"message": {"content": "not json"}},
                                        request=httpx.Request("POST", "http://ollama/api/chat"))
     with pytest.raises(ScreenshotError, match="couldn't read the screenshot"):
-        read_screenshot(_png(10, 10), _TODAY)
+        read_fields(_png(10, 10))

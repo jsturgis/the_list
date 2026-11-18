@@ -22,7 +22,8 @@ const STATES: [string, string, (page: Page) => Promise<void>, number][] = [
     await signedInAsAdmin(page, 'e2e.invalid')
     await page.reload()
     await expect(page.getByLabel('Event links')).toBeVisible()
-  }, 1],
+    await expect(page.getByRole('form', { name: 'Review what was read' })).toBeVisible()   // its fields too
+  }, 10],
 ]
 
 test.use({ viewport: { width: 390, height: 844 } })

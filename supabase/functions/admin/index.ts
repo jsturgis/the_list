@@ -13,6 +13,7 @@
  */
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.117.2'
 import { checkEventUrl, isAdmin, SCREENSHOT_MAX_BYTES, SCREENSHOT_TYPES } from '../_shared/eventUrls.ts'
+import { sniffImageType } from '../_shared/images.ts'
 
 const ALLOWED_ORIGINS = ['https://list.sturgis.me', 'http://localhost:3000']
 const MAX_ITEMS = 20
@@ -76,8 +77,14 @@ async function addShows(request: Request, client: SupabaseClient, userId: string
       rejected.push({ input: file.name, reason: 'is over 10 MB' })
       continue
     }
-    const path = `${userId}/${crypto.randomUUID()}.${EXTENSIONS[file.type]}`
-    const { error } = await client.storage.from('ingest-screenshots').upload(path, file, { contentType: file.type })
+    // The type a file is sent with is only what it's named: its first bytes say what it is, and that's what's kept.
+    const actual = sniffImageType(new Uint8Array(await file.slice(0, 12).arrayBuffer()))
+    if (!actual) {
+      rejected.push({ input: file.name, reason: "isn't really a PNG, JPEG or WebP image" })
+      continue
+    }
+    const path = `${userId}/${crypto.randomUUID()}.${EXTENSIONS[actual]}`
+    const { error } = await client.storage.from('ingest-screenshots').upload(path, file, { contentType: actual })
     if (error) {
       rejected.push({ input: file.name, reason: `couldn't be stored: ${error.message}` })
       continue

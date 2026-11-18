@@ -13,6 +13,7 @@ from app import ingest_jobs
 from app.alerts import SupabaseError
 from app.cli import main
 from app.ingest_jobs import Job, parse_specs, run_jobs
+from app.ingestion.screenshot import ScreenshotError
 from app.ingestion.ticketweb import EventError, UnreadablePage, event_show
 from app.ingestion.upsert import upsert_shows
 from app.models.show import Show
@@ -23,9 +24,8 @@ _PAGE = (Path(__file__).parent / "fixtures" / "ticketweb_event.html").read_text(
 _TODAY = date(2026, 11, 17)
 _TICKETWEB = Job("job-1", 11, "ticketweb", _URL, None)
 _SCREENSHOT = Job("job-2", 12, "screenshot", None, "user/shot.png")
-_FIELDS = {"performers": ["Wet Leg"], "venue": "The Chapel", "city": "San Francisco", "year": None, "month": 12,
-           "day": 5, "doors_time": "8pm", "show_time": None, "price": "$25", "age": None, "sold_out": False,
-           "cancelled": False}
+_FIELDS = {"performers": ["Wet Leg"], "venue": "The Chapel", "city": "San Francisco", "date": "Dec 5",
+           "doors_time": "8pm", "show_time": None, "price": "$25", "age": None, "status": None}
 
 
 def test_reads_the_workflows_jobs():
@@ -73,18 +73,62 @@ def test_a_ticketweb_job_is_ingested_and_its_progress_recorded(fetch, db, supaba
 
 
 @patch("app.ingestion.screenshot.read_fields", return_value=_FIELDS)
-def test_a_screenshot_job_is_read_by_the_model_and_ingested(read, db, supabase):
-    with patch("app.scheduler.ingest_shows", side_effect=_stored(db)):
+def test_a_screenshot_is_read_then_waits_for_review_adding_nothing(read, db, supabase):
+    with patch("app.scheduler.ingest_shows", side_effect=_stored(db)) as ingest:
         added = run_jobs(db, [_SCREENSHOT], _TODAY)
 
-    assert added == ["job-2"]
+    assert added == []
     read.assert_called_once_with(b"png")
     assert supabase[1] == ("update", ["job-2"], {"phase": "reading_screenshot",
                                                  "detail": "Reading it with qwen2.5vl:3b"})
+    assert supabase[-1] == ("finish", "job-2", "review", {"message": "Check what was read, then approve it",
+                                                          "extracted": _FIELDS})
+    ingest.assert_not_called()
+    assert db.query(Show).count() == 0
+
+
+@patch("app.ingestion.screenshot.read_fields", return_value={**_FIELDS, "date": None})
+def test_a_screenshot_that_cant_be_added_as_read_goes_to_review_with_why(read, db, supabase):
+    """The admin can put the date in."""
+    run_jobs(db, [_SCREENSHOT], _TODAY)
+
+    assert supabase[-1] == ("finish", "job-2", "review", {"message": "Check what was read: no date on the screenshot",
+                                                          "extracted": {**_FIELDS, "date": None}})
+
+
+@patch("app.ingestion.screenshot.read_fields", side_effect=ScreenshotError("couldn't read the screenshot: 400"))
+def test_a_screenshot_the_model_cant_read_fails(read, db, supabase):
+    run_jobs(db, [_SCREENSHOT], _TODAY)
+
+    assert supabase[-1][:3] == ("finish", "job-2", "failed")
+
+
+_APPROVED = Job("job-2", 13, "screenshot", None, "user/shot.png", "queued", {**_FIELDS, "performers": ["Wet Leg", "Idles"]},
+                approved=True)
+
+
+@patch("app.ingestion.screenshot.read_fields")
+def test_an_approved_screenshot_is_added_as_reviewed_without_asking_the_model_again(read, db, supabase):
+    with patch("app.scheduler.ingest_shows", side_effect=_stored(db)):
+        added = run_jobs(db, [_APPROVED], _TODAY)
+
+    assert added == ["job-2"]
+    read.assert_not_called()
+    assert supabase[1] == ("update", ["job-2"], {"phase": "review", "detail": "Using the details as reviewed"})
+    show = db.query(Show).one()
+    assert (show.source, [a.band.name for a in show.acts]) == ("screenshot", ["Wet Leg", "Idles"])
+    assert supabase[-1][:3] == ("finish", "job-2", "added")
+
+
+def test_an_approved_screenshot_that_still_cant_be_added_goes_back_to_review(db, supabase):
+    job = Job("job-2", 13, "screenshot", None, "user/shot.png", "queued", {**_FIELDS, "city": "Portland"}, approved=True)
+    with patch("app.scheduler.ingest_shows", side_effect=_stored(db)) as ingest:
+        assert run_jobs(db, [job], _TODAY) == []
+
+    ingest.assert_not_called()
     _, _, status, finished = supabase[-1]
-    assert status == "added"
-    assert finished["extracted"] == _FIELDS
-    assert db.query(Show).one().source == "screenshot"
+    assert status == "review"
+    assert finished["message"] == "Check what was read: The Chapel is in Portland, not a Bay Area city we know"
 
 
 @patch("app.ingest_jobs.fetch_event", return_value=event_show(_PAGE, _URL))
@@ -108,7 +152,7 @@ def test_a_failing_job_is_recorded_and_doesnt_stop_the_others(fetch, read, db, s
     assert added == []
     finishes = [c for c in supabase if c[0] == "finish"]
     assert finishes[0] == ("finish", "job-1", "failed", {"message": "couldn't fetch it: 506", "extracted": None})
-    assert finishes[1][2] == "failed"
+    assert finishes[1][2] == "review"   # the screenshot, read, goes on to be reviewed
     assert "Portland" in finishes[1][3]["message"]
     assert finishes[1][3]["extracted"]["city"] == "Portland"   # what the model read, to see what went wrong
 
@@ -157,7 +201,8 @@ def requests(monkeypatch):
 
     def request(method, url, **kwargs):
         sent.append((method, url, kwargs))
-        body = [{"id": "job-1", "provider": "ticketweb", "url": _URL, "screenshot_path": None}]
+        body = [{"id": "job-1", "provider": "ticketweb", "url": _URL, "screenshot_path": None, "extracted": None,
+                 "approved_at": None}]
         return httpx.Response(200, json=body, request=httpx.Request(method, url))
     with patch("app.ingest_jobs.httpx.request", side_effect=request):
         yield sent

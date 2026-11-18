@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from 'react'
-import { CheckIcon, PhotoIcon, XMarkIcon } from '@heroicons/react/16/solid'
+import { CheckIcon, PhotoIcon, TrashIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import { href } from '@/lib/basePath'
+import { FIELD } from '@/lib/field'
 import { checkEventUrl, SCREENSHOT_MAX_BYTES, SCREENSHOT_TYPES } from '@/lib/eventUrls'
 import {
   addShows,
+  approveJob,
+  deletable,
+  deleteJob,
   inProgress,
   loadJobs,
   phasesFor,
@@ -12,6 +16,8 @@ import {
   type AddResult,
   type IngestJob,
   type JobStatus,
+  type ReadFields,
+  screenshotUrl,
   wantsScreenshot,
 } from '@/lib/ingestJobs'
 import { supabase } from '@/lib/supabase'
@@ -111,6 +117,7 @@ function Admin({ email }: { email: string }) {
           return [job, ...rest].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, RECENT_JOBS)
         }),
       setLive,
+      id => setJobs(current => current?.filter(j => j.id !== id) ?? current),
     )
     return () => {
       cancelled = true
@@ -125,6 +132,18 @@ function Admin({ email }: { email: string }) {
     const timer = setInterval(refresh, POLL_MS)
     return () => clearInterval(timer)
   }, [live, waiting, refresh])
+
+  const [toast, setToast] = useState<string | null>(null)
+  const dismissToast = useCallback(() => setToast(null), [])
+  const remove = async (job: IngestJob) => {
+    try {
+      await deleteJob(job)
+      setJobs(current => current?.filter(j => j.id !== job.id) ?? current)
+      setToast(`Deleted the job for ${jobTitle(job)}`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   const added = (result: AddResult) =>
     setJobs(current => {
@@ -151,10 +170,11 @@ function Admin({ email }: { email: string }) {
           <p className="text-sm text-ink-soft">No jobs yet. Shows you add appear here as they make their way to the site.</p>
         ) : (
           <ul className="flex flex-col divide-y divide-line-subtle">
-            {jobs?.map(job => <JobRow key={job.id} job={job} />)}
+            {jobs?.map(job => <JobRow key={job.id} job={job} onDelete={() => remove(job)} />)}
           </ul>
         )}
       </Section>
+      {toast && <Toast onDismiss={dismissToast}>{toast}</Toast>}
     </div>
   )
 }
@@ -284,8 +304,23 @@ function AddShowsForm({ onAdded }: { onAdded: (result: AddResult) => void }) {
               dragging ? 'border-accent bg-accent-soft text-accent-soft-ink' : 'border-line-strong text-ink-muted'
             }`}
           >
-            <PhotoIcon aria-hidden="true" className={`size-6 ${dragging ? '' : 'text-ink-faint'}`} />
-            <p className="text-sm">{dragging ? 'Drop to add' : 'Drag screenshots here, paste one, or'}</p>
+            {screenshots.length > 0 ? (
+              <ul aria-labelledby="admin-screenshots" className="grid w-full grid-cols-2 gap-3 text-left sm:grid-cols-3">
+                {screenshots.map((file, i) => (
+                  <ScreenshotPreview
+                    key={`${i}-${file.name}-${file.lastModified}`}
+                    file={file}
+                    problem={badScreenshots[i]}
+                    onRemove={() => setScreenshots(current => current.filter((_, j) => j !== i))}
+                  />
+                ))}
+              </ul>
+            ) : (
+              <PhotoIcon aria-hidden="true" className={`size-6 ${dragging ? '' : 'text-ink-faint'}`} />
+            )}
+            <p className="text-sm">
+              {dragging ? 'Drop to add' : screenshots.length > 0 ? 'Drag more here, paste one, or' : 'Drag screenshots here, paste one, or'}
+            </p>
             <button
               type="button"
               onClick={() => fileInput.current?.click()}
@@ -296,26 +331,6 @@ function AddShowsForm({ onAdded }: { onAdded: (result: AddResult) => void }) {
             </button>
           </div>
           <p className="text-xs text-ink-muted">Each is read by a vision model: check the job to see what it read.</p>
-          {screenshots.length > 0 && (
-            <ul aria-labelledby="admin-screenshots" className="flex flex-wrap gap-2">
-              {screenshots.map((file, i) => (
-                <li key={`${i}-${file.name}`} className="flex items-center gap-2 rounded-full bg-muted py-1 pl-3 pr-1 text-sm text-ink-soft">
-                  <PhotoIcon aria-hidden="true" className="size-4 shrink-0 text-ink-faint" />
-                  <span className="max-w-48 truncate">{file.name}</span>
-                  {badScreenshots[i] && <span className="text-danger">{badScreenshots[i]}</span>}
-                  <button
-                    type="button"
-                    onClick={() => setScreenshots(current => current.filter((_, j) => j !== i))}
-                    aria-label={`Remove ${file.name}`}
-                    title="Remove"
-                    className="rounded-full p-1 text-ink-faint hover:bg-muted-hover hover:text-ink"
-                  >
-                    <XMarkIcon className="size-4" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
           <input
             ref={fileInput}
             type="file"
@@ -360,11 +375,42 @@ function AddShowsForm({ onAdded }: { onAdded: (result: AddResult) => void }) {
   )
 }
 
+/** A screenshot waiting to be added: the image itself, its name, and a button to take it out again. */
+function ScreenshotPreview({ file, problem, onRemove }: { file: File; problem: string | null; onRemove: () => void }) {
+  // The file shown from memory; let go of when the preview goes.
+  const src = useMemo(() => URL.createObjectURL(file), [file])
+  useEffect(() => () => URL.revokeObjectURL(src), [src])
+
+  return (
+    <li className="relative flex min-w-0 flex-col gap-1">
+      <div className="aspect-[4/3] overflow-hidden rounded-lg border border-line bg-muted">
+        {!problem && <img src={src} alt={`Preview of ${file.name}`} className="size-full object-contain" />}
+        {problem && (
+          <div className="flex size-full items-center justify-center p-2 text-center text-xs text-danger">{problem}</div>
+        )}
+      </div>
+      <span className="truncate text-xs text-ink-muted" title={file.name}>
+        {file.name}
+      </span>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remove ${file.name}`}
+        title="Remove"
+        className="absolute right-1.5 top-1.5 rounded-full border border-line bg-surface p-1 text-ink-soft hover:bg-muted hover:text-ink"
+      >
+        <XMarkIcon className="size-4" />
+      </button>
+    </li>
+  )
+}
+
 // ── Following ─────────────────────────────────────────────────────────────────
 
 const STATUS: Record<JobStatus, { label: string; className: string }> = {
   queued: { label: 'Queued', className: 'bg-muted text-ink-soft' },
   running: { label: 'Running', className: 'bg-info-soft text-info' },
+  review: { label: 'Needs review', className: 'bg-warning-soft text-warning' },
   added: { label: 'Added', className: 'bg-accent-chip text-accent-chip-ink' },
   live: { label: 'Live', className: 'bg-success-soft text-success' },
   failed: { label: 'Failed', className: 'bg-danger-soft text-danger' },
@@ -397,19 +443,144 @@ function toScreenshots() {
   document.querySelector<HTMLElement>('[data-choose-screenshots]')?.focus({ preventScroll: true })
 }
 
-/** What the vision model read from a screenshot, in a line: "Wet Leg, Idles · The Chapel, San Francisco · 12/5". */
+/** What the vision model read from a screenshot, in a line: "Wet Leg, Idles · The Chapel, San Francisco · Fri, Dec 5". */
 export function readLine(extracted: Record<string, unknown> | null): string | null {
   if (!extracted) return null
   const performers = Array.isArray(extracted.performers) ? extracted.performers.filter(p => typeof p === 'string') : []
   const where = [extracted.venue, extracted.city].filter(v => typeof v === 'string' && v).join(', ')
-  const when = [extracted.month, extracted.day, extracted.year].filter(v => typeof v === 'number').join('/')
+  // The date as the screenshot writes it (older jobs have it as numbers).
+  const when = typeof extracted.date === 'string' && extracted.date
+    ? extracted.date
+    : [extracted.month, extracted.day, extracted.year].filter(v => typeof v === 'number').join('/')
   const parts = [performers.join(', '), where, when].filter(Boolean)
   return parts.length ? parts.join(' · ') : null
 }
 
 const isUrl = (text: string | null): text is string => !!text && /^https?:\/\//.test(text)
 
-function JobRow({ job }: { job: IngestJob }) {
+/** The screenshot a job was added from, to check what the model read against: a thumbnail that opens it full size. */
+function JobScreenshot({ path }: { path: string }) {
+  const [src, setSrc] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    screenshotUrl(path).then(url => {
+      if (!cancelled) setSrc(url)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [path])
+  if (!src) return null
+  return (
+    <a href={src} target="_blank" rel="noreferrer" className="block w-fit" title="Open the screenshot">
+      <img src={src} alt="The screenshot this job was added from" className="max-h-40 w-auto rounded-lg border border-line" />
+    </a>
+  )
+}
+
+const REVIEW_FIELDS: { key: Exclude<keyof ReadFields, 'performers'>; label: string; placeholder: string }[] = [
+  { key: 'venue', label: 'Venue', placeholder: 'The Chapel' },
+  { key: 'city', label: 'City', placeholder: 'San Francisco' },
+  { key: 'date', label: 'Date', placeholder: 'Fri, Dec 12' },
+  { key: 'doors_time', label: 'Doors', placeholder: '7:00 PM' },
+  { key: 'show_time', label: 'Show', placeholder: '8:00 PM' },
+  { key: 'price', label: 'Price', placeholder: '$20 - $25' },
+  { key: 'age', label: 'Age', placeholder: '21+' },
+  { key: 'status', label: 'Status', placeholder: 'Sold Out, Cancelled…' },
+]
+
+const text = (value: unknown) => (typeof value === 'string' ? value : '')
+
+/**
+ * A screenshot job waiting for review: what the vision model read, to check against the screenshot above it and
+ * correct. Approve queues it to be added as it stands here; Discard deletes it. Nothing from a screenshot reaches the
+ * site without this.
+ */
+function ReviewForm({ job, onDiscard }: { job: IngestJob; onDiscard: () => void }) {
+  const read = job.extracted ?? {}
+  const [lineup, setLineup] = useState(() =>
+    (Array.isArray(read.performers) ? read.performers.filter(p => typeof p === 'string') : []).join('\n'),
+  )
+  const [values, setValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(REVIEW_FIELDS.map(({ key }) => [key, text(read[key])])),
+  )
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const performers = lineup.split('\n').map(l => l.trim()).filter(Boolean)
+  const ready = performers.length > 0 && values.venue.trim() !== '' && values.date.trim() !== ''
+
+  const approve = async (e: FormEvent) => {
+    e.preventDefault()
+    setSending(true)
+    setError(null)
+    try {
+      const fields = Object.fromEntries(REVIEW_FIELDS.map(({ key }) => [key, values[key].trim() || null]))
+      await approveJob(job.id, { performers, ...fields } as ReadFields)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      setSending(false)
+    }
+  }
+
+  const id = (key: string) => `review-${job.id}-${key}`
+  return (
+    <form onSubmit={approve} aria-label="Review what was read" className="flex flex-col gap-3 rounded-lg border border-line p-3">
+      <div className="flex flex-col gap-1">
+        <label htmlFor={id('lineup')} className="text-xs font-semibold text-ink">
+          Lineup, headliner first, one per line
+        </label>
+        <textarea
+          id={id('lineup')}
+          rows={Math.max(2, performers.length + 1)}
+          value={lineup}
+          onChange={e => setLineup(e.target.value)}
+          className="rounded-lg border border-line-strong bg-field px-3 py-2 text-base text-ink placeholder:text-ink-faint"
+        />
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {REVIEW_FIELDS.map(({ key, label, placeholder }) => (
+          <div key={key} className="flex flex-col gap-1">
+            <label htmlFor={id(key)} className="text-xs font-semibold text-ink">
+              {label}
+            </label>
+            <input
+              id={id(key)}
+              value={values[key]}
+              placeholder={placeholder}
+              onChange={e => setValues(v => ({ ...v, [key]: e.target.value }))}
+              className={`${FIELD} px-3`}
+            />
+          </div>
+        ))}
+      </div>
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="submit"
+          disabled={sending || !ready}
+          className="h-9 rounded-full bg-accent px-5 text-sm font-bold text-on-accent hover:bg-accent-hover disabled:opacity-50"
+        >
+          {sending ? 'Approving…' : 'Approve and add'}
+        </button>
+        <button
+          type="button"
+          onClick={onDiscard}
+          disabled={sending}
+          className="h-9 rounded-full border border-line-strong px-4 text-sm font-bold text-ink hover:bg-muted disabled:opacity-50"
+        >
+          Discard
+        </button>
+      </div>
+      {!ready && <p className="text-xs text-ink-muted">A lineup, a venue and a date are needed to add it.</p>}
+    </form>
+  )
+}
+
+function JobRow({ job, onDelete }: { job: IngestJob; onDelete: () => void }) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (!inProgress(job)) return
@@ -437,10 +608,24 @@ function JobRow({ job }: { job: IngestJob }) {
             <span className="font-bold text-ink">{jobTitle(job)}</span>
           )}
         </div>
-        <span className="text-xs text-ink-muted">{ago(job.updated_at, now)}</span>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="text-xs text-ink-muted">{ago(job.updated_at, now)}</span>
+          {deletable(job) && (
+            <button
+              type="button"
+              onClick={onDelete}
+              aria-label={`Delete the job for ${jobTitle(job)}`}
+              title="Delete"
+              className="rounded-full p-1 text-ink-faint hover:bg-muted hover:text-danger"
+            >
+              <TrashIcon className="size-4" />
+            </button>
+          )}
+        </div>
       </div>
 
-      {read && <p className="text-sm text-ink-soft">Read: {read}</p>}
+      {job.screenshot_path && <JobScreenshot path={job.screenshot_path} />}
+      {read && job.status !== 'review' && <p className="text-sm text-ink-soft">Read: {read}</p>}
 
       <ol aria-label="Steps" className="flex flex-wrap gap-1">
         {phases.map((phase, i) => {
@@ -478,7 +663,12 @@ function JobRow({ job }: { job: IngestJob }) {
           )}
         </p>
       )}
-      {job.message && <p className={`text-sm ${failed ? 'text-danger' : 'text-ink-soft'}`}>{job.message}</p>}
+      {job.message && (
+        <p className={`text-sm ${failed ? 'text-danger' : job.status === 'review' ? 'text-warning' : 'text-ink-soft'}`}>
+          {job.message}
+        </p>
+      )}
+      {job.status === 'review' && <ReviewForm job={job} onDiscard={onDelete} />}
       {wantsScreenshot(job) && (
         <button
           type="button"

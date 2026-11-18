@@ -6,7 +6,7 @@ import { supabase } from './supabase'
  * workflow, and read back from Supabase's ingest_jobs table, which says how far each has got.
  */
 
-export type JobStatus = 'queued' | 'running' | 'added' | 'live' | 'failed'
+export type JobStatus = 'queued' | 'running' | 'review' | 'added' | 'live' | 'failed'
 
 export interface IngestJob {
   id: string
@@ -35,7 +35,9 @@ export function phasesFor(provider: IngestJob['provider']): Phase[] {
   return [
     { id: 'queued', label: 'Queued' },
     { id: 'dispatched', label: 'Dispatched' },
-    provider === 'screenshot' ? { id: 'reading_screenshot', label: 'Reading' } : { id: 'fetching_page', label: 'Fetching' },
+    ...(provider === 'screenshot'
+      ? [{ id: 'reading_screenshot', label: 'Reading' }, { id: 'review', label: 'Review' }]
+      : [{ id: 'fetching_page', label: 'Fetching' }]),
     { id: 'venue', label: 'Venue' },
     { id: 'bands', label: 'Bands' },
     { id: 'photos', label: 'Photos' },
@@ -73,19 +75,77 @@ export async function loadJobs(): Promise<IngestJob[]> {
   return data as IngestJob[]
 }
 
-/** Each job's changes as they're made (Supabase Realtime); `onState` hears whether that's working. */
-export function watchJobs(onChange: (job: IngestJob) => void, onState: (live: boolean) => void): () => void {
+/** Each job's changes as they're made (Supabase Realtime), and the ids of jobs deleted (by another admin, or in
+ * another tab); `onState` hears whether that's working. */
+export function watchJobs(
+  onChange: (job: IngestJob) => void,
+  onState: (live: boolean) => void,
+  onDelete: (id: string) => void = () => {},
+): () => void {
   const client = supabase
   if (!client) return () => {}
   const channel = client
     .channel('ingest-jobs')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ingest_jobs' }, payload => {
-      if (payload.new && 'id' in payload.new) onChange(payload.new as IngestJob)
+      if (payload.eventType === 'DELETE') {
+        if (payload.old && 'id' in payload.old) onDelete(payload.old.id as string)
+      } else if (payload.new && 'id' in payload.new) onChange(payload.new as IngestJob)
     })
     .subscribe(status => onState(status === 'SUBSCRIBED'))
   return () => {
     client.removeChannel(channel)
   }
+}
+
+/** Whether a job can be cleared away: it's finished, failed or live (the database allows no other). */
+export function deletable(job: Pick<IngestJob, 'status'>): boolean {
+  return job.status === 'failed' || job.status === 'live'
+}
+
+/** What the vision model read from a screenshot, and what an admin approves: the fields as the screenshot writes them
+ * (backend/app/ingestion/screenshot.py). */
+export interface ReadFields {
+  performers: string[]
+  venue: string | null
+  city: string | null
+  date: string | null
+  doors_time: string | null
+  show_time: string | null
+  price: string | null
+  age: string | null
+  status: string | null
+}
+
+/** Approve a screenshot job waiting for review, with its fields as corrected, and queue it to be added
+ * (approve_ingest_job, supabase/migrations/0007). */
+export async function approveJob(id: string, fields: ReadFields): Promise<IngestJob> {
+  const client = supabase
+  if (!client) throw new Error('Supabase isn’t set up on this copy of the site')
+  const { data, error } = await client.rpc('approve_ingest_job', { job_id: id, fields })
+  if (error) throw new Error(error.message)
+  return data as IngestJob
+}
+
+/**
+ * Clear a finished job from the database (supabase/migrations/0006), or discard one waiting for review (0007), and a
+ * screenshot job's screenshot from storage. The database deletes no other; for one, nothing is deleted and this says
+ * so.
+ */
+export async function deleteJob(job: Pick<IngestJob, 'id' | 'screenshot_path'>): Promise<void> {
+  const client = supabase
+  if (!client) throw new Error('Supabase isn’t set up on this copy of the site')
+  const { data, error } = await client.from('ingest_jobs').delete().eq('id', job.id).select('id')
+  if (error) throw new Error(error.message)
+  if (!data?.length) throw new Error('Only finished jobs (failed, or live) and those waiting for review can be deleted')
+  // The screenshot is only of use to its job; a failure to remove it leaves a file nobody sees.
+  if (job.screenshot_path) await client.storage.from('ingest-screenshots').remove([job.screenshot_path])
+}
+
+/** A link to a job's screenshot, good for an hour (the bucket is private; admins may read it), or null. */
+export async function screenshotUrl(path: string): Promise<string | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase.storage.from('ingest-screenshots').createSignedUrl(path, 3600)
+  return error ? null : data.signedUrl
 }
 
 export interface AddResult {
