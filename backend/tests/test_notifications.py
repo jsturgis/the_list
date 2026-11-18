@@ -274,8 +274,18 @@ def test_notify_success_sends_nothing_when_the_newest_run_failed_or_there_is_non
     assert resend.sent == []
 
 
+@pytest.mark.parametrize("shows_new", [0, None])
+def test_notify_success_sends_nothing_when_the_ingest_brought_no_new_shows(db, resend, caplog, shows_new):
+    _run(db, NOW, shows_parsed=1200, shows_upserted=1200, shows_new=shows_new, new_bands=0, new_venues=0)
+    with caplog.at_level("INFO"):
+        assert notify_success(db, dry_run=False, out=io.StringIO()) is None
+        assert notify_success(db, dry_run=True, out=io.StringIO()) is None
+    assert resend.sent == []
+    assert "no new Shows" in caplog.text
+
+
 def test_a_dry_run_prints_the_success_email_instead_of_sending_it(db, resend):
-    _run(db, NOW, new_bands=3, new_venues=1)
+    _run(db, NOW, shows_new=1, new_bands=3, new_venues=1)
     out = io.StringIO()
     notify_success(db, dry_run=True, out=out)
     assert resend.sent == []
@@ -295,7 +305,7 @@ def test_without_a_recipient_or_a_resend_key_nothing_is_sent_and_nothing_fails(d
 
 
 def test_a_failed_send_raises_without_quoting_resend(db, resend):
-    _run(db, NOW)
+    _run(db, NOW, shows_new=1)
     resend.status = 422
     with pytest.raises(SendError, match="HTTP 422"):
         notify_success(db, dry_run=False, out=io.StringIO())
@@ -426,7 +436,7 @@ def test_a_dry_run_prints_the_failure_email_due_or_not(db, resend, tmp_path):
 def test_cli_notify_success_sends_and_exits_non_zero_only_when_the_send_fails(db, resend, capsys):
     from app.cli import main
 
-    _run(db, datetime.utcnow(), new_bands=3, new_venues=1)
+    _run(db, datetime.utcnow(), shows_new=1, new_bands=3, new_venues=1)
     with patch("app.cli.SessionLocal", return_value=db):
         main(["notify-success", "--dry-run"])
         assert "Subject: The List: ingest succeeded" in capsys.readouterr().out
