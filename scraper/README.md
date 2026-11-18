@@ -28,11 +28,10 @@ curl -s -X POST http://truenas:8790/fetch -H "Authorization: Bearer $SCRAPER_TOK
    secret as the GitHub secrets `TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET`, and the variable
    `gh variable set SCRAPER_URL --body http://truenas:8790`.
 4. **The image.** Merging to main runs the Scraper image workflow, which publishes
-   `ghcr.io/jsturgis/the-list-scraper`. Make the package public once (GitHub, Packages, the-list-scraper, Package
-   settings) so TrueNAS can pull it without a login.
+   `ghcr.io/jsturgis/the-list-scraper`. It takes the repository's public visibility, so TrueNAS pulls it without a
+   login.
 5. **The stack.** In Dockge, + Compose, name it `the-list-scraper`, paste `compose.yaml`, and set
-   `SCRAPER_TOKEN=<the token>` in its `.env`. Create `/mnt/store/the-list-scraper/data` owned by 568:568 first.
-   Deploy. To update it later, Dockge's Update pulls the newest image.
+   `SCRAPER_TOKEN=<the token>` in its `.env`. Deploy. To update it later, Dockge's Update pulls the newest image.
 
 ## Running it locally
 
