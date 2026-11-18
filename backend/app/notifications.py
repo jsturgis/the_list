@@ -2,8 +2,9 @@
 
 Two emails, both to settings.maintainer_email through Resend, sent by steps of the Deploy workflow:
 
-- after each successful ingest that brought new Shows (`python -m app.cli notify-success`): the edition, its Show
-  counts, and how many new Bands and new Venues it brought;
+- after each successful ingest that brought new Shows or logged warnings (`python -m app.cli notify-success`): the
+  edition, its Show counts, how many new Bands and new Venues it brought, and what it carried on past (its
+  warnings, app/run_warnings.py);
 - while the ingest is failing (`python -m app.cli notify-failure --stage check|ingest --log PATH`): the root cause
   and the end of the failing command's log. Only once the last successful ingest is FAILING_AFTER_DAYS old, and at
   most once a day.
@@ -207,6 +208,10 @@ def actions_run_url(env: Mapping[str, str] | None = None) -> str | None:
 _STYLE = "font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size:14px; color:#18181b"
 
 
+def _warnings(warnings: list) -> str:
+    return f"{len(warnings)} warning{'' if len(warnings) == 1 else 's'}"
+
+
 def _count(n: int, noun: str) -> str:
     return f"{n} new {noun}{'' if n == 1 else 's'}"
 
@@ -237,7 +242,8 @@ def _text(paragraphs: list[str], facts: list[tuple[str, str]], links: list[tuple
 
 
 def success_email(run: IngestionRun, site: str) -> Notification:
-    """The email after a successful ingest: the edition, its Show counts, the new Bands and the new Venues."""
+    """The email after a successful ingest: the edition, its Show counts, the new Bands and the new Venues, and its
+    warnings."""
     bands, venues = run.new_bands or 0, run.new_venues or 0
     edition = run.edition_title or "the List"
     new_bands = str(bands)
@@ -251,10 +257,17 @@ def success_email(run: IngestionRun, site: str) -> Notification:
     ]
     if run.finished_at:
         facts.append(("Finished", f"{run.finished_at:%Y-%m-%d %H:%M} UTC"))
+    warnings = run.warnings or []
+    facts += [("Warning", w["message"] + (f" ({w['count']} times)" if w.get("count", 1) > 1 else ""))
+              for w in warnings]
     paragraphs = [f"The ingest of {edition} succeeded and its data is saved."]
+    if warnings:
+        paragraphs.append(f"It carried on past {_warnings(warnings)}: what it couldn't do is below.")
     links = [("The site", site)]
-    return Notification(f"The List: ingest succeeded: {_count(bands, 'band')}, {_count(venues, 'venue')}",
-                        _text(paragraphs, facts, links), _html(paragraphs, facts, links))
+    subject = f"The List: ingest succeeded: {_count(bands, 'band')}, {_count(venues, 'venue')}"
+    if warnings:
+        subject += f", {_warnings(warnings)}"
+    return Notification(subject, _text(paragraphs, facts, links), _html(paragraphs, facts, links))
 
 
 def failure_email(*, stage: str, cause: str, log_tail: str, last: LastSuccess | None, now: datetime,
@@ -315,14 +328,14 @@ def notify_success(db: Session, *, dry_run: bool, out: TextIO) -> Notification |
     """Email the maintainer about the newest ingestion run, when it succeeded; a dry run prints it to `out`.
 
     Returns the email, or None when there's nothing to send (no successful newest run, one that brought no new
-    Shows, or not configured).
+    Shows and logged no warnings, or not configured).
     """
     run = db.query(IngestionRun).order_by(IngestionRun.id.desc()).first()
     if run is None or run.status != IngestionStatus.success:
         logger.info("notify-success: skipping, the newest ingestion run isn't a successful one")
         return None
-    if not run.shows_new:
-        logger.info("notify-success: skipping, the ingest brought no new Shows")
+    if not run.shows_new and not run.warnings:
+        logger.info("notify-success: skipping, the ingest brought no new Shows and logged no warnings")
         return None
     notification = success_email(run, settings.site_url.rstrip("/"))
     if dry_run:

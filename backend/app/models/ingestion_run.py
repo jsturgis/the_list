@@ -8,6 +8,7 @@ from sqlalchemy import Date, DateTime, Enum, Float, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models.band import JSONList
 
 
 class IngestionStatus(str, enum.Enum):
@@ -47,6 +48,9 @@ class IngestionRun(Base):
     # When this edition's weekly Alerts went out (set by `python -m app.cli alerts` on the edition's newest run). An
     # edition whose runs all have none is due its Alerts (app/scheduler.py alerts_due).
     alerts_sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    # What the ingest carried on past, from its log's warnings (app/run_warnings.py): [{"message", "count"}].
+    warnings: Mapped[list] = mapped_column(JSONList, default=list, server_default="[]")
 
     # Error details
     error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

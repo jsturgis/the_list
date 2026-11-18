@@ -61,8 +61,11 @@ only, and say how the ingest went.
 - **After each successful ingest**: "The List: ingest succeeded: 12 new bands, 2 new venues", with the edition,
   its Shows parsed, upserted and new, the share of new Bands without a photo, and a link to the site. The
   `ingest` job sends it (`python -m app.cli notify-success`) once the data is committed to the `data` branch, from
-  the committed database, so it never reports data that wasn't saved. An ingest that brought no new Shows sends
-  nothing.
+  the committed database, so it never reports data that wasn't saved. It also lists the ingest's warnings: what it
+  carried on past (a Venue Google couldn't confirm, a service that didn't answer, the venue calendars or embeddings
+  skipped, too many Shows gone from the page to remove any), kept on the run as `ingestion_runs.warnings`
+  (`app/run_warnings.py`), with credentials taken out. An ingest that brought no new Shows and logged no warnings
+  sends nothing.
 - **While the ingest has been failing for two weeks**: "The List: ingest failing for 15 days: ListError: …", with
   the root cause (the final exception, one line), which job failed (`check` or `ingest`), when the last successful
   ingest was and its edition, the last 60 lines of the failing job's log, and a link to the Actions run. A step
@@ -84,6 +87,18 @@ only, and say how the ingest went.
 Without `MAINTAINER_EMAIL` or `RESEND_API_KEY` both commands log that they're skipping and exit 0. A failed send
 fails only its own step, which has `continue-on-error`, so it can't change the ingest's result. Both commands take
 `--dry-run`, which prints the email instead (`notify-failure --dry-run` prints it whether or not it's due).
+
+## The heartbeat
+
+No run can report that runs have stopped happening, and the two-week failure email is slow. So the Deploy workflow's
+last job, `heartbeat`, pings the URL in the `HEALTHCHECK_URL` secret after each hourly run (cron or Cloud Scheduler,
+not a push) in which no job failed or was cancelled. A service that alerts when pings stop then emails you within
+hours when the hourly trigger stops (Cloud Scheduler's token, GitHub disabling the cron) or the runs keep failing.
+Without the secret the job logs that it has nothing to ping.
+
+To set it up with [healthchecks.io](https://healthchecks.io) (free for this): add a check with a period of 1 hour
+and a grace time of 3 hours, so a run or two lost to GitHub's own delays doesn't alert, and an email integration;
+then add its ping URL as the `HEALTHCHECK_URL` repository secret (Settings → Secrets and variables → Actions).
 
 ## When it runs
 
