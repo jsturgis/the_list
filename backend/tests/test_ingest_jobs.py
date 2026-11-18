@@ -55,7 +55,7 @@ def _stored(db):
     return ingest
 
 
-@patch("app.ingest_jobs.fetch_event", return_value=event_show(_PAGE, _URL))
+@patch("app.ingest_jobs.fetch_events", return_value=[event_show(_PAGE, _URL)])
 def test_a_ticketweb_job_is_ingested_and_its_progress_recorded(fetch, db, supabase):
     with patch("app.scheduler.ingest_shows", side_effect=_stored(db)):
         added = run_jobs(db, [_TICKETWEB], _TODAY, "https://github.com/run/1")
@@ -131,7 +131,7 @@ def test_an_approved_screenshot_that_still_cant_be_added_goes_back_to_review(db,
     assert finished["message"] == "Check what was read: The Chapel is in Portland, not a Bay Area city we know"
 
 
-@patch("app.ingest_jobs.fetch_event", return_value=event_show(_PAGE, _URL))
+@patch("app.ingest_jobs.fetch_events", return_value=[event_show(_PAGE, _URL)])
 def test_a_show_the_list_already_has_only_adds_its_ticket_link(fetch, db, supabase):
     upsert_shows(db, [{**event_show(_PAGE, _URL), "source": "list", "ticket_provider": None, "ticket_url": None}])
     with patch("app.scheduler.ingest_shows", side_effect=_stored(db)):
@@ -144,7 +144,7 @@ def test_a_show_the_list_already_has_only_adds_its_ticket_link(fetch, db, supaba
 
 
 @patch("app.ingestion.screenshot.read_fields", return_value={**_FIELDS, "city": "Portland"})
-@patch("app.ingest_jobs.fetch_event", side_effect=EventError("couldn't fetch it: 506"))
+@patch("app.ingest_jobs.fetch_events", side_effect=EventError("couldn't fetch it: 506"))
 def test_a_failing_job_is_recorded_and_doesnt_stop_the_others(fetch, read, db, supabase):
     with patch("app.scheduler.ingest_shows", side_effect=_stored(db)):
         added = run_jobs(db, [_TICKETWEB, _SCREENSHOT], _TODAY)
@@ -157,7 +157,7 @@ def test_a_failing_job_is_recorded_and_doesnt_stop_the_others(fetch, read, db, s
     assert finishes[1][3]["extracted"]["city"] == "Portland"   # what the model read, to see what went wrong
 
 
-@patch("app.ingest_jobs.fetch_event", return_value=event_show(_PAGE, _URL))
+@patch("app.ingest_jobs.fetch_events", return_value=[event_show(_PAGE, _URL)])
 def test_an_unexpected_error_fails_the_job(fetch, db, supabase):
     with patch("app.scheduler.ingest_shows", side_effect=RuntimeError("database is locked")):
         assert run_jobs(db, [_TICKETWEB], _TODAY) == []
@@ -166,7 +166,7 @@ def test_an_unexpected_error_fails_the_job(fetch, db, supabase):
                                                           "extracted": None})
 
 
-@patch("app.ingest_jobs.fetch_event", side_effect=UnreadablePage("couldn't fetch it: 530 Unknown Error"))
+@patch("app.ingest_jobs.fetch_events", side_effect=UnreadablePage("couldn't fetch it: 530 Unknown Error"))
 def test_a_link_whose_page_cant_be_read_says_to_add_a_screenshot(fetch, db, supabase):
     run_jobs(db, [Job("job-5", 15, "page", "https://www.bandsintown.com/e/1", None)], _TODAY)
 
@@ -176,14 +176,72 @@ def test_a_link_whose_page_cant_be_read_says_to_add_a_screenshot(fetch, db, supa
         "extracted": None})
 
 
-@patch("app.ingest_jobs.fetch_event")
+def _elsewhere(data: dict, venue: str, city: str, day: int) -> dict:
+    return {**data, "venue_name": venue, "city": city, "address": None, "date": date(2027, 1, day),
+            "ticket_url": f"{_URL}/{day}", "raw_text": f"Teenage Bottlerocket at {venue}, {city}"}
+
+
+_ARTIST = Job("job-6", 16, "page", "https://www.bandsintown.com/a/9536-teenage-bottlerocket", None)
+
+
+def test_a_page_of_several_bay_area_shows_adds_each(db, supabase):
+    first = event_show(_PAGE, _URL)
+    second = _elsewhere(first, "Berkeley Brewing Company", "Berkeley", 24)
+    with patch("app.ingest_jobs.fetch_events", return_value=[first, second]), \
+         patch("app.scheduler.ingest_shows", side_effect=_stored(db)):
+        added = run_jobs(db, [_ARTIST], _TODAY)
+
+    assert added == ["job-6"]
+    shows = db.query(Show).order_by(Show.date).all()
+    assert [s.venue.name for s in shows] == ["Moe's Alley", "Berkeley Brewing Company"]
+    assert ("update", ["job-6"], {"phase": "saving", "detail": "Show 2 of 2"}) in supabase   # which Show it's on
+    _, _, status, finished = supabase[-1]
+    assert status == "added"
+    assert finished["show_id"] == shows[0].id   # the Admin page links the first
+    assert finished["message"] == (
+        "Added 2 Shows: Teenage Bottlerocket, Brendan Kelly at Moe's Alley, Santa Cruz on Thu Jan 21, 2027; "
+        "Teenage Bottlerocket, Brendan Kelly at Berkeley Brewing Company, Berkeley on Sun Jan 24, 2027")
+
+
+def test_a_show_that_cant_be_added_doesnt_lose_the_others_on_its_page(db, supabase):
+    first = event_show(_PAGE, _URL)
+    second = _elsewhere(first, "Berkeley Brewing Company", "Berkeley", 24)
+    ingest = _stored(db)
+
+    async def fails_for_berkeley(_db, shows_data, on_phase=None, **kwargs):
+        if shows_data[0]["city"] == "Berkeley":
+            raise RuntimeError("geocoding failed")
+        return await ingest(_db, shows_data, on_phase=on_phase)
+
+    with patch("app.ingest_jobs.fetch_events", return_value=[second, first]), \
+         patch("app.scheduler.ingest_shows", side_effect=fails_for_berkeley):
+        assert run_jobs(db, [_ARTIST], _TODAY) == ["job-6"]
+
+    assert [s.venue.name for s in db.query(Show).all()] == ["Moe's Alley"]
+    _, _, status, finished = supabase[-1]
+    assert status == "added"
+    assert finished["message"].startswith("Added 1 Show: Teenage Bottlerocket, Brendan Kelly at Moe's Alley")
+    assert finished["message"].endswith(
+        ". Couldn't add 1: Teenage Bottlerocket at Berkeley Brewing Company, Berkeley (geocoding failed)")
+
+
+def test_a_page_whose_shows_all_fail_fails_the_job(db, supabase):
+    first = event_show(_PAGE, _URL)
+    with patch("app.ingest_jobs.fetch_events", return_value=[first, _elsewhere(first, "924 Gilman", "Berkeley", 22)]), \
+         patch("app.scheduler.ingest_shows", side_effect=RuntimeError("database is locked")):
+        assert run_jobs(db, [_ARTIST], _TODAY) == []
+    assert supabase[-1] == ("finish", "job-6", "failed", {"message": "RuntimeError: database is locked",
+                                                          "extracted": None})
+
+
+@patch("app.ingest_jobs.fetch_events")
 def test_a_job_an_earlier_run_finished_is_skipped(fetch, db, supabase):
     assert run_jobs(db, [Job("job-1", 11, "ticketweb", _URL, None, "added")], _TODAY) == []
     fetch.assert_not_called()
     assert supabase == []
 
 
-@patch("app.ingest_jobs.fetch_event", return_value=event_show(_PAGE, _URL))
+@patch("app.ingest_jobs.fetch_events", return_value=[event_show(_PAGE, _URL)])
 def test_losing_supabase_stops_the_run(fetch, db):
     """The jobs stay on the queue and are handed out again."""
     with patch("app.ingest_jobs.update_jobs", side_effect=SupabaseError("down")):

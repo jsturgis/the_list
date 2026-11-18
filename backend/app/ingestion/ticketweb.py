@@ -5,6 +5,9 @@ as a listing from the List is (app/ingestion/steve_list.py), with `source` "tick
 (its JSON-LD) gives the lineup, start time, Venue, price and status; the door time is only in the page itself. The
 price is the face value in the event's description, as Steve lists it; the JSON-LD's includes TicketWeb's fees.
 
+A page can list several events (an artist's page on Bandsintown): `event_shows` reads each, keeping those in the Bay
+Area and passing over the rest; only a page with none in the Bay Area is refused.
+
 The page is fetched by app/ingestion/page_fetch.py: with a browser's headers, and from the home server's page fetcher
 when there is one, since TicketWeb turns GitHub's runners away (ADR 0007).
 """
@@ -12,6 +15,7 @@ from __future__ import annotations
 
 import html
 import json
+import logging
 import re
 from datetime import datetime, time
 from urllib.parse import urlsplit, urlunsplit
@@ -19,6 +23,8 @@ from urllib.parse import urlsplit, urlunsplit
 from app.ingestion.page_fetch import PageError, get_page
 from app.ingestion.parser import clean_band_name
 from app.ingestion.upsert import known_region
+
+logger = logging.getLogger(__name__)
 
 SOURCE = "ticketweb"
 PROVIDER = "TicketWeb"
@@ -43,6 +49,10 @@ _STATUSES = {"EventCancelled": "cancelled", "EventPostponed": "postponed"}
 
 class EventError(RuntimeError):
     """The page couldn't be fetched, or isn't a TicketWeb event in the Bay Area."""
+
+
+class OutsideBayArea(EventError):
+    """The event is in a city that isn't one of the Bay Area's we know."""
 
 
 class UnreadablePage(EventError):
@@ -73,7 +83,9 @@ def fetch_event(url: str) -> dict:
     return event_show(html, url)
 
 
-def _event(page: str) -> dict | None:
+def _events(page: str) -> list[dict]:
+    """The page's schema.org Events, in the page's order."""
+    events = []
     for block in _LD_JSON_RE.findall(page):
         try:
             found = json.loads(block)
@@ -81,8 +93,8 @@ def _event(page: str) -> dict | None:
             continue
         for item in found if isinstance(found, list) else [found]:
             if isinstance(item, dict) and item.get("@type") in ("Event", "MusicEvent"):
-                return item
-    return None
+                events.append(item)
+    return events
 
 
 def _text(value) -> str:
@@ -162,9 +174,45 @@ def event_show(page: str, url: str, source: str = SOURCE, provider: str | None =
     """The Show on a TicketWeb event page (its HTML), as a dict for `ingest_shows`. Another site's page that
     describes its event the same way (schema.org JSON-LD) is read the same, with its own `source` and `provider`
     (app/ingestion/event_page.py)."""
-    event = _event(page)
-    if event is None:
-        raise UnreadablePage(f"{url} has no event details on it (the site may have turned the request away)")
+    events = _events(page)
+    if not events:
+        raise _no_events(url)
+    return _show(events[0], page, url, source, provider)
+
+
+def event_shows(page: str, url: str, source: str = SOURCE, provider: str | None = PROVIDER) -> list[dict]:
+    """The Shows on a page that may list several events (an artist's page), as dicts for `ingest_shows`: those in the
+    Bay Area, passing over the rest. A page with one event is read as `event_show` reads it. With several, an event
+    that can't be read is passed over too (logged), and the page is refused only when none of them can be added."""
+    events = _events(page)
+    if not events:
+        raise _no_events(url)
+    if len(events) == 1:
+        return [_show(events[0], page, url, source, provider)]
+    shows, outside, problems = [], 0, []
+    for event in events:
+        try:
+            # The page's own text belongs to no one event, so only the events' own details are read.
+            shows.append(_show(event, None, url, source, provider))
+        except OutsideBayArea:
+            outside += 1
+        except EventError as exc:
+            logger.info("%s: passing over an event: %s", url, exc)
+            problems.append(exc)
+    if shows:
+        return shows
+    if problems:
+        raise problems[0]
+    raise OutsideBayArea(f"{url}: none of its {outside} events is in a Bay Area city we know")
+
+
+def _no_events(url: str) -> UnreadablePage:
+    return UnreadablePage(f"{url} has no event details on it (the site may have turned the request away)")
+
+
+def _show(event: dict, page: str | None, url: str, source: str, provider: str | None) -> dict:
+    """One event as a Show; `page` is the page's HTML when the event is the page's only one (its door time)."""
+    url = event_url(event.get("url") or url)
     title = _title(event)
     bands = _bands(event, title)
     if not bands:
@@ -181,11 +229,11 @@ def event_show(page: str, url: str, source: str = SOURCE, provider: str | None =
     if not venue_name:
         raise EventError(f"{url}: no venue")
     if known_region(city) is None:
-        raise EventError(f"{url}: {venue_name} is in {city or 'an unknown city'}, not a Bay Area city we know")
+        raise OutsideBayArea(f"{url}: {venue_name} is in {city or 'an unknown city'}, not a Bay Area city we know")
     street = _text(address.get("streetAddress")) or None
 
     description = _text(event.get("description"))
-    doors = _DOORS_RE.search(page) or _DESCRIPTION_DOORS_RE.search(description)
+    doors = (page and _DOORS_RE.search(page)) or _DESCRIPTION_DOORS_RE.search(description)
     door = _parse_clock(doors.group(1)) if doors else None
     shown = start.time() if (start.hour, start.minute) != (0, 0) else None   # a date with no time isn't midnight
     age = _AGE_RE.search(description)
@@ -219,6 +267,6 @@ def event_show(page: str, url: str, source: str = SOURCE, provider: str | None =
         "is_matinee": bool((door or shown) and (door or shown) < _MATINEE_BEFORE),
         "is_benefit": False,
         "ticket_provider": provider,
-        "ticket_url": event_url(event.get("url") or url),
+        "ticket_url": url,
         "raw_text": f"{title} at {venue_name}" + (f", {city}" if city else ""),
     }
