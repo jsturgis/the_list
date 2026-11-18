@@ -153,3 +153,49 @@ def test_the_pages_door_time_is_no_one_events_on_a_page_of_several(get):
     doors = '<div class="x">Doors open</div><div class="y">6:00 PM PST</div>'
     get.return_value = _answer(200, _artist_page(_TOUR[1], _TOUR[3], doors=doors), url=_ARTIST_URL)
     assert [s["door_time"] for s in fetch_events(_ARTIST_URL)] == ["7pm", "7pm"]   # each event's own start time
+
+
+# ── An event whose address names no city (Bandsintown's, with only the Venue's coordinates) ──────────────────
+
+def _placed(venue: str, day: str, url_id: str, geo: tuple[float, float] | None) -> dict:
+    """A tour date as Bandsintown's artist page gives it: the address's fields empty, the place's coordinates."""
+    place = {"@type": "Place", "name": venue,
+             "address": {"@type": "PostalAddress", "addressRegion": "", "streetAddress": "", "postalCode": ""}}
+    if geo:
+        place["geo"] = {"@type": "GeoCoordinates", "latitude": geo[0], "longitude": geo[1]}
+    return _tour_date("", venue, day, url_id, location=place)
+
+
+_CURSIVE_TOUR = [
+    _placed("Bluebird Theater", "2027-03-03", "1", (39.7403313, -104.9484849)),       # Denver
+    _placed("Felton Music Hall", "2027-03-11", "2", (37.05134, -122.0733)),
+    _placed("Cornerstone Craft Beer & Live Music", "2027-03-13", "3", (37.8663201, -122.2673229)),   # Berkeley
+    _placed("Tractor Tavern", "2027-03-08", "4", (47.665797, -122.3826794)),          # Seattle
+]
+
+
+@patch("app.ingestion.page_fetch.httpx.get")
+def test_an_event_with_no_city_is_placed_by_its_coordinates(get):
+    get.return_value = _answer(200, _artist_page(*_CURSIVE_TOUR), url=_ARTIST_URL)
+    shows = fetch_events(_ARTIST_URL)
+    assert [(s["venue_name"], s["city"]) for s in shows] == [
+        ("Felton Music Hall", "Felton"), ("Cornerstone Craft Beer & Live Music", "Berkeley")]
+
+
+@patch("app.ingestion.page_fetch.httpx.get")
+def test_an_event_with_neither_city_nor_coordinates_takes_its_known_venues_city(get):
+    get.return_value = _answer(200, _artist_page(_placed("Felton Music Hall", "2027-03-11", "2", None),
+                                                 _placed("Bluebird Theater", "2027-03-03", "1", None)),
+                               url=_ARTIST_URL)
+    known = {"Felton Music Hall": "Felton"}
+    shows = fetch_events(_ARTIST_URL, known.get)
+    assert [(s["venue_name"], s["city"]) for s in shows] == [("Felton Music Hall", "Felton")]
+
+
+@patch("app.ingestion.page_fetch.httpx.get")
+def test_coordinates_outside_the_bay_area_win_over_a_known_venue_of_the_same_name(get):
+    """Another city's "The Independent" isn't San Francisco's."""
+    denver = _placed("The Independent", "2027-03-03", "1", (39.7403313, -104.9484849))
+    get.return_value = _answer(200, _artist_page(denver, _CURSIVE_TOUR[3]), url=_ARTIST_URL)
+    with pytest.raises(OutsideBayArea, match="none of its 2 events"):
+        fetch_events(_ARTIST_URL, {"The Independent": "San Francisco"}.get)

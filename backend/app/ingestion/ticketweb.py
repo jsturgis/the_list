@@ -8,6 +8,10 @@ price is the face value in the event's description, as Steve lists it; the JSON-
 A page can list several events (an artist's page on Bandsintown): `event_shows` reads each, keeping those in the Bay
 Area and passing over the rest; only a page with none in the Bay Area is refused.
 
+An event's city is its address's. Where the address has none (Bandsintown gives only the Venue's coordinates), it's
+the known city nearest the coordinates (`upsert.city_near`); with no coordinates either, it's the city of a Venue the
+List already has by that name (`venue_city`, which the caller looks up).
+
 The page is fetched by app/ingestion/page_fetch.py: with a browser's headers, and from the home server's page fetcher
 when there is one, since TicketWeb turns GitHub's runners away (ADR 0007).
 """
@@ -18,11 +22,12 @@ import json
 import logging
 import re
 from datetime import datetime, time
+from typing import Callable
 from urllib.parse import urlsplit, urlunsplit
 
 from app.ingestion.page_fetch import PageError, get_page
 from app.ingestion.parser import clean_band_name
-from app.ingestion.upsert import known_region
+from app.ingestion.upsert import city_near, known_region
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +50,13 @@ _LINEUP_SEPARATORS_RE = re.compile(r"\s+(?:w/|with|and special guests?|special g
                                    re.IGNORECASE)
 _MATINEE_BEFORE = time(17, 0)
 _STATUSES = {"EventCancelled": "cancelled", "EventPostponed": "postponed"}
+
+# A known Venue's city, by its name; None when the List has no such Venue.
+VenueCity = Callable[[str], "str | None"]
+
+
+def no_venue_city(name: str) -> None:
+    return None
 
 
 class EventError(RuntimeError):
@@ -71,7 +83,7 @@ def event_url(url: str) -> str:
     return urlunsplit((parts.scheme or "https", parts.netloc, parts.path, "", ""))
 
 
-def fetch_event(url: str) -> dict:
+def fetch_event(url: str, venue_city: VenueCity = no_venue_city) -> dict:
     """The Show on this TicketWeb event page."""
     if not is_ticketweb_url(url):
         raise EventError(f"{url} isn't a TicketWeb page")
@@ -80,7 +92,7 @@ def fetch_event(url: str) -> dict:
         html, _ = get_page(url)
     except PageError as exc:
         raise UnreadablePage(f"couldn't fetch {url}: {exc}") from exc
-    return event_show(html, url)
+    return event_show(html, url, venue_city=venue_city)
 
 
 def _events(page: str) -> list[dict]:
@@ -176,17 +188,19 @@ def _money_range(low: float, high: float) -> str:
     return money(low) if low == high else f"{money(low)}/{money(high)}"
 
 
-def event_show(page: str, url: str, source: str = SOURCE, provider: str | None = PROVIDER) -> dict:
+def event_show(page: str, url: str, source: str = SOURCE, provider: str | None = PROVIDER,
+               venue_city: VenueCity = no_venue_city) -> dict:
     """The Show on a TicketWeb event page (its HTML), as a dict for `ingest_shows`. Another site's page that
     describes its event the same way (schema.org JSON-LD) is read the same, with its own `source` and `provider`
     (app/ingestion/event_page.py)."""
     events = _events(page)
     if not events:
         raise _no_events(url)
-    return _show(events[0], page, url, source, provider)
+    return _show(events[0], page, url, source, provider, venue_city)
 
 
-def event_shows(page: str, url: str, source: str = SOURCE, provider: str | None = PROVIDER) -> list[dict]:
+def event_shows(page: str, url: str, source: str = SOURCE, provider: str | None = PROVIDER,
+                venue_city: VenueCity = no_venue_city) -> list[dict]:
     """The Shows on a page that may list several events (an artist's page), as dicts for `ingest_shows`: those in the
     Bay Area, passing over the rest. A page with one event is read as `event_show` reads it. With several, an event
     that can't be read is passed over too (logged), and the page is refused only when none of them can be added."""
@@ -194,12 +208,12 @@ def event_shows(page: str, url: str, source: str = SOURCE, provider: str | None 
     if not events:
         raise _no_events(url)
     if len(events) == 1:
-        return [_show(events[0], page, url, source, provider)]
+        return [_show(events[0], page, url, source, provider, venue_city)]
     shows, outside, problems = [], 0, []
     for event in events:
         try:
             # The page's own text belongs to no one event, so only the events' own details are read.
-            shows.append(_show(event, None, url, source, provider))
+            shows.append(_show(event, None, url, source, provider, venue_city))
         except OutsideBayArea:
             outside += 1
         except EventError as exc:
@@ -212,11 +226,23 @@ def event_shows(page: str, url: str, source: str = SOURCE, provider: str | None 
     raise OutsideBayArea(f"{url}: none of its {outside} events is in a Bay Area city we know")
 
 
+def _city(place: dict, venue_name: str, venue_city: VenueCity) -> str | None:
+    """The city of a place whose address doesn't name one: nearest its coordinates, else its Venue's by name. A place
+    whose coordinates aren't near a known city isn't taken for a Venue of the same name that is."""
+    geo = place.get("geo") if isinstance(place.get("geo"), dict) else {}
+    try:
+        latitude, longitude = float(geo["latitude"]), float(geo["longitude"])
+    except (KeyError, TypeError, ValueError):
+        return venue_city(venue_name) or None
+    return city_near(latitude, longitude)
+
+
 def _no_events(url: str) -> UnreadablePage:
     return UnreadablePage(f"{url} has no event details on it (the site may have turned the request away)")
 
 
-def _show(event: dict, page: str | None, url: str, source: str, provider: str | None) -> dict:
+def _show(event: dict, page: str | None, url: str, source: str, provider: str | None,
+          venue_city: VenueCity = no_venue_city) -> dict:
     """One event as a Show; `page` is the page's HTML when the event is the page's only one (its door time)."""
     url = event_url(event.get("url") or url)
     title = _title(event)
@@ -231,9 +257,9 @@ def _show(event: dict, page: str | None, url: str, source: str, provider: str | 
     place = event.get("location") or {}
     address = place.get("address") or {}
     venue_name = _text(place.get("name"))
-    city = _text(address.get("addressLocality")) or None
     if not venue_name:
         raise EventError(f"{url}: no venue")
+    city = _text(address.get("addressLocality")) or _city(place, venue_name, venue_city)
     if known_region(city) is None:
         raise OutsideBayArea(f"{url}: {venue_name} is in {city or 'an unknown city'}, not a Bay Area city we know")
     street = _text(address.get("streetAddress")) or None

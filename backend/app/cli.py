@@ -81,16 +81,16 @@ def add_event(url: str) -> None:
     Steve already lists only adds its ticket link: the List wins. Exits 1 when the page can't be read, isn't a Bay
     Area event, or a service key the lookups need is missing or rejected.
     """
-    from app.ingest_jobs import add_show, describe
+    from app.ingest_jobs import add_show, describe, known_venue_city
     from app.ingestion.event_page import EventError, fetch_events
 
     _require_service_keys("add-event")
-    try:
-        shows = fetch_events(url)
-    except EventError as exc:
-        sys.exit(f"add-event: {exc}")
     db = SessionLocal()
     try:
+        try:
+            shows = fetch_events(url, known_venue_city(db))
+        except EventError as exc:
+            sys.exit(f"add-event: {exc}")
         for data in shows:
             show, listed = add_show(db, data)
             if listed:

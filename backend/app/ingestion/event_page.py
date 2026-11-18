@@ -27,8 +27,8 @@ from urllib.parse import parse_qs, urlsplit
 
 from app.ingestion import bandsintown, ticketmaster, ticketweb
 from app.ingestion.page_fetch import PageError, get_page
-from app.ingestion.ticketweb import (EventError, OutsideBayArea, UnreadablePage, event_shows, event_url,
-                                     is_ticketweb_url)
+from app.ingestion.ticketweb import (EventError, OutsideBayArea, UnreadablePage, VenueCity, event_shows, event_url,
+                                     is_ticketweb_url, no_venue_city)
 
 logger = logging.getLogger(__name__)
 
@@ -49,19 +49,21 @@ def site_name(url: str) -> str:
     return host.removeprefix("www.")
 
 
-def fetch_events(url: str) -> list[dict]:
-    """The Shows on this page, as dicts for `ingest_shows`: its event, or its events in the Bay Area."""
+def fetch_events(url: str, venue_city: VenueCity = no_venue_city) -> list[dict]:
+    """The Shows on this page, as dicts for `ingest_shows`: its event, or its events in the Bay Area. `venue_city(name)`
+    gives a known Venue's city, for an event whose page gives neither its city nor its coordinates."""
     if is_ticketweb_url(url):
-        return [_finish(ticketweb.fetch_event(url))]
+        return [_finish(ticketweb.fetch_event(url, venue_city))]
     if urlsplit(url).scheme not in ("http", "https") or not urlsplit(url).hostname:
         raise EventError(f"{url} isn't a web page")
     html, final_url = _get(url)
-    shows = event_shows(html, event_url(final_url), source=SOURCE, provider=site_name(url))
+    shows = event_shows(html, event_url(final_url), source=SOURCE, provider=site_name(url), venue_city=venue_city)
     if len(shows) == 1:
         shows = [_with_page_details(shows[0], html, final_url)]
     else:
-        shows = [_from_own_page(show, final_url) if n < MAX_FOLLOWED else show for n, show in enumerate(shows)]
-    return [_finish(follow_seller(show) if n < MAX_FOLLOWED else show) for n, show in enumerate(shows)]
+        shows = [_from_own_page(show, final_url, venue_city) if n < MAX_FOLLOWED else show
+                 for n, show in enumerate(shows)]
+    return [_finish(follow_seller(show, venue_city) if n < MAX_FOLLOWED else show) for n, show in enumerate(shows)]
 
 
 def _get(url: str) -> tuple[str, str]:
@@ -103,7 +105,7 @@ def _with_page_details(show: dict, html: str, page_url: str) -> dict:
     return {**show, "offer_urls": bandsintown.seller_urls(html) + show.get("offer_urls", [])}
 
 
-def _from_own_page(show: dict, page_url: str) -> dict:
+def _from_own_page(show: dict, page_url: str, venue_city: VenueCity = no_venue_city) -> dict:
     """A Show from a page of several events, with what its own event page adds (the same event: its date and
     Venue), or as it was if that page can't be read."""
     own = show["ticket_url"]
@@ -112,7 +114,7 @@ def _from_own_page(show: dict, page_url: str) -> dict:
     try:
         html, final_url = _fetch(own)
         found = [s for s in event_shows(html, event_url(final_url), source=show["source"],
-                                        provider=show["ticket_provider"])
+                                        provider=show["ticket_provider"], venue_city=venue_city)
                  if s["date"] == show["date"] and s["venue_name"] == show["venue_name"]]
     except (PageError, EventError) as exc:
         logger.info("%s: its own page adds nothing: %s", own, exc)
@@ -145,7 +147,7 @@ def _unwrapped(link: str) -> str:
     return link
 
 
-def follow_seller(show: dict) -> dict:
+def follow_seller(show: dict, venue_city: VenueCity = no_venue_city) -> dict:
     """The Show with what its ticket seller's page adds; the seller's link as its ticket link even when the page
     can't be read."""
     link = seller_url(show)
@@ -155,9 +157,10 @@ def follow_seller(show: dict) -> dict:
     try:
         html, final_url = _fetch(link)
         if is_ticketweb_url(final_url):
-            sold = [ticketweb.event_show(html, event_url(final_url))]
+            sold = [ticketweb.event_show(html, event_url(final_url), venue_city=venue_city)]
         else:
-            sold = event_shows(html, event_url(final_url), source=show["source"], provider=site_name(final_url))
+            sold = event_shows(html, event_url(final_url), source=show["source"], provider=site_name(final_url),
+                               venue_city=venue_city)
             if len(sold) == 1:   # the options drawn are its one event's
                 sold = [_with_price(sold[0], html, final_url)]
     except (PageError, EventError) as exc:

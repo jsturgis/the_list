@@ -3,6 +3,7 @@ from __future__ import annotations
 """Persist enriched show dicts to the database (idempotent)."""
 import difflib
 import logging
+import math
 import re
 from datetime import date, datetime, time
 from urllib.parse import urlparse
@@ -61,9 +62,44 @@ _AGE_MAP: dict[str, AgeRestriction] = {
 }
 
 
+# Each city in the table, by the centre of town, for a place given only by its coordinates (a Bandsintown event's
+# JSON-LD has no address, only `geo`). Every city in _CITY_REGION has one (tests/test_upsert.py checks).
+_CITY_CENTRES: dict[str, tuple[float, float]] = {
+    "San Francisco": (37.7749, -122.4194), "Pacifica": (37.6138, -122.4869), "Daly City": (37.6879, -122.4702),
+    "La Honda": (37.3191, -122.2747), "Menlo Park": (37.4530, -122.1817), "Redwood City": (37.4852, -122.2364),
+    "Stanford": (37.4275, -122.1697),
+    "Oakland": (37.8044, -122.2712), "Berkeley": (37.8716, -122.2727), "Albany": (37.8869, -122.2978),
+    "Alameda": (37.7652, -122.2416), "Walnut Creek": (37.9101, -122.0652), "Concord": (37.9780, -122.0311),
+    "Crockett": (38.0524, -122.2130), "San Leandro": (37.7249, -122.1561), "Rodeo": (38.0330, -122.2669),
+    "Orinda": (37.8771, -122.1797), "Emeryville": (37.8313, -122.2852), "Richmond": (37.9358, -122.3478),
+    "El Cerrito": (37.9161, -122.3108), "Fremont": (37.5485, -121.9886),
+    "Petaluma": (38.2324, -122.6367), "Novato": (38.1074, -122.5697), "Mill Valley": (37.9060, -122.5450),
+    "Sebastopol": (38.4021, -122.8239), "Santa Rosa": (38.4404, -122.7141), "San Rafael": (37.9735, -122.5311),
+    "Napa": (38.2975, -122.2869), "Fairfax": (37.9871, -122.5889), "Rohnert Park": (38.3396, -122.7011),
+    "Sonoma": (38.2919, -122.4580), "Vallejo": (38.1041, -122.2566),
+    "San Jose": (37.3382, -121.8863), "Saratoga": (37.2638, -122.0230), "Sunnyvale": (37.3688, -122.0363),
+    "Mountain View": (37.3861, -122.0839), "Cupertino": (37.3230, -122.0322), "Santa Clara": (37.3541, -121.9552),
+    "Santa Cruz": (36.9741, -122.0308), "Felton": (37.0513, -122.0733),
+}
+# How far from a known city's centre a place can be and still be taken for it: a town between known ones (Palo Alto,
+# Hayward) is, and the next region over (Livermore, Half Moon Bay, Gilroy) isn't, as its name wouldn't be.
+_NEAR_KM = 10.0
+
+
 def known_region(city: str | None) -> Region | None:
     """Region for a city in the table, or None (e.g. a Google neighbourhood like "Temescal")."""
     return _CITY_REGION.get(city.lower().strip()) if city else None
+
+
+def city_near(latitude: float, longitude: float) -> str | None:
+    """The known city whose centre is nearest the place, if it's within _NEAR_KM of it; else None."""
+    def km(centre: tuple[float, float]) -> float:
+        # Equirectangular: well within a metre a kilometre at this scale.
+        lat1, lng1, lat2, lng2 = map(math.radians, (latitude, longitude, *centre))
+        return 6371.0 * math.hypot((lng2 - lng1) * math.cos((lat1 + lat2) / 2), lat2 - lat1)
+
+    city, centre = min(_CITY_CENTRES.items(), key=lambda item: km(item[1]))
+    return city if km(centre) <= _NEAR_KM else None
 
 
 def region_for_city(city: str | None) -> Region:

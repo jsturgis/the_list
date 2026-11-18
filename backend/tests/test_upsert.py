@@ -5,7 +5,8 @@ from datetime import date
 
 import pytest
 
-from app.ingestion.upsert import find_venue, region_for_city, remove_unlisted_shows, upsert_shows
+from app.ingestion.upsert import (_CITY_CENTRES, _CITY_REGION, city_near, find_venue, known_region,
+                                  region_for_city, remove_unlisted_shows, upsert_shows)
 from app.models.act import Act
 from app.models.band import Band
 from app.models.show import AgeRestriction, Show, ShowStatus
@@ -853,3 +854,23 @@ def test_nothing_is_removed_when_too_many_shows_are_off_the_page(db, caplog):
     assert "aren't on the page" in caplog.text
 
     assert len(remove_unlisted_shows(db, stored[:9], date(2026, 9, 25))) == 1
+
+
+# ── A place by its coordinates ───────────────────────────────────────────────
+
+def test_every_known_city_has_a_centre_and_every_centre_is_a_known_city():
+    aliases = {"sf", "s.f."}
+    assert {c.lower() for c in _CITY_CENTRES} == set(_CITY_REGION) - aliases
+    assert all(known_region(c) for c in _CITY_CENTRES)
+
+
+@pytest.mark.parametrize("latitude, longitude, city", [
+    (37.05134, -122.0733, "Felton"),              # Felton Music Hall
+    (37.8663201, -122.2673229, "Berkeley"),       # Cornerstone
+    (37.7605, -122.4212, "San Francisco"),        # the Mission
+    (37.4419, -122.1430, "Stanford"),             # Palo Alto, not in the table: the nearest that is
+    (37.6819, -121.7680, None),                   # Livermore
+    (39.7403313, -104.9484849, None),             # Denver
+])
+def test_a_place_is_in_the_known_city_nearest_it_when_its_near_one(latitude, longitude, city):
+    assert city_near(latitude, longitude) == city
