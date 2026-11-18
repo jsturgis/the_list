@@ -129,8 +129,11 @@ hand: **Backfill → Run workflow**, or `gh workflow run backfill.yml`.
   do. Discogs' rate limit (one request a second) sets the pace.
 - **What it needs**: `LASTFM_API_KEY`, both Discogs keys and the genre model. It checks first that Last.fm and
   Discogs accept the keys and the model answers.
-- **A service that's down mid-run** returns nothing, and those Bands are still marked looked up. The exception is
-  Bandcamp: a Band whose page Bandcamp won't serve stays pending for the next run.
+- **A service that's down mid-run** (no answer, a timeout, a server error, a rate limit or a rejected key; not
+  "no such artist") leaves the Band not looked up, with whatever the other services had, so the next run tries it
+  again (`app/ingestion/service_health.py`). The same goes for a new Band at ingest, and each hourly ingest looks
+  up again up to 10 Bands an earlier run left this way, so a short outage needs no Backfill run. Bandcamp is
+  the same: a Band whose page Bandcamp won't serve stays pending for the next run.
 - **Options that first mark Bands to look up again**:
   - **recheck genres** (`--recheck-genres`): Bands whose stored genres hold a tag that isn't a genre.
   - **recheck photos** (`--recheck-photos`): Bands with a Bandcamp page and no photo from a service.

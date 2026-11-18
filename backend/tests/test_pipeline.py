@@ -2,14 +2,16 @@
 re-enrichment."""
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import numpy as np
 import pytest
 
 from app.config import settings
 from app.ingestion.bandcamp import BandcampPhoto, BandcampUnavailable, bandcamp_credit
+from app.ingestion.service_health import note_failure
 from app.ingestion.steve_list import ListError, list_page
 from app.models.band import Band
 from app.models.ingestion_run import IngestionRun, IngestionStatus
@@ -425,6 +427,32 @@ async def test_pipeline_looks_up_a_venues_other_name_once(mock_batch, mock_venue
 
     assert mock_venue.call_count == 2
     assert db.query(Venue).count() == 1
+def _musicbrainz_down(name, use_llm=False):
+    note_failure("MusicBrainz", httpx.ConnectError("refused"))
+    return _NOT_ON_MUSICBRAINZ
+
+
+@patch("app.scheduler.fetch_list", return_value=_LIST)
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler._enrich_band", side_effect=_musicbrainz_down)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_a_band_looked_up_while_a_service_is_down_is_looked_up_again(mock_batch, mock_band, mock_venue,
+                                                                          mock_fetch, db):
+    await _run_ingestion_async(db=db)
+    assert {b.name: b.enriched_at for b in db.query(Band)} == {"Deafheaven": None, "Uniform": None,
+                                                                "Mdou Moctar": None}
+
+    # The next run looks them up again, as the backfill does, once they're from an earlier run.
+    for band in db.query(Band):
+        band.created_at = datetime(2026, 11, 1)
+    db.commit()
+    with patch("app.ingestion.backfill._enrich_band", return_value={**_NOT_ON_MUSICBRAINZ, "mbid": None,
+                                                                     "website_url": None, "links": []}) as again, \
+         patch("app.ingestion.backfill.embed_and_index_band", new_callable=AsyncMock):
+        await _run_ingestion_async(db=db)
+
+    assert again.call_count == 3
+    assert all(b.enriched_at is not None for b in db.query(Band))
 
 
 _JOINT_LIST = _list("oct  5 mon Dying Fetus And Sanguisugabogg, Belle and Sebastian at the Ritz, San Jose a/a $32 7pm")

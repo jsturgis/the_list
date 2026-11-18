@@ -17,6 +17,7 @@ from app.ingestion.band_corrections import BandCorrection
 from app.ingestion.band_photos import is_stored
 from app.ingestion.bandcamp import BandcampPhoto, BandcampUnavailable, bandcamp_credit
 from app.ingestion.discogs import DiscogsArtist
+from app.ingestion.service_health import note_failure
 from app.ingestion.wikimedia import CommonsPhoto
 from app.models.act import Act
 from app.models.band import Band
@@ -187,6 +188,28 @@ async def test_one_bands_failure_doesnt_stop_the_run(db, services):
 
     assert result["looked_up"] == 1 and result["failed"] == 1
     assert db.query(Band).filter(Band.name == "Broken").one().enriched_at is None   # tried again next run
+
+
+async def test_a_band_looked_up_while_a_service_is_down_is_tried_again_next_run(db, services):
+    _band(db, "Uniform")
+    db.commit()
+
+    def down(name, mbid):
+        note_failure("Last.fm", httpx.ConnectError("refused"))
+        return []
+
+    services.lastfm.side_effect = down
+    result = await _run(db, services)
+
+    assert result["remaining"] == 1
+    assert db.query(Band).one().enriched_at is None
+
+
+async def test_pending_bands_can_be_only_those_from_before_a_time(db):
+    old = _band(db, "Old", created_at=datetime(2026, 11, 1, 12, 0, 0))
+    _band(db, "New", created_at=datetime(2026, 11, 18, 12, 0, 0))
+    db.commit()
+    assert pending_bands(db, created_before=datetime(2026, 11, 18, 12, 0, 0, 500)) == [old]
 
 
 async def test_a_photo_that_cant_be_downloaded_right_now_is_tried_again_next_run(db, services):

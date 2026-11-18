@@ -13,6 +13,7 @@ import logging
 import httpx
 
 from app.config import settings
+from app.ingestion.service_health import ServiceError, note_failure
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ def _get_info(client: httpx.Client, api_key: str, **who: str) -> dict | None:
     if data.get("error") == _NOT_FOUND:
         return None
     if "error" in data:
-        raise ValueError(f"Last.fm error {data['error']}: {data.get('message')}")
+        raise ServiceError(f"Last.fm error {data['error']}: {data.get('message')}")
     return data["artist"]
 
 
@@ -62,7 +63,8 @@ def lastfm_tags(name: str, mbid: str | None, api_key: str | None = None, client:
         raw = (artist.get("tags") or {}).get("tag") or []
         tags = [t.get("name", "").strip().lower() for t in ([raw] if isinstance(raw, dict) else raw)]
         return list(dict.fromkeys(t for t in tags if t and t not in _NOT_GENRES))[:MAX_TAGS]
-    except Exception:
+    except Exception as exc:
+        note_failure("Last.fm", exc)
         logger.info("lastfm: no tags for %s", name, exc_info=True)
         return []
     finally:
@@ -112,7 +114,8 @@ def lastfm_artists(name: str, api_key: str | None = None, client: httpx.Client |
             except (KeyError, TypeError, ValueError):
                 continue
         return artists
-    except Exception:
+    except Exception as exc:
+        note_failure("Last.fm", exc)
         logger.info("lastfm: no artists like %s", name, exc_info=True)
         return []
     finally:

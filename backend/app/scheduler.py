@@ -17,6 +17,7 @@ from app.clock import local_today
 from app.config import settings
 from app.database import SessionLocal
 from app.ingestion.band_photos import save_band_photos
+from app.ingestion.backfill import run_backfill
 from app.ingestion.band_corrections import band_correction, corrected
 from app.ingestion.band_sources import bandcamp_page, discogs_match, photo_candidates, service_genres
 from app.ingestion.bandcamp import BandcampUnavailable, bandcamp_photo
@@ -26,6 +27,7 @@ from app.ingestion.images import check_image_urls
 from app.ingestion.ingest_stats import new_band_stats
 from app.ingestion.joint_bands import joint_parts, split_joint_acts, split_joint_name
 from app.ingestion.lastfm import lastfm_artists, lastfm_tags
+from app.ingestion.service_health import failures
 from app.ingestion.links import check_links
 from app.ingestion.show_flyers import prune_show_flyers, save_show_flyers
 from app.ingestion.steve_list import ListPage, edition_title, fetch_list, list_shows
@@ -196,6 +198,9 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
     band_cache: dict[str, dict | None] = {}
     renamed: dict[str, str] = {}   # a listed name a service spells otherwise: "Sunamo" -> "Sunami"
     genre_cache: dict[str, list[str]] = {}  # each new Band's genres from the services, asked once
+    # New Bands whose lookup met a service that was down (app/ingestion/service_health.py): saved with what the
+    # others had, but not marked looked up, so they're looked up again (retry_pending_bands).
+    unavailable: set[str] = set()
     # Keeps only genres. If the genre model is down, unknown tags are kept this run rather than lost for good.
     genre_filter = GenreFilter.load(db, keep_unknown=True)
     report("bands", None)
@@ -209,6 +214,7 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
                 elif known:
                     band_cache[name] = None
                 else:
+                    before = failures()
                     logger.info("ingestion: looking up genres for %s", name)
                     report("bands", f"Looking up Band {i + 1} of {len(data['band_enrichment'])}: {name}")
                     found = await loop.run_in_executor(None, _enrich_band, name, False)
@@ -236,6 +242,8 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
                         except BandcampUnavailable as exc:
                             logger.info("ingestion: no Bandcamp photo for %s for now: %s", name, exc)
                     band_cache[name] = {**found, "commons_photo": photo, "discogs": artist, "bandcamp_photo": bandcamp}
+                    if failures() - before:
+                        unavailable.add(name)
             found = band_cache[name]
             if found:
                 links = {k: v for k, v in found.items() if k.endswith("_url") and v}
@@ -250,9 +258,12 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
                 # Genres from the services in order (app/ingestion/band_sources), asked once per name; only when
                 # every service has none, its correction's.
                 if name not in genre_cache:
+                    before = failures()
                     genre_cache[name] = await loop.run_in_executor(
                         None, service_genres, renamed.get(name, name), found, lastfm_tags, discogs_genres,
                         genre_filter.keep)
+                    if failures() - before:
+                        unavailable.add(name)
                 genres = genre_cache[name] or await loop.run_in_executor(
                     None, genre_filter.keep, enrichment["genres"])
                 # Its Discogs members are saved with the Band.
@@ -349,11 +360,16 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
         logger.info("ingestion: saved %d venue photos", stored)
 
     # How the new Bands came out: how many, and the share no service had a photo for.
-    new_names = {name for name, found in band_cache.items() if found is not None}
+    # Under the name they're stored by: a misspelt listing's is the services' spelling.
+    new_names = {renamed.get(name, name) for name, found in band_cache.items() if found is not None}
+    down = {renamed.get(name, name) for name in unavailable}
     looked_up_at = datetime.utcnow()
     for band in bands:
-        if band.name in new_names:
+        if band.name in new_names and band.name not in down:
             band.enriched_at = looked_up_at
+    if down:
+        logger.warning("ingestion: a service was down while looking up %d new bands; they'll be looked up again: %s",
+                       len(down), ", ".join(sorted(down)))
     band_stats = new_band_stats([b for b in bands if b.name in new_names])
     if run:
         for field, value in band_stats.items():
@@ -382,6 +398,24 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
     return shows
 
 
+_RETRY_BANDS = 10
+_RETRY_MINUTES = 3
+
+
+async def retry_pending_bands(db: Session, created_before: datetime) -> None:
+    """Look up again, as the backfill does, a few Bands left not looked up (enriched_at) by an earlier run that met a
+    service that was down, so they don't wait for someone to run the Backfill workflow. Only Bands from before this
+    run: the ones it just left are likely to meet the same outage. Never fails the ingest."""
+    try:
+        result = await run_backfill(db, settings.images_path, max_minutes=_RETRY_MINUTES, limit=_RETRY_BANDS,
+                                    created_before=created_before)
+        if result["looked_up"] or result["failed"]:
+            logger.info("ingestion: looked up %d bands again (%d failed)", result["looked_up"], result["failed"])
+    except Exception:
+        db.rollback()
+        logger.warning("ingestion: bands left to look up again skipped this run", exc_info=True)
+
+
 async def _run_ingestion_async(db: Optional[Session] = None) -> None:
     """Full pipeline: fetch the List → parse → enrich new Venues and Bands → upsert → embed."""
     _own_db = db is None
@@ -391,6 +425,7 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
     run = IngestionRun(started_at=datetime.utcnow(), status=IngestionStatus.success)
     db.add(run)
     db.flush()
+    outages_before = failures()
 
     try:
         logger.info("ingestion: fetching the List from %s", settings.list_url)
@@ -404,6 +439,12 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
         shows = await ingest_shows(db, shows_data, run, source_hash=the_list.sha256)
         # The page lists every upcoming Show: the stored ones it no longer does are gone from the List.
         removed = remove_unlisted_shows(db, shows, min(data["date"] for data in shows_data))
+
+        await retry_pending_bands(db, created_before=run.started_at)
+        outages = failures() - outages_before
+        if outages:
+            logger.warning("ingestion: services that didn't answer this run: %s",
+                           ", ".join(f"{service} ({count})" for service, count in sorted(outages.items())))
 
         run.finished_at = datetime.utcnow()
         db.commit()
