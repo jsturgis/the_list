@@ -10,7 +10,9 @@ is a thin IO wrapper:
   _find_soundcloud_url / _find_bandcamp_url.
 - fetch_calendar_entries asks the LLM to read the calendar page itself (cut down to its text, links, images and
   JSON-LD), for the dates of the Shows still missing something, the same with_structured_output shape as
-  app.pipeline.enrichment's _extract_genres_via_llm. Every URL it returns is checked (app/ingestion/public_urls.py).
+  app.pipeline.enrichment's _extract_genres_via_llm. Only the parts of the page near those Shows are sent
+  (`_around_wanted`), and a page that names none of them isn't sent at all (its Shows are drawn by its scripts).
+  Every URL it returns is checked (app/ingestion/public_urls.py).
 - enrich_shows_from_venue_calendars ties the two together for one ingestion run: for each Venue with an upcoming
   Show still missing its flyer or more-info link, finds (or reuses, or applies a correction for --
   app/ingestion/venue_corrections.py) its calendar, reads it when there's a Show it hasn't been read for (or
@@ -24,6 +26,7 @@ from __future__ import annotations
 import dataclasses
 import difflib
 import html as html_lib
+import json
 import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, wait
@@ -282,7 +285,8 @@ class _PageText(HTMLParser):
             return
         if tag in self._BLOCK:
             self.out.append("\n")
-        kept = [f'{name}="{value}"' for name, value in attrs if name in self._KEEP and value]
+        kept = [f'{name}="{_largest(value) if name in ("srcset", "data-srcset") else value}"'
+                for name, value in attrs if name in self._KEEP and value]
         style = dict(attrs).get("style") or ""
         if match := self._BG_URL.search(style):
             kept.append(f'background="{match.group(1)}"')
@@ -310,12 +314,25 @@ class _PageText(HTMLParser):
             self.out.append(" ")
 
     def handle_data(self, data):
-        if not self._skipping and data.strip():
+        if self._json_ld:   # on one line, so `_around_wanted` can tell it from the page's text
+            self.out.append(" ".join(data.split()))
+        elif not self._skipping and data.strip():
             self.out.append(data)
 
 
-def _clean_html(html: str) -> str:
-    """The page as `_PageText` cuts it down, blank space collapsed, truncated to the LLM's size budget."""
+def _largest(srcset: str) -> str:
+    """A srcset's largest image only: the LLM needs one of them, and a CMS lists six sizes of every image."""
+    def width(candidate: list[str]) -> float:
+        try:
+            return float(candidate[1].rstrip("wx")) if len(candidate) > 1 else 0.0
+        except ValueError:
+            return 0.0
+    candidates = [part.split() for part in srcset.split(",") if part.strip()]
+    return max(candidates, key=width)[0] if candidates else srcset
+
+
+def _page_text(html: str) -> str:
+    """The page as `_PageText` cuts it down, blank space collapsed."""
     parser = _PageText()
     try:
         parser.feed(html)
@@ -323,7 +340,93 @@ def _clean_html(html: str) -> str:
     except Exception:  # HTMLParser is forgiving; anything it can't take, keep what it got
         logger.info("venue calendar: couldn't fully parse a page", exc_info=True)
     text = re.sub(r"[ \t\r\f\v]+", " ", "".join(parser.out))
-    return re.sub(r" ?\n[\s]*", "\n", text).strip()[:_HTML_BUDGET]
+    return re.sub(r" ?\n[\s]*", "\n", text).strip()
+
+
+def _clean_html(html: str) -> str:
+    """The whole cut-down page, truncated to the LLM's size budget."""
+    return _page_text(html)[:_HTML_BUDGET]
+
+
+# ── Sending only the parts of the page near the Shows looked for ────────────────────────────────────────────────
+#
+# A calendar page is mostly other nights' Shows, menus and footers. Measured on 47 Venues' calendars (2026-11-18),
+# the lines within _WINDOW_LINES of a wanted date or Band, with the JSON-LD Events on those dates, were 27% of the
+# page and found the same flyers, more-info and ticket links as the whole page did, within the run-to-run noise of
+# reading the whole page twice. Four lines either side started to lose Shows.
+
+_WINDOW_LINES = 10
+_MATCH_CHARS = 3000      # of a long line, looked through for a date or a name
+_JSON_LD_BUDGET = 40000  # characters of a page's JSON-LD Events on the wanted dates
+_MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
+           "november", "december")
+
+
+def _date_pattern(night: date) -> re.Pattern:
+    """How a calendar might write `night`: 2026-11-14, Nov 14, November 14th, 14 Nov, 11/14, 11.14."""
+    name = _MONTHS[night.month - 1]
+    spellings = [name, rf"{name[:3]}\.?"] + ([r"sept\.?"] if night.month == 9 else [])
+    month = f"(?:{'|'.join(spellings)})"
+    day = rf"0?{night.day}(?:st|nd|rd|th)?"
+    return re.compile("|".join([
+        night.isoformat(), f"{night:%Y%m%d}",
+        rf"\b{month}\s+{day}\b", rf"\b{day}\s+{month}\b",
+        rf"(?<![\d/]){night.month}[/.]0?{night.day}(?!\d)", rf"(?<![\d/]){night.month:02d}[/.]{night.day:02d}(?!\d)",
+    ]), re.IGNORECASE)
+
+
+def _json_ld_events(line: str) -> list[dict] | None:
+    """The schema.org Events in a line of JSON-LD; None if the line isn't JSON."""
+    try:
+        data = json.loads(line)
+    except ValueError:
+        return None
+    events: list[dict] = []
+
+    def walk(node):
+        if isinstance(node, list):
+            for item in node:
+                walk(item)
+        elif isinstance(node, dict):
+            types = node.get("@type") if isinstance(node.get("@type"), list) else [node.get("@type")]
+            if any(isinstance(t, str) and t.endswith("Event") for t in types):
+                events.append(node)
+            for key in ("@graph", "itemListElement", "item", "subEvent"):
+                walk(node.get(key))
+    walk(data)
+    return events
+
+
+def _around_wanted(text: str, wanted: list[tuple[date, str]], acts: dict[date, tuple[str, ...]]) -> str:
+    """The lines of the cut-down page within _WINDOW_LINES of one naming a wanted night or one of its Bands (the
+    headliner, or another Act from `acts`), "…" between the runs kept, then the page's JSON-LD Events on those
+    nights. Empty when the page names none of them."""
+    nights = {night for night, _ in wanted}
+    patterns = [_date_pattern(night) for night in nights]
+    names = {band_key(name) for night, headliner in wanted for name in (headliner, *acts.get(night, ()))}
+    names = {f"-{key}-" for key in names if len(key) >= 3}   # "-x-" can't match inside another name
+    lines = text.split("\n")
+    kept: set[int] = set()
+    events: list[dict] = []
+    json_ld: set[int] = set()
+    for i, line in enumerate(lines):
+        if line.startswith(("{", "[")) and '"@' in line and (found := _json_ld_events(line)) is not None:
+            json_ld.add(i)
+            events += [e for e in found if str(e.get("startDate", ""))[:10] in {n.isoformat() for n in nights}]
+            continue
+        head = line[:_MATCH_CHARS]
+        if any(p.search(head) for p in patterns) or any(name in f"-{band_key(head)}-" for name in names):
+            kept.update(range(max(0, i - _WINDOW_LINES), min(len(lines), i + _WINDOW_LINES + 1)))
+    out: list[str] = []
+    last = -2
+    for i in sorted(kept - json_ld):
+        if i != last + 1:
+            out.append("…")
+        out.append(lines[i])
+        last = i
+    if events:
+        out.append(json.dumps(events, separators=(",", ":"))[:_JSON_LD_BUDGET])
+    return "\n".join(out)
 
 
 class _ScrapedEntry(BaseModel):
@@ -362,12 +465,15 @@ def _ticket_url(url: str | None, base: str, *own: str | None) -> str | None:
 
 
 def fetch_calendar_entries(calendar_url: str, *, today: date, wanted: list[tuple[date, str]] = (),
-                           venue_name: str = "the venue", website_url: str | None = None) -> list[CalendarEntry]:
+                           acts: dict[date, tuple[str, ...]] | None = None, venue_name: str = "the venue",
+                           website_url: str | None = None) -> list[CalendarEntry]:
     """The Shows the Venue's calendar page lists on the dates of `wanted` (this run's Shows still missing
     something, as (date, headliner)), each with whatever of its title, flyer, more-info and ticket links the LLM
-    could find. Links that aren't public, a more-info link off the Venue's site, and a ticket link that's neither
-    on its site nor a known ticket seller's are dropped. CalendarGone if the page has gone; LookupFailed if the
-    page or the LLM didn't answer."""
+    could find. Each batch of them is asked about with only the parts of the page near them (`_around_wanted`;
+    `acts` gives each night's other Bands, to look for too), and not at all when the page names none of them.
+    Links that aren't public, a more-info link off the Venue's site, and a ticket link that's neither on its site
+    nor a known ticket seller's are dropped. CalendarGone if the page has gone; LookupFailed if the page or the LLM
+    didn't answer."""
     try:
         resp = _get(calendar_url)
     except httpx.HTTPError as exc:
@@ -377,11 +483,15 @@ def fetch_calendar_entries(calendar_url: str, *, today: date, wanted: list[tuple
     if resp.status_code >= 400:
         raise LookupFailed(f"{calendar_url} answered {resp.status_code}")
 
-    page = _clean_html(resp.text)
+    text = _page_text(resp.text)
     base = str(resp.url)
     on_page = _page_urls(resp.text, base)
     entries = []
     for chunk in _by_night_chunks(sorted(wanted)) or [[]]:
+        page = (_around_wanted(text, chunk, acts or {}) if chunk else text)[:_HTML_BUDGET]
+        if not page:
+            logger.info("venue calendar: %s names none of %d Shows; not read", calendar_url, len(chunk))
+            continue
         entries += _read_page(page, chunk, today=today, calendar_url=calendar_url, base=base, venue_name=venue_name,
                               website_url=website_url, on_page=on_page)
     return entries
@@ -497,6 +607,14 @@ def _headliner(show) -> str:
     return acts[0].band.name if acts else ""
 
 
+def _acts_by_night(shows: list) -> dict[date, tuple[str, ...]]:
+    """Every Band playing each night among `shows`: a calendar may list a Show under its support Act's name."""
+    by_night: dict[date, list[str]] = {}
+    for show in shows:
+        by_night.setdefault(show.date, []).extend(a.band.name for a in sorted(show.acts, key=lambda a: a.position))
+    return {night: tuple(dict.fromkeys(names)) for night, names in by_night.items()}
+
+
 def _discovery_due(venue, now: datetime) -> bool:
     return venue.calendar_checked_at is None or now - venue.calendar_checked_at >= _RECHECK_AFTER
 
@@ -518,6 +636,7 @@ class _Visit:
     read: bool
     today: date
     wanted: list[tuple[date, str]]
+    acts: dict[date, tuple[str, ...]] = dataclasses.field(default_factory=dict)  # each night's Bands, to look for
     # Results
     discovered: bool = False
     entries: list[CalendarEntry] | None = None
@@ -532,7 +651,8 @@ class _Visit:
                 self.read = self.read or bool(moved and self.wanted)
             if self.read and self.calendar_url:
                 self.entries = fetch_calendar_entries(self.calendar_url, today=self.today, wanted=self.wanted,
-                                                      venue_name=self.venue_name, website_url=self.website_url)
+                                                      acts=self.acts, venue_name=self.venue_name,
+                                                      website_url=self.website_url)
         except CalendarGone:
             self.gone = True
         except LookupFailed as exc:
@@ -577,7 +697,7 @@ def enrich_shows_from_venue_calendars(shows: list, *, today: date | None = None,
             visits.append((venue, venue_shows, _Visit(
                 venue_name=venue.name, website_url=venue.website_url, calendar_url=venue.calendar_url,
                 discover=discover, read=read, today=today,
-                wanted=sorted({(s.date, _headliner(s)) for s in pending}))))
+                wanted=sorted({(s.date, _headliner(s)) for s in pending}), acts=_acts_by_night(pending))))
     if not visits:
         return 0
 
