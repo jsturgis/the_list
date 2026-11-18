@@ -125,7 +125,8 @@ jobs:
           PYTHONUNBUFFERED: 1
         run: |
           alembic upgrade head
-          python -m app.cli ingest-jobs --jobs "$JOBS"
+          # The jobs that added Shows stay running and on the queue until the data is pushed ("Finish the jobs").
+          python -m app.cli ingest-jobs --jobs "$JOBS" --outcomes "$RUNNER_TEMP/added-jobs.json"
 
       - name: Say the jobs are being committed
         if: steps.ingest.outputs.added != ''
@@ -152,6 +153,13 @@ jobs:
           if [ -d images ]; then git add -A images; fi
           git diff --cached --quiet || { git commit -q -m "Add Shows from the Admin page's ingest jobs" && git push -q; }
           git log -1 --format='%h %s'
+
+      - name: Finish the jobs
+        # Only now that their Shows are pushed: each is "added" and taken off the queue. If the commit or push failed,
+        # they're still on it: the failure step below fails them, and the worker hands them out again.
+        if: steps.ingest.outputs.added != ''
+        working-directory: backend
+        run: python -m app.cli ingest-jobs-finish --outcomes "$RUNNER_TEMP/added-jobs.json"
 
       - name: Keep the data branch short
         if: steps.ingest.outputs.added != ''

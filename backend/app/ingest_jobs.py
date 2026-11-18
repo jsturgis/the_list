@@ -8,13 +8,16 @@ workflow (.github/workflows/ingest-jobs.yml), which runs `python -m app.cli inge
 database. Each job's row says how far it has got (`status` and `phase`, with a `detail`), for the Admin page.
 
 Finishing a job (`finish_job`) also deletes its queue message; a job the workflow never finishes (the run was
-cancelled or crashed) comes back off the queue and is handed out again.
+cancelled or crashed) comes back off the queue and is handed out again. A job that added Shows is finished only
+once they're pushed to the data branch (`run_jobs` returns it as `Saved`; `finish_saved`, in a later step of the
+workflow, finishes it): if the commit or push fails, the job is still on the queue and its Shows are added again.
 """
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from urllib.parse import urlencode
 from datetime import date
 from typing import Callable
@@ -51,6 +54,34 @@ class Job:
     # them, ingested as they are; before review it's what the model read, if anything.
     extracted: dict | None = None
     approved: bool = False
+
+
+@dataclass(frozen=True)
+class Saved:
+    """A job whose Shows are in the database but not yet pushed: how to finish it once they are (finish_saved)."""
+    job_id: str
+    msg_id: int
+    message: str
+    show_id: int
+    extracted: dict | None = None
+    shows_query: str | None = None
+
+
+def save_outcomes(saved: list[Saved], path: str) -> None:
+    with open(path, "w") as f:
+        json.dump([asdict(s) for s in saved], f)
+
+
+def load_outcomes(path: str) -> list[Saved]:
+    with open(path) as f:
+        return [Saved(**row) for row in json.load(f)]
+
+
+def finish_saved(saved: list[Saved]) -> None:
+    """Finish the jobs whose Shows are now pushed: "added", with what they did, and off the queue."""
+    for s in saved:
+        finish_job(Job(s.job_id, s.msg_id, "", None, None), "added", message=s.message, show_id=s.show_id,
+                   extracted=s.extracted, shows_query=s.shows_query)
 
 
 class NeedsReview(Exception):
@@ -182,11 +213,12 @@ def read_job(db: Session, job: Job, today: date) -> tuple[list[dict], dict | Non
     raise EventError(f"unknown provider {job.provider!r}")
 
 
-def run_jobs(db: Session, jobs: list[Job], today: date, run_url: str | None = None) -> list[str]:
+def run_jobs(db: Session, jobs: list[Job], today: date, run_url: str | None = None) -> list[Saved]:
     """Ingest each job, recording on its row how far it gets and how it comes out. A job that fails doesn't stop the
     others; one an earlier run already finished (handed out twice, when a run outlasted its queue message's
-    timeout) is skipped. Returns the ids of the jobs that added (or updated) a Show."""
-    added = []
+    timeout) is skipped. A job that fails or goes to review is finished here; one that added (or updated) a Show
+    stays running and on the queue, and is returned, to be finished once the data is pushed (finish_saved)."""
+    added: list[Saved] = []
     for job in jobs:
         if job.status in ("added", "live"):
             logger.info("ingest-jobs: job %s was already %s", job.id, job.status)
@@ -218,9 +250,8 @@ def run_jobs(db: Session, jobs: list[Job], today: date, run_url: str | None = No
             continue
         message = outcome_message(job, outcomes, failures)
         print(f"ingest-jobs: job {job.id}: {message}")
-        finish_job(job, "added", message=message, show_id=outcomes[0][0].id, extracted=extracted,
-                   shows_query=shows_query([show for show, _ in outcomes]))
-        added.append(job.id)
+        added.append(Saved(job.id, job.msg_id, message, outcomes[0][0].id, extracted,
+                           shows_query([show for show, _ in outcomes])))
     return added
 
 

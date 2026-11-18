@@ -12,7 +12,7 @@ import pytest
 from app import ingest_jobs
 from app.alerts import SupabaseError
 from app.cli import main
-from app.ingest_jobs import Job, parse_specs, run_jobs
+from app.ingest_jobs import Job, Saved, finish_saved, parse_specs, run_jobs
 from app.ingestion.screenshot import ScreenshotError
 from app.ingestion.ticketweb import EventError, UnreadablePage, event_show
 from app.ingestion.upsert import upsert_shows
@@ -45,6 +45,13 @@ def supabase():
         yield calls
 
 
+def _run(db, jobs, today=_TODAY, run_url=None):
+    """run_jobs, then finish the jobs that added Shows, as the workflow does once they're pushed; their ids."""
+    saved = run_jobs(db, jobs, today, run_url)
+    finish_saved(saved)
+    return [s.job_id for s in saved]
+
+
 def _stored(db):
     """`ingest_shows` without the services, reporting one phase: it stores the Shows and commits."""
     async def ingest(_db, shows_data, on_phase=None, **kwargs):
@@ -58,7 +65,7 @@ def _stored(db):
 @patch("app.ingest_jobs.fetch_events", return_value=[event_show(_PAGE, _URL)])
 def test_a_ticketweb_job_is_ingested_and_its_progress_recorded(fetch, db, supabase):
     with patch("app.scheduler.ingest_shows", side_effect=_stored(db)):
-        added = run_jobs(db, [_TICKETWEB], _TODAY, "https://github.com/run/1")
+        added = _run(db, [_TICKETWEB], _TODAY, "https://github.com/run/1")
 
     assert added == ["job-1"]
     show = db.query(Show).one()
@@ -76,7 +83,7 @@ def test_a_ticketweb_job_is_ingested_and_its_progress_recorded(fetch, db, supaba
 @patch("app.ingestion.screenshot.read_fields", return_value=_FIELDS)
 def test_a_screenshot_is_read_then_waits_for_review_adding_nothing(read, db, supabase):
     with patch("app.scheduler.ingest_shows", side_effect=_stored(db)) as ingest:
-        added = run_jobs(db, [_SCREENSHOT], _TODAY)
+        added = _run(db, [_SCREENSHOT], _TODAY)
 
     assert added == []
     read.assert_called_once_with(b"png")
@@ -91,7 +98,7 @@ def test_a_screenshot_is_read_then_waits_for_review_adding_nothing(read, db, sup
 @patch("app.ingestion.screenshot.read_fields", return_value={**_FIELDS, "date": None})
 def test_a_screenshot_that_cant_be_added_as_read_goes_to_review_with_why(read, db, supabase):
     """The admin can put the date in."""
-    run_jobs(db, [_SCREENSHOT], _TODAY)
+    _run(db, [_SCREENSHOT], _TODAY)
 
     assert supabase[-1] == ("finish", "job-2", "review", {"message": "Check what was read: no date on the screenshot",
                                                           "extracted": {**_FIELDS, "date": None}})
@@ -99,7 +106,7 @@ def test_a_screenshot_that_cant_be_added_as_read_goes_to_review_with_why(read, d
 
 @patch("app.ingestion.screenshot.read_fields", side_effect=ScreenshotError("couldn't read the screenshot: 400"))
 def test_a_screenshot_the_model_cant_read_fails(read, db, supabase):
-    run_jobs(db, [_SCREENSHOT], _TODAY)
+    _run(db, [_SCREENSHOT], _TODAY)
 
     assert supabase[-1][:3] == ("finish", "job-2", "failed")
 
@@ -111,7 +118,7 @@ _APPROVED = Job("job-2", 13, "screenshot", None, "user/shot.png", "queued", {**_
 @patch("app.ingestion.screenshot.read_fields")
 def test_an_approved_screenshot_is_added_as_reviewed_without_asking_the_model_again(read, db, supabase):
     with patch("app.scheduler.ingest_shows", side_effect=_stored(db)):
-        added = run_jobs(db, [_APPROVED], _TODAY)
+        added = _run(db, [_APPROVED], _TODAY)
 
     assert added == ["job-2"]
     read.assert_not_called()
@@ -124,7 +131,7 @@ def test_an_approved_screenshot_is_added_as_reviewed_without_asking_the_model_ag
 def test_an_approved_screenshot_that_still_cant_be_added_goes_back_to_review(db, supabase):
     job = Job("job-2", 13, "screenshot", None, "user/shot.png", "queued", {**_FIELDS, "city": "Portland"}, approved=True)
     with patch("app.scheduler.ingest_shows", side_effect=_stored(db)) as ingest:
-        assert run_jobs(db, [job], _TODAY) == []
+        assert _run(db, [job], _TODAY) == []
 
     ingest.assert_not_called()
     _, _, status, finished = supabase[-1]
@@ -136,7 +143,7 @@ def test_an_approved_screenshot_that_still_cant_be_added_goes_back_to_review(db,
 def test_a_show_the_list_already_has_only_adds_its_ticket_link(fetch, db, supabase):
     upsert_shows(db, [{**event_show(_PAGE, _URL), "source": "list", "ticket_provider": None, "ticket_url": None}])
     with patch("app.scheduler.ingest_shows", side_effect=_stored(db)):
-        run_jobs(db, [_TICKETWEB], _TODAY)
+        _run(db, [_TICKETWEB], _TODAY)
 
     _, _, status, finished = supabase[-1]
     assert status == "added"
@@ -148,7 +155,7 @@ def test_a_show_the_list_already_has_only_adds_its_ticket_link(fetch, db, supaba
 @patch("app.ingest_jobs.fetch_events", side_effect=EventError("couldn't fetch it: 506"))
 def test_a_failing_job_is_recorded_and_doesnt_stop_the_others(fetch, read, db, supabase):
     with patch("app.scheduler.ingest_shows", side_effect=_stored(db)):
-        added = run_jobs(db, [_TICKETWEB, _SCREENSHOT], _TODAY)
+        added = _run(db, [_TICKETWEB, _SCREENSHOT], _TODAY)
 
     assert added == []
     finishes = [c for c in supabase if c[0] == "finish"]
@@ -161,7 +168,7 @@ def test_a_failing_job_is_recorded_and_doesnt_stop_the_others(fetch, read, db, s
 @patch("app.ingest_jobs.fetch_events", return_value=[event_show(_PAGE, _URL)])
 def test_an_unexpected_error_fails_the_job(fetch, db, supabase):
     with patch("app.scheduler.ingest_shows", side_effect=RuntimeError("database is locked")):
-        assert run_jobs(db, [_TICKETWEB], _TODAY) == []
+        assert _run(db, [_TICKETWEB], _TODAY) == []
 
     assert supabase[-1] == ("finish", "job-1", "failed", {"message": "RuntimeError: database is locked",
                                                           "extracted": None})
@@ -169,7 +176,7 @@ def test_an_unexpected_error_fails_the_job(fetch, db, supabase):
 
 @patch("app.ingest_jobs.fetch_events", side_effect=UnreadablePage("couldn't fetch it: 530 Unknown Error"))
 def test_a_link_whose_page_cant_be_read_says_to_add_a_screenshot(fetch, db, supabase):
-    run_jobs(db, [Job("job-5", 15, "page", "https://www.bandsintown.com/e/1", None)], _TODAY)
+    _run(db, [Job("job-5", 15, "page", "https://www.bandsintown.com/e/1", None)], _TODAY)
 
     assert supabase[1] == ("update", ["job-5"], {"phase": "fetching_page", "detail": "https://www.bandsintown.com/e/1"})
     assert supabase[-1] == ("finish", "job-5", "failed", {
@@ -190,7 +197,7 @@ def test_a_page_of_several_bay_area_shows_adds_each(db, supabase):
     second = _elsewhere(first, "Berkeley Brewing Company", "Berkeley", 24)
     with patch("app.ingest_jobs.fetch_events", return_value=[first, second]), \
          patch("app.scheduler.ingest_shows", side_effect=_stored(db)):
-        added = run_jobs(db, [_ARTIST], _TODAY)
+        added = _run(db, [_ARTIST], _TODAY)
 
     assert added == ["job-6"]
     shows = db.query(Show).order_by(Show.date).all()
@@ -219,7 +226,7 @@ def test_a_show_that_cant_be_added_doesnt_lose_the_others_on_its_page(db, supaba
 
     with patch("app.ingest_jobs.fetch_events", return_value=[second, first]), \
          patch("app.scheduler.ingest_shows", side_effect=fails_for_berkeley):
-        assert run_jobs(db, [_ARTIST], _TODAY) == ["job-6"]
+        assert _run(db, [_ARTIST], _TODAY) == ["job-6"]
 
     assert [s.venue.name for s in db.query(Show).all()] == ["Moe's Alley"]
     _, _, status, finished = supabase[-1]
@@ -232,7 +239,7 @@ def test_a_show_that_cant_be_added_doesnt_lose_the_others_on_its_page(db, supaba
 def test_a_job_with_one_show_has_no_shows_query(db, supabase):
     with patch("app.ingest_jobs.fetch_events", return_value=[event_show(_PAGE, _URL)]), \
          patch("app.scheduler.ingest_shows", side_effect=_stored(db)):
-        run_jobs(db, [_TICKETWEB], _TODAY)
+        _run(db, [_TICKETWEB], _TODAY)
     assert supabase[-1][3]["shows_query"] is None   # its link is the Show's own page
 
 
@@ -262,14 +269,14 @@ def test_a_page_whose_shows_all_fail_fails_the_job(db, supabase):
     first = event_show(_PAGE, _URL)
     with patch("app.ingest_jobs.fetch_events", return_value=[first, _elsewhere(first, "924 Gilman", "Berkeley", 22)]), \
          patch("app.scheduler.ingest_shows", side_effect=RuntimeError("database is locked")):
-        assert run_jobs(db, [_ARTIST], _TODAY) == []
+        assert _run(db, [_ARTIST], _TODAY) == []
     assert supabase[-1] == ("finish", "job-6", "failed", {"message": "RuntimeError: database is locked",
                                                           "extracted": None})
 
 
 @patch("app.ingest_jobs.fetch_events")
 def test_a_job_an_earlier_run_finished_is_skipped(fetch, db, supabase):
-    assert run_jobs(db, [Job("job-1", 11, "ticketweb", _URL, None, "added")], _TODAY) == []
+    assert _run(db, [Job("job-1", 11, "ticketweb", _URL, None, "added")], _TODAY) == []
     fetch.assert_not_called()
     assert supabase == []
 
@@ -279,7 +286,7 @@ def test_losing_supabase_stops_the_run(fetch, db):
     """The jobs stay on the queue and are handed out again."""
     with patch("app.ingest_jobs.update_jobs", side_effect=SupabaseError("down")):
         with pytest.raises(SupabaseError):
-            run_jobs(db, [_TICKETWEB], _TODAY)
+            _run(db, [_TICKETWEB], _TODAY)
 
 
 # ── Supabase requests ─────────────────────────────────────────────────────────
@@ -324,6 +331,17 @@ def test_needs_supabase(monkeypatch):
         ingest_jobs.update_jobs(["job-1"], phase="live")
 
 
+@patch("app.ingest_jobs.fetch_events", return_value=[event_show(_PAGE, _URL)])
+def test_a_job_that_added_a_show_is_finished_only_once_it_is_pushed(fetch, db, supabase):
+    with patch("app.scheduler.ingest_shows", side_effect=_stored(db)):
+        saved = run_jobs(db, [_TICKETWEB], _TODAY)
+
+    # Still running and on the queue: if the commit or push fails, the run's failure step fails it and the queue
+    # hands it out again.
+    assert not [c for c in supabase if c[0] == "finish"]
+    assert saved == [Saved("job-1", 11, saved[0].message, db.query(Show).one().id)]
+
+
 # ── the commands ──────────────────────────────────────────────────────────────
 
 @pytest.fixture
@@ -334,7 +352,7 @@ def keys_work():
 
 
 @patch("app.cli.SessionLocal")
-@patch("app.ingest_jobs.run_jobs", return_value=["job-1"])
+@patch("app.ingest_jobs.run_jobs", return_value=[Saved("job-1", 11, "Added it", 7)])
 @patch("app.ingest_jobs.fetch_jobs", return_value=[_TICKETWEB, _SCREENSHOT])
 def test_ingest_jobs_tells_the_workflow_which_jobs_added_a_show(fetch, run, session, db, keys_work, tmp_path,
                                                                  monkeypatch, capsys):
@@ -344,12 +362,30 @@ def test_ingest_jobs_tells_the_workflow_which_jobs_added_a_show(fetch, run, sess
     monkeypatch.setenv("GITHUB_RUN_ID", "99")
     monkeypatch.setenv("GITHUB_REPOSITORY", "jsturgis/the_list")
 
-    main(["ingest-jobs", "--jobs", "job-1:11,job-2:12"])
+    main(["ingest-jobs", "--jobs", "job-1:11,job-2:12", "--outcomes", str(tmp_path / "added.json")])
 
     fetch.assert_called_once_with([("job-1", 11), ("job-2", 12)])
     assert run.call_args.args[3] == "https://github.com/jsturgis/the_list/actions/runs/99"
     assert output.read_text() == "added=job-1\n"
     assert "1 of 2 added" in capsys.readouterr().out
+
+
+@patch("app.cli.SessionLocal")
+@patch("app.ingest_jobs.finish_job")
+@patch("app.ingest_jobs.run_jobs", return_value=[Saved("job-1", 11, "Added it", 7, None, "bandId=3")])
+@patch("app.ingest_jobs.fetch_jobs", return_value=[_TICKETWEB])
+def test_ingest_jobs_leaves_the_added_jobs_for_ingest_jobs_finish(fetch, run, finish, session, db, keys_work,
+                                                                 tmp_path):
+    session.return_value = db
+    outcomes = tmp_path / "added.json"
+
+    main(["ingest-jobs", "--jobs", "job-1:11", "--outcomes", str(outcomes)])
+    finish.assert_not_called()
+
+    main(["ingest-jobs-finish", "--outcomes", str(outcomes)])
+    (job, status), fields = finish.call_args
+    assert (job.id, job.msg_id, status) == ("job-1", 11, "added")
+    assert fields == {"message": "Added it", "show_id": 7, "extracted": None, "shows_query": "bandId=3"}
 
 
 @patch("app.ingest_jobs.fetch_jobs")
