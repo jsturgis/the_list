@@ -12,12 +12,21 @@ function fakeClient() {
     onChange: null as ((payload: { eventType?: string; new?: IngestJob; old?: { id: string } }) => void) | null,
   }
   const deleteJob = vi.fn(async (_column: string, id: string) => {
-    const deleted = state.jobs.filter(j => j.id === id && (j.status === 'failed' || j.status === 'live'))
+    const deleted = state.jobs.filter(j => j.id === id && ['failed', 'live', 'review'].includes(j.status))
     state.jobs = state.jobs.filter(j => !deleted.includes(j))
     return { data: deleted.map(j => ({ id: j.id })), error: null }
   })
   const removeScreenshot = vi.fn<(paths: string[]) => Promise<{ data: []; error: null }>>(async () => ({ data: [], error: null }))
+  // approve_ingest_job: a job waiting for review, queued again with its fields as approved.
+  const rpc = vi.fn(async (fn: string, args: { job_id: string; fields: Record<string, unknown> }) => {
+    if (fn !== 'approve_ingest_job') throw new Error(`unexpected function ${fn}`)
+    const found = state.jobs.find(j => j.id === args.job_id && j.status === 'review')
+    if (!found) return { data: null, error: { message: 'That job isn\'t waiting for review' } }
+    Object.assign(found, { status: 'queued', phase: 'queued', extracted: args.fields, message: null })
+    return { data: { ...found }, error: null }
+  })
   const client = {
+    rpc,
     deleteJob,
     removeScreenshot,
     auth: {
@@ -356,7 +365,7 @@ describe('Admin page, deleting jobs', () => {
 
     fireEvent.click(trash)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Only finished jobs (failed, or live) can be deleted')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Only finished jobs (failed, or live) and those waiting for review can be deleted')
   })
 
   it('leaves storage alone for a link’s job', async () => {
@@ -377,6 +386,78 @@ describe('Admin page, deleting jobs', () => {
 
     act(() => fake.current!.state.onChange!({ eventType: 'DELETE', old: { id: 'job-1' } }))
 
+    expect(await screen.findByText(/no jobs yet/i)).toBeInTheDocument()
+  })
+})
+
+describe('Admin page, reviewing a screenshot', () => {
+  const READ = {
+    performers: ["Hell's Belles - World Famous All-Female AC/DC Tribute Band", 'murdershow'],
+    venue: "Moe's Alley", city: 'Santa Cruz', date: null, doors_time: '8:00 PM', show_time: '9:00 PM',
+    price: '$30', age: '21+', status: null,
+  }
+  const waiting = () =>
+    job({ id: 'job-9', provider: 'screenshot', url: null, screenshot_path: 'user-1/a.png', status: 'review', phase: 'review',
+          message: 'Check what was read: no date on the screenshot', extracted: READ })
+
+  beforeEach(() => {
+    fake.current!.state.user = ADMIN
+    fake.current!.state.jobs = [waiting()]
+  })
+
+  it('shows what was read, to check against the screenshot, and why it can’t be added as it is', async () => {
+    render(<AdminPage />)
+
+    const form = await screen.findByRole('form', { name: 'Review what was read' })
+    expect(screen.getByText('Needs review')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'The screenshot this job was added from' })).toBeInTheDocument()
+    expect(screen.getByText('Check what was read: no date on the screenshot')).toBeInTheDocument()
+    expect(within(form).getByLabelText(/lineup/i)).toHaveValue(READ.performers.join('\n'))
+    expect(within(form).getByLabelText('Venue')).toHaveValue("Moe's Alley")
+    expect(within(form).getByLabelText('Date')).toHaveValue('')
+    // A date is needed before it can be approved.
+    expect(within(form).getByRole('button', { name: 'Approve and add' })).toBeDisabled()
+    expect(within(screen.getByRole('list', { name: 'Steps' })).getByText('Review').closest('li')).toHaveAttribute('aria-current', 'step')
+  })
+
+  it('approves it with the corrections, which queues it to be added', async () => {
+    render(<AdminPage />)
+    const form = await screen.findByRole('form', { name: 'Review what was read' })
+
+    fireEvent.change(within(form).getByLabelText(/lineup/i), { target: { value: "Hell's Belles\nMurdershow\n" } })
+    fireEvent.change(within(form).getByLabelText('Date'), { target: { value: 'Fri, Dec 12' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Approve and add' }))
+
+    await waitFor(() => expect(fake.current!.client.rpc).toHaveBeenCalled())
+    expect(fake.current!.client.rpc).toHaveBeenCalledWith('approve_ingest_job', {
+      job_id: 'job-9',
+      fields: { ...READ, performers: ["Hell's Belles", 'Murdershow'], date: 'Fri, Dec 12' },
+    })
+    // Realtime brings the change back: queued, no form.
+    act(() => fake.current!.state.onChange!({ new: { ...waiting(), status: 'queued', phase: 'queued', message: null } }))
+    expect(await screen.findByText('Queued', { selector: 'span' })).toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: 'Review what was read' })).not.toBeInTheDocument()
+  })
+
+  it('says why when it can’t be approved', async () => {
+    render(<AdminPage />)
+    const form = await screen.findByRole('form', { name: 'Review what was read' })
+    fireEvent.change(within(form).getByLabelText('Date'), { target: { value: 'Dec 12' } })
+    fake.current!.state.jobs = []   // discarded in another tab meanwhile
+
+    fireEvent.click(within(form).getByRole('button', { name: 'Approve and add' }))
+
+    expect(await within(form).findByRole('alert')).toHaveTextContent("That job isn't waiting for review")
+  })
+
+  it('discards it, with its screenshot', async () => {
+    render(<AdminPage />)
+    const form = await screen.findByRole('form', { name: 'Review what was read' })
+
+    fireEvent.click(within(form).getByRole('button', { name: 'Discard' }))
+
+    await waitFor(() => expect(fake.current!.client.deleteJob).toHaveBeenCalledWith('id', 'job-9'))
+    expect(fake.current!.client.removeScreenshot).toHaveBeenCalledWith(['user-1/a.png'])
     expect(await screen.findByText(/no jobs yet/i)).toBeInTheDocument()
   })
 })

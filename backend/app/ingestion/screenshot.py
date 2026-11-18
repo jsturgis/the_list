@@ -1,12 +1,14 @@
 """A screenshot of an event (from Bandsintown, Instagram, a venue's site...), for a Show the List doesn't have yet.
 
 Bandsintown turns scripted requests away (Cloudflare), so instead of its page an admin adds a screenshot of the
-event on the Admin page, and a vision model on Ollama (settings.vision_model) reads it. `read_screenshot` asks the
-model for the event's fields (`read_fields`) and maps them (`screenshot_show`) to a dict for `ingest_shows`, shaped
-as a listing from the List is (app/ingestion/steve_list.py), with `source` "screenshot".
+event on the Admin page, and a vision model on Ollama (settings.vision_model) reads it. `read_fields` asks the model
+for the event's fields, copied as the screenshot writes them; `screenshot_show` maps them to a dict for
+`ingest_shows`, shaped as a listing from the List is (app/ingestion/steve_list.py), with `source` "screenshot".
 
-The model only reads: what it reads is checked here as an event page's is (a lineup, a Venue in a Bay Area city we
-know, a date that isn't past), and anything it couldn't make out is left empty rather than guessed.
+A small model invents events where there are none, so nothing it reads is added until an admin has checked it on the
+Admin page (and corrected it): app/ingest_jobs.py sends each read screenshot to review, and ingests the fields as
+approved. `screenshot_show` checks them as an event page's are (a lineup, a Venue in a Bay Area city we know, a date
+that isn't past).
 """
 from __future__ import annotations
 
@@ -73,16 +75,21 @@ class ScreenshotError(EventError):
 
 
 def fit(image: bytes) -> bytes:
-    """The screenshot, scaled down to at most MAX_PIXELS (as a PNG) when it's bigger; as it is otherwise."""
+    """The screenshot, scaled down to at most MAX_PIXELS (as a PNG) when it's bigger; as it is otherwise. Every
+    screenshot is decoded in full first, so a corrupt or disguised file fails here with a clear reason, not in the
+    model; Pillow refuses an image of absurd size (a decompression bomb) as it does."""
     try:
         with Image.open(io.BytesIO(image)) as picture:
+            if picture.format not in ("PNG", "JPEG", "WEBP"):
+                raise ScreenshotError(f"the screenshot is a {picture.format} image, not a PNG, JPEG or WebP")
+            picture.load()
             width, height = picture.size
             if width * height <= MAX_PIXELS:
                 return image
             scale = (MAX_PIXELS / (width * height)) ** 0.5
             smaller = picture.convert("RGB").resize((max(1, int(width * scale)), max(1, int(height * scale))),
                                                     Image.Resampling.LANCZOS)
-    except (UnidentifiedImageError, OSError) as exc:
+    except (UnidentifiedImageError, OSError, Image.DecompressionBombError, SyntaxError, ValueError) as exc:
         raise ScreenshotError(f"the screenshot isn't an image that can be read: {exc}") from exc
     out = io.BytesIO()
     smaller.save(out, format="PNG")
@@ -108,16 +115,6 @@ def read_fields(image: bytes) -> dict:
     if not isinstance(fields, dict):
         raise ScreenshotError(f"{settings.vision_model} didn't read an event from the screenshot")
     return fields
-
-
-def read_screenshot(image: bytes, today: date, venue_city: Callable[[str], str | None] = lambda name: None) -> dict:
-    """The Show in this screenshot, as a dict for `ingest_shows`, and the fields the model read under "fields"."""
-    fields = read_fields(image)
-    try:
-        return {**screenshot_show(fields, today, venue_city), "fields": fields}
-    except ScreenshotError as exc:
-        exc.fields = fields
-        raise
 
 
 def _str(value) -> str:

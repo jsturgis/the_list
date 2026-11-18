@@ -6,7 +6,7 @@ import { supabase } from './supabase'
  * workflow, and read back from Supabase's ingest_jobs table, which says how far each has got.
  */
 
-export type JobStatus = 'queued' | 'running' | 'added' | 'live' | 'failed'
+export type JobStatus = 'queued' | 'running' | 'review' | 'added' | 'live' | 'failed'
 
 export interface IngestJob {
   id: string
@@ -35,7 +35,9 @@ export function phasesFor(provider: IngestJob['provider']): Phase[] {
   return [
     { id: 'queued', label: 'Queued' },
     { id: 'dispatched', label: 'Dispatched' },
-    provider === 'screenshot' ? { id: 'reading_screenshot', label: 'Reading' } : { id: 'fetching_page', label: 'Fetching' },
+    ...(provider === 'screenshot'
+      ? [{ id: 'reading_screenshot', label: 'Reading' }, { id: 'review', label: 'Review' }]
+      : [{ id: 'fetching_page', label: 'Fetching' }]),
     { id: 'venue', label: 'Venue' },
     { id: 'bands', label: 'Bands' },
     { id: 'photos', label: 'Photos' },
@@ -100,16 +102,41 @@ export function deletable(job: Pick<IngestJob, 'status'>): boolean {
   return job.status === 'failed' || job.status === 'live'
 }
 
+/** What the vision model read from a screenshot, and what an admin approves: the fields as the screenshot writes them
+ * (backend/app/ingestion/screenshot.py). */
+export interface ReadFields {
+  performers: string[]
+  venue: string | null
+  city: string | null
+  date: string | null
+  doors_time: string | null
+  show_time: string | null
+  price: string | null
+  age: string | null
+  status: string | null
+}
+
+/** Approve a screenshot job waiting for review, with its fields as corrected, and queue it to be added
+ * (approve_ingest_job, supabase/migrations/0007). */
+export async function approveJob(id: string, fields: ReadFields): Promise<IngestJob> {
+  const client = supabase
+  if (!client) throw new Error('Supabase isn’t set up on this copy of the site')
+  const { data, error } = await client.rpc('approve_ingest_job', { job_id: id, fields })
+  if (error) throw new Error(error.message)
+  return data as IngestJob
+}
+
 /**
- * Clear a finished job from the database (supabase/migrations/0006), and a screenshot job's screenshot from storage.
- * The database deletes only finished jobs (see `deletable`); for any other, nothing is deleted and this says so.
+ * Clear a finished job from the database (supabase/migrations/0006), or discard one waiting for review (0007), and a
+ * screenshot job's screenshot from storage. The database deletes no other; for one, nothing is deleted and this says
+ * so.
  */
 export async function deleteJob(job: Pick<IngestJob, 'id' | 'screenshot_path'>): Promise<void> {
   const client = supabase
   if (!client) throw new Error('Supabase isn’t set up on this copy of the site')
   const { data, error } = await client.from('ingest_jobs').delete().eq('id', job.id).select('id')
   if (error) throw new Error(error.message)
-  if (!data?.length) throw new Error('Only finished jobs (failed, or live) can be deleted')
+  if (!data?.length) throw new Error('Only finished jobs (failed, or live) and those waiting for review can be deleted')
   // The screenshot is only of use to its job; a failure to remove it leaves a file nobody sees.
   if (job.screenshot_path) await client.storage.from('ingest-screenshots').remove([job.screenshot_path])
 }

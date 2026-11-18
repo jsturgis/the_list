@@ -29,10 +29,10 @@ logger = logging.getLogger(__name__)
 
 TABLE = "ingest_jobs"
 BUCKET = "ingest-screenshots"
-STATUSES = ("queued", "running", "added", "live", "failed")
+STATUSES = ("queued", "running", "review", "added", "live", "failed")
 # What a failed link's message ends with when its page couldn't be read: the Admin page offers a screenshot then.
 SCREENSHOT_INSTEAD = "Take a screenshot of the event and add that instead."
-PHASES = ("queued", "dispatched", "fetching_page", "reading_screenshot", "venue", "bands", "photos", "saving",
+PHASES = ("queued", "dispatched", "fetching_page", "reading_screenshot", "review", "venue", "bands", "photos", "saving",
           "embedding", "committing", "deploying", "live")
 
 
@@ -44,6 +44,20 @@ class Job:
     url: str | None
     screenshot_path: str | None
     status: str = "queued"
+    # A screenshot job an admin has reviewed (approve_ingest_job): `extracted` is then the fields as they approved
+    # them, ingested as they are; before review it's what the model read, if anything.
+    extracted: dict | None = None
+    approved: bool = False
+
+
+class NeedsReview(Exception):
+    """A screenshot was read: an admin checks what was read (and corrects it) on the Admin page before it's added.
+    `problem` is why it can't be added as it is, if it can't."""
+
+    def __init__(self, fields: dict, problem: str | None = None):
+        super().__init__(problem or "needs review")
+        self.fields = fields
+        self.problem = problem
 
 
 def parse_specs(specs: str) -> list[tuple[str, int]]:
@@ -78,11 +92,11 @@ def fetch_jobs(pairs: list[tuple[str, int]]) -> list[Job]:
         return []
     ids = ",".join(job_id for job_id, _ in pairs)
     rows = _request("GET", f"/rest/v1/{TABLE}", params={
-        "select": "id,provider,url,screenshot_path,status", "id": f"in.({ids})"}).json()
+        "select": "id,provider,url,screenshot_path,status,extracted,approved_at", "id": f"in.({ids})"}).json()
     by_id = {row["id"]: row for row in rows}
-    return [Job(job_id, msg_id, by_id[job_id]["provider"], by_id[job_id].get("url"),
-                by_id[job_id].get("screenshot_path"), by_id[job_id].get("status", "queued"))
-            for job_id, msg_id in pairs if job_id in by_id]
+    return [Job(job_id, msg_id, row["provider"], row.get("url"), row.get("screenshot_path"),
+                row.get("status", "queued"), row.get("extracted"), bool(row.get("approved_at")))
+            for job_id, msg_id in pairs if (row := by_id.get(job_id))]
 
 
 def update_jobs(job_ids: list[str], **fields) -> None:
@@ -138,17 +152,27 @@ def read_job(db: Session, job: Job, today: date) -> tuple[dict, dict | None]:
         update_jobs([job.id], phase="fetching_page", detail=job.url)
         return fetch_event(job.url or ""), None
     if job.provider == "screenshot":
-        from app.ingestion.screenshot import read_screenshot
-
-        update_jobs([job.id], phase="reading_screenshot", detail=f"Reading it with {settings.vision_model}")
-        image = download_screenshot(job.screenshot_path or "")
+        from app.ingestion.screenshot import ScreenshotError, read_fields, screenshot_show
 
         def venue_city(name: str) -> str | None:
             venue = find_venue(db, name)
             return venue.city if venue else None
 
-        data = read_screenshot(image, today, venue_city)
-        return data, data.pop("fields")
+        if job.approved:
+            # As the admin approved it; if it still can't be added, it goes back to them with the reason.
+            fields = job.extracted or {}
+            update_jobs([job.id], phase="review", detail="Using the details as reviewed")
+            try:
+                return screenshot_show(fields, today, venue_city), fields
+            except ScreenshotError as exc:
+                raise NeedsReview(fields, str(exc)) from exc
+        update_jobs([job.id], phase="reading_screenshot", detail=f"Reading it with {settings.vision_model}")
+        fields = read_fields(download_screenshot(job.screenshot_path or ""))
+        try:
+            screenshot_show(fields, today, venue_city)
+        except ScreenshotError as exc:
+            raise NeedsReview(fields, str(exc)) from exc
+        raise NeedsReview(fields)
     raise EventError(f"unknown provider {job.provider!r}")
 
 
@@ -169,6 +193,13 @@ def run_jobs(db: Session, jobs: list[Job], today: date, run_url: str | None = No
             show, listed = add_show(db, data, lambda phase, detail: update_jobs([job.id], phase=phase, detail=detail))
         except SupabaseError:
             raise
+        except NeedsReview as review:
+            # Nothing is added from a screenshot until an admin has checked what was read.
+            message = (f"Check what was read: {review.problem}" if review.problem
+                       else "Check what was read, then approve it")
+            print(f"ingest-jobs: job {job.id}: waiting for review ({review.problem or 'read'})")
+            finish_job(job, "review", message=message, extracted=review.fields)
+            continue
         except EventError as exc:
             logger.warning("ingest-jobs: job %s: %s", job.id, exc)
             message = f"{exc}. {SCREENSHOT_INSTEAD}" if isinstance(exc, UnreadablePage) else str(exc)

@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from 'react'
 import { CheckIcon, PhotoIcon, TrashIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import { href } from '@/lib/basePath'
+import { FIELD } from '@/lib/field'
 import { checkEventUrl, SCREENSHOT_MAX_BYTES, SCREENSHOT_TYPES } from '@/lib/eventUrls'
 import {
   addShows,
+  approveJob,
   deletable,
   deleteJob,
   inProgress,
@@ -14,6 +16,7 @@ import {
   type AddResult,
   type IngestJob,
   type JobStatus,
+  type ReadFields,
   screenshotUrl,
   wantsScreenshot,
 } from '@/lib/ingestJobs'
@@ -407,6 +410,7 @@ function ScreenshotPreview({ file, problem, onRemove }: { file: File; problem: s
 const STATUS: Record<JobStatus, { label: string; className: string }> = {
   queued: { label: 'Queued', className: 'bg-muted text-ink-soft' },
   running: { label: 'Running', className: 'bg-info-soft text-info' },
+  review: { label: 'Needs review', className: 'bg-warning-soft text-warning' },
   added: { label: 'Added', className: 'bg-accent-chip text-accent-chip-ink' },
   live: { label: 'Live', className: 'bg-success-soft text-success' },
   failed: { label: 'Failed', className: 'bg-danger-soft text-danger' },
@@ -474,6 +478,108 @@ function JobScreenshot({ path }: { path: string }) {
   )
 }
 
+const REVIEW_FIELDS: { key: Exclude<keyof ReadFields, 'performers'>; label: string; placeholder: string }[] = [
+  { key: 'venue', label: 'Venue', placeholder: 'The Chapel' },
+  { key: 'city', label: 'City', placeholder: 'San Francisco' },
+  { key: 'date', label: 'Date', placeholder: 'Fri, Dec 12' },
+  { key: 'doors_time', label: 'Doors', placeholder: '7:00 PM' },
+  { key: 'show_time', label: 'Show', placeholder: '8:00 PM' },
+  { key: 'price', label: 'Price', placeholder: '$20 - $25' },
+  { key: 'age', label: 'Age', placeholder: '21+' },
+  { key: 'status', label: 'Status', placeholder: 'Sold Out, Cancelled…' },
+]
+
+const text = (value: unknown) => (typeof value === 'string' ? value : '')
+
+/**
+ * A screenshot job waiting for review: what the vision model read, to check against the screenshot above it and
+ * correct. Approve queues it to be added as it stands here; Discard deletes it. Nothing from a screenshot reaches the
+ * site without this.
+ */
+function ReviewForm({ job, onDiscard }: { job: IngestJob; onDiscard: () => void }) {
+  const read = job.extracted ?? {}
+  const [lineup, setLineup] = useState(() =>
+    (Array.isArray(read.performers) ? read.performers.filter(p => typeof p === 'string') : []).join('\n'),
+  )
+  const [values, setValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(REVIEW_FIELDS.map(({ key }) => [key, text(read[key])])),
+  )
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const performers = lineup.split('\n').map(l => l.trim()).filter(Boolean)
+  const ready = performers.length > 0 && values.venue.trim() !== '' && values.date.trim() !== ''
+
+  const approve = async (e: FormEvent) => {
+    e.preventDefault()
+    setSending(true)
+    setError(null)
+    try {
+      const fields = Object.fromEntries(REVIEW_FIELDS.map(({ key }) => [key, values[key].trim() || null]))
+      await approveJob(job.id, { performers, ...fields } as ReadFields)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      setSending(false)
+    }
+  }
+
+  const id = (key: string) => `review-${job.id}-${key}`
+  return (
+    <form onSubmit={approve} aria-label="Review what was read" className="flex flex-col gap-3 rounded-lg border border-line p-3">
+      <div className="flex flex-col gap-1">
+        <label htmlFor={id('lineup')} className="text-xs font-semibold text-ink">
+          Lineup, headliner first, one per line
+        </label>
+        <textarea
+          id={id('lineup')}
+          rows={Math.max(2, performers.length + 1)}
+          value={lineup}
+          onChange={e => setLineup(e.target.value)}
+          className="rounded-lg border border-line-strong bg-field px-3 py-2 text-base text-ink placeholder:text-ink-faint"
+        />
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {REVIEW_FIELDS.map(({ key, label, placeholder }) => (
+          <div key={key} className="flex flex-col gap-1">
+            <label htmlFor={id(key)} className="text-xs font-semibold text-ink">
+              {label}
+            </label>
+            <input
+              id={id(key)}
+              value={values[key]}
+              placeholder={placeholder}
+              onChange={e => setValues(v => ({ ...v, [key]: e.target.value }))}
+              className={`${FIELD} px-3`}
+            />
+          </div>
+        ))}
+      </div>
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="submit"
+          disabled={sending || !ready}
+          className="h-9 rounded-full bg-accent px-5 text-sm font-bold text-on-accent hover:bg-accent-hover disabled:opacity-50"
+        >
+          {sending ? 'Approving…' : 'Approve and add'}
+        </button>
+        <button
+          type="button"
+          onClick={onDiscard}
+          disabled={sending}
+          className="h-9 rounded-full border border-line-strong px-4 text-sm font-bold text-ink hover:bg-muted disabled:opacity-50"
+        >
+          Discard
+        </button>
+      </div>
+      {!ready && <p className="text-xs text-ink-muted">A lineup, a venue and a date are needed to add it.</p>}
+    </form>
+  )
+}
+
 function JobRow({ job, onDelete }: { job: IngestJob; onDelete: () => void }) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -519,7 +625,7 @@ function JobRow({ job, onDelete }: { job: IngestJob; onDelete: () => void }) {
       </div>
 
       {job.screenshot_path && <JobScreenshot path={job.screenshot_path} />}
-      {read && <p className="text-sm text-ink-soft">Read: {read}</p>}
+      {read && job.status !== 'review' && <p className="text-sm text-ink-soft">Read: {read}</p>}
 
       <ol aria-label="Steps" className="flex flex-wrap gap-1">
         {phases.map((phase, i) => {
@@ -557,7 +663,12 @@ function JobRow({ job, onDelete }: { job: IngestJob; onDelete: () => void }) {
           )}
         </p>
       )}
-      {job.message && <p className={`text-sm ${failed ? 'text-danger' : 'text-ink-soft'}`}>{job.message}</p>}
+      {job.message && (
+        <p className={`text-sm ${failed ? 'text-danger' : job.status === 'review' ? 'text-warning' : 'text-ink-soft'}`}>
+          {job.message}
+        </p>
+      )}
+      {job.status === 'review' && <ReviewForm job={job} onDiscard={onDelete} />}
       {wantsScreenshot(job) && (
         <button
           type="button"
