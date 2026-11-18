@@ -173,13 +173,15 @@ Saved Filters and Alert subscriptions aren't in this database: they live in Supa
 ### When the Deploy workflow runs
 
 The Deploy workflow (`.github/workflows/deploy.yml`) has five jobs: `check`, `ingest`, `build`, `deploy` and
-`alerts`. An ingest happens when the hourly check finds the List changed, and on a manual run that doesn't skip it;
+`alerts`. An ingest happens when the hourly check finds the List changed, and on a manual run with **force_ingest**;
 Alerts go out only after the ingest of a new edition. Runs share the `pages` concurrency group with the Backfill
 workflow, so only one runs at a time.
 
-- **The hourly cron**: `17 * * * *`. The `check` job compares Steve's page with the last one ingested; an unchanged
-  page ends the run there.
-- **By hand**: Run workflow, or `gh workflow run deploy.yml`, with or without **Skip ingestion**.
+- **The hourly cron**: `17 * * * *`, and a Cloud Scheduler job that dispatches the workflow at the same minute with
+  no inputs (GitHub's cron drops runs). The `check` job compares Steve's page with the last one ingested; an
+  unchanged page ends the run there.
+- **By hand**: Run workflow, or `gh workflow run deploy.yml`: the same check, or with **force_ingest** an ingest
+  whatever the check says, or with **Skip ingestion** a rebuild only.
 - **A push to `main`** that touches the site, the backend's app or the guides.
 - **The Backfill workflow**, after it commits to the `data` branch.
 
@@ -188,8 +190,8 @@ See [Deployment](deployment.md) for each.
 ```mermaid
 flowchart TD
   accTitle: When the Deploy workflow runs
-  accDescr: The hourly cron and a manual run start the check job; a changed List, or any manual run, goes on to the ingest job, and an unchanged List on the cron ends the run. A manual run that skips ingestion, a push to main and the Backfill workflow start at the build job. Build is followed by deploy, and deploy by alerts, but only after the ingest of a new edition.
-  cron["Hourly cron"]
+  accDescr: The hourly cron, Cloud Scheduler's hourly dispatch and a manual run start the check job; a changed List, or a manual run with force_ingest, goes on to the ingest job, and an unchanged List otherwise ends the run. A manual run that skips ingestion, a push to main and the Backfill workflow start at the build job. Build is followed by deploy, and deploy by alerts, but only after the ingest of a new edition.
+  cron["Hourly cron,<br/>Cloud Scheduler"]
   manual["By hand"]
   check["check<br/>cli check"]
   done(["unchanged:<br/>nothing to do"])
@@ -201,7 +203,7 @@ flowchart TD
   alerts["alerts<br/>cli alerts"]
   cron --> check
   manual -->|"ingest"| check
-  check -->|"changed, or by hand"| ingest
+  check -->|"changed, or force_ingest"| ingest
   check -->|"unchanged"| done
   ingest -->|"commit to data"| build
   manual -->|"skip ingest"| build

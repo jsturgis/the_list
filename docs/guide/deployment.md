@@ -13,7 +13,9 @@ redirects there. Diagrams of the Deploy workflow's triggers and of a new edition
 An orphan branch holding the SQLite database (`the_list.db`), the FAISS index (`faiss/`) and Band photos
 (`images/`). `main` never contains data files. It keeps only its newest 4 commits (the current data plus 3 to roll
 back to): after each ingest, older history is squashed into the oldest kept commit and the branch is force-pushed
-(`.github/scripts/prune-history.sh`).
+(`.github/scripts/prune-history.sh`). Each workflow that commits to it first runs SQLite's `integrity_check` and fails
+rather than commit a damaged database. For anything older, the Back up the data workflow keeps nightly snapshots
+(see [Rolling back](#rolling-back)).
 
 ## The Deploy workflow
 
@@ -87,10 +89,13 @@ fails only its own step, which has `continue-on-error`, so it can't change the i
   document that this resets the 60 days. If the schedule ever stops anyway, the Actions tab shows the workflow as
   disabled: click **Enable workflow**, or run `gh workflow enable deploy.yml`. No failure email can warn you of
   this, as no run happens.
-- **By hand** from the Actions tab (**Deploy → Run workflow**) or `gh workflow run deploy.yml`.
-  A manual run ingests the List whether or not it has changed, and sends Alerts only if it's a new edition.
-  Tick **Skip ingestion** (`gh workflow run deploy.yml -f skip_ingest=true`) to rebuild from the
-  existing data without sending Alerts.
+  GitHub's own cron is unreliable (it delays and drops runs), so a Google Cloud Scheduler job also dispatches the
+  workflow every hour, with no inputs. A dispatch without inputs is the same hourly check: an unchanged List ends
+  it after the check job.
+- **By hand** from the Actions tab (**Deploy → Run workflow**) or `gh workflow run deploy.yml`: the hourly check,
+  run now. Tick **Ingest even if the List hasn't changed** (`gh workflow run deploy.yml -f force_ingest=true`) to
+  ingest it anyway (Alerts still go only for a new edition), or **Skip ingestion**
+  (`gh workflow run deploy.yml -f skip_ingest=true`) to rebuild from the existing data without sending Alerts.
 - **On pushes to `main`** that touch `frontend/`, `backend/app/`, `docs/guide/` (these docs) or the workflow's
   own file: deploy only, no ingest.
 - **After the Backfill workflow**, which starts a deploy-only run when it has committed to `data`.
@@ -170,3 +175,19 @@ The branch is rewritten when it's pruned, so if the worktree already exists, bri
 
 Revert the bad commit on the `data` branch (`git revert <sha>` on an up-to-date checkout of `data`, then push) and
 run the workflow with **Skip ingestion**. Only the last 3 changes can be rolled back this way.
+
+Further back, use a nightly snapshot. `.github/workflows/backup-data.yml` runs at 11:43 UTC (or by hand: **Back up
+the data → Run workflow**), checks the database and uploads the whole `data` branch as an artifact named
+`data-<date>-<sha>`, kept for 90 days; the run fails if `integrity_check` finds damage. To restore one:
+
+```bash
+gh run list --workflow backup-data.yml          # pick the night before the damage
+gh run download <run-id> -D /tmp/snapshot && tar -xzf /tmp/snapshot/*/data.tar.gz -C /tmp/snapshot
+cd ../the_list-data && git fetch origin data && git reset --hard origin/data
+cp /tmp/snapshot/the_list.db . && rsync -a --delete /tmp/snapshot/faiss/ faiss/ && rsync -a --delete /tmp/snapshot/images/ images/
+git add -A the_list.db faiss images && git commit -m "Restore the data from the <date> snapshot" && git push origin data
+gh workflow run deploy.yml -f skip_ingest=true
+```
+
+Shows ingested since the snapshot come back at the next hourly ingest of a changed List, or run the Deploy workflow
+with **Ingest even if the List hasn't changed**.

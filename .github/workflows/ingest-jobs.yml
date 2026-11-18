@@ -144,6 +144,10 @@ jobs:
           db = sqlite3.connect('the_list.db')
           db.execute('PRAGMA wal_checkpoint(TRUNCATE)')
           db.execute('PRAGMA journal_mode=DELETE')
+          # Never commit a damaged database over the last good one.
+          problems = [row[0] for row in db.execute('PRAGMA integrity_check')]
+          if problems != ['ok']:
+              raise SystemExit('integrity_check failed: ' + '; '.join(problems[:10]))
           db.close()
           "
           git config user.name 'github-actions[bot]'

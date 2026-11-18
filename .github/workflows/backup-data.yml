@@ -1,0 +1,56 @@
+name: Back up the data
+
+# Nightly: snapshot the data branch (the SQLite database, the FAISS indexes and the Band photos) as a workflow
+# artifact kept for 90 days. The data branch keeps only its newest 4 commits (prune-history.sh), so it can roll back
+# a few hours at most; these snapshots let a bad migration, a wrong merge or a silent loss found days later be undone.
+# The branch is public, so the artifacts expose nothing new. To restore, see docs/guide/deployment.md#rolling-back.
+on:
+  schedule:
+    - cron: '43 11 * * *'   # 03:43 in the Bay Area (04:43 in summer), between hourly runs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the data branch
+        uses: actions/checkout@v4
+        with:
+          ref: data
+          path: data
+
+      - name: Check the database
+        working-directory: data
+        # A damaged database is still uploaded (it may be all there is), but the run fails so the maintainer hears.
+        run: |
+          echo bad > "$RUNNER_TEMP/integrity"   # unless the check below says otherwise, even if it can't open the file
+          python3 -c "
+          import sqlite3
+          db = sqlite3.connect('file:the_list.db?mode=ro', uri=True)
+          problems = [row[0] for row in db.execute('PRAGMA integrity_check')]
+          print('integrity_check:', '; '.join(problems[:10]))
+          open('$RUNNER_TEMP/integrity', 'w').write('ok' if problems == ['ok'] else 'bad')
+          " || true
+          echo "SHA=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+          echo "DATE=$(date -u +%Y-%m-%d)" >> "$GITHUB_ENV"
+
+      - name: Pack the snapshot
+        working-directory: data
+        run: |
+          git log -1 --format='%H %cI %s' > COMMIT
+          tar --exclude=.git -czf "$RUNNER_TEMP/data.tar.gz" .
+          ls -lh "$RUNNER_TEMP/data.tar.gz"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: data-${{ env.DATE }}-${{ env.SHA }}
+          path: ${{ runner.temp }}/data.tar.gz
+          retention-days: 90   # the most GitHub allows
+          compression-level: 0   # already gzipped
+
+      - name: Fail if the database is damaged
+        run: test "$(cat "$RUNNER_TEMP/integrity")" = ok
