@@ -1,8 +1,9 @@
 name: Dependabot auto-merge
 
 on:
-  pull_request_target:
-    types: [opened, synchronize, reopened]
+  workflow_run:
+    workflows: [Backend Tests, Frontend Tests]
+    types: [completed]
 
 permissions:
   contents: write
@@ -10,11 +11,52 @@ permissions:
 
 jobs:
   dependabot:
-    if: github.actor == 'dependabot[bot]'
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
-      - name: Enable squash auto-merge
+      - name: Find the Dependabot pull request
+        id: find-pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
-        run: gh pr merge --auto --squash "$PR_URL"
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          pr_url="$(
+            gh pr list --state open --head "$HEAD_BRANCH" --author app/dependabot \
+              --json url,headRefOid \
+              --jq '.[] | select(.headRefOid == env.HEAD_SHA) | .url'
+          )"
+          if [ -z "$pr_url" ]; then
+            echo "No matching open Dependabot pull request."
+            exit 0
+          fi
+          echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for all test jobs
+        if: steps.find-pr.outputs.pr_url != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          for _ in $(seq 1 60); do
+            status="$(
+              gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs" \
+                --jq '[.check_runs[] | select(.name == "backend-test" or .name == "frontend-test" or .name == "frontend-e2e")] |
+                  ([length == 3] and
+                   ([.[].status] | all(. == "completed")) and
+                   ([.[].conclusion] | all(. == "success")))'
+            )"
+            if [ "$status" = "true" ]; then
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "The required test jobs did not pass within 30 minutes."
+          exit 1
+
+      - name: Squash and merge
+        if: steps.find-pr.outputs.pr_url != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ steps.find-pr.outputs.pr_url }}
+        run: gh pr merge --squash --delete-branch "$PR_URL"
