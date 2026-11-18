@@ -16,6 +16,8 @@ is a thin IO wrapper:
   app/ingestion/venue_corrections.py) its calendar, reads it when there's a Show it hasn't been read for (or
   weekly), and applies match_calendar's updates. A calendar page is looked for again every 30 days; a temporary
   failure (page down, LLM error) records nothing and is tried again a day later, never failing the run.
+
+Pages are asked of the page fetcher on the home server when there is one (`_get`, ADR 0007).
 """
 from __future__ import annotations
 
@@ -35,6 +37,7 @@ from pydantic import BaseModel
 
 from app.clock import local_today
 from app.config import settings
+from app.ingestion import page_fetch
 from app.ingestion.public_urls import guarded_client, public_url, same_site, site
 from app.ingestion.upsert import band_key
 from app.ingestion.venue_corrections import venue_correction
@@ -173,6 +176,17 @@ def _client(timeout: float) -> httpx.Client:
 
 
 def _get(url: str, timeout: float = 15.0) -> httpx.Response:
+    """The page, asked of the page fetcher on the home server when there is one (ADR 0007): some Venues' sites turn
+    away GitHub's runners or a request that isn't a browser's (403). The fetcher checks the URL is public as
+    `guarded_client` does. If it can't be reached, the page is asked for directly; if it couldn't fetch the page,
+    that's a temporary failure."""
+    if settings.scraper_url:
+        try:
+            return page_fetch.from_scraper(url)
+        except httpx.TransportError as exc:
+            logger.warning("venue calendar: the page fetcher couldn't be reached (%s); fetching %s directly", exc, url)
+        except page_fetch.PageError as exc:
+            raise LookupFailed(f"couldn't fetch {url}: {exc}") from exc
     with _client(timeout) as client:
         return client.get(url)
 
