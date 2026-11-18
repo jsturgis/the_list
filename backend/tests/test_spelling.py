@@ -8,35 +8,39 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.ingestion.respell_bands import candidates, respell_stored
-from app.ingestion.spelling import Candidate, Respelling, as_listed, close_names, likeliest, mb_candidates, respell
+from app.ingestion.spelling import Candidate, Respelling, as_listed, close_names, likeliest, respell
 from app.ingestion.upsert import find_band, upsert_shows
 from app.models.band import Band
 from app.models.show import Show
 from app.scheduler import _respell as _real_respell
 from app.scheduler import ingest_shows
 
-# What MusicBrainz's fuzzy search answers for "Sunamo" and "Middrift" (2026-11-18).
-_SUNAMO = [Candidate("Senamo"), Candidate("SUNAMI", local=True), Candidate("Minamo"), Candidate("Sujamo"),
-           Candidate("Sunami"), Candidate("Sunao Inami")]
-_MIDDRIFT = [Candidate("Midrift"), Candidate("Midriff"), Candidate("Mindlift"), Candidate("Mildriot")]
+# What Last.fm's search answers for "Sunamo" and "Middrift", with listeners (2026-11-18).
+_SUNAMO = [Candidate("Sunami", 174502), Candidate("Senamo", 19469), Candidate("Cunami Flo", 8806),
+           Candidate("Sungmo", 1462), Candidate("Sonamó", 927), Candidate("Sunao", 388)]
+_MIDDRIFT = [Candidate("Midrift", 598694), Candidate("Midriff", 5533), Candidate("Midrift • Lossless", 41),
+             Candidate("Midkraft", 87), Candidate("Sidedrift", 4), Candidate("MaDrift", 10)]
 
 
 def test_close_names_are_as_many_words_and_alike():
-    assert [c.name for c in close_names("Middrift", _MIDDRIFT)] == ["Midrift", "Midriff"]
-    assert close_names("Outta Pocket", [Candidate("Pocket Rocket"), Candidate("Outta Pocket")]) == []
+    assert [c.name for c in close_names("Middrift", _MIDDRIFT)] == ["Midrift", "Midriff", "Sidedrift", "MaDrift"]
+    assert close_names("Outta Pocket", [Candidate("Pocket Rocket", 9), Candidate("Outta Pocket", 9)]) == []
 
 
-def test_the_bay_area_artist_is_the_likeliest():
-    """Belgium's Senamo is as close to "Sunamo" as San Jose's SUNAMI: the Bay Area decides."""
-    assert likeliest("Sunamo", _SUNAMO) == "SUNAMI"
-
-
-def test_else_the_closest_is_the_likeliest():
+def test_the_most_listened_to_is_the_likeliest_not_the_closest():
+    """"Sunao" (388 listeners) is closer to "Sunamo" than Sunami (174,502) is."""
+    assert likeliest("Sunamo", _SUNAMO) == "Sunami"
     assert likeliest("Middrift", _MIDDRIFT) == "Midrift"
 
 
-def test_a_tie_with_none_from_here_puts_nothing_right():
-    assert likeliest("Sunamo", [c for c in _SUNAMO if not c.local]) is None
+def test_without_a_clear_lead_nothing_is_put_right():
+    assert likeliest("Sunamo", [Candidate("Sunami", 20000), Candidate("Senamo", 19469)]) is None
+    assert likeliest("Sunamo", [Candidate("Sunami", 0)]) is None
+    assert likeliest("Sunamo", []) is None
+
+
+def test_one_name_spelt_twice_isnt_its_own_rival():
+    assert likeliest("Sunamo", [Candidate("Sunami", 174502), Candidate("SUNAMI", 900)]) == "Sunami"
 
 
 def test_a_name_put_right_is_written_as_the_listing_writes_names():
@@ -56,8 +60,9 @@ def test_the_likeliest_is_the_bands_name_only_if_a_service_has_it():
         looked_up.append(name)
         return _found("mb-sunami" if name == "SUNAMI" else None)
 
-    fixed = respell("Sunamo", lambda _: _SUNAMO, lookup, lambda name, found: None)
-    assert fixed == Respelling("Sunami", _found("mb-sunami"), None)
+    fixed = respell("Sunamo", lambda _: [Candidate("SUNAMI", 174502), Candidate("Senamo", 19469)], lookup,
+                    lambda name, found: None)
+    assert fixed == Respelling("Sunami", _found("mb-sunami"), None)   # as the listing writes names
     assert looked_up == ["SUNAMI"]   # the subsequent call, with the name spelt right
     assert respell("Sunamo", lambda _: _SUNAMO, lambda name: _found(), lambda name, found: None) is None
 
@@ -65,17 +70,6 @@ def test_the_likeliest_is_the_bands_name_only_if_a_service_has_it():
 def test_discogs_having_it_is_enough():
     fixed = respell("Middrift", lambda _: _MIDDRIFT, lambda name: _found(), lambda name, found: "discogs artist")
     assert (fixed.name, fixed.discogs) == ("Midrift", "discogs artist")
-
-
-def test_musicbrainz_is_asked_for_each_word_misspelt():
-    asked = []
-
-    def search(**kwargs):
-        asked.append(kwargs)
-        return {"artist-list": [{"name": "SUNAMI", "area": {"name": "San Jose"}}, {"name": "Senamo"}]}
-    found = mb_candidates("AC/DC Sunamo", search, lambda artist: (artist.get("area") or {}).get("name") == "San Jose")
-    assert asked == [{"query": r"artist:(AC\/DC~ Sunamo~)", "limit": 25}]
-    assert found == [Candidate("SUNAMI", True), Candidate("Senamo", False)]
 
 
 # ── At ingest ────────────────────────────────────────────────────────────────
@@ -103,12 +97,10 @@ def services():
          patch("app.scheduler.save_band_photos", return_value=0), \
          patch("app.scheduler.commons_photo", return_value=None), \
          patch("app.scheduler.discogs_artist", return_value=None), \
-         patch("app.scheduler.discogs_names", return_value=[]), \
          patch("app.scheduler.lastfm_tags", return_value=[]), \
          patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock), \
-         patch("app.scheduler.musicbrainzngs.search_artists",
-               return_value={"artist-list": [{"name": "SUNAMI", "area": {"name": "San Jose"}}, {"name": "Senamo"}]}), \
-         patch("app.scheduler._enrich_band", side_effect=_services({"SUNAMI", "No Pressure"})) as lookup:
+         patch("app.scheduler.lastfm_artists", return_value=[("Sunami", 174502), ("Senamo", 19469), ("Sunao", 388)]), \
+         patch("app.scheduler._enrich_band", side_effect=_services({"Sunami", "No Pressure"})) as lookup:
         yield lookup
 
 
@@ -127,7 +119,7 @@ async def test_a_misspelt_band_is_stored_spelt_right(db, services, respelling):
     assert (sunami.spellings, sunami.genres) == (["Sunamo"], ["punk"])
     assert db.query(Band).filter(Band.name == "Sunamo").count() == 0
     # Looked up as listed, then with the name spelt right: the subsequent call.
-    assert [c.args[0] for c in services.call_args_list] == ["Sunamo", "SUNAMI", "No Pressure"]
+    assert [c.args[0] for c in services.call_args_list] == ["Sunamo", "Sunami", "No Pressure"]
 
 
 async def test_the_next_listing_misspelt_so_is_the_same_band_without_asking_again(db, services, respelling):
@@ -142,14 +134,14 @@ async def test_the_next_listing_misspelt_so_is_the_same_band_without_asking_agai
 
 
 async def test_a_name_no_service_has_spelt_any_way_stays_as_listed(db, services, respelling):
-    services.side_effect = _services({"No Pressure"})   # not SUNAMI either
+    services.side_effect = _services({"No Pressure"})   # not Sunami either
     (show,) = await ingest_shows(db, [_listing(["Sunamo", "No Pressure"])])
     assert [a.band.name for a in show.acts] == ["Sunamo", "No Pressure"]
     assert db.query(Band).filter(Band.name == "Sunamo").one().spellings == []
 
 
 async def test_a_band_a_service_has_as_listed_isnt_respelt(db, services, respelling):
-    services.side_effect = _services({"Sunamo", "SUNAMI", "No Pressure"})
+    services.side_effect = _services({"Sunamo", "Sunami", "No Pressure"})
     (show,) = await ingest_shows(db, [_listing(["Sunamo", "No Pressure"])])
     assert [a.band.name for a in show.acts] == ["Sunamo", "No Pressure"]
 

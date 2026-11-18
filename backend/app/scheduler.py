@@ -10,7 +10,6 @@ from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
-import musicbrainzngs
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
@@ -22,15 +21,15 @@ from app.ingestion.band_corrections import band_correction, corrected
 from app.ingestion.band_sources import bandcamp_page, discogs_match, photo_candidates, service_genres
 from app.ingestion.bandcamp import BandcampUnavailable, bandcamp_photo
 from app.ingestion.genre_filter import GenreFilter
-from app.ingestion.discogs import discogs_artist, discogs_genres, discogs_names
+from app.ingestion.discogs import discogs_artist, discogs_genres
 from app.ingestion.images import check_image_urls
 from app.ingestion.ingest_stats import new_band_stats
 from app.ingestion.joint_bands import joint_parts, split_joint_acts, split_joint_name
-from app.ingestion.lastfm import lastfm_tags
+from app.ingestion.lastfm import lastfm_artists, lastfm_tags
 from app.ingestion.links import check_links
 from app.ingestion.show_flyers import prune_show_flyers, save_show_flyers
 from app.ingestion.steve_list import ListPage, edition_title, fetch_list, list_shows
-from app.ingestion.spelling import Candidate, mb_candidates, respell
+from app.ingestion.spelling import Candidate, respell
 from app.ingestion.upsert import find_band, find_venue, known_region, remove_unlisted_shows, upsert_shows
 from app.ingestion.venue_calendar import enrich_shows_from_venue_calendars
 from app.ingestion.venue_check import CONFIRMED, NOT_CHECKED, check_venue, checked_details
@@ -43,7 +42,7 @@ from app.models.show import Show, ShowStatus
 from app.models.venue import Venue
 from app.embeddings.indexer import SHOW_INDEX_PATH, remove_from_index
 from app.pipeline.embed import batch_embed_and_index
-from app.pipeline.enrichment import _clean_venue_name, _enrich_band, _enrich_venue, _in_bay_area
+from app.pipeline.enrichment import _clean_venue_name, _enrich_band, _enrich_venue
 
 
 _BAND_LINK_FIELDS = ("spotify_url", "soundcloud_url", "bandcamp_url", "website_url")
@@ -126,11 +125,10 @@ def _reporter(on_phase: Optional[PhaseReporter]) -> PhaseReporter:
 
 
 def _respell(name: str):
-    """The Band's name spelt right, when it's misspelt and a service has it spelt right (app/ingestion/spelling.py):
-    close names from MusicBrainz's fuzzy search and Discogs' search, the likeliest looked up as a Band is."""
+    """The Band's name spelt right, when it's misspelt and MusicBrainz or Discogs has it spelt right
+    (app/ingestion/spelling.py): close names from Last.fm's search, the most listened to looked up as a Band is."""
     def candidates(listed: str) -> list[Candidate]:
-        return (mb_candidates(listed, musicbrainzngs.search_artists, _in_bay_area)
-                + [Candidate(n) for n in discogs_names(listed)])
+        return [Candidate(n, listeners) for n, listeners in lastfm_artists(listed)]
     return respell(name, candidates, lambda n: _enrich_band(n, False),
                    lambda n, found: discogs_match(n, found, discogs_artist))
 
