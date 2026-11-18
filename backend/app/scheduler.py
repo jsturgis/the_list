@@ -176,7 +176,7 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
 
     def split(name: str) -> list[str]:
         if name not in split_cache:
-            known = joint_parts(name) is None or db.query(Band.id).filter(Band.name == name).first()
+            known = joint_parts(name) is None or find_band(db, name)
             split_cache[name] = [name] if known else split_joint_name(name)
         return split_cache[name]
 
@@ -191,7 +191,8 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
     # are the source of everything else. Genres: MusicBrainz's curated genres, else Last.fm's tags, else
     # Discogs' genres and styles, else MusicBrainz's free-form tags, else its correction's.
     # Links: each one MusicBrainz has, else its correction's.
-    # A Band already in the database was looked up when it was new, so it isn't tried again.
+    # A Band already in the database (under any spelling, see find_band) was looked up when it was new, so it isn't
+    # tried again.
     band_cache: dict[str, dict | None] = {}
     renamed: dict[str, str] = {}   # a listed name a service spells otherwise: "Sunamo" -> "Sunami"
     genre_cache: dict[str, list[str]] = {}  # each new Band's genres from the services, asked once
@@ -205,7 +206,7 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
                 if known and name in known.spellings:
                     renamed[name] = known.name   # listed misspelt before, and put right then
                     band_cache[name] = None
-                elif db.query(Band.id).filter(Band.name == name).first():
+                elif known:
                     band_cache[name] = None
                 else:
                     logger.info("ingestion: looking up genres for %s", name)

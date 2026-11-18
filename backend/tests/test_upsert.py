@@ -371,6 +371,29 @@ def test_reuses_venue_with_same_google_place_id(db):
     assert db.query(Show).count() == 2
 
 
+def test_a_name_joined_by_google_place_finds_the_venue_next_time(db):
+    # The ingest asks Google Places only about Venues find_venue doesn't know; a name matched only through the place
+    # would be looked up again every run.
+    upsert_shows(db, [
+        _show(venue_name="Felton Music Hall", city="Felton", date_=date(2026, 10, 15), google_place_id="ChIJfelton"),
+        _show(venue_name="The Felton Music Hall & Bar", city="Felton", date_=date(2026, 10, 23),
+              google_place_id="ChIJfelton"),
+    ])
+    venue = db.query(Venue).one()
+    assert venue.spellings == ["The Felton Music Hall & Bar"]
+    assert find_venue(db, "The Felton Music Hall & Bar", None, ("Felton",)) is venue
+    assert find_venue(db, "Felton Music Hall and Bar", None, ("Felton",)) is venue   # by key, as names are
+    assert find_venue(db, "The Felton Music Hall & Bar", None, ("Oakland",)) is None   # not in another Region
+
+
+def test_a_name_that_already_matches_is_not_kept_as_a_spelling(db):
+    upsert_shows(db, [
+        _show(venue_name="the Fillmore", city="S.F.", date_=date(2026, 10, 15), google_place_id="ChIJfillmore"),
+        _show(venue_name="Fillmore", city="S.F.", date_=date(2026, 10, 16), google_place_id="ChIJother"),
+    ])
+    assert db.query(Venue).one().spellings == []
+
+
 def test_same_name_in_another_region_is_a_different_venue(db):
     upsert_shows(db, [
         _show(venue_name="the Fox Theater", city="Oakland", date_=date(2026, 10, 1), google_place_id="ChIJoakland"),

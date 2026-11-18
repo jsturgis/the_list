@@ -222,6 +222,9 @@ def find_venue(
     so e.g. Redwood City's "Fox Theater" doesn't merge with Oakland's. Place IDs don't veto a name
     match: the same Venue can come back from Google as a different place.
 
+    A name the Venue was listed under before and matched through its Google place (Venue.spellings) counts as one
+    of its names, after its own.
+
     A known variant name (see _VENUE_ALIASES) is matched by name first: Google places a misspelt or
     renamed Venue somewhere else, and that place can be another Venue's. The first of `cities` is the listing's.
 
@@ -235,8 +238,12 @@ def find_venue(
         candidates = candidates.filter(Venue.region.in_(regions))
     # Compared here rather than in SQL, as keys aren't how names are stored; there are a few hundred Venues.
     by_key: dict[str, Venue] = {}
-    for candidate in candidates.order_by(Venue.id):
+    ordered = candidates.order_by(Venue.id).all()
+    for candidate in ordered:
         by_key.setdefault(_name_key(candidate.name), candidate)
+    for candidate in ordered:
+        for spelling in candidate.spellings or []:
+            by_key.setdefault(_name_key(spelling), candidate)
 
     if canonical_venue_name(name, city) != name and key in by_key:
         return by_key[key]
@@ -273,9 +280,15 @@ def _upsert_venue(db: Session, data: dict) -> Venue:
         )
         db.add(venue)
         db.flush()
-    elif place_city and not venue.city:
-        venue.city = place_city
-        venue.region = known_region(place_city) or venue.region
+    else:
+        if place_city and not venue.city:
+            venue.city = place_city
+            venue.region = known_region(place_city) or venue.region
+        # Matched only through its Google place: keep the listed name, so the next listing under it is known by
+        # name and not looked up on Google Places again (scheduler.ingest_shows).
+        if (venue_key(name, listing_city) != _name_key(venue.name) and name not in (venue.spellings or [])
+                and find_venue(db, name, None, (listing_city,)) is not venue):
+            venue.spellings = [*(venue.spellings or []), name]
 
     # A placeholder stored by an early edition counts as no website, so it's replaced or cleared.
     if is_placeholder_website(venue.website_url):
