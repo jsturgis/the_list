@@ -37,7 +37,7 @@ jobs:
 
     services:
       ollama:
-        image: ollama/ollama:latest
+        image: ollama/ollama:0.40.16   # pinned, so a new release is a deliberate change
         ports:
           - 11434:11434
         volumes:

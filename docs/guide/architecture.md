@@ -126,7 +126,8 @@ flowchart TD
 
 The core entities (a few fields each), as the SQLAlchemy models in `backend/app/models/` store them. A Show is at one Venue and has
 its Acts in order (position 0 is the headliner); each Act is one Band's appearance. A Band's and a Show's
-`embedding` is also in its FAISS index, under its id. Two tables stand alone: `ingestion_runs` (one row per ingest,
+`embedding` is also in its FAISS index, under its id. The ingest re-embeds only a Show or Band whose text changed: `faiss/texts.json` keeps each one's digest (of
+the text and the embedding model) when it was last embedded. Two tables stand alone: `ingestion_runs` (one row per ingest,
 with its counts) and `genre_tags` (whether a tag is a genre, as judged once).
 
 ```mermaid
