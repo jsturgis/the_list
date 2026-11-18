@@ -200,13 +200,16 @@ def band_key(name: str) -> str:
 
 
 def find_band(db: Session, name: str) -> Band | None:
-    """Existing Band with this name, else the first (lowest id) with the same key (see band_key)."""
+    """Existing Band with this name, else the first (lowest id) with the same key (see band_key), else the one
+    listed under this spelling before a service put it right (Band.spellings: "Sunamo" is Sunami)."""
     band = db.query(Band).filter(Band.name == name).first()
     key = band_key(name)
     if band or not key:
         return band
     # Only new names get here, a few per edition, so scanning every name is cheap.
-    ids = [id_ for id_, other in db.query(Band.id, Band.name).order_by(Band.id) if band_key(other) == key]
+    rows = db.query(Band.id, Band.name, Band.spellings).order_by(Band.id).all()
+    ids = [id_ for id_, other, _ in rows if band_key(other) == key] or \
+          [id_ for id_, _, spellings in rows if any(band_key(s) == key for s in spellings or [])]
     return db.get(Band, ids[0]) if ids else None
 
 

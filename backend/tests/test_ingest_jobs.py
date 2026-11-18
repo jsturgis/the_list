@@ -411,7 +411,9 @@ async def test_ingest_shows_reports_each_phase_as_it_starts(db, services):
         ("venue", "Looking up Moe's Alley on Google Places"),
         ("bands", None),
         ("bands", "Looking up Band 1 of 2: Teenage Bottlerocket"),
+        ("bands", "Checking the spelling of Teenage Bottlerocket"),   # no service has it (app/ingestion/spelling.py)
         ("bands", "Looking up Band 2 of 2: Brendan Kelly"),
+        ("bands", "Checking the spelling of Brendan Kelly"),
         ("saving", None),
         ("embedding", None),
     ]

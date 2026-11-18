@@ -90,6 +90,26 @@ def _artist_id(client: httpx.Client, name: str, links: list[dict]) -> int | None
     return exact[0]["id"] if len(exact) == 1 else None
 
 
+def discogs_names(name: str, client: httpx.Client | None = None, key: str | None = None,
+                  secret: str | None = None) -> list[str]:
+    """The artists' names Discogs' search finds for `name`, best first: names like it, for a misspelt Band
+    (app/ingestion/spelling.py). Empty without credentials or when Discogs can't be reached."""
+    creds = _credentials(key, secret)
+    if creds is None:
+        return []
+    own_client = client is None
+    client = client or _client(*creds)
+    try:
+        results = _get(client, "/database/search", type="artist", q=name, per_page=25).get("results", [])
+        return [_plain_name(r["title"]) for r in results if r.get("title")]
+    except Exception:
+        logger.info("discogs: no names like %s", name, exc_info=True)
+        return []
+    finally:
+        if own_client:
+            client.close()
+
+
 def discogs_artist(name: str, links: list[dict], client: httpx.Client | None = None,
                    key: str | None = None, secret: str | None = None) -> DiscogsArtist | None:
     """The Band's Discogs artist (members, primary image, page), or None (see the module docstring)."""
