@@ -212,7 +212,10 @@ describe('Admin page, as an admin', () => {
     fireEvent.change(screen.getByLabelText('Event links'), { target: { value: `${URL_1}\nnot a link` } })
     const shot = new File(['png'], 'event.png', { type: 'image/png' })
     fireEvent.change(screen.getByLabelText('Screenshots'), { target: { files: [shot] } })
-    expect(screen.getByRole('img', { name: 'Preview of event.png' })).toHaveAttribute('src', 'blob:preview/event.png')
+    const preview = screen.getByRole('img', { name: 'Preview of event.png' })
+    expect(preview).toHaveAttribute('src', 'blob:preview/event.png')
+    expect(preview.closest('#admin-drop-zone')).not.toBeNull()   // shown inside the drop zone
+    expect(screen.getByText('Drag more here, paste one, or')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Add shows' }))
 
     expect(await screen.findByRole('status')).toHaveTextContent('Added 1 job')

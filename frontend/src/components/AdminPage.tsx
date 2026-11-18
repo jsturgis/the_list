@@ -285,8 +285,23 @@ function AddShowsForm({ onAdded }: { onAdded: (result: AddResult) => void }) {
               dragging ? 'border-accent bg-accent-soft text-accent-soft-ink' : 'border-line-strong text-ink-muted'
             }`}
           >
-            <PhotoIcon aria-hidden="true" className={`size-6 ${dragging ? '' : 'text-ink-faint'}`} />
-            <p className="text-sm">{dragging ? 'Drop to add' : 'Drag screenshots here, paste one, or'}</p>
+            {screenshots.length > 0 ? (
+              <ul aria-labelledby="admin-screenshots" className="grid w-full grid-cols-2 gap-3 text-left sm:grid-cols-3">
+                {screenshots.map((file, i) => (
+                  <ScreenshotPreview
+                    key={`${i}-${file.name}-${file.lastModified}`}
+                    file={file}
+                    problem={badScreenshots[i]}
+                    onRemove={() => setScreenshots(current => current.filter((_, j) => j !== i))}
+                  />
+                ))}
+              </ul>
+            ) : (
+              <PhotoIcon aria-hidden="true" className={`size-6 ${dragging ? '' : 'text-ink-faint'}`} />
+            )}
+            <p className="text-sm">
+              {dragging ? 'Drop to add' : screenshots.length > 0 ? 'Drag more here, paste one, or' : 'Drag screenshots here, paste one, or'}
+            </p>
             <button
               type="button"
               onClick={() => fileInput.current?.click()}
@@ -297,18 +312,6 @@ function AddShowsForm({ onAdded }: { onAdded: (result: AddResult) => void }) {
             </button>
           </div>
           <p className="text-xs text-ink-muted">Each is read by a vision model: check the job to see what it read.</p>
-          {screenshots.length > 0 && (
-            <ul aria-labelledby="admin-screenshots" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {screenshots.map((file, i) => (
-                <ScreenshotPreview
-                  key={`${i}-${file.name}-${file.lastModified}`}
-                  file={file}
-                  problem={badScreenshots[i]}
-                  onRemove={() => setScreenshots(current => current.filter((_, j) => j !== i))}
-                />
-              ))}
-            </ul>
-          )}
           <input
             ref={fileInput}
             type="file"
