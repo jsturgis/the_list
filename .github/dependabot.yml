@@ -1,0 +1,30 @@
+# Weekly update PRs for every pinned dependency. Minor and patch releases come grouped in one PR per ecosystem;
+# majors come one by one. The backend's lock (backend/requirements.txt) is compiled from requirements.in by
+# pip-compile, which Dependabot reruns. The scraper's pins are a `pip freeze` of its image (scraper/requirements.txt
+# says how to update them), so its Python packages aren't here; its base image is.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /backend
+    schedule: {interval: weekly, day: monday}
+    groups:
+      backend-minor:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule: {interval: weekly, day: monday}
+    groups:
+      frontend-minor:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: {interval: weekly, day: monday}
+    groups:
+      actions:
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directories: [/backend, /scraper]
+    schedule: {interval: weekly, day: monday}

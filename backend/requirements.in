@@ -1,0 +1,23 @@
+# The backend's direct dependencies, with the lowest versions it works with. requirements.txt is these resolved to
+# exact versions (with everything they depend on), and is what Docker, CI and the workflows install, so an upstream
+# release changes nothing until it's committed. To update after editing this file, or to take new releases:
+#   docker run --rm -v "$PWD:/src" -w /src python:3.12-slim sh -c \
+#     "pip install -q pip-tools && pip-compile -q --strip-extras --upgrade requirements.in"
+# Dependabot (.github/dependabot.yml) proposes the updates weekly.
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+sqlalchemy>=2.0.0
+alembic>=1.13.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+langchain>=0.3.0
+langchain-anthropic>=0.3.0
+anthropic>=0.40.0
+faiss-cpu>=1.8.0
+httpx>=0.27.0
+python-dotenv>=1.0.0
+musicbrainzngs>=0.7.1
+python-multipart>=0.0.9
+strawberry-graphql[fastapi]>=0.243.0
+Pillow>=10.0.0
+opencv-python-headless>=4.8.0
