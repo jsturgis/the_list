@@ -16,6 +16,7 @@ from dataclasses import dataclass
 import httpx
 
 from app.ingestion.images import wikimedia_file_title
+from app.ingestion.service_health import note_failure
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +111,8 @@ def commons_photo(links: list[dict], client: httpx.Client | None = None) -> Comm
         info = next(iter(pages.values()))["imageinfo"][0]
         url = (info.get("thumburl") or info["url"]).split("?")[0]  # drop Commons' tracking parameters
         return CommonsPhoto(url, _credit(info))
-    except Exception:
+    except Exception as exc:
+        note_failure("Wikimedia Commons", exc)
         logger.info("wikimedia: no Commons photo for %s", qid, exc_info=True)
         return None
     finally:

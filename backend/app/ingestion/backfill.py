@@ -36,6 +36,7 @@ from app.ingestion.bandcamp import BandcampUnavailable, bandcamp_photo
 from app.ingestion.discogs import discogs_artist, discogs_genres
 from app.ingestion.genre_filter import GenreFilter
 from app.ingestion.lastfm import lastfm_tags
+from app.ingestion.service_health import failures
 from app.ingestion.upsert import find_band
 from app.ingestion.wikimedia import commons_photo
 from app.models.act import Act
@@ -50,11 +51,16 @@ logger = logging.getLogger(__name__)
 _LINK_FIELDS = ("spotify_url", "soundcloud_url", "bandcamp_url", "website_url")
 
 
-def pending_bands(db: Session) -> list[Band]:
-    """Bands never looked up on the services: those on Upcoming Shows first, then the rest, oldest first."""
+def pending_bands(db: Session, created_before: datetime | None = None) -> list[Band]:
+    """Bands never looked up on the services: those on Upcoming Shows first, then the rest, oldest first. With
+    `created_before`, only Bands stored before then."""
     upcoming = exists().where(Act.band_id == Band.id, Act.show_id == Show.id,
                               Show.status == ShowStatus.upcoming, Show.date >= local_today())
-    return db.query(Band).filter(Band.enriched_at.is_(None)).order_by(upcoming.desc(), Band.id).all()
+    query = db.query(Band).filter(Band.enriched_at.is_(None))
+    if created_before is not None:
+        # created_at is stored to the second: a Band created in the same second counts as created after.
+        query = query.filter(Band.created_at < created_before.replace(microsecond=0))
+    return query.order_by(upcoming.desc(), Band.id).all()
 
 
 def _photo(band: Band, candidates: list[dict], images_dir: Path, client: httpx.Client) -> bool:
@@ -81,7 +87,9 @@ def _photo(band: Band, candidates: list[dict], images_dir: Path, client: httpx.C
 def backfill_band(band: Band, images_dir: Path, client: httpx.Client, genre_filter: GenreFilter | None = None) -> bool:
     """Look one Band up on the services and update it; True if its genres changed (it needs re-embedding).
 
-    It gets enriched_at unless its service photo couldn't be downloaded right now (it's tried again next run)."""
+    It gets enriched_at unless its service photo couldn't be downloaded right now, or a service was down
+    (app/ingestion/service_health.py): it's tried again next run."""
+    before = failures()
     found = _enrich_band(band.name, False)
     mb_links = found.get("links") or []
     found = {**found, "commons_photo": commons_photo(mb_links), "discogs": discogs_match(band.name, found, discogs_artist)}
@@ -113,7 +121,8 @@ def backfill_band(band: Band, images_dir: Path, client: httpx.Client, genre_filt
         except BandcampUnavailable as exc:
             logger.info("backfill: %s's Bandcamp page, to try again next run: %s", band.name, exc)
             return changed  # without enriched_at
-    if _photo(band, photo_candidates(found["commons_photo"], artist, bandcamp), images_dir, client):
+    if _photo(band, photo_candidates(found["commons_photo"], artist, bandcamp), images_dir, client) \
+            and not failures() - before:
         band.enriched_at = datetime.utcnow()
     return changed
 
@@ -189,13 +198,14 @@ def recheck_genres(db: Session) -> int:
     return marked
 
 
-async def run_backfill(db: Session, images_dir: str | Path, max_minutes: float = 300, limit: int | None = None) -> dict:
-    """Backfill pending Bands until done, out of time or at `limit`. Commits after each Band."""
+async def run_backfill(db: Session, images_dir: str | Path, max_minutes: float = 300, limit: int | None = None,
+                       created_before: datetime | None = None) -> dict:
+    """Backfill pending Bands (see pending_bands) until done, out of time or at `limit`. Commits after each Band."""
     deadline = time.monotonic() + max_minutes * 60
     images_dir = Path(images_dir)
     loop = asyncio.get_event_loop()
     looked_up = failed = 0
-    pending = pending_bands(db)
+    pending = pending_bands(db, created_before)
     genre_filter = GenreFilter.load(db)
     with httpx.Client(timeout=20, follow_redirects=True, headers={"User-Agent": _USER_AGENT}) as client:
         for band in pending:

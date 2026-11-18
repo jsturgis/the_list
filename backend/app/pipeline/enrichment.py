@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from app.config import settings
 from app.ingestion.band_corrections import band_correction
 from app.ingestion.parser import RawShow
+from app.ingestion.service_health import ServiceError, note_failure
 from app.ingestion.upsert import known_region
 from app.pipeline.providers import get_enrichment_llm
 
@@ -64,7 +65,8 @@ def _mb_search(name: str, namesakes: Optional[set] = None) -> Optional[dict]:
     try:
         # 25: enough to see a name's namesakes, which can score below other names' artists.
         result = musicbrainzngs.search_artists(artist=f'"{name}"', limit=25)
-    except Exception:
+    except Exception as exc:
+        note_failure("MusicBrainz", exc)
         return None
     name_lower = name.lower()
     same = [a for a in result.get("artist-list", []) if a.get("name", "").lower() == name_lower]
@@ -80,7 +82,8 @@ def _mb_lookup(mbid: str) -> dict:
     """Return the full MB artist record with tags and URL rels."""
     try:
         return musicbrainzngs.get_artist_by_id(mbid, includes=["tags", "url-rels"])["artist"]
-    except Exception:
+    except Exception as exc:
+        note_failure("MusicBrainz", exc)
         return {}
 
 
@@ -99,7 +102,8 @@ def _mb_genres(mbid: str) -> list[str]:
                          headers=_MB_HEADERS, timeout=10.0)
         resp.raise_for_status()
         genres = resp.json().get("genres", [])
-    except Exception:
+    except Exception as exc:
+        note_failure("MusicBrainz", exc)
         return []
     return [g["name"] for g in sorted(genres, key=lambda g: -int(g.get("count", 0)))]
 
@@ -420,7 +424,10 @@ def _enrich_venue(venue_name: str, city: str, street: str | None = None, use_llm
             timeout=10.0,
         )
         data = resp.json()
-    except Exception:
+        if "error" in data:
+            raise ServiceError(f"Places error {resp.status_code}: {data['error'].get('message')}")
+    except Exception as exc:
+        note_failure("Google Places", exc)
         return {}
 
     places = data.get("places", [])

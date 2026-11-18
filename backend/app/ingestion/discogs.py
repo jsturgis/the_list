@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from app.config import settings
+from app.ingestion.service_health import note_failure
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +116,8 @@ def discogs_artist(name: str, links: list[dict], client: httpx.Client | None = N
                      for m in artist.get("members") or [] if m.get("name")],
             image_url=(image or {}).get("uri") or None,
         )
-    except Exception:
+    except Exception as exc:
+        note_failure("Discogs", exc)
         logger.info("discogs: no artist for %s", name, exc_info=True)
         return None
     finally:
@@ -143,7 +145,8 @@ def discogs_genres(artist_id: int, client: httpx.Client | None = None,
             genres.update(g.lower() for g in master.get("genres") or [])
         ranked = [s for s, _ in styles.most_common()] + [g for g, _ in genres.most_common()]
         return list(dict.fromkeys(ranked))[:MAX_GENRES]
-    except Exception:
+    except Exception as exc:
+        note_failure("Discogs", exc)
         logger.info("discogs: no genres for artist %s", artist_id, exc_info=True)
         return []
     finally:
