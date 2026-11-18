@@ -32,7 +32,7 @@ def _answer(status: int, text: str = "", url: str = _URL) -> httpx.Response:
     return httpx.Response(status, text=text, request=httpx.Request("GET", url))
 
 
-@patch("app.ingestion.event_page.httpx.get")
+@patch("app.ingestion.page_fetch.httpx.get")
 def test_reads_any_sites_event_from_its_schema_org_event(get):
     get.return_value = _answer(200, _page(_EVENT))
 
@@ -51,21 +51,21 @@ def test_reads_a_ticketweb_page_with_ticketwebs_reader(ticketweb):
     assert fetch_event("https://www.ticketweb.com/event/x/1")["source"] == "ticketweb"
 
 
-@patch("app.ingestion.event_page.httpx.get")
+@patch("app.ingestion.page_fetch.httpx.get")
 def test_a_page_the_site_wont_serve_is_unreadable(get):
     get.return_value = _answer(530)
     with pytest.raises(UnreadablePage, match="couldn't fetch"):
         fetch_event(_URL)
 
 
-@patch("app.ingestion.event_page.httpx.get")
+@patch("app.ingestion.page_fetch.httpx.get")
 def test_a_page_with_no_event_details_is_unreadable(get):
     get.return_value = _answer(200, _page(None))
     with pytest.raises(UnreadablePage, match="no event details"):
         fetch_event(_URL)
 
 
-@patch("app.ingestion.event_page.httpx.get")
+@patch("app.ingestion.page_fetch.httpx.get")
 def test_an_event_outside_the_bay_area_isnt_unreadable_just_refused(get):
     """A screenshot wouldn't help: the event itself can't be added."""
     get.return_value = _answer(200, _page({**_EVENT, "location": {**_EVENT["location"],

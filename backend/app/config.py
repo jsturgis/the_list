@@ -34,6 +34,11 @@ class Settings(BaseSettings):
 
     google_maps_api_key: str = ""
 
+    # The page fetcher on the home server (scraper/, ADR 0007), which fetches event pages from a home IP for the
+    # Ingest jobs workflow; empty fetches them directly (app/ingestion/page_fetch.py).
+    scraper_url: str = ""
+    scraper_token: str = ""
+
     data_retention_days: int = 90
 
     # Calendar dates ("today", upcoming vs past) are evaluated in this timezone.

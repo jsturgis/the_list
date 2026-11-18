@@ -1,9 +1,9 @@
 name: Ingest jobs
 
 # Started by the ingest worker (supabase/functions/ingest-worker) for the Admin page's ingest jobs: add each job's
-# Show (a TicketWeb event page, or a screenshot read by a vision model) to the data branch's database, commit it,
-# and republish the site, recording each job's progress in Supabase (ingest_jobs) for the Admin page. See
-# docs/adr/0006-admin-ingest-jobs.md. Can be run by hand with the jobs the worker would give: "job_id:msg_id,...".
+# Show (an event page, fetched by the home server's page fetcher, or a screenshot read by a vision model) to the
+# data branch's database, commit it, and republish the site, recording each job's progress in Supabase (ingest_jobs)
+# for the Admin page. See docs/adr/0006-admin-ingest-jobs.md and 0007-home-page-fetcher.md. Can be run by hand with the jobs the worker would give: "job_id:msg_id,...".
 on:
   workflow_dispatch:
     inputs:
@@ -33,6 +33,7 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       JOBS: ${{ inputs.jobs }}
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
 
     services:
       ollama:
@@ -67,6 +68,21 @@ jobs:
           curl -sf http://localhost:11434/api/pull -d '{"model": "qwen2.5vl:3b", "stream": false}'
           sudo chown -R "$USER" /home/runner/.ollama
 
+      # Event pages are fetched by the page fetcher on the home server (scraper/, ADR 0007): TicketWeb and Bandsintown
+      # turn GitHub's runners away. The runner joins the tailnet as an ephemeral tag:ci node, which the tailnet's
+      # policy lets reach only the fetcher. Without it (no OAuth client set, or the join failed) pages are fetched
+      # directly, and screenshot jobs run as before.
+      - name: Join the tailnet
+        id: tailscale
+        if: env.TS_OAUTH_CLIENT_ID != ''
+        continue-on-error: true
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          version: latest
+
       - name: Set up Python 3.12
         id: setup-python
         uses: actions/setup-python@v5
@@ -99,6 +115,9 @@ jobs:
           OLLAMA_BASE_URL: http://localhost:11434
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # venue calendars (app/ingestion/venue_calendar.py)
+          # The home server's page fetcher (app/ingestion/page_fetch.py), when the runner is on the tailnet.
+          SCRAPER_URL: ${{ steps.tailscale.outcome == 'success' && vars.SCRAPER_URL || '' }}
+          SCRAPER_TOKEN: ${{ secrets.SCRAPER_TOKEN }}
           LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
           DISCOGS_CONSUMER_KEY: ${{ secrets.DISCOGS_CONSUMER_KEY }}
           DISCOGS_CONSUMER_SECRET: ${{ secrets.DISCOGS_CONSUMER_SECRET }}

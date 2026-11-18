@@ -1,0 +1,16 @@
+# The Dockge stack for the page fetcher on the TrueNAS server (scraper/README.md). Set SCRAPER_TOKEN in the stack's
+# .env to the same value as the GitHub secret SCRAPER_TOKEN.
+services:
+  scraper:
+    image: ghcr.io/jsturgis/the-list-scraper:latest
+    container_name: the-list-scraper
+    environment:
+      - SCRAPER_TOKEN=${SCRAPER_TOKEN}
+      - TZ=America/Los_Angeles
+    volumes:
+      - /mnt/store/the-list-scraper/data:/data   # the browser's profile: the cookies sites gave it
+    ports:
+      - 8790:8790   # reached over the tailnet at http://truenas:8790
+    shm_size: 1gb   # Chromium's shared memory; Docker's default 64 MB crashes its tabs
+    mem_limit: 2g
+    restart: unless-stopped

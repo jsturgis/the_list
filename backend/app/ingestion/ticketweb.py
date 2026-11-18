@@ -5,8 +5,8 @@ as a listing from the List is (app/ingestion/steve_list.py), with `source` "tick
 (its JSON-LD) gives the lineup, start time, Venue, price and status; the door time is only in the page itself. The
 price is the face value in the event's description, as Steve lists it; the JSON-LD's includes TicketWeb's fees.
 
-TicketWeb turns away requests that don't look like a browser ("Your browsing activity has been paused"), so the
-page is asked for with a browser's headers.
+The page is fetched by app/ingestion/page_fetch.py: with a browser's headers, and from the home server's page fetcher
+when there is one, since TicketWeb turns GitHub's runners away (ADR 0007).
 """
 from __future__ import annotations
 
@@ -16,24 +16,13 @@ import re
 from datetime import datetime, time
 from urllib.parse import urlsplit, urlunsplit
 
-import httpx
-
+from app.ingestion.page_fetch import PageError, get_page
 from app.ingestion.parser import clean_band_name
 from app.ingestion.upsert import known_region
 
 SOURCE = "ticketweb"
 PROVIDER = "TicketWeb"
 
-_HEADERS = {
-    "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/131.0.0.0 Safari/537.36"),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "none",
-    "Upgrade-Insecure-Requests": "1",
-}
 _LD_JSON_RE = re.compile(r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', re.DOTALL | re.IGNORECASE)
 # "<div ...>Doors open</div><div ...>7:00 PM PST</div>"
 _DOORS_RE = re.compile(r">\s*Doors open\s*</div>\s*<div[^>]*>\s*(\d{1,2}(?::\d{2})?\s*[AP]M)", re.IGNORECASE)
@@ -78,11 +67,10 @@ def fetch_event(url: str) -> dict:
         raise EventError(f"{url} isn't a TicketWeb page")
     url = event_url(url)
     try:
-        response = httpx.get(url, headers=_HEADERS, follow_redirects=True, timeout=30.0)
-        response.raise_for_status()
-    except httpx.HTTPError as exc:
+        html, _ = get_page(url)
+    except PageError as exc:
         raise UnreadablePage(f"couldn't fetch {url}: {exc}") from exc
-    return event_show(response.text, url)
+    return event_show(html, url)
 
 
 def _event(page: str) -> dict | None:
