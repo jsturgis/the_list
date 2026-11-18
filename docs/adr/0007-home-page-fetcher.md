@@ -37,6 +37,16 @@ Ingest jobs workflow ── tailscale/github-action (ephemeral, tag:ci) ──�
 - **The fetcher only fetches public pages.** Every address a URL resolves to, for the page, each redirect and every
   request the browser makes, must be public: the home network, the tailnet and the server itself are refused. It also
   wants a bearer token (`SCRAPER_TOKEN`), so a device on the tailnet can't use it as a proxy without one.
+- **Hardened after a pen test (2026-11-18).** It found that the address check could be beaten by DNS rebinding
+  (checked public, connected private), that a site could fake a Cloudflare challenge to get its page run in the browser,
+  where WebSockets weren't checked, that a small gzip bomb exhausted the container's memory, and that the whole home
+  network could reach the port. Now curl_cffi connects to the address it checked, the browser opens only for
+  `SCRAPER_BROWSER_SITES` (Bandsintown) and refuses WebSockets, service workers and direct WebRTC, a page is read to
+  15 MB decompressed, and only the tailnet and the container itself are answered. Errors no longer say what was found
+  behind the server, the API docs are off, and every dependency, the base image, the deployed image and the actions
+  holding secrets are pinned. Still open: Chromium runs without its own sandbox (the container is the boundary), the
+  browser resolves names itself for Bandsintown's pages, and nothing limits the container's egress to the home
+  network at the network level.
 - **The image is built by GitHub** (`.github/workflows/scraper-image.yml`) and published as
   `ghcr.io/jsturgis/the-list-scraper`; the Dockge stack (`scraper/compose.yaml`) pulls it.
 

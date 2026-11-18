@@ -28,15 +28,33 @@ curl -s -X POST http://truenas:8790/fetch -H "Authorization: Bearer $SCRAPER_TOK
    secret as the GitHub secrets `TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET`, and the variable
    `gh variable set SCRAPER_URL --body http://truenas:8790`.
 4. **The image.** Merging to main runs the Scraper image workflow, which publishes
-   `ghcr.io/jsturgis/the-list-scraper`. It takes the repository's public visibility, so TrueNAS pulls it without a
-   login.
-5. **The stack.** In Dockge, + Compose, name it `the-list-scraper`, paste `compose.yaml`, and set
-   `SCRAPER_TOKEN=<the token>` in its `.env`. Deploy. To update it later, Dockge's Update pulls the newest image.
+   `ghcr.io/jsturgis/the-list-scraper`, tagged with the commit. It takes the repository's public visibility, so
+   TrueNAS pulls it without a login.
+5. **The stack.** In Dockge, + Compose, name it `the-list-scraper`, paste `compose.yaml`, and in its `.env` set
+   `SCRAPER_TOKEN=<the token>` and `SCRAPER_IMAGE_TAG=<the full commit hash of main>`. Deploy.
+
+## Updating it
+
+Set `SCRAPER_IMAGE_TAG` in the stack's `.env` to the new commit (`gh run list --workflow scraper-image.yml` shows
+which commits have an image), then Deploy. The stack runs only the image it names, never `:latest`.
+
+## What it refuses
+
+Hardened after a pen test on 2026-11-18 (see the docstring at the top of `scraper.py`):
+
+| Setting | Default | |
+|---|---|---|
+| `SCRAPER_ALLOWED_CLIENTS` | `100.64.0.0/10,fd7a:115c:a1e0::/48,127.0.0.0/8,::1/128` | who is answered: the tailnet, and the container's health check. Others get 403, though the port is published on every interface |
+| `SCRAPER_BROWSER_SITES` | `bandsintown.com` | the sites whose Cloudflare challenge opens the browser. Another site's challenge is answered as it is (and the job asks for a screenshot) |
+| `SCRAPER_MAX_BYTES` | 15 MB | the largest page read, decompressed |
+
+Every address is checked as public and then connected to as checked, redirects included. In the browser, WebSockets,
+service workers and WebRTC's direct connections are refused. Its log names what was refused, and why.
 
 ## Running it locally
 
 ```sh
-pip install -r requirements.txt pytest && patchright install chromium
+pip install -r requirements.txt pytest httpx && patchright install chromium
 SCRAPER_TOKEN=dev SCRAPER_PROFILE_DIR=./profile uvicorn scraper:app --port 8790
 python -m pytest -q
 ```

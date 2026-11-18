@@ -1,4 +1,24 @@
-fastapi>=0.115.0
-uvicorn>=0.30.0
-curl_cffi>=0.17.0   # Chrome targets up to chrome152
-patchright>=1.52.0
+# Every package the image installs, pinned (the pen test of 2026-11-18): an upstream release can't change the image
+# without a commit here. patchright's version pins the Chromium it installs. To update: change fastapi, uvicorn,
+# curl_cffi or patchright below, build the image, and replace this list with `pip freeze` from it.
+annotated-doc==0.0.7
+annotated-types==0.8.0
+anyio==4.16.0
+certifi==2026.10.23
+cffi==2.1.1
+click==8.5.1
+curl_cffi==0.17.0
+fastapi==0.164.0
+greenlet==3.5.6
+h11==0.16.0
+idna==3.20
+opentelemetry-api==1.45.2
+patchright==1.64.4
+pycparser==3.12
+pydantic==2.14.3
+pydantic_core==2.50.4
+pyee==14.0.0
+starlette==1.10.0
+typing-inspection==0.4.5
+typing_extensions==4.16.0
+uvicorn==0.54.0

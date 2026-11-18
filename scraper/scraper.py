@@ -16,8 +16,18 @@ user agent that disagrees with the client hints, the platform the browser's scri
 what it looks for. The identity is read from the browser when the service starts, so a newer browser in the image
 changes it with no edit here.
 
-It only fetches public web pages: an address on the home network, the tailnet or the machine itself is refused, for
-the page and every redirect and browser request, so it can't be used to reach anything behind it.
+It only fetches public web pages, so it can't be used to reach anything behind it (the pen test of 2026-11-18):
+- Every address a host resolves to must be public (not the home network, the tailnet, the machine, NAT64 or 6to4
+  wrapping one), and curl_cffi then connects to the address that was checked (`RESOLVE`), so a name that answers with
+  a public address and then a private one (DNS rebinding) can't slip through. Each redirect is checked the same way.
+- The browser only opens for the sites listed in SCRAPER_BROWSER_SITES (Bandsintown), since a site can say it's
+  Cloudflare challenging the request. There, its requests are checked as curl_cffi's are (by `route`, which can't pin
+  the address: the browser resolves names itself); WebSockets (`route_web_socket`), service workers and WebRTC's
+  direct connections are refused outright.
+- A page is read up to SCRAPER_MAX_BYTES, as decompressed: a small gzip bomb can't exhaust memory.
+- Requests are answered only from the tailnet and the machine itself (SCRAPER_ALLOWED_CLIENTS), though the port is
+  published on every interface, and only with the token. No API docs are served, and errors say no more than what
+  went wrong; the details are logged.
 """
 from __future__ import annotations
 
@@ -28,12 +38,15 @@ import os
 import re
 import secrets
 import socket
+import threading
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
+from curl_cffi import CurlOpt
 from curl_cffi import requests as curl
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 log = logging.getLogger("scraper")
@@ -44,6 +57,17 @@ PROFILE_DIR = os.environ.get("SCRAPER_PROFILE_DIR", "/data/profile")
 HEADLESS = os.environ.get("SCRAPER_HEADLESS", "true").lower() != "false"
 MAX_REDIRECTS = 5
 CHALLENGE_WAIT_S = 30
+# A page larger than this, decompressed, isn't an event page: reading on would only use up memory.
+MAX_BYTES = int(os.environ.get("SCRAPER_MAX_BYTES", str(15 * 1024 * 1024)))
+# The sites whose Cloudflare challenge the browser is opened for. Anything can send a challenge's headers, and the
+# browser runs a site's scripts: only sites we know need it get it.
+BROWSER_SITES = tuple(site.strip().lower() for site in os.environ.get("SCRAPER_BROWSER_SITES", "bandsintown.com")
+                      .split(",") if site.strip())
+# Who may ask: the tailnet (Tailscale's IPv4 and IPv6 ranges) and the machine itself (the container's health check).
+ALLOWED_CLIENTS = tuple(ipaddress.ip_network(net.strip()) for net in os.environ.get(
+    "SCRAPER_ALLOWED_CLIENTS", "100.64.0.0/10,fd7a:115c:a1e0::/48,127.0.0.0/8,::1/128").split(",") if net.strip())
+# Addresses that wrap an IPv4 one, translated on the way: checked as the address they wrap.
+_NAT64 = (ipaddress.ip_network("64:ff9b::/96"), ipaddress.ip_network("64:ff9b:1::/48"))
 _HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
@@ -61,24 +85,96 @@ class Refused(ValueError):
     """Not a public web page."""
 
 
+class TooLarge(ValueError):
+    """The page is larger than MAX_BYTES."""
+
+
 def _is_public(address: str) -> bool:
-    ip = ipaddress.ip_address(address)
-    if ip.version == 6 and ip.ipv4_mapped:
-        ip = ip.ipv4_mapped
+    ip = ipaddress.ip_address(address.split("%", 1)[0])   # less an IPv6 zone ("fe80::1%eth0")
+    if ip.version == 6:
+        if any(ip in net for net in _NAT64):
+            ip = ipaddress.ip_address(int(ip) & 0xFFFFFFFF)
+        elif ip.ipv4_mapped:
+            ip = ip.ipv4_mapped
+        elif ip.sixtofour:
+            ip = ip.sixtofour
+        elif ip.teredo:
+            return False
     return ip.is_global   # not private, loopback, link-local, the tailnet's 100.64.0.0/10, multicast or reserved
 
 
-def check_url(url: str, resolve=socket.getaddrinfo) -> None:
-    """Refuse what isn't a public http(s) page: every address its host resolves to must be public."""
+@dataclass(frozen=True)
+class Target:
+    """Where a URL's request goes: its host and port, and the public address checked for it, to connect to."""
+    host: str
+    port: int
+    address: str
+
+    def resolve_option(self) -> str:
+        """curl's RESOLVE entry pinning the host to the checked address: "host:port:address"."""
+        address = f"[{self.address}]" if ":" in self.address else self.address
+        return f"{self.host}:{self.port}:{address}"
+
+
+def check_url(url: str, resolve=socket.getaddrinfo) -> Target:
+    """Refuse what isn't a public http(s) page: every address its host resolves to must be public. Returns the
+    address to connect to, so that what's connected to is what was checked."""
     parts = urlsplit(url)
     if parts.scheme not in ("http", "https") or not parts.hostname:
         raise Refused(f"{url} isn't a web page")
     try:
-        addresses = {info[4][0] for info in resolve(parts.hostname, parts.port or 443, proto=socket.IPPROTO_TCP)}
-    except (socket.gaierror, UnicodeError) as exc:
+        port = parts.port or (443 if parts.scheme == "https" else 80)
+        addresses = [info[4][0] for info in resolve(parts.hostname, port, proto=socket.IPPROTO_TCP)]
+    except (socket.gaierror, UnicodeError, ValueError) as exc:
         raise Refused(f"{parts.hostname} doesn't resolve: {exc}") from exc
     if not addresses or not all(_is_public(address) for address in addresses):
         raise Refused(f"{parts.hostname} isn't a public address")
+    return Target(parts.hostname, port, addresses[0].split("%", 1)[0])
+
+
+def opens_browser(url: str) -> bool:
+    """Whether the browser may open this page: its site is one of BROWSER_SITES (or a subdomain of one)."""
+    host = (urlsplit(url).hostname or "").lower().rstrip(".")
+    return any(host == site or host.endswith(f".{site}") for site in BROWSER_SITES)
+
+
+def allowed_client(address: str | None) -> bool:
+    """Whether a request from this address may be answered: the tailnet's, or the machine's own."""
+    try:
+        ip = ipaddress.ip_address((address or "").split("%", 1)[0])
+    except ValueError:
+        return False
+    if ip.version == 6 and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    return any(ip in net for net in ALLOWED_CLIENTS)
+
+
+def for_log(url: str) -> str:
+    """A URL as logged: without its query, which can carry what isn't ours to keep."""
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+
+
+def read_capped(chunks, limit: int = MAX_BYTES) -> bytes:
+    """The body, read until it's done or past `limit` bytes (decompressed), which raises TooLarge."""
+    body = bytearray()
+    for chunk in chunks:
+        body += chunk
+        if len(body) > limit:
+            raise TooLarge(f"the page is larger than {limit // (1024 * 1024)} MB")
+    return bytes(body)
+
+
+_CHARSET_RE = re.compile(r"charset=[\"']?([\w.:-]+)", re.IGNORECASE)
+
+
+def decode(body: bytes, content_type: str | None) -> str:
+    """The body as text, in the charset its Content-Type names (else UTF-8); what doesn't decode is replaced."""
+    match = _CHARSET_RE.search(content_type or "")
+    try:
+        return body.decode(match.group(1) if match else "utf-8", errors="replace")
+    except LookupError:
+        return body.decode("utf-8", errors="replace")
 
 
 def is_cloudflare_challenge(status: int, headers, html: str) -> bool:
@@ -137,12 +233,23 @@ class Page:
     via: str
 
 
+@dataclass
+class Answer:
+    """curl_cffi's answer, its body read (capped)."""
+    status_code: int
+    headers: dict
+    url: str
+    text: str
+
+
 class Fetcher:
     """curl_cffi first, the browser when Cloudflare challenges it; one browser, used one page at a time."""
 
     def __init__(self):
         self.identity: Identity | None = None
         self.session = None
+        # The session's RESOLVE pin is set for each request, so one request at a time uses it.
+        self._session_lock = threading.Lock()
         self._browser_lock = asyncio.Lock()
         self._playwright = None
         self._context = None
@@ -160,8 +267,17 @@ class Fetcher:
         finally:
             await probe.close()
         self._context = await self._playwright.chromium.launch_persistent_context(
-            PROFILE_DIR, channel="chromium", headless=HEADLESS, user_agent=user_agent, no_viewport=True)
+            PROFILE_DIR, channel="chromium", headless=HEADLESS, user_agent=user_agent, no_viewport=True,
+            # A service worker's requests aren't the page's, so they aren't checked: none. WebRTC connects without
+            # a request either: none outside a proxy, of which there is none.
+            service_workers="block", args=["--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+                                           "--webrtc-ip-handling-policy=disable_non_proxied_udp"])
         await self._context.route("**/*", _guard_route)
+        # A WebSocket isn't a request `route` sees, so it's routed here: none, as no challenge needs one. Under
+        # Patchright (1.64.4, checked 2026-11-18) the handler isn't called, but a routed WebSocket never connects: it
+        # stays connecting. Recheck when Patchright changes; that the browser opens only for BROWSER_SITES is what
+        # keeps a hostile page out of it in the first place.
+        await self._context.route_web_socket("**/*", _refuse_web_socket)
         sent = await self._sent_headers()
         self.identity = Identity(
             user_agent=sent["user-agent"],
@@ -188,22 +304,32 @@ class Fetcher:
         return sent
 
     async def fetch(self, url: str) -> Page:
-        response = await asyncio.to_thread(self._request, url)
-        if not is_cloudflare_challenge(response.status_code, response.headers, response.text):
-            return Page(response.status_code, str(response.url), response.text, "request")
-        log.info("Cloudflare challenged %s; opening it in the browser", url)
-        return await self._browse(url)
+        answer = await asyncio.to_thread(self._request, url)
+        if not is_cloudflare_challenge(answer.status_code, answer.headers, answer.text):
+            return Page(answer.status_code, answer.url, answer.text, "request")
+        if not opens_browser(answer.url):
+            log.info("Cloudflare challenged %s, which isn't a site the browser opens for", for_log(answer.url))
+            return Page(answer.status_code, answer.url, answer.text, "request")
+        log.info("Cloudflare challenged %s; opening it in the browser", for_log(answer.url))
+        return await self._browse(answer.url)
 
-    def _request(self, url: str):
+    def _request(self, url: str) -> Answer:
         for _ in range(MAX_REDIRECTS + 1):
-            check_url(url)
-            response = self.session.get(url, headers={**self.identity.headers(), **_HEADERS}, allow_redirects=False,
-                                        timeout=30)
-            location = response.headers.get("location")
-            if response.status_code in (301, 302, 303, 307, 308) and location:
-                url = urljoin(url, location)
-                continue
-            return response
+            target = check_url(url)
+            with self._session_lock:
+                self.session.curl_options = {CurlOpt.RESOLVE: [target.resolve_option()]}
+                response = self.session.get(url, headers={**self.identity.headers(), **_HEADERS},
+                                            allow_redirects=False, timeout=30, stream=True)
+                try:
+                    location = response.headers.get("location")
+                    if response.status_code in (301, 302, 303, 307, 308) and location:
+                        url = urljoin(url, location)
+                        continue
+                    body = read_capped(response.iter_content())
+                finally:
+                    response.close()
+            return Answer(response.status_code, dict(response.headers), url,
+                          decode(body, response.headers.get("content-type")))
         raise Refused(f"more than {MAX_REDIRECTS} redirects")
 
     async def _browse(self, url: str) -> Page:
@@ -253,6 +379,11 @@ async def _guard_route(route) -> None:
     await route.continue_()
 
 
+async def _refuse_web_socket(ws) -> None:
+    log.info("refused a WebSocket to %s", for_log(ws.url))
+    await ws.close()
+
+
 fetcher: Fetcher | None = None
 
 
@@ -267,7 +398,17 @@ async def lifespan(_app):
     await fetcher.close()
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+
+
+@app.middleware("http")
+async def only_the_tailnet(request: Request, call_next):
+    """The port is published on every interface; only the tailnet and the machine itself are answered."""
+    client = request.client.host if request.client else None
+    if not allowed_client(client):
+        log.warning("refused a request from %s", client)
+        return JSONResponse({"detail": "not allowed from this network"}, status_code=403)
+    return await call_next(request)
 
 
 def authorized(authorization: str = Header("")) -> None:
@@ -281,14 +422,19 @@ class FetchRequest(BaseModel):
 
 @app.post("/fetch", dependencies=[Depends(authorized)])
 async def fetch(request: FetchRequest) -> dict:
+    # What went wrong is logged; the answer says only which kind of wrong, so it can't map what's behind the server.
     try:
         page = await fetcher.fetch(request.url)
     except Refused as exc:
-        raise HTTPException(400, str(exc)) from exc
+        log.warning("refused %s: %s", for_log(request.url), exc)
+        raise HTTPException(400, "not a public web page") from exc
+    except TooLarge as exc:
+        log.warning("%s: %s", for_log(request.url), exc)
+        raise HTTPException(502, str(exc)) from exc
     except Exception as exc:   # the site didn't answer: a timeout, a reset connection, a browser crash
-        log.warning("couldn't fetch %s: %s", request.url, exc)
-        raise HTTPException(502, f"couldn't fetch {request.url}: {exc}") from exc
-    log.info("%s %s via %s", page.status, page.url, page.via)
+        log.warning("couldn't fetch %s: %s", for_log(request.url), exc)
+        raise HTTPException(502, "couldn't fetch the page") from exc
+    log.info("%s %s via %s", page.status, for_log(page.url), page.via)
     return {"status": page.status, "url": page.url, "html": page.html, "via": page.via}
 
 

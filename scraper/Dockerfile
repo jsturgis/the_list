@@ -1,5 +1,6 @@
 # The page fetcher for the Ingest jobs workflow, run on the home server (ADR 0007, scraper/README.md).
-FROM python:3.12-slim
+# Pinned by digest (python:3.12-slim on 2026-11-18): a re-tagged image can't change it under us.
+FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
 
 ENV PYTHONUNBUFFERED=1 \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright

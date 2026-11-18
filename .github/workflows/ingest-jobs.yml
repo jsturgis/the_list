@@ -76,12 +76,13 @@ jobs:
         id: tailscale
         if: env.TS_OAUTH_CLIENT_ID != ''
         continue-on-error: true
-        uses: tailscale/github-action@v3
+        # Pinned to a commit and a Tailscale version: this step holds the OAuth secret (the pen test of 2026-11-18).
+        uses: tailscale/github-action@6cae46e2d796f265265cfcf628b72a32b4d7cade   # v3
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
-          version: latest
+          version: 1.104.6
 
       - name: Set up Python 3.12
         id: setup-python

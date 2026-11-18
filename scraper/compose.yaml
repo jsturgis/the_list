@@ -1,8 +1,9 @@
-# The Dockge stack for the page fetcher on the TrueNAS server (scraper/README.md). Set SCRAPER_TOKEN in the stack's
-# .env to the same value as the GitHub secret SCRAPER_TOKEN.
+# The Dockge stack for the page fetcher on the TrueNAS server (scraper/README.md). Its .env sets SCRAPER_TOKEN (the
+# same value as the GitHub secret SCRAPER_TOKEN) and SCRAPER_IMAGE_TAG (the commit whose image to run).
 services:
   scraper:
-    image: ghcr.io/jsturgis/the-list-scraper:latest
+    # A commit's image, not :latest: what runs changes only when the tag here does (the pen test of 2026-11-18).
+    image: ghcr.io/jsturgis/the-list-scraper:${SCRAPER_IMAGE_TAG:?set SCRAPER_IMAGE_TAG to the commit to run}
     container_name: the-list-scraper
     environment:
       - SCRAPER_TOKEN=${SCRAPER_TOKEN}
@@ -12,9 +13,15 @@ services:
       # host path owned by root, which the scraper (UID 568) can't write; a new volume takes the image's ownership.
       - scraper-data:/data
     ports:
-      - 8790:8790   # reached over the tailnet at http://truenas:8790
+      # Published on every interface, but answered only for the tailnet (http://truenas:8790) and the container's
+      # own health check: the scraper refuses the rest (SCRAPER_ALLOWED_CLIENTS). Binding to the Tailscale address
+      # instead would fail whenever Docker starts before Tailscale.
+      - 8790:8790
     shm_size: 1gb   # Chromium's shared memory; Docker's default 64 MB crashes its tabs
     mem_limit: 2g
+    pids_limit: 512
+    cap_drop: [ALL]   # it needs none: it runs as UID 568, and Chromium without its own sandbox
+    security_opt: [no-new-privileges:true]
     restart: unless-stopped
 
 volumes:
