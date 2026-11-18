@@ -3,17 +3,11 @@ name: Backend Tests
 on:
   push:
     branches: [main]
-    paths:
-      - 'backend/**'
-      - '.github/workflows/backend-tests.yml'
   pull_request:
     branches: [main]
-    paths:
-      - 'backend/**'
-      - '.github/workflows/backend-tests.yml'
 
 jobs:
-  test:
+  backend-test:
     runs-on: ubuntu-latest
 
     steps:
