@@ -32,11 +32,12 @@ class PageError(RuntimeError):
     """The page couldn't be fetched: the site answered with an error, or didn't answer."""
 
 
-def get_page(url: str) -> tuple[str, str]:
-    """The page's HTML and its URL after redirects."""
+def get_page(url: str, wait_for: str | None = None) -> tuple[str, str]:
+    """The page's HTML and its URL after redirects. `wait_for`, a CSS selector, asks the page fetcher to open the page
+    in its browser and read it once that's drawn (app/ingestion/ticketmaster.py); fetched directly, it's ignored."""
     if settings.scraper_url:
         try:
-            return _from_scraper(url)
+            return _from_scraper(url, wait_for)
         except httpx.TransportError as exc:
             log.warning("the page fetcher at %s couldn't be reached (%s); fetching %s directly",
                         settings.scraper_url, exc, url)
@@ -48,8 +49,9 @@ def get_page(url: str) -> tuple[str, str]:
     return response.text, str(response.url)
 
 
-def _from_scraper(url: str) -> tuple[str, str]:
-    response = httpx.post(f"{settings.scraper_url.rstrip('/')}/fetch", json={"url": url},
+def _from_scraper(url: str, wait_for: str | None = None) -> tuple[str, str]:
+    asked = {"url": url, **({"wait_for": wait_for} if wait_for else {})}
+    response = httpx.post(f"{settings.scraper_url.rstrip('/')}/fetch", json=asked,
                           headers={"Authorization": f"Bearer {settings.scraper_token}"}, timeout=_SCRAPER_TIMEOUT_S)
     if response.status_code != 200:
         detail = response.json().get("detail") if response.headers.get("content-type", "").startswith(

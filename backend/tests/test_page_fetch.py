@@ -59,6 +59,14 @@ def test_with_a_scraper_the_page_is_asked_of_it(post, get, scraper):
 
 
 @patch("app.ingestion.page_fetch.httpx.post")
+def test_a_page_to_wait_for_is_asked_of_the_scraper_with_what_to_wait_for(post, scraper):
+    post.return_value = _answer(200, json={"status": 200, "url": _URL, "html": "<li data-price>", "via": "browser"})
+
+    assert get_page(_URL, wait_for="[data-price]") == ("<li data-price>", _URL)
+    assert post.call_args.kwargs["json"] == {"url": _URL, "wait_for": "[data-price]"}
+
+
+@patch("app.ingestion.page_fetch.httpx.post")
 def test_the_sites_error_through_the_scraper_is_a_page_error(post, scraper):
     post.return_value = _answer(200, json={"status": 403, "url": _URL, "html": "", "via": "browser"})
     with pytest.raises(PageError, match="403 .* by browser"):
