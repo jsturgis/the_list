@@ -1,4 +1,4 @@
-"""Tests for the page fetcher's guards: which addresses it refuses, and what counts as Cloudflare in the way."""
+"""Tests for the page fetcher's guards: which addresses it refuses, and what counts as a challenge in the way."""
 import socket
 
 import pytest
@@ -14,7 +14,8 @@ from fastapi.testclient import TestClient
 
 import scraper
 from scraper import (Fetcher, Identity, Refused, Target, TooLarge, allowed_client, app, browser_user_agent, check_url,
-                     decode, for_log, impersonation_target, is_cloudflare_challenge, opens_browser, read_capped)
+                     decode, for_log, impersonation_target, is_challenge, opens_browser, read_capped,
+                     still_challenged)
 
 
 def _resolves_to(*addresses):
@@ -51,16 +52,24 @@ def test_what_isnt_a_web_page_is_refused(url):
 
 
 def test_cloudflare_challenges_and_blocks_are_seen():
-    assert is_cloudflare_challenge(403, {"cf-mitigated": "challenge"}, "")
-    assert is_cloudflare_challenge(403, {"server": "cloudflare"}, "<title>Attention Required! | Cloudflare</title>")
-    assert is_cloudflare_challenge(503, {"server": "cloudflare"}, "<title>Just a moment...</title>")
+    assert is_challenge(403, {"cf-mitigated": "challenge"}, "")
+    assert is_challenge(403, {"server": "cloudflare"}, "<title>Attention Required! | Cloudflare</title>")
+    assert is_challenge(503, {"server": "cloudflare"}, "<title>Just a moment...</title>")
+
+
+def test_ticketmasters_identity_check_is_seen():
+    page = "<!doctype html><html><head><noscript><title>Let's Get Your Identity Verified</title></noscript>"
+    assert is_challenge(401, {}, page)
+    assert still_challenged(page)
+    assert not still_challenged("<title>Sunami Tickets, 2026-12-26 San Jose, CA | Ticketmaster</title>")
 
 
 def test_the_sites_own_answers_are_not_challenges():
-    assert not is_cloudflare_challenge(200, {"server": "cloudflare"}, "<title>An event</title>")
-    assert not is_cloudflare_challenge(404, {"server": "cloudflare"}, "<title>Not found</title>")
-    assert not is_cloudflare_challenge(530, {"server": "cloudflare"}, "<title>Error 1016</title>")
-    assert not is_cloudflare_challenge(403, {"server": "Apache"}, "<title>Attention Required</title>")
+    assert not is_challenge(200, {"server": "cloudflare"}, "<title>An event</title>")
+    assert not is_challenge(404, {"server": "cloudflare"}, "<title>Not found</title>")
+    assert not is_challenge(530, {"server": "cloudflare"}, "<title>Error 1016</title>")
+    assert not is_challenge(403, {"server": "Apache"}, "<title>Attention Required</title>")
+    assert not is_challenge(401, {}, "<title>Sign in</title>")
 
 
 _TARGETS = ["chrome99", "chrome131", "chrome133a", "chrome136", "chrome142", "chrome150", "chrome151",
@@ -204,6 +213,8 @@ def test_the_browser_opens_only_for_the_sites_listed():
     assert not opens_browser("https://evil-bandsintown.com/e/1")
     assert not opens_browser("https://bandsintown.com.evil.example/e/1")
     assert not opens_browser("https://www.example.com/")
+    assert opens_browser("https://www.ticketmaster.com/sunami-san-jose-california-12-26-2026/event/1C006550FA24DFD7")
+    assert not opens_browser("https://ticketmaster.evyy.net/c/1/2/3")
 
 
 def test_a_challenge_from_a_site_not_listed_is_answered_as_it_is(fetcher):

@@ -45,7 +45,7 @@ Hardened after a pen test on 2026-11-18 (see the docstring at the top of `scrape
 | Setting | Default | |
 |---|---|---|
 | `SCRAPER_ALLOWED_CLIENTS` | `100.64.0.0/10,fd7a:115c:a1e0::/48,127.0.0.0/8,::1/128` | who is answered: the tailnet, and the container's health check. Others get 403, though the port is published on every interface. `compose.yaml` adds the stack network's gateway, which is where TrueNAS's Tailscale app makes tailnet connections appear to come from |
-| `SCRAPER_BROWSER_SITES` | `bandsintown.com` | the sites whose Cloudflare challenge opens the browser. Another site's challenge is answered as it is (and the job asks for a screenshot) |
+| `SCRAPER_BROWSER_SITES` | `bandsintown.com,ticketmaster.com` | the sites whose challenge (Cloudflare's, or Ticketmaster's 401 "Let's Get Your Identity Verified") opens the browser. Another site's challenge is answered as it is (and the job asks for a screenshot) |
 | `SCRAPER_MAX_BYTES` | 15 MB | the largest page read, decompressed |
 
 Every address is checked as public and then connected to as checked, redirects included. In the browser, WebSockets,
