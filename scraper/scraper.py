@@ -1,13 +1,14 @@
 """The page fetcher on the home server: event pages for the Ingest jobs workflow, from a home IP (ADR 0007).
 
 GitHub's runners are turned away by sites that block datacenter addresses (TicketWeb answers them with Cloudflare's
-530) or challenge scripted clients (Bandsintown). The workflow joins the tailnet and asks this service for the page
-instead: `POST /fetch {"url": ...}` with `Authorization: Bearer $SCRAPER_TOKEN` answers
+530) or challenge scripted clients (Bandsintown, Ticketmaster). The workflow joins the tailnet and asks this service
+for the page instead: `POST /fetch {"url": ...}` with `Authorization: Bearer $SCRAPER_TOKEN` answers
 `{"status", "url", "html", "via"}`, the site's own status and the page after redirects.
 
-A page is asked for with curl_cffi, which looks like Chrome down to its TLS handshake. When Cloudflare challenges
-that, the page is opened in a Patchright browser, which passes the challenge; the cookies it earns (`cf_clearance`)
-are kept, so the next request to that site goes through curl_cffi again until they run out.
+A page is asked for with curl_cffi, which looks like Chrome down to its TLS handshake. When a challenge answers
+that (Cloudflare's, or Ticketmaster's own: a 401 asking the browser to run its script), the page is opened in a
+Patchright browser, which passes the challenge; the cookies it earns (Cloudflare's `cf_clearance`) are kept, so the
+next request to that site goes through curl_cffi again until they run out.
 
 Both present one identity, the browser's own (`Identity`): its user agent, with "HeadlessChrome" (blocked outright)
 made "Chrome", and its client hints (`sec-ch-ua`...), sent by curl_cffi too, over the TLS handshake of the nearest
@@ -20,10 +21,10 @@ It only fetches public web pages, so it can't be used to reach anything behind i
 - Every address a host resolves to must be public (not the home network, the tailnet, the machine, NAT64 or 6to4
   wrapping one), and curl_cffi then connects to the address that was checked (`RESOLVE`), so a name that answers with
   a public address and then a private one (DNS rebinding) can't slip through. Each redirect is checked the same way.
-- The browser only opens for the sites listed in SCRAPER_BROWSER_SITES (Bandsintown), since a site can say it's
-  Cloudflare challenging the request. There, its requests are checked as curl_cffi's are (by `route`, which can't pin
-  the address: the browser resolves names itself); WebSockets (`route_web_socket`), service workers and WebRTC's
-  direct connections are refused outright.
+- The browser only opens for the sites listed in SCRAPER_BROWSER_SITES (Bandsintown, Ticketmaster), since any site
+  can answer with a challenge's headers and title. There, its requests are checked as curl_cffi's are (by `route`,
+  which can't pin the address: the browser resolves names itself); WebSockets (`route_web_socket`), service workers
+  and WebRTC's direct connections are refused outright.
 - A page is read up to SCRAPER_MAX_BYTES, as decompressed: a small gzip bomb can't exhaust memory.
 - Requests are answered only from the tailnet and the machine itself (SCRAPER_ALLOWED_CLIENTS), though the port is
   published on every interface, and only with the token. No API docs are served, and errors say no more than what
@@ -59,9 +60,10 @@ MAX_REDIRECTS = 5
 CHALLENGE_WAIT_S = 30
 # A page larger than this, decompressed, isn't an event page: reading on would only use up memory.
 MAX_BYTES = int(os.environ.get("SCRAPER_MAX_BYTES", str(15 * 1024 * 1024)))
-# The sites whose Cloudflare challenge the browser is opened for. Anything can send a challenge's headers, and the
-# browser runs a site's scripts: only sites we know need it get it.
-BROWSER_SITES = tuple(site.strip().lower() for site in os.environ.get("SCRAPER_BROWSER_SITES", "bandsintown.com")
+# The sites whose challenge the browser is opened for. Anything can send a challenge's headers, and the browser runs
+# a site's scripts: only sites we know need it get it.
+BROWSER_SITES = tuple(site.strip().lower() for site in os.environ.get("SCRAPER_BROWSER_SITES",
+                                                                      "bandsintown.com,ticketmaster.com")
                       .split(",") if site.strip())
 # Who may ask: the tailnet (Tailscale's IPv4 and IPv6 ranges) and the machine itself (the container's health check).
 ALLOWED_CLIENTS = tuple(ipaddress.ip_network(net.strip()) for net in os.environ.get(
@@ -79,6 +81,8 @@ _IDENTITY_URL = "https://identity.scraper.invalid/"
 _TARGET_RE = re.compile(r"chrome(\d+)(a?)(_macos)?")
 # Cloudflare's own pages: "Just a moment..." (a challenge) and "Attention Required!" (a block).
 _CLOUDFLARE_TITLE_RE = re.compile(r"<title>\s*(?:Just a moment|Attention Required)", re.IGNORECASE)
+# Ticketmaster's, answered with 401 (checked 2026-11-18): its script, from /epsf/, earns cookies and reloads the page.
+_TICKETMASTER_TITLE_RE = re.compile(r"<title>\s*Let's Get Your Identity Verified", re.IGNORECASE)
 
 
 class Refused(ValueError):
@@ -177,12 +181,21 @@ def decode(body: bytes, content_type: str | None) -> str:
         return body.decode("utf-8", errors="replace")
 
 
-def is_cloudflare_challenge(status: int, headers, html: str) -> bool:
-    """Cloudflare stood in front of the page: a challenge or block page rather than the site's answer."""
+def is_challenge(status: int, headers, html: str) -> bool:
+    """A challenge or block page stood in front of the page, rather than the site's answer: Cloudflare's, or
+    Ticketmaster's."""
     if headers.get("cf-mitigated") == "challenge":
+        return True
+    if status == 401 and _TICKETMASTER_TITLE_RE.search(html[:5000]):
         return True
     server = (headers.get("server") or "").lower()
     return status in (403, 429, 503) and server == "cloudflare" and bool(_CLOUDFLARE_TITLE_RE.search(html[:5000]))
+
+
+def still_challenged(html: str) -> bool:
+    """The browser is still on a challenge's page."""
+    head = html[:5000]
+    return bool(_CLOUDFLARE_TITLE_RE.search(head) or _TICKETMASTER_TITLE_RE.search(head))
 
 
 @dataclass(frozen=True)
@@ -243,7 +256,7 @@ class Answer:
 
 
 class Fetcher:
-    """curl_cffi first, the browser when Cloudflare challenges it; one browser, used one page at a time."""
+    """curl_cffi first, the browser when a challenge answers it; one browser, used one page at a time."""
 
     def __init__(self):
         self.identity: Identity | None = None
@@ -305,12 +318,13 @@ class Fetcher:
 
     async def fetch(self, url: str) -> Page:
         answer = await asyncio.to_thread(self._request, url)
-        if not is_cloudflare_challenge(answer.status_code, answer.headers, answer.text):
+        if not is_challenge(answer.status_code, answer.headers, answer.text):
             return Page(answer.status_code, answer.url, answer.text, "request")
         if not opens_browser(answer.url):
-            log.info("Cloudflare challenged %s, which isn't a site the browser opens for", for_log(answer.url))
+            log.info("a challenge (%s) answered %s, which isn't a site the browser opens for", answer.status_code,
+                     for_log(answer.url))
             return Page(answer.status_code, answer.url, answer.text, "request")
-        log.info("Cloudflare challenged %s; opening it in the browser", for_log(answer.url))
+        log.info("a challenge (%s) answered %s; opening it in the browser", answer.status_code, for_log(answer.url))
         return await self._browse(answer.url)
 
     def _request(self, url: str) -> Answer:
@@ -333,15 +347,23 @@ class Fetcher:
         raise Refused(f"more than {MAX_REDIRECTS} redirects")
 
     async def _browse(self, url: str) -> Page:
+        from patchright.async_api import Error as PlaywrightError
+
         async with self._browser_lock:
             context = self._context
             page = await context.new_page()
             try:
                 response = await page.goto(url, wait_until="domcontentloaded", timeout=45_000)
-                challenged = False
+                challenged, html = False, ""
                 for _ in range(CHALLENGE_WAIT_S):
-                    html = await page.content()
-                    if not _CLOUDFLARE_TITLE_RE.search(html[:5000]):
+                    try:
+                        html = await page.content()
+                    except PlaywrightError:
+                        # The challenge passed and is reloading the page (Ticketmaster's does): read it once loaded.
+                        challenged = True
+                        await page.wait_for_load_state("domcontentloaded")
+                        continue
+                    if not still_challenged(html):
                         break
                     challenged = True
                     await page.wait_for_timeout(1000)
