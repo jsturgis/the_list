@@ -213,7 +213,7 @@ black-and-white logo takes `ink`, and Qobuz's wordmark is an image with a black 
   `text-xs ink-muted`, with the licence and "Wikimedia Commons" (the photo's page) as running-text links. A photo
   from Discogs reads "Photo via Discogs", linking the artist's Discogs page. The edition's photos have no credit.
 - **Show flyer:** when the Venue's own calendar had one (`backend/app/ingestion/venue_calendar.py`), the flyer
-  sits at the right of the Show's `PageHeader`, top-aligned with it, at its own aspect ratio: 96px wide and at
+  sits at the left of the Show's `PageHeader`, top-aligned with it, at its own aspect ratio: 96px wide and at
   most 192px tall on phones, 160px by 256px from `sm` (`object-contain`, `rounded-md`), with the header taking the
   rest of the row. It's the site's own copy, served under the base path, like a Band's photo. The flyer links to the
   Venue's page for the Show when the calendar gave one (new tab, named "Flyer: See this show on <Venue>'s site"),

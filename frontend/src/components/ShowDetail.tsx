@@ -46,7 +46,7 @@ export default function ShowDetail({ show }: ShowDetailProps) {
   const ticketsLabel = provider ? `Tickets via ${provider}` : 'Tickets'
   const acts = show.acts.slice().sort((a, b) => a.position - b.position)
   const upcoming = show.status === 'upcoming'
-  // The Venue's own flyer for the Show (DESIGN.md, "Show flyer"), beside the header, linking to the Venue's page for it.
+  // The Venue's own flyer for the Show (DESIGN.md, "Show flyer"), at the left of the header, linking to the Venue's page for it.
   const flyer = show.flyerImageUrl ? (
     <img src={href(show.flyerImageUrl)}
          alt={`Flyer for ${acts[0]?.band.name ?? 'this show'}`} data-testid="show-flyer"
@@ -75,6 +75,12 @@ export default function ShowDetail({ show }: ShowDetailProps) {
       )}
 
       <div className="flex items-start gap-4 sm:gap-6">
+        {flyer && (flyerLink ? (
+          <a href={flyerLink.href} target="_blank" rel="noopener noreferrer" aria-label={`Flyer: ${flyerLink.label}`}
+             title={flyerLink.label} className="shrink-0 rounded-md hover:opacity-90">
+            {flyer}
+          </a>
+        ) : <div className="shrink-0">{flyer}</div>)}
         <div className="min-w-0 flex-1">
           <PageHeader
             eyebrow={show.status === 'cancelled' || show.status === 'postponed' ? <StatusBadge status={show.status} size="detail" /> : undefined}
@@ -109,12 +115,6 @@ export default function ShowDetail({ show }: ShowDetailProps) {
             subtitle={<>at <VenueLink slug={show.venue.slug} className="text-link underline underline-offset-2">{show.venue.name}</VenueLink> · {show.venue.city}</>}
           />
         </div>
-        {flyer && (flyerLink ? (
-          <a href={flyerLink.href} target="_blank" rel="noopener noreferrer" aria-label={`Flyer: ${flyerLink.label}`}
-             title={flyerLink.label} className="shrink-0 rounded-md hover:opacity-90">
-            {flyer}
-          </a>
-        ) : <div className="shrink-0">{flyer}</div>)}
       </div>
 
       <div className="flex flex-col gap-4 rounded-lg bg-surface p-5">
