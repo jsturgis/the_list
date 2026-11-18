@@ -390,7 +390,10 @@ def _page_urls(html: str, base: str) -> set[str]:
     for url in found:
         url = html_lib.unescape(url.strip())
         if url and not url.startswith(("#", "javascript:", "data:", "mailto:", "tel:")):
-            urls.add(urljoin(base, url))
+            try:
+                urls.add(urljoin(base, url))
+            except ValueError:  # e.g. "http://[" -- not a URL urllib can parse, so not one we could use
+                continue
     return urls
 
 
@@ -400,7 +403,10 @@ def _on_page(url: str | None, on_page: set[str], base: str) -> str | None:
     the page nowhere near, or as close to two (a made-up /shows/2 between /shows/1 and /shows/3), is dropped."""
     if not url:
         return None
-    url = urljoin(base, html_lib.unescape(url.strip()))
+    try:
+        url = urljoin(base, html_lib.unescape(url.strip()))
+    except ValueError:
+        return None
     if url in on_page:
         return url
     host = urlsplit(url).hostname
