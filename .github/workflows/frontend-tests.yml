@@ -3,19 +3,11 @@ name: Frontend Tests
 on:
   push:
     branches: [main]
-    paths:
-      - 'frontend/**'
-      - 'docs/guide/**'   # rendered as the docs pages
-      - '.github/workflows/frontend-tests.yml'
   pull_request:
     branches: [main]
-    paths:
-      - 'frontend/**'
-      - 'docs/guide/**'   # rendered as the docs pages
-      - '.github/workflows/frontend-tests.yml'
 
 jobs:
-  test:
+  frontend-test:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -43,7 +35,7 @@ jobs:
       - name: Lint
         run: npm run lint
 
-  e2e:
+  frontend-e2e:
     runs-on: ubuntu-latest
     defaults:
       run:
