@@ -520,6 +520,19 @@ async def test_an_embedding_failure_does_not_fail_the_ingest(mock_batch, mock_ve
     assert db.query(Show).count() == 2
 
 
+@patch("app.scheduler.fetch_list", return_value=_LIST)
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.enrich_shows_from_venue_calendars", side_effect=RuntimeError("the LLM is down"))
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_the_warnings_an_ingest_carried_on_past_are_kept_on_its_run(mock_batch, mock_calendars, mock_venue,
+                                                                         mock_fetch, db):
+    await _run_ingestion_async(db=db)
+
+    run = db.query(IngestionRun).one()
+    assert run.status == IngestionStatus.success
+    assert {"message": "ingestion: venue calendars skipped this run", "count": 1} in run.warnings
+
+
 _JOINT_LIST = _list("oct  5 mon Dying Fetus And Sanguisugabogg, Belle and Sebastian at the Ritz, San Jose a/a $32 7pm")
 
 

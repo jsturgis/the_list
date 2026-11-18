@@ -43,6 +43,7 @@ from app.models.band import Band
 from app.models.ingestion_run import IngestionRun, IngestionStatus
 from app.models.show import Show, ShowStatus
 from app.models.venue import Venue
+from app.run_warnings import WarningCollector
 from app.embeddings.indexer import SHOW_INDEX_PATH, remove_from_index
 from app.pipeline.embed import batch_embed_and_index
 from app.pipeline.enrichment import _clean_venue_name, _enrich_band, _enrich_venue
@@ -467,6 +468,9 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
     db.flush()
     outages_before = failures()
 
+    collector = WarningCollector()
+    app_logger = logging.getLogger("app")
+    app_logger.addHandler(collector)   # the run's warnings, kept on it (app/run_warnings.py)
     try:
         logger.info("ingestion: fetching the List from %s", settings.list_url)
         the_list = fetch_list()
@@ -486,6 +490,7 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
             logger.warning("ingestion: services that didn't answer this run: %s",
                            ", ".join(f"{service} ({count})" for service, count in sorted(outages.items())))
 
+        run.warnings = collector.warnings()
         run.finished_at = datetime.utcnow()
         db.commit()
         if removed:
@@ -497,6 +502,7 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
         logger.exception("ingestion: pipeline failed")
         run.status = IngestionStatus.failure
         run.error = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))[-2000:]
+        run.warnings = collector.warnings()
         run.finished_at = datetime.utcnow()
         try:
             db.commit()
@@ -504,6 +510,7 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
             db.rollback()
         raise
     finally:
+        app_logger.removeHandler(collector)
         if _own_db:
             db.close()
 

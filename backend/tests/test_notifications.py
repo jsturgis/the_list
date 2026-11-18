@@ -284,6 +284,19 @@ def test_notify_success_sends_nothing_when_the_ingest_brought_no_new_shows(db, r
     assert "no new Shows" in caplog.text
 
 
+def test_an_ingest_with_warnings_is_emailed_even_without_new_shows(db, resend):
+    _run(db, NOW, shows_parsed=1200, shows_upserted=1200, shows_new=0, new_bands=0, new_venues=0,
+         warnings=[{"message": "venue calendars skipped this run", "count": 1},
+                   {"message": "MusicBrainz didn't answer: ConnectError", "count": 3}])
+
+    email = notify_success(db, dry_run=False, out=io.StringIO())
+
+    assert email.subject == "The List: ingest succeeded: 0 new bands, 0 new venues, 2 warnings"
+    assert "It carried on past 2 warnings" in email.text
+    assert "Warning: MusicBrainz didn't answer: ConnectError (3 times)" in email.text
+    assert len(resend.sent) == 1
+
+
 def test_a_dry_run_prints_the_success_email_instead_of_sending_it(db, resend):
     _run(db, NOW, shows_new=1, new_bands=3, new_venues=1)
     out = io.StringIO()
