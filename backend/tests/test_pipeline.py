@@ -114,6 +114,58 @@ async def test_embed_and_index_show_stores_bytes(
     mock_save.assert_called_once()
 
 
+def _show_with_headliner(db, genres):
+    from app.models.act import Act
+    from sqlalchemy.orm import joinedload
+
+    venue = Venue(name="The Fillmore", city="San Francisco", region=Region.sf)
+    band = Band(name="Deafheaven", genres=genres)
+    db.add_all([venue, band])
+    db.flush()
+    show = Show(date=date(2026, 9, 25), venue_id=venue.id, status=ShowStatus.upcoming)
+    db.add(show)
+    db.flush()
+    db.add(Act(show_id=show.id, band_id=band.id, position=0))
+    db.flush()
+    return db.query(Show).options(joinedload(Show.venue), joinedload(Show.acts).joinedload(Act.band)).one()
+
+
+@patch("app.pipeline.embed.save_index")
+@patch("app.pipeline.embed.upsert_vector")
+@patch("app.pipeline.embed.load_or_create_index", return_value=MagicMock())
+@patch("app.pipeline.embed.embed", new_callable=AsyncMock, return_value=_FAKE_VEC)
+async def test_batch_embeds_only_what_changed(mock_embed, mock_load, mock_upsert, mock_save, db, embedded_texts):
+    show = _show_with_headliner(db, ["black metal"])
+    await batch_embed_and_index(db, [show])
+    assert mock_embed.await_count == 2   # the Show and its headliner
+
+    mock_embed.reset_mock()
+    mock_save.reset_mock()
+    await batch_embed_and_index(db, [show])
+    mock_embed.assert_not_awaited()
+    mock_save.assert_not_called()   # nothing changed, nothing written
+
+    show.acts[0].band.genres = ["black metal", "shoegaze"]   # both texts name the headliner's genres
+    await batch_embed_and_index(db, [show])
+    assert mock_embed.await_count == 2
+
+
+@patch("app.pipeline.embed.save_index")
+@patch("app.pipeline.embed.upsert_vector")
+@patch("app.pipeline.embed.load_or_create_index", return_value=MagicMock())
+@patch("app.pipeline.embed.embed", new_callable=AsyncMock, return_value=_FAKE_VEC)
+async def test_batch_embeds_a_record_without_an_embedding_whatever_its_digest(mock_embed, mock_load, mock_upsert,
+                                                                             mock_save, db):
+    show = _show_with_headliner(db, ["black metal"])
+    await batch_embed_and_index(db, [show])
+    show.embedding = None
+    mock_embed.reset_mock()
+
+    await batch_embed_and_index(db, [show])
+
+    assert mock_embed.await_count == 1
+
+
 # ── full pipeline ─────────────────────────────────────────────────────────────
 
 def _list(*listings, edition="September 25, 2026"):
@@ -427,6 +479,8 @@ async def test_pipeline_looks_up_a_venues_other_name_once(mock_batch, mock_venue
 
     assert mock_venue.call_count == 2
     assert db.query(Venue).count() == 1
+
+
 def _musicbrainz_down(name, use_llm=False):
     note_failure("MusicBrainz", httpx.ConnectError("refused"))
     return _NOT_ON_MUSICBRAINZ
@@ -453,6 +507,17 @@ async def test_a_band_looked_up_while_a_service_is_down_is_looked_up_again(mock_
 
     assert again.call_count == 3
     assert all(b.enriched_at is not None for b in db.query(Band))
+
+
+@patch("app.scheduler.fetch_list", return_value=_LIST)
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock, side_effect=RuntimeError("Ollama is down"))
+async def test_an_embedding_failure_does_not_fail_the_ingest(mock_batch, mock_venue, mock_fetch, db):
+    await _run_ingestion_async(db=db)
+
+    run = db.query(IngestionRun).one()
+    assert run.status == IngestionStatus.success and run.source_hash is not None
+    assert db.query(Show).count() == 2
 
 
 _JOINT_LIST = _list("oct  5 mon Dying Fetus And Sanguisugabogg, Belle and Sebastian at the Ritz, San Jose a/a $32 7pm")
@@ -609,8 +674,9 @@ async def test_a_mid_week_update_with_a_later_date_is_not_a_new_edition(mock_bat
 
 @patch("app.scheduler.fetch_list", return_value=_LIST)
 @patch("app.scheduler._enrich_venue", side_effect=_venue_data)
-@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock, side_effect=RuntimeError("Ollama is down"))
-async def test_a_failed_ingest_leaves_the_list_changed(mock_batch, mock_venue, mock_fetch, db):
+@patch("app.scheduler.remove_unlisted_shows", side_effect=RuntimeError("database is locked"))
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_a_failed_ingest_leaves_the_list_changed(mock_batch, mock_remove, mock_venue, mock_fetch, db):
     with pytest.raises(RuntimeError):
         await _run_ingestion_async(db=db)
 

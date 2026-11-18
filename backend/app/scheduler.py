@@ -391,10 +391,16 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
         db.rollback()
         logger.warning("ingestion: venue calendars skipped this run", exc_info=True)
 
+    # Embeddings are only for Similar Bands (and the local similarShows query): never worth failing the ingest over,
+    # when the Shows are already stored. What wasn't embedded is embedded at the next run (app/pipeline/embed.py).
     logger.info("ingestion: embedding and indexing")
     report("embedding", None)
-    await batch_embed_and_index(db, shows)
-    db.commit()   # the embeddings
+    try:
+        await batch_embed_and_index(db, shows)
+        db.commit()   # the embeddings
+    except Exception:
+        db.rollback()
+        logger.warning("ingestion: embedding skipped this run", exc_info=True)
     return shows
 
 

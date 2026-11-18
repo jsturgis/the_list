@@ -35,7 +35,7 @@ Optional. MusicBrainz and Wikimedia Commons need no key.
 | `FAISS_INDEX_PATH` | `./data/faiss` | Docker Compose sets `/app/data/faiss` |
 | `IMAGES_PATH` | `./data/images` | Band photos saved at ingest (`bands/<id>-<hash>.webp`); Docker Compose's `data` volume holds them at `/app/data/images` |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | URL of your Ollama instance; Docker Compose sets `http://ollama:11434` |
-| `OLLAMA_EMBEDDING_MODEL` | `nomic-embed-text` | Change only if swapping embedding models (requires re-embedding everything) |
+| `OLLAMA_EMBEDDING_MODEL` | `nomic-embed-text` | Change only if swapping embedding models (the next ingest re-embeds every Show it sees and its headliner; the backfill, Bands whose genres change) |
 | `GENRE_MODEL` | `tev1:0.8b` | The Ollama model that judges whether a tag is a genre (`app/ingestion/genre_filter.py`); needs Ollama 0.35 or later |
 | `GENRE_MODEL_THRESHOLD` | `0.5` | The probability from which the genre model's answer counts as yes |
 

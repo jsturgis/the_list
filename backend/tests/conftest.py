@@ -51,6 +51,14 @@ def no_venue_calendars():
         yield find, fetch
 
 
+@pytest.fixture(autouse=True)
+def embedded_texts(tmp_path, monkeypatch):
+    """Where the embedded texts' digests are kept (app/pipeline/embed.py): a fresh file per test, never the real one."""
+    path = str(tmp_path / "faiss" / "texts.json")
+    monkeypatch.setattr("app.pipeline.embed.TEXTS_PATH", path)
+    return path
+
+
 @pytest.fixture
 def db():
     session = _TestingSession()
