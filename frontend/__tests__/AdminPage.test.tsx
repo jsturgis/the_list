@@ -410,7 +410,8 @@ describe('Admin page, reviewing a screenshot', () => {
 
     const form = await screen.findByRole('form', { name: 'Review what was read' })
     expect(screen.getByText('Needs review')).toBeInTheDocument()
-    expect(screen.getByRole('img', { name: 'The screenshot this job was added from' })).toBeInTheDocument()
+    // Its image comes once Storage has signed a link to it.
+    expect(await screen.findByRole('img', { name: 'The screenshot this job was added from' })).toBeInTheDocument()
     expect(screen.getByText('Check what was read: no date on the screenshot')).toBeInTheDocument()
     expect(within(form).getByLabelText(/lineup/i)).toHaveValue(READ.performers.join('\n'))
     expect(within(form).getByLabelText('Venue')).toHaveValue("Moe's Alley")
