@@ -123,6 +123,12 @@ def _title(event: dict) -> str:
     return _TITLE_RE.match(_text(event.get("name"))).group(1).strip()
 
 
+def _has_performers(event: dict) -> bool:
+    performers = event.get("performer") or event.get("performers") or []
+    performers = [performers] if isinstance(performers, dict) else performers
+    return any(isinstance(p, dict) and _text(p.get("name")) for p in performers)
+
+
 def _bands(event: dict, title: str) -> list[str]:
     performers = event.get("performer") or event.get("performers") or []
     if isinstance(performers, dict):
@@ -268,5 +274,10 @@ def _show(event: dict, page: str | None, url: str, source: str, provider: str | 
         "is_benefit": False,
         "ticket_provider": provider,
         "ticket_url": url,
+        # Where the event's tickets are sold, as the page links them (app/ingestion/event_page.py follows one).
+        "offer_urls": [o["url"] for o in offers if isinstance(o.get("url"), str) and o["url"].startswith("http")],
+        # Whether the lineup is one: named as performers, or a name that split into several. An event's name that
+        # didn't split ("Teenage Bottlerocket Live in Berkeley") is no lineup to add to another's.
+        "lineup_named": _has_performers(event) or len(bands) > 1,
         "raw_text": f"{title} at {venue_name}" + (f", {city}" if city else ""),
     }
