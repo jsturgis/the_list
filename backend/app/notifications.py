@@ -2,8 +2,8 @@
 
 Two emails, both to settings.maintainer_email through Resend, sent by steps of the Deploy workflow:
 
-- after each successful ingest (`python -m app.cli notify-success`): the edition, its Show counts, and how many new
-  Bands and new Venues it brought;
+- after each successful ingest that brought new Shows (`python -m app.cli notify-success`): the edition, its Show
+  counts, and how many new Bands and new Venues it brought;
 - while the ingest is failing (`python -m app.cli notify-failure --stage check|ingest --log PATH`): the root cause
   and the end of the failing command's log. Only once the last successful ingest is FAILING_AFTER_DAYS old, and at
   most once a day.
@@ -314,11 +314,15 @@ def _send(notification: Notification, idempotency_key: str) -> bool:
 def notify_success(db: Session, *, dry_run: bool, out: TextIO) -> Notification | None:
     """Email the maintainer about the newest ingestion run, when it succeeded; a dry run prints it to `out`.
 
-    Returns the email, or None when there's nothing to send (no successful newest run, or not configured).
+    Returns the email, or None when there's nothing to send (no successful newest run, one that brought no new
+    Shows, or not configured).
     """
     run = db.query(IngestionRun).order_by(IngestionRun.id.desc()).first()
     if run is None or run.status != IngestionStatus.success:
         logger.info("notify-success: skipping, the newest ingestion run isn't a successful one")
+        return None
+    if not run.shows_new:
+        logger.info("notify-success: skipping, the ingest brought no new Shows")
         return None
     notification = success_email(run, settings.site_url.rstrip("/"))
     if dry_run:

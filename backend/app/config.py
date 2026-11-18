@@ -48,8 +48,9 @@ class Settings(BaseSettings):
     # Alert emails are sent through Resend, from a domain verified there (list.sturgis.me).
     resend_api_key: str = ""
     alerts_from: str = "The List <alerts@list.sturgis.me>"
-    # Who gets the emails about the ingest (app/notifications.py): one after each successful ingest, and one a day
-    # while it has been failing for two weeks. Sent through Resend from alerts_from; empty sends none.
+    # Who gets the emails about the ingest (app/notifications.py): one after each successful ingest that brought new
+    # Shows, and one a day while it has been failing for two weeks. Sent through Resend from alerts_from; empty sends
+    # none.
     maintainer_email: str = ""
 
 

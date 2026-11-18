@@ -53,7 +53,8 @@ only, and say how the ingest went.
 - **After each successful ingest**: "The List: ingest succeeded: 12 new bands, 2 new venues", with the edition,
   its Shows parsed, upserted and new, the share of new Bands without a photo, and a link to the site. The
   `ingest` job sends it (`python -m app.cli notify-success`) once the data is committed to the `data` branch, from
-  the committed database, so it never reports data that wasn't saved.
+  the committed database, so it never reports data that wasn't saved. An ingest that brought no new Shows sends
+  nothing.
 - **While the ingest has been failing for two weeks**: "The List: ingest failing for 15 days: ListError: …", with
   the root cause (the final exception, one line), which job failed (`check` or `ingest`), when the last successful
   ingest was and its edition, the last 60 lines of the failing job's log, and a link to the Actions run. A step
