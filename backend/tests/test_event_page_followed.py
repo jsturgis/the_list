@@ -10,7 +10,7 @@ from urllib.parse import quote
 
 import pytest
 
-from app.ingestion import bandsintown
+from app.ingestion import bandsintown, ticketmaster
 from app.ingestion.event_page import MAX_FOLLOWED, _merged, fetch_events, seller_url
 from app.ingestion.page_fetch import PageError
 
@@ -41,9 +41,12 @@ def _bandsintown_page(*events: dict, lineup=("Teenage Bottlerocket",), sellers=(
     return f"<html><head>{ld}</head><body><script>window.__data={json.dumps(data)}</script></body></html>"
 
 
-def _site(pages: dict):
-    """get_page answering each URL from `pages`: its HTML, or a PageError for a page that can't be read."""
-    def get_page(url):
+def _site(pages: dict, waited: list | None = None):
+    """get_page answering each URL from `pages`: its HTML, or a PageError for a page that can't be read. What each
+    page was asked to wait for goes in `waited`."""
+    def get_page(url, wait_for=None):
+        if waited is not None:
+            waited.append((url, wait_for))
         page = pages.get(url)
         if page is None or isinstance(page, Exception):
             raise page or PageError(f"404 from {url}")
@@ -87,7 +90,7 @@ def test_the_sellers_page_adds_its_lineup_details_and_ticket_link():
 
 
 def test_a_seller_whose_page_cant_be_read_still_gives_its_ticket_link():
-    """Ticketmaster asks a browser to prove itself (401): the Show keeps what it has, with Ticketmaster's link."""
+    """Ticketmaster's page fails (401 here): the Show keeps what it has, with Ticketmaster's link."""
     page = _bandsintown_page(_event(), lineup=["Teenage Bottlerocket", "Brendan Kelly"],
                              sellers=[_affiliate(_TM_URL + "?irgwc=1")])
     pages = {_EVENT_URL: page, _TM_URL + "?irgwc=1": PageError("401 from ticketmaster.com")}
@@ -185,3 +188,43 @@ def test_only_the_first_shows_on_an_artists_page_are_followed():
 
     assert len(shows) == MAX_FOLLOWED + 2
     assert fetched == [_ARTIST_URL] + [f"https://www.bandsintown.com/e/{n}" for n in range(MAX_FOLLOWED)]
+
+
+# ── Ticketmaster's price ─────────────────────────────────────────────────────
+
+def _ticketmaster_page(*prices: str) -> str:
+    """A Ticketmaster event page once drawn: its JSON-LD (no offers), and a ticket option for each price, as its
+    markup has them (2026-11-18)."""
+    event = {k: v for k, v in _event(url=_TM_URL, venue="San Jose Civic", city="San Jose", day="2026-12-26").items()
+             if k != "offers"}
+    options = "".join(f'<li role="menuitem" data-bdd="quick-picks-list-item-primary-{n}" tabindex="0" '
+                      f'data-index="qp-{n}" data-price="{price}"><span data-bdd="quick-pick-price-button">{price}'
+                      f'</span></li>' for n, price in enumerate(prices))
+    return (f'<html><head><script type="application/ld+json">{json.dumps(event)}</script></head>'
+            f'<body><ul>{options}</ul><div data-bdd="ticketBag-checkout">$0.00</div></body></html>')
+
+
+def test_reads_the_price_from_the_ticket_options_ticketmaster_drew():
+    assert ticketmaster.price(_ticketmaster_page("$48.00")) == "$48"
+    assert ticketmaster.price(_ticketmaster_page("$65.50", "$48.00", "$1,250.00")) == "$48/$1250"
+    assert ticketmaster.price(_ticketmaster_page()) is None   # sold out, or not on sale: no options
+
+
+def test_a_ticketmaster_link_is_drawn_in_the_browser_and_gets_its_price():
+    waited = []
+    with patch("app.ingestion.event_page.get_page", side_effect=_site({_TM_URL: _ticketmaster_page("$48.00")},
+                                                                       waited)):
+        (show,) = fetch_events(_TM_URL)
+    assert waited == [(_TM_URL, ticketmaster.READY)]
+    assert (show["price_raw"], show["ticket_provider"]) == ("$48", "ticketmaster.com")
+
+
+def test_ticketmaster_as_the_seller_gives_the_show_its_price():
+    page = _bandsintown_page(_event(venue="San Jose Civic", city="San Jose", day="2026-12-26"),
+                             sellers=[_affiliate(_TM_URL)])
+    waited = []
+    pages = {_EVENT_URL: page, _TM_URL: _ticketmaster_page("$48.00")}
+    with patch("app.ingestion.event_page.get_page", side_effect=_site(pages, waited)):
+        (show,) = fetch_events(_EVENT_URL)
+    assert waited == [(_EVENT_URL, None), (_TM_URL, ticketmaster.READY)]
+    assert (show["price_raw"], show["ticket_url"]) == ("$48", _TM_URL)

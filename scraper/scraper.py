@@ -3,7 +3,9 @@
 GitHub's runners are turned away by sites that block datacenter addresses (TicketWeb answers them with Cloudflare's
 530) or challenge scripted clients (Bandsintown, Ticketmaster). The workflow joins the tailnet and asks this service
 for the page instead: `POST /fetch {"url": ...}` with `Authorization: Bearer $SCRAPER_TOKEN` answers
-`{"status", "url", "html", "via"}`, the site's own status and the page after redirects.
+`{"status", "url", "html", "via"}`, the site's own status and the page after redirects. With `"wait_for"` (a CSS
+selector) a page on a site the browser opens for is opened there and read once that matches, for what its scripts
+draw after it loads (Ticketmaster's prices).
 
 A page is asked for with curl_cffi, which looks like Chrome down to its TLS handshake. When a challenge answers
 that (Cloudflare's, or Ticketmaster's own: a 401 asking the browser to run its script), the page is opened in a
@@ -48,7 +50,7 @@ from curl_cffi import CurlOpt
 from curl_cffi import requests as curl
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 log = logging.getLogger("scraper")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -58,6 +60,8 @@ PROFILE_DIR = os.environ.get("SCRAPER_PROFILE_DIR", "/data/profile")
 HEADLESS = os.environ.get("SCRAPER_HEADLESS", "true").lower() != "false"
 MAX_REDIRECTS = 5
 CHALLENGE_WAIT_S = 30
+# How long a page asked for with wait_for is given to draw it. Not there by then (sold out: no prices), it's read as is.
+READY_WAIT_S = 20
 # A page larger than this, decompressed, isn't an event page: reading on would only use up memory.
 MAX_BYTES = int(os.environ.get("SCRAPER_MAX_BYTES", str(15 * 1024 * 1024)))
 # The sites whose challenge the browser is opened for. Anything can send a challenge's headers, and the browser runs
@@ -316,7 +320,11 @@ class Fetcher:
             await page.close()
         return sent
 
-    async def fetch(self, url: str) -> Page:
+    async def fetch(self, url: str, wait_for: str | None = None) -> Page:
+        if wait_for and opens_browser(url):
+            check_url(url)
+            log.info("opening %s in the browser, for %s", for_log(url), wait_for)
+            return await self._browse(url, wait_for)
         answer = await asyncio.to_thread(self._request, url)
         if not is_challenge(answer.status_code, answer.headers, answer.text):
             return Page(answer.status_code, answer.url, answer.text, "request")
@@ -346,7 +354,7 @@ class Fetcher:
                           decode(body, response.headers.get("content-type")))
         raise Refused(f"more than {MAX_REDIRECTS} redirects")
 
-    async def _browse(self, url: str) -> Page:
+    async def _browse(self, url: str, wait_for: str | None = None) -> Page:
         from patchright.async_api import Error as PlaywrightError
 
         async with self._browser_lock:
@@ -369,6 +377,12 @@ class Fetcher:
                     await page.wait_for_timeout(1000)
                 else:
                     return Page(403, page.url, html, "browser")
+                if wait_for:
+                    try:
+                        await page.wait_for_selector(wait_for, state="attached", timeout=READY_WAIT_S * 1000)
+                        html = await page.content()
+                    except PlaywrightError as exc:
+                        log.info("%s didn't draw %s: %s", for_log(page.url), wait_for, str(exc).splitlines()[0])
                 await self._keep_cookies(context)
                 # A challenge passed reloads the page: the first answer's status was the challenge's.
                 status = 200 if challenged or response is None else response.status
@@ -440,13 +454,14 @@ def authorized(authorization: str = Header("")) -> None:
 
 class FetchRequest(BaseModel):
     url: str
+    wait_for: str | None = Field(None, max_length=200)
 
 
 @app.post("/fetch", dependencies=[Depends(authorized)])
 async def fetch(request: FetchRequest) -> dict:
     # What went wrong is logged; the answer says only which kind of wrong, so it can't map what's behind the server.
     try:
-        page = await fetcher.fetch(request.url)
+        page = await fetcher.fetch(request.url, request.wait_for)
     except Refused as exc:
         log.warning("refused %s: %s", for_log(request.url), exc)
         raise HTTPException(400, "not a public web page") from exc
