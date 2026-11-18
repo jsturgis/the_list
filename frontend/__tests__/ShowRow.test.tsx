@@ -99,6 +99,12 @@ describe('ShowRow', () => {
       expect(google).toHaveAttribute('target', '_blank')
     })
 
+    it("aren't followed by crawlers", () => {
+      render(<ShowRow show={makeShow()} />)
+      expect(screen.getByRole('link', { name: 'Add to calendar (.ics)' })).toHaveAttribute('rel', 'nofollow')
+      expect(screen.getByRole('link', { name: 'Add to Google Calendar' }).getAttribute('rel')).toContain('nofollow')
+    })
+
     it('use the street address for the event location', () => {
       const venue = makeVenue({ name: 'The Chapel', city: 'San Francisco', address: '777 Valencia St, San Francisco' })
       render(<ShowRow show={makeShow({ venue })} />)

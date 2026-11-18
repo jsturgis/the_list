@@ -77,12 +77,12 @@ export default function ShowRow({ show, filterQs = '', showVenue = true, heading
             {details && <span className="order-1 text-xs text-ink-muted sm:text-sm sm:text-ink-soft">{details}</span>}
             {show.status === 'upcoming' && (
               <span className="relative z-10 order-3 -ml-2 flex items-center gap-1 sm:-my-1 sm:-mr-2 sm:ml-0">
-                <a href={icsHref(show.id)} download={icsFilename(show)} aria-label="Add to calendar (.ics)"
+                <a href={icsHref(show.id)} download={icsFilename(show)} rel="nofollow" aria-label="Add to calendar (.ics)"
                    title="Add to calendar (.ics)" className={calendarLink}>
                   <ArrowDownTrayIcon aria-hidden="true" className="size-4" />
                   <span className="sm:sr-only">.ics</span>
                 </a>
-                <a href={googleCalendarUrl(show)} target="_blank" rel="noopener noreferrer"
+                <a href={googleCalendarUrl(show)} target="_blank" rel="nofollow noopener noreferrer"
                    aria-label="Add to Google Calendar" title="Add to Google Calendar" className={calendarLink}>
                   <CalendarDaysIcon aria-hidden="true" className="size-4" />
                   <span className="sm:sr-only">Google Calendar</span>
