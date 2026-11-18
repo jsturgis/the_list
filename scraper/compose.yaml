@@ -8,9 +8,14 @@ services:
       - SCRAPER_TOKEN=${SCRAPER_TOKEN}
       - TZ=America/Los_Angeles
     volumes:
-      - /mnt/store/the-list-scraper/data:/data   # the browser's profile: the cookies sites gave it
+      # The browser's profile (the cookies sites gave it). A named volume, not a host path: Docker creates a missing
+      # host path owned by root, which the scraper (UID 568) can't write; a new volume takes the image's ownership.
+      - scraper-data:/data
     ports:
       - 8790:8790   # reached over the tailnet at http://truenas:8790
     shm_size: 1gb   # Chromium's shared memory; Docker's default 64 MB crashes its tabs
     mem_limit: 2g
     restart: unless-stopped
+
+volumes:
+  scraper-data: {}
