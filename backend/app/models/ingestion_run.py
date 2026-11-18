@@ -44,5 +44,9 @@ class IngestionRun(Base):
     new_bands: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     new_bands_without_photo_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
+    # When this edition's weekly Alerts went out (set by `python -m app.cli alerts` on the edition's newest run). An
+    # edition whose runs all have none is due its Alerts (app/scheduler.py alerts_due).
+    alerts_sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
     # Error details
     error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

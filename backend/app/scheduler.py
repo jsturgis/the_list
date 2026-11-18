@@ -112,6 +112,40 @@ def list_status(db: Session, page: ListPage) -> dict[str, bool]:
     }
 
 
+def _newest_edition_runs(db: Session) -> list[IngestionRun]:
+    """The successful runs of the newest edition ingested (its week, Friday to Thursday), newest first."""
+    newest = db.query(func.max(IngestionRun.edition_date)).filter(
+        IngestionRun.status == IngestionStatus.success).scalar()
+    if newest is None:
+        return []
+    runs = (db.query(IngestionRun)
+            .filter(IngestionRun.status == IngestionStatus.success, IngestionRun.edition_date.isnot(None))
+            .order_by(IngestionRun.id.desc()).all())
+    return [r for r in runs if _edition_week(r.edition_date) == _edition_week(newest)]
+
+
+def alerts_due(db: Session, today: Optional[date] = None) -> bool:
+    """Whether the newest edition ingested hasn't had its Alerts yet: the run that ingested it couldn't send them (its
+    deploy or the sends failed). Only while it's still that edition's week: a week-old edition's Alerts aren't sent."""
+    runs = _newest_edition_runs(db)
+    if not runs:
+        return False
+    week = _edition_week(runs[0].edition_date)
+    if (today or local_today()) - week > timedelta(days=6):
+        return False
+    return not any(r.alerts_sent_at for r in runs)
+
+
+def mark_alerts_sent(db: Session) -> Optional[IngestionRun]:
+    """Record that the newest edition's Alerts went out (on its newest run); the run, or None with no edition."""
+    runs = _newest_edition_runs(db)
+    if not runs:
+        return None
+    runs[0].alerts_sent_at = datetime.utcnow()
+    db.commit()
+    return runs[0]
+
+
 PhaseReporter = Callable[[str, Optional[str]], None]
 
 

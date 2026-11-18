@@ -32,10 +32,16 @@ rather than commit a damaged database. For anything older, the Back up the data 
    also in the `ingestionRuns` GraphQL query and the ingest log), to follow the lookups' coverage.
 2. **Build and deploy** (the `build` and `deploy` jobs): checks out `main` and the `data` branch, runs
    `python -m app.cli export`, copies `images/` into the site's static files, builds the static site and deploys
-   it to Pages.
-3. **Alerts** (the `alerts` job): after the successful ingest and deploy of a new edition only, runs
+   it to Pages. The site's `deployed.json` says what it was built from (`.github/scripts/site-inputs.sh`: the
+   `data` branch's tree and the trees of `main` the build reads). Each hourly check compares it with the live
+   site's, so a deploy that failed or was cancelled is redone at the next hourly run, even without an ingest.
+3. **Alerts** (the `alerts` job): after the successful ingest and deploy of a new edition, runs
    `python -m app.cli alerts`. That emails each person whose Saved Filters match Upcoming Shows (see
-   [Weekly Alerts](alerts.md)). It never runs for a correction to the current edition, or on deploy-only runs. If it fails, the site stays deployed and the run shows red.
+   [Weekly Alerts](alerts.md)), and records that they went out (`alerts_sent_at` on the edition's run, committed to
+   `data`). It never runs for a correction to the current edition, or on a push or **Skip ingestion** run. If it
+   fails (the deploy or a send failed), the site stays deployed and the run shows red; each hourly check then finds
+   the edition still due its Alerts (`alerts_due`) and sends them once the live site is up to date, until the
+   edition's week ends.
 
 Only one run at a time: a newer run waits for the one in progress.
 
