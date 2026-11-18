@@ -389,6 +389,44 @@ async def test_pipeline_looks_up_only_bands_new_to_the_database(mock_batch, mock
     assert db.query(Band).filter(Band.name == "Mystery Act").one().genres == []
 
 
+@patch("app.scheduler.fetch_list")
+@patch("app.scheduler._enrich_venue", side_effect=_venue_data)
+@patch("app.scheduler._enrich_band", return_value=_NOT_ON_MUSICBRAINZ)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_does_not_look_up_another_spelling_of_a_known_band(mock_batch, mock_band, mock_venue,
+                                                                           mock_fetch, db):
+    mock_fetch.return_value = _list("sep 25 fri B.F.H, Record Swap\n       at Bottom of the Hill, S.F. a/a $15 8pm")
+    await _run_ingestion_async(db=db)
+    mock_band.reset_mock()
+
+    mock_fetch.return_value = _list("sep 25 fri B.F.H., record swap\n       at Bottom of the Hill, S.F. a/a $15 8pm")
+    await _run_ingestion_async(db=db)
+
+    mock_band.assert_not_called()
+    assert sorted(b.name for b in db.query(Band)) == ["B.F.H", "Record Swap"]
+
+
+def _same_place(name, city, street=None, use_llm=True):
+    """Google Places stand-in that finds one place for every name."""
+    return {"address": f"{street}, {city}, CA, USA", "google_place_id": "ChIJ-felton", "city": city}
+
+
+@patch("app.scheduler.fetch_list")
+@patch("app.scheduler._enrich_venue", side_effect=_same_place)
+@patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock)
+async def test_pipeline_looks_up_a_venues_other_name_once(mock_batch, mock_venue, mock_fetch, db):
+    mock_fetch.return_value = _list("sep 25 fri Uniform at Felton Music Hall, Felton a/a $15 8pm")
+    await _run_ingestion_async(db=db)
+    mock_fetch.return_value = _list("sep 25 fri Uniform at the Felton Music Hall & Bar, Felton a/a $15 8pm")
+    await _run_ingestion_async(db=db)
+    assert mock_venue.call_count == 2   # the new name, joined to the Venue through its Google place
+    mock_fetch.return_value = _list("sep 26 sat Uniform at the Felton Music Hall & Bar, Felton a/a $15 8pm")
+    await _run_ingestion_async(db=db)
+
+    assert mock_venue.call_count == 2
+    assert db.query(Venue).count() == 1
+
+
 _JOINT_LIST = _list("oct  5 mon Dying Fetus And Sanguisugabogg, Belle and Sebastian at the Ritz, San Jose a/a $32 7pm")
 
 

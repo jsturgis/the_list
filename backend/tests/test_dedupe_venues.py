@@ -97,6 +97,18 @@ def test_merge_groups_venues_sharing_a_place_id(db):
     assert {s.venue_id for s in db.query(Show).all()} == {b.id}
 
 
+def test_merge_keeps_the_duplicates_names_as_spellings(db):
+    keep = _venue(db, "924 Gilman", google_place_id="ChIJgilman")
+    _venue(db, "Gilman Street Project", google_place_id="ChIJgilman", spellings=["the Gilman"])
+    _venue(db, "the 924 Gilman", google_place_id="ChIJgilman")   # the same name: nothing to keep
+    _show(db, keep, 1)
+    db.commit()
+
+    merge_duplicate_venues(db, apply=True)
+
+    assert db.get(Venue, keep.id).spellings == ["Gilman Street Project", "the Gilman"]
+
+
 def test_name_and_place_links_chain_into_one_group(db):
     # "Fox Theater" ~ "the Fox Theater" by name; "the Fox Theater" ~ "Fox Oakland" by place.
     _venue(db, "Fox Theater")

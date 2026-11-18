@@ -8,7 +8,7 @@ from sqlalchemy import Boolean, DateTime, Enum, Float, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-from app.models.band import JSONDict
+from app.models.band import JSONDict, JSONList
 
 
 class Region(str, enum.Enum):
@@ -47,6 +47,9 @@ class Venue(Base):
     # Who took a Wikimedia Commons photo and its licence (author, license, license_url, source_url), which the
     # licence requires the site to show; None for a photo from anywhere else.
     image_credit: Mapped[Optional[dict]] = mapped_column(JSONDict)
+    # Other names the Venue was listed under that matched it only through its Google place ("The Felton Music Hall
+    # & Bar" for Felton Music Hall), so find_venue knows them by name and the ingest doesn't look them up again.
+    spellings: Mapped[list] = mapped_column(JSONList, default=list, server_default="[]")
     default_age_restriction: Mapped[Optional[str]] = mapped_column(String(50))
     is_sober_space: Mapped[Optional[bool]] = mapped_column(Boolean)
     is_cash_only: Mapped[Optional[bool]] = mapped_column(Boolean)

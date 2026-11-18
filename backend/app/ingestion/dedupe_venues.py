@@ -125,6 +125,9 @@ def merge_duplicate_venues(db: Session, apply: bool = False) -> list[VenueMerge]
         kept_shows = {identity(s): s for s in keep.shows}
         moved = combined = 0
         for dup in dups:
+            # The duplicate's names, so listings under them find the kept Venue by name (Venue.spellings).
+            names = [n for n in [dup.name, *(dup.spellings or [])] if venue_key(n) != venue_key(keep.name)]
+            keep.spellings = list(dict.fromkeys([*(keep.spellings or []), *names]))
             for field in _FILL_FIELDS:
                 if getattr(keep, field) is None and getattr(dup, field) is not None:
                     setattr(keep, field, getattr(dup, field))
