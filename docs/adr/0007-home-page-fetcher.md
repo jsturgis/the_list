@@ -23,9 +23,14 @@ Ingest jobs workflow ── tailscale/github-action (ephemeral, tag:ci) ──�
   fetcher can't be reached it fetches directly too, and a page that still can't be read asks for a screenshot.
 - **curl_cffi first, the browser when Cloudflare asks.** Most pages need nothing more than a request that looks like
   Chrome down to its TLS handshake. When Cloudflare challenges it (`cf-mitigated: challenge`, or its "Just a moment" or
-  "Attention Required" page), the page is opened in one long-lived Patchright browser, headless with a desktop Chrome
-  user agent (headless Chrome's own is blocked outright). The cookies it earns (`cf_clearance`) go back to curl_cffi
-  with the same user agent, so the site's next pages need no browser until they run out.
+  "Attention Required" page), the page is opened in one long-lived Patchright browser, headless. The cookies it earns
+  (`cf_clearance`) go back to curl_cffi, so the site's next pages need no browser until they run out.
+- **Both tiers are one client: the browser's.** Cloudflare ties cf_clearance to the client it gave it to, and looks for
+  a user agent that disagrees with the client hints or with the platform the browser's scripts report. So the user agent
+  is the browser's own, read when the service starts, with "HeadlessChrome" (blocked outright) made "Chrome"; curl_cffi
+  sends it and the browser's client hints (`sec-ch-ua`...), over the TLS handshake of the nearest Chrome version it can
+  imitate. A hard-coded Windows Chrome 156 user agent had curl_cffi's `sec-ch-ua` saying Google Chrome 152 beside it,
+  and the browser saying Windows from a Linux container.
 - **The tailnet policy lets CI reach the fetcher and nothing else.** The runner joins as an ephemeral node tagged
   `tag:ci`, from a Tailscale OAuth client, and the policy grants `tag:ci` only `truenas:8790`. People's own devices keep
   the access they had.

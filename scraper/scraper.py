@@ -6,9 +6,15 @@ instead: `POST /fetch {"url": ...}` with `Authorization: Bearer $SCRAPER_TOKEN` 
 `{"status", "url", "html", "via"}`, the site's own status and the page after redirects.
 
 A page is asked for with curl_cffi, which looks like Chrome down to its TLS handshake. When Cloudflare challenges
-that, the page is opened in a Patchright browser (headless, with a desktop Chrome user agent), which passes the
-challenge; the cookies it earns (`cf_clearance`) are kept, so the next request to that site goes through curl_cffi
-again with the browser's user agent until they run out.
+that, the page is opened in a Patchright browser, which passes the challenge; the cookies it earns (`cf_clearance`)
+are kept, so the next request to that site goes through curl_cffi again until they run out.
+
+Both present one identity, the browser's own (`Identity`): its user agent, with "HeadlessChrome" (blocked outright)
+made "Chrome", and its client hints (`sec-ch-ua`...), sent by curl_cffi too, over the TLS handshake of the nearest
+Chrome version curl_cffi can imitate. Cloudflare ties a cf_clearance cookie to the client it was given to, and a
+user agent that disagrees with the client hints, the platform the browser's scripts report, or the other tier's is
+what it looks for. The identity is read from the browser when the service starts, so a newer browser in the image
+changes it with no edit here.
 
 It only fetches public web pages: an address on the home network, the tailnet or the machine itself is refused, for
 the page and every redirect and browser request, so it can't be used to reach anything behind it.
@@ -34,18 +40,19 @@ log = logging.getLogger("scraper")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 TOKEN = os.environ.get("SCRAPER_TOKEN", "")
-# A desktop Chrome's user agent, for curl_cffi and the browser alike: Cloudflare ties a cf_clearance cookie to it.
-USER_AGENT = os.environ.get("SCRAPER_USER_AGENT", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                                                  "(KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36")
 PROFILE_DIR = os.environ.get("SCRAPER_PROFILE_DIR", "/data/profile")
 HEADLESS = os.environ.get("SCRAPER_HEADLESS", "true").lower() != "false"
 MAX_REDIRECTS = 5
 CHALLENGE_WAIT_S = 30
 _HEADERS = {
-    "User-Agent": USER_AGENT,
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
 }
+_CLIENT_HINTS = ("sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform")
+# A page the browser is sent to so its identity can be read; it never leaves the browser. https, for a secure context.
+_IDENTITY_URL = "https://identity.scraper.invalid/"
+# curl_cffi's Chrome targets: "chrome142", "chrome133a", "chrome152_macos" (not the Android ones).
+_TARGET_RE = re.compile(r"chrome(\d+)(a?)(_macos)?")
 # Cloudflare's own pages: "Just a moment..." (a challenge) and "Attention Required!" (a block).
 _CLOUDFLARE_TITLE_RE = re.compile(r"<title>\s*(?:Just a moment|Attention Required)", re.IGNORECASE)
 
@@ -82,6 +89,46 @@ def is_cloudflare_challenge(status: int, headers, html: str) -> bool:
     return status in (403, 429, 503) and server == "cloudflare" and bool(_CLOUDFLARE_TITLE_RE.search(html[:5000]))
 
 
+@dataclass(frozen=True)
+class Identity:
+    """The client both tiers present: the browser's user agent and client hints, and the curl_cffi target nearest
+    its Chrome version."""
+    user_agent: str
+    client_hints: dict[str, str]
+    impersonate: str
+
+    def headers(self) -> dict[str, str]:
+        return {"User-Agent": self.user_agent, **self.client_hints}
+
+
+def browser_user_agent(user_agent: str) -> str:
+    """The browser's own user agent, less the "HeadlessChrome" that gives headless Chrome away."""
+    return user_agent.replace("HeadlessChrome/", "Chrome/")
+
+
+def impersonation_target(user_agent: str, targets) -> str:
+    """The curl_cffi target nearest the user agent's Chrome: the newest no newer than it (else the oldest), on its
+    platform where curl_cffi has one for the Mac."""
+    major = int(re.search(r"Chrome/(\d+)", user_agent).group(1))
+    mac = "Macintosh" in user_agent
+    found = {}
+    for target in targets:
+        match = _TARGET_RE.fullmatch(target)
+        if not match:
+            continue
+        version, alternative, macos = int(match[1]), bool(match[2]), bool(match[3])
+        # Rank: same platform first, then the plain target over its "a" alternative.
+        rank = (macos == mac, not alternative)
+        if macos and not mac:
+            continue
+        if version not in found or rank > found[version][0]:
+            found[version] = (rank, target)
+    if not found:
+        raise RuntimeError("curl_cffi has no Chrome to imitate")
+    older = [version for version in found if version <= major]
+    return found[max(older) if older else min(found)][1]
+
+
 @dataclass
 class Page:
     status: int
@@ -94,10 +141,51 @@ class Fetcher:
     """curl_cffi first, the browser when Cloudflare challenges it; one browser, used one page at a time."""
 
     def __init__(self):
-        self.session = curl.Session(impersonate="chrome")
+        self.identity: Identity | None = None
+        self.session = None
         self._browser_lock = asyncio.Lock()
         self._playwright = None
         self._context = None
+
+    async def start(self) -> None:
+        """Start the browser and read its identity, which curl_cffi then presents too."""
+        from curl_cffi.requests import BrowserType
+        from patchright.async_api import async_playwright
+
+        self._playwright = await async_playwright().start()
+        # The user agent a persistent context is given can't change, so it's read from a browser of its own first.
+        probe = await self._playwright.chromium.launch(channel="chromium", headless=HEADLESS)
+        try:
+            user_agent = browser_user_agent(await (await probe.new_page()).evaluate("navigator.userAgent"))
+        finally:
+            await probe.close()
+        self._context = await self._playwright.chromium.launch_persistent_context(
+            PROFILE_DIR, channel="chromium", headless=HEADLESS, user_agent=user_agent, no_viewport=True)
+        await self._context.route("**/*", _guard_route)
+        sent = await self._sent_headers()
+        self.identity = Identity(
+            user_agent=sent["user-agent"],
+            client_hints={name: sent[name] for name in _CLIENT_HINTS if name in sent},
+            impersonate=impersonation_target(sent["user-agent"], [target.value for target in BrowserType]))
+        self.session = curl.Session(impersonate=self.identity.impersonate)
+        log.info("presenting %s (%s), curl_cffi as %s", self.identity.user_agent,
+                 self.identity.client_hints.get("sec-ch-ua"), self.identity.impersonate)
+
+    async def _sent_headers(self) -> dict[str, str]:
+        """The headers the browser sends with a page, answered here rather than by any site."""
+        sent = {}
+
+        async def answer(route):
+            sent.update(await route.request.all_headers())
+            await route.fulfill(status=200, content_type="text/html", body="<title>identity</title>")
+
+        page = await self._context.new_page()
+        try:
+            await page.route(f"{_IDENTITY_URL}**", answer)   # a page's routes are matched before the context's guard
+            await page.goto(_IDENTITY_URL)
+        finally:
+            await page.close()
+        return sent
 
     async def fetch(self, url: str) -> Page:
         response = await asyncio.to_thread(self._request, url)
@@ -109,7 +197,8 @@ class Fetcher:
     def _request(self, url: str):
         for _ in range(MAX_REDIRECTS + 1):
             check_url(url)
-            response = self.session.get(url, headers=_HEADERS, allow_redirects=False, timeout=30)
+            response = self.session.get(url, headers={**self.identity.headers(), **_HEADERS}, allow_redirects=False,
+                                        timeout=30)
             location = response.headers.get("location")
             if response.status_code in (301, 302, 303, 307, 308) and location:
                 url = urljoin(url, location)
@@ -119,7 +208,7 @@ class Fetcher:
 
     async def _browse(self, url: str) -> Page:
         async with self._browser_lock:
-            context = await self._browser()
+            context = self._context
             page = await context.new_page()
             try:
                 response = await page.goto(url, wait_until="domcontentloaded", timeout=45_000)
@@ -139,16 +228,6 @@ class Fetcher:
             finally:
                 await page.close()
 
-    async def _browser(self):
-        if self._context is None:
-            from patchright.async_api import async_playwright
-
-            self._playwright = await async_playwright().start()
-            self._context = await self._playwright.chromium.launch_persistent_context(
-                PROFILE_DIR, channel="chromium", headless=HEADLESS, user_agent=USER_AGENT, no_viewport=True)
-            await self._context.route("**/*", _guard_route)
-        return self._context
-
     async def _keep_cookies(self, context) -> None:
         """Hand the browser's cookies (cf_clearance) to curl_cffi, so the site's next page needs no browser."""
         for cookie in await context.cookies():
@@ -157,6 +236,7 @@ class Fetcher:
     async def close(self) -> None:
         if self._context is not None:
             await self._context.close()
+        if self._playwright is not None:
             await self._playwright.stop()
 
 
@@ -182,6 +262,7 @@ async def lifespan(_app):
     if not TOKEN:
         raise RuntimeError("SCRAPER_TOKEN isn't set")
     fetcher = Fetcher()
+    await fetcher.start()
     yield
     await fetcher.close()
 
