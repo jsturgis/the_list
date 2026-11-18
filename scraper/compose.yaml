@@ -8,6 +8,10 @@ services:
     environment:
       - SCRAPER_TOKEN=${SCRAPER_TOKEN}
       - TZ=America/Los_Angeles
+      # The defaults (the tailnet and the health check) plus the stack network's gateway: TrueNAS's Tailscale app hands
+      # tailnet connections over from the host, so they arrive from 172.16.6.1, not a 100.x address. A LAN client keeps
+      # its own address and is still refused.
+      - SCRAPER_ALLOWED_CLIENTS=100.64.0.0/10,fd7a:115c:a1e0::/48,127.0.0.0/8,::1/128,172.16.6.1/32
     volumes:
       # The browser's profile (the cookies sites gave it). A named volume, not a host path: Docker creates a missing
       # host path owned by root, which the scraper (UID 568) can't write; a new volume takes the image's ownership.
@@ -26,3 +30,12 @@ services:
 
 volumes:
   scraper-data: {}
+
+networks:
+  default:
+    # Pinned so the gateway allowed above stays 172.16.6.1: Docker picks the subnet when it creates the network, and
+    # could pick another if the stack is taken down and deployed again. (The one it picked on 2026-11-18.)
+    ipam:
+      config:
+        - subnet: 172.16.6.0/24
+          gateway: 172.16.6.1
