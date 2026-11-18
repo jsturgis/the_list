@@ -47,6 +47,12 @@ Ingest jobs workflow ── tailscale/github-action (ephemeral, tag:ci) ──�
   holding secrets are pinned. Still open: Chromium runs without its own sandbox (the container is the boundary), the
   browser resolves names itself for Bandsintown's pages, and nothing limits the container's egress to the home
   network at the network level.
+- **Venue calendars go through it too (2026-11-18).** The hourly Deploy workflow joins the tailnet the same way, and
+  `app/ingestion/venue_calendar.py` asks the fetcher for each Venue's homepage and calendar page
+  (`page_fetch.from_scraper`, which keeps the site's own status, so a calendar that's gone (404) is still told from
+  one that's down). Some Venues' sites answered the runner's plain request with 403. Checking that a calendar link
+  resolves still sends a HEAD directly, and a refused one is asked again with GET, through the fetcher. If the fetcher
+  can't be reached, the pages are fetched directly as before, so the ingest never waits on the home server.
 - **The image is built by GitHub** (`.github/workflows/scraper-image.yml`) and published as
   `ghcr.io/jsturgis/the-list-scraper`; the Dockge stack (`scraper/compose.yaml`) pulls it.
 

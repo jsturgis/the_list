@@ -1,7 +1,8 @@
-"""An event page's HTML, for the readers in app/ingestion/ticketweb.py and app/ingestion/event_page.py.
+"""An event page's HTML, for the readers in app/ingestion/ticketweb.py and app/ingestion/event_page.py, and a
+Venue's homepage or calendar page for app/ingestion/venue_calendar.py (`from_scraper`).
 
-With `settings.scraper_url` set (the Ingest jobs workflow, ADR 0007), the page is asked of the page fetcher on the
-home server (scraper/), over the tailnet: GitHub's runners are turned away by TicketWeb (Cloudflare's 530) and
+With `settings.scraper_url` set (the Ingest jobs and Deploy workflows, ADR 0007), the page is asked of the page fetcher
+on the home server (scraper/), over the tailnet: GitHub's runners are turned away by TicketWeb (Cloudflare's 530) and
 Bandsintown, a home IP isn't. If the fetcher can't be reached, the page is asked for directly, as without it.
 """
 from __future__ import annotations
@@ -50,6 +51,18 @@ def get_page(url: str, wait_for: str | None = None) -> tuple[str, str]:
 
 
 def _from_scraper(url: str, wait_for: str | None = None) -> tuple[str, str]:
+    response = from_scraper(url, wait_for)
+    if response.status_code >= 400:
+        raise PageError(f"{response.status_code} from {response.url} (through the page fetcher, by "
+                        f"{response.extensions['via']})")
+    return response.text, str(response.url)
+
+
+def from_scraper(url: str, wait_for: str | None = None) -> httpx.Response:
+    """The site's own answer, as the page fetcher got it: its status (an error status too), the page, and its URL
+    after redirects as `.url`. PageError when the fetcher couldn't fetch the page at all (the site didn't answer,
+    or it isn't a public page); httpx.TransportError when the fetcher can't be reached. Only call it with
+    `settings.scraper_url` set."""
     asked = {"url": url, **({"wait_for": wait_for} if wait_for else {})}
     response = httpx.post(f"{settings.scraper_url.rstrip('/')}/fetch", json=asked,
                           headers={"Authorization": f"Bearer {settings.scraper_token}"}, timeout=_SCRAPER_TIMEOUT_S)
@@ -58,6 +71,5 @@ def _from_scraper(url: str, wait_for: str | None = None) -> tuple[str, str]:
             "application/json") else response.text[:200]
         raise PageError(f"the page fetcher answered {response.status_code}: {detail}")
     page = response.json()
-    if page["status"] >= 400:
-        raise PageError(f"{page['status']} from {page['url']} (through the page fetcher, by {page['via']})")
-    return page["html"], page["url"]
+    return httpx.Response(page["status"], text=page["html"], request=httpx.Request("GET", page["url"]),
+                          extensions={"via": page["via"]})

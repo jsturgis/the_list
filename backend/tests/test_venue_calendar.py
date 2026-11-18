@@ -14,6 +14,8 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 
+from app.ingestion import venue_calendar
+from app.ingestion.page_fetch import PageError
 from app.ingestion.venue_calendar import (
     CalendarEntry, CalendarGone, CalendarUpdate, LookupFailed, ShowLike, _clean_html,
     enrich_shows_from_venue_calendars, fetch_calendar_entries, find_calendar_url, match_calendar,
@@ -715,3 +717,42 @@ def test_without_an_llm_key_no_venue_is_looked_at_or_marked_checked(mock_find, m
     mock_find.assert_not_called()
     mock_fetch.assert_not_called()
     assert venue.calendar_checked_at is None
+
+
+# ── Fetching through the home server's page fetcher (ADR 0007) ─────────────────────────────────────────────────
+
+@pytest.fixture
+def scraper():
+    with patch("app.ingestion.venue_calendar.settings.scraper_url", "http://truenas:8790"):
+        yield
+
+
+@patch("app.ingestion.venue_calendar.guarded_client")
+@patch("app.ingestion.venue_calendar.page_fetch.from_scraper")
+def test_with_a_page_fetcher_a_venues_page_is_asked_of_it(from_scraper, client, scraper):
+    from_scraper.return_value = _HOMEPAGE
+    assert venue_calendar._get("https://venue.example/") is _HOMEPAGE
+    from_scraper.assert_called_once_with("https://venue.example/")
+    client.assert_not_called()
+
+
+@patch("app.ingestion.venue_calendar.guarded_client")
+@patch("app.ingestion.venue_calendar.page_fetch.from_scraper", side_effect=httpx.ConnectError("no route to host"))
+def test_a_page_fetcher_that_cant_be_reached_falls_back_to_fetching_directly(from_scraper, client, scraper):
+    client.return_value.__enter__.return_value.get.return_value = _HOMEPAGE
+    assert venue_calendar._get("https://venue.example/") is _HOMEPAGE
+
+
+@patch("app.ingestion.venue_calendar.page_fetch.from_scraper", side_effect=PageError("couldn't fetch the page"))
+def test_a_page_the_fetcher_couldnt_fetch_is_a_temporary_failure(from_scraper, scraper):
+    with pytest.raises(LookupFailed):
+        venue_calendar._get("https://venue.example/")
+
+
+@patch("app.ingestion.venue_calendar.guarded_client")
+@patch("app.ingestion.venue_calendar.page_fetch.from_scraper")
+def test_without_a_page_fetcher_a_venues_page_is_fetched_directly(from_scraper, client):
+    client.return_value.__enter__.return_value.get.return_value = _HOMEPAGE
+    with patch("app.ingestion.venue_calendar.settings.scraper_url", ""):
+        assert venue_calendar._get("https://venue.example/") is _HOMEPAGE
+    from_scraper.assert_not_called()

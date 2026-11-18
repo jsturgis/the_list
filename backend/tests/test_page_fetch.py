@@ -7,7 +7,7 @@ from unittest.mock import patch
 import httpx
 import pytest
 
-from app.ingestion.page_fetch import PageError, get_page
+from app.ingestion.page_fetch import PageError, from_scraper, get_page
 
 _URL = "https://www.ticketweb.com/event/x/1"
 _SCRAPER = "http://truenas:8790"
@@ -85,3 +85,11 @@ def test_the_scraper_refusing_is_a_page_error(post, scraper):
 def test_a_scraper_that_cant_be_reached_falls_back_to_fetching_directly(post, get, scraper):
     get.return_value = _answer(200, text="<html>event</html>")
     assert get_page(_URL) == ("<html>event</html>", _URL)
+
+
+@patch("app.ingestion.page_fetch.httpx.post")
+def test_from_scraper_gives_the_sites_own_answer_error_status_and_all(post, scraper):
+    post.return_value = _answer(200, json={"status": 404, "url": _URL + "/moved", "html": "gone", "via": "request"})
+
+    response = from_scraper(_URL)
+    assert (response.status_code, response.text, str(response.url)) == (404, "gone", _URL + "/moved")
