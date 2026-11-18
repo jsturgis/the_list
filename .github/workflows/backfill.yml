@@ -27,6 +27,10 @@ on:
         description: Bands matched to the wrong artist, to look up again from scratch (names separated by ";")
         type: string
         default: ''
+      respell:
+        description: First put right misspelt Band names (respell-bands) - names separated by ";", or "upcoming" for every Band on Upcoming Shows no service has
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -104,8 +108,21 @@ jobs:
           RECHECK: ${{ inputs.recheck_genres && '--recheck-genres' || '' }}
           RECHECK_PHOTOS: ${{ inputs.recheck_photos && '--recheck-photos' || '' }}
           REDO: ${{ inputs.redo }}
+          RESPELL: ${{ inputs.respell }}
         run: |
           alembic upgrade head
+          # Misspelt Band names first: a renamed Band is looked up again below, under its right name.
+          if [ "$RESPELL" = "upcoming" ]; then
+            python -m app.cli respell-bands --apply
+          elif [ -n "$RESPELL" ]; then
+            respell=()
+            IFS=';' read -ra names <<< "$RESPELL"
+            for name in "${names[@]}"; do
+              name="${name#"${name%%[![:space:]]*}"}"; name="${name%"${name##*[![:space:]]}"}"   # trimmed
+              if [ -n "$name" ]; then respell+=(--name "$name"); fi
+            done
+            python -m app.cli respell-bands --apply "${respell[@]}"
+          fi
           redo=()
           IFS=';' read -ra names <<< "$REDO"
           for name in "${names[@]}"; do

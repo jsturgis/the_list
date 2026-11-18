@@ -35,6 +35,14 @@ def no_genre_model():
 
 
 @pytest.fixture(autouse=True)
+def no_respelling():
+    """Putting a misspelt Band's name right asks MusicBrainz and Discogs for close names; tests have no misspelt Bands
+    (none is put right) unless they say otherwise (tests/test_spelling.py)."""
+    with patch("app.scheduler._respell", return_value=None) as respell:
+        yield respell
+
+
+@pytest.fixture(autouse=True)
 def no_venue_calendars():
     """Finding and reading a Venue's calendar goes over the network and the LLM; tests answer "nothing found"
     for both unless they say otherwise, so ingestion tests never make a real request to a Venue's real website."""

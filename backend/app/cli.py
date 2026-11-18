@@ -257,6 +257,41 @@ def venue_photos() -> None:
           f"{counts['remote']} still remote (try again later)")
 
 
+def respell_bands(names: list[str] | None, apply: bool) -> None:
+    """Put right the names of stored Bands listed misspelt (app/ingestion/respell_bands.py). Dry run without `apply`."""
+    from app.embeddings.indexer import BAND_INDEX_PATH, remove_from_index
+    from app.ingestion.band_sources import discogs_match
+    from app.ingestion.discogs import discogs_artist, discogs_key_problem
+    from app.ingestion.respell_bands import candidates, respell_stored
+    from app.pipeline.enrichment import _enrich_band
+    from app.scheduler import _respell
+
+    # Without Discogs, a Band it has would look like one no service has: check it works first.
+    if problem := discogs_key_problem():
+        sys.exit(f"respell-bands: {problem}")
+
+    def matched(name: str) -> bool:
+        found = _enrich_band(name, False)
+        return bool(found.get("mbid") or found.get("namesakes") or discogs_match(name, found, discogs_artist))
+
+    db = SessionLocal()
+    try:
+        bands = candidates(db, names)
+        if names and len(bands) < len(names):
+            sys.exit("respell-bands: no band named " + ", ".join(
+                repr(n) for n in names if n.casefold() not in {b.name.casefold() for b in bands}))
+        print(f"respell-bands: checking {len(bands)} bands")
+        done = respell_stored(db, bands, matched, _respell, apply=apply)
+    finally:
+        db.close()
+    for respelt in done:
+        print(f"respell-bands: {respelt}")
+    merged = [r.band_id for r in done if r.merged_into]
+    if apply and merged:
+        remove_from_index(BAND_INDEX_PATH, merged)
+    print(f"respell-bands: {'put right' if apply else 'would put right'} {len(done)} band names")
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -287,6 +322,11 @@ def main(argv: list[str] | None = None) -> None:
     failure_cmd.add_argument("--log", metavar="PATH", help="the failing command's output; its end goes in the email")
     failure_cmd.add_argument("--dry-run", action="store_true", help="print the email (due or not) instead of sending it")
     backfill_cmd = commands.add_parser("backfill", help="look existing Bands up on the services (resumable)")
+    respell_cmd = commands.add_parser("respell-bands",
+                                      help="put right stored Band names no service has, that a service has spelt right")
+    respell_cmd.add_argument("--name", action="append", metavar="NAME",
+                             help="a Band to check (repeatable); default: those on Upcoming Shows with no service data")
+    respell_cmd.add_argument("--apply", action="store_true", help="make the changes (default: only say what they'd be)")
     backfill_cmd.add_argument("--max-minutes", type=float, default=300, help="stop after this long (default 300)")
     backfill_cmd.add_argument("--limit", type=int, default=None, help="look up at most this many Bands")
     backfill_cmd.add_argument("--recheck-genres", action="store_true",
@@ -328,6 +368,8 @@ def main(argv: list[str] | None = None) -> None:
         notify_success(dry_run=args.dry_run)
     elif args.command == "notify-failure":
         notify_failure(stage=args.stage, log=args.log, dry_run=args.dry_run)
+    elif args.command == "respell-bands":
+        respell_bands(args.name, args.apply)
     elif args.command == "backfill":
         backfill(max_minutes=args.max_minutes, limit=args.limit, recheck=args.recheck_genres, redo=args.redo,
                  recheck_photos=args.recheck_photos, recheck_calendars=args.recheck_calendars)

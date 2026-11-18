@@ -91,3 +91,30 @@ def lastfm_key_problem(api_key: str | None = None, client: httpx.Client | None =
     finally:
         if own_client:
             client.close()
+
+
+def lastfm_artists(name: str, api_key: str | None = None, client: httpx.Client | None = None) -> list[tuple[str, int]]:
+    """The artists Last.fm's search finds for `name`, with their listeners, as Last.fm ranks them: names like it,
+    for a misspelt Band (app/ingestion/spelling.py). Empty without a key or on any failure."""
+    api_key = api_key if api_key is not None else settings.lastfm_api_key
+    if not api_key:
+        return []
+    own_client = client is None
+    client = client or httpx.Client(timeout=20, headers={"User-Agent": _USER_AGENT})
+    try:
+        data = client.get(_API, params={"method": "artist.search", "artist": name, "limit": 30, "api_key": api_key,
+                                        "format": "json"}).raise_for_status().json()
+        found = ((data.get("results") or {}).get("artistmatches") or {}).get("artist") or []
+        artists = []
+        for artist in [found] if isinstance(found, dict) else found:
+            try:
+                artists.append((artist["name"], int(artist.get("listeners") or 0)))
+            except (KeyError, TypeError, ValueError):
+                continue
+        return artists
+    except Exception:
+        logger.info("lastfm: no artists like %s", name, exc_info=True)
+        return []
+    finally:
+        if own_client:
+            client.close()

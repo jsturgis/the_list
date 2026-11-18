@@ -62,6 +62,9 @@ class Band(Base):
     links: Mapped[list] = mapped_column(JSONList, default=list)
     # From Discogs: [{"name": ..., "active": bool}], current members marked active.
     members: Mapped[list] = mapped_column(JSONList, default=list)
+    # Spellings it was listed under that a service put right ("Sunamo" for Sunami, app/ingestion/spelling.py): a
+    # listing that spells it so is this Band (app/ingestion/upsert.py find_band).
+    spellings: Mapped[list] = mapped_column(JSONList, default=list, server_default="[]")
     # When it was last looked up on the services: set for new Bands at ingest, and by the backfill
     # (app/ingestion/backfill.py) for the rest. None: never looked up.
     enriched_at: Mapped[Optional[datetime]] = mapped_column(DateTime)

@@ -60,30 +60,9 @@ def merge_duplicate_bands(db: Session, apply: bool = False) -> list[BandMerge]:
         keep = max(bands, key=lambda b: (len(b.acts), b.enriched_at is not None, -b.id))
         dups = [b for b in bands if b is not keep]
         summary = f"keep {keep.id}:{keep.name!r} <- " + ", ".join(f"{d.id}:{d.name!r}" for d in dups)
-        kept_acts = {a.show_id: a for a in keep.acts}
         own_vector = keep.embedding
         for dup in dups:
-            for field in _FILL_FIELDS:
-                if _empty(getattr(keep, field)) and not _empty(getattr(dup, field)):
-                    setattr(keep, field, getattr(dup, field))
-            if not keep.image_url and dup.image_url:
-                for field in _PHOTO_FIELDS:
-                    setattr(keep, field, getattr(dup, field))
-            for act in list(dup.acts):
-                same = kept_acts.get(act.show_id)
-                if same is None:
-                    act.band = keep
-                    kept_acts[act.show_id] = act
-                    continue
-                # The Show lists both spellings: one Act, where the first of them was, and the lineup closed up.
-                show = act.show
-                same.position = min(same.position, act.position)
-                db.delete(act)
-                db.flush()
-                for position, a in enumerate(sorted((a for a in show.acts if a is not act), key=lambda a: a.position)):
-                    a.position = position
-            db.flush()
-            db.delete(dup)
+            merge_band(db, keep, dup)
         merges.append(BandMerge(keep=keep, merged=dups, keep_id=keep.id, merged_ids=[d.id for d in dups],
                                 summary=summary, vector_to_index=None if own_vector else keep.embedding))
 
@@ -92,6 +71,33 @@ def merge_duplicate_bands(db: Session, apply: bool = False) -> list[BandMerge]:
     else:
         db.rollback()
     return merges
+
+
+def merge_band(db: Session, keep: Band, dup: Band) -> None:
+    """Merge `dup` into `keep`: `keep` takes the details it has none of, and `dup`'s Acts, and `dup` is deleted."""
+    kept_acts = {a.show_id: a for a in keep.acts}
+    for field in _FILL_FIELDS:
+        if _empty(getattr(keep, field)) and not _empty(getattr(dup, field)):
+            setattr(keep, field, getattr(dup, field))
+    if not keep.image_url and dup.image_url:
+        for field in _PHOTO_FIELDS:
+            setattr(keep, field, getattr(dup, field))
+    keep.spellings = list(dict.fromkeys([*(keep.spellings or []), *(dup.spellings or [])]))
+    for act in list(dup.acts):
+        same = kept_acts.get(act.show_id)
+        if same is None:
+            act.band = keep
+            kept_acts[act.show_id] = act
+            continue
+        # The Show lists both spellings: one Act, where the first of them was, and the lineup closed up.
+        show = act.show
+        same.position = min(same.position, act.position)
+        db.delete(act)
+        db.flush()
+        for position, a in enumerate(sorted((a for a in show.acts if a is not act), key=lambda a: a.position)):
+            a.position = position
+    db.flush()
+    db.delete(dup)
 
 
 def saved_filters_pinning(band_ids: set[int], saved_filters: list[dict]) -> list[dict]:

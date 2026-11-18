@@ -25,11 +25,13 @@ from app.ingestion.discogs import discogs_artist, discogs_genres
 from app.ingestion.images import check_image_urls
 from app.ingestion.ingest_stats import new_band_stats
 from app.ingestion.joint_bands import joint_parts, split_joint_acts, split_joint_name
-from app.ingestion.lastfm import lastfm_tags
+from app.ingestion.lastfm import lastfm_artists, lastfm_tags
 from app.ingestion.links import check_links
 from app.ingestion.show_flyers import prune_show_flyers, save_show_flyers
 from app.ingestion.steve_list import ListPage, edition_title, fetch_list, list_shows
-from app.ingestion.upsert import fold_added_shows, find_venue, known_region, remove_unlisted_shows, upsert_shows
+from app.ingestion.spelling import Candidate, respell
+from app.ingestion.upsert import (find_band, find_venue, fold_added_shows, known_region, remove_unlisted_shows,
+                                  upsert_shows)
 from app.ingestion.venue_calendar import enrich_shows_from_venue_calendars
 from app.ingestion.venue_check import CONFIRMED, NOT_CHECKED, check_venue, checked_details
 from app.ingestion.venue_photos import save_venue_photos
@@ -123,6 +125,15 @@ def _reporter(on_phase: Optional[PhaseReporter]) -> PhaseReporter:
     return report
 
 
+def _respell(name: str):
+    """The Band's name spelt right, when it's misspelt and MusicBrainz or Discogs has it spelt right
+    (app/ingestion/spelling.py): close names from Last.fm's search, the most listened to looked up as a Band is."""
+    def candidates(listed: str) -> list[Candidate]:
+        return [Candidate(n, listeners) for n, listeners in lastfm_artists(listed)]
+    return respell(name, candidates, lambda n: _enrich_band(n, False),
+                   lambda n, found: discogs_match(n, found, discogs_artist))
+
+
 async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[IngestionRun] = None,
                        source_hash: Optional[str] = None, on_phase: Optional[PhaseReporter] = None) -> list[Show]:
     """Store Shows read from a source (the List, an event page from app/ingestion/ticketweb.py, or a screenshot
@@ -182,6 +193,7 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
     # Links: each one MusicBrainz has, else its correction's.
     # A Band already in the database was looked up when it was new, so it isn't tried again.
     band_cache: dict[str, dict | None] = {}
+    renamed: dict[str, str] = {}   # a listed name a service spells otherwise: "Sunamo" -> "Sunami"
     genre_cache: dict[str, list[str]] = {}  # each new Band's genres from the services, asked once
     # Keeps only genres. If the genre model is down, unknown tags are kept this run rather than lost for good.
     genre_filter = GenreFilter.load(db, keep_unknown=True)
@@ -189,7 +201,11 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
     for data in shows_data:
         for i, (name, enrichment) in enumerate(data["band_enrichment"]):
             if name not in band_cache:
-                if db.query(Band.id).filter(Band.name == name).first():
+                known = find_band(db, name)
+                if known and name in known.spellings:
+                    renamed[name] = known.name   # listed misspelt before, and put right then
+                    band_cache[name] = None
+                elif db.query(Band.id).filter(Band.name == name).first():
                     band_cache[name] = None
                 else:
                     logger.info("ingestion: looking up genres for %s", name)
@@ -199,6 +215,14 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
                     photo = await loop.run_in_executor(None, commons_photo, found.get("links") or [])
                     # Its Discogs artist (members, photo, page), through MusicBrainz's Discogs link or its name.
                     artist = await loop.run_in_executor(None, discogs_match, name, found, discogs_artist)
+                    # No service has the name: it may be misspelt. A close name a service has is the Band's
+                    # (app/ingestion/spelling.py); without one, the name stays as listed.
+                    if not found.get("mbid") and artist is None and not found.get("namesakes"):
+                        report("bands", f"Checking the spelling of {name}")
+                        fixed = await loop.run_in_executor(None, _respell, name)
+                        if fixed:
+                            renamed[name] = fixed.name
+                            found, artist = fixed.found, fixed.discogs
                     # Its Bandcamp band photo, only when neither has a photo. Bandcamp often won't serve a page
                     # right away; the Band then has no photo for now (backfill --recheck-photos tries again).
                     bandcamp = None
@@ -226,7 +250,8 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
                 # every service has none, its correction's.
                 if name not in genre_cache:
                     genre_cache[name] = await loop.run_in_executor(
-                        None, service_genres, name, found, lastfm_tags, discogs_genres, genre_filter.keep)
+                        None, service_genres, renamed.get(name, name), found, lastfm_tags, discogs_genres,
+                        genre_filter.keep)
                 genres = genre_cache[name] or await loop.run_in_executor(
                     None, genre_filter.keep, enrichment["genres"])
                 # Its Discogs members are saved with the Band.
@@ -269,7 +294,17 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
 
     report("saving", None)
     shows_before, venues_before = db.query(Show).count(), db.query(Venue).count()
+    if renamed:
+        # Stored under the right spelling; the listed one is kept on the Band, for the next listing that uses it.
+        for data in shows_data:
+            data["bands"] = [renamed.get(b, b) for b in data["bands"]]
+            data["band_enrichment"] = [(renamed.get(n, n), e) for n, e in data["band_enrichment"]]
     shows = upsert_shows(db, shows_data)
+    for listed, fixed in renamed.items():
+        band = find_band(db, fixed)
+        if band and listed not in band.spellings:
+            band.spellings = [*band.spellings, listed]
+            logger.info("ingestion: %r is listed as %r; spelt as the services have it", fixed, listed)
     # One event added from elsewhere and listed by Steve, spelled differently, is one Show: the List's.
     shows, folded = fold_added_shows(db, shows)
     shows_new, new_venues = db.query(Show).count() - shows_before, db.query(Venue).count() - venues_before
