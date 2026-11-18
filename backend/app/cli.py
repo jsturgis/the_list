@@ -5,6 +5,7 @@
     python -m app.cli add-event https://www.ticketweb.com/event/...   # add a Show from an event page (any site)
     python -m app.cli ingest-jobs --jobs JOB_ID:MSG_ID,...   # run the Admin page's ingest jobs (the Ingest jobs workflow)
     python -m app.cli ingest-jobs-phase --jobs JOB_ID,... --phase committing   # ... and record how far they've got
+    python -m app.cli ingest-jobs-finish --outcomes PATH   # ... and finish those that added Shows, once pushed
     python -m app.cli export --out ../frontend/export
     python -m app.cli alerts                              # send this week's Alert emails
     python -m app.cli alerts --dry-run                    # print them instead
@@ -111,15 +112,16 @@ def _require_service_keys(command: str) -> None:
         sys.exit(f"{command}: " + "; ".join(problems))
 
 
-def ingest_jobs(specs: str) -> None:
+def ingest_jobs(specs: str, outcomes: str | None = None) -> None:
     """Run the Admin page's ingest jobs (app/ingest_jobs.py), given as "job_id:msg_id,..." (the worker's), against
     the data branch's database, recording each job's progress and outcome in Supabase. A job that fails is recorded
     and doesn't stop the others. Writes `added=<job ids>` (the jobs that added a Show) to the step's outputs in a
-    GitHub Actions job. Exits 1 when Supabase can't be reached or a service key is missing or rejected; the jobs
-    then stay on the queue and are tried again.
+    GitHub Actions job. Those jobs aren't finished yet: they're written to `outcomes`, for `ingest-jobs-finish` once
+    the data is pushed; without `outcomes` (run by hand) they're finished now. Exits 1 when Supabase can't be
+    reached or a service key is missing or rejected; the jobs then stay on the queue and are tried again.
     """
     from app.clock import local_today
-    from app.ingest_jobs import fetch_jobs, parse_specs, run_jobs
+    from app.ingest_jobs import fetch_jobs, finish_saved, parse_specs, run_jobs, save_outcomes
 
     _require_service_keys("ingest-jobs")
     try:
@@ -133,6 +135,10 @@ def ingest_jobs(specs: str) -> None:
     db = SessionLocal()
     try:
         added = run_jobs(db, jobs, local_today(), run_url)
+        if outcomes:
+            save_outcomes(added, outcomes)
+        else:
+            finish_saved(added)
     except SupabaseError as exc:
         sys.exit(f"ingest-jobs: {exc}")
     finally:
@@ -140,7 +146,20 @@ def ingest_jobs(specs: str) -> None:
     print(f"ingest-jobs: {len(added)} of {len(jobs)} added")
     if output := os.environ.get("GITHUB_OUTPUT"):
         with open(output, "a") as f:
-            f.write(f"added={','.join(added)}\n")
+            f.write(f"added={','.join(s.job_id for s in added)}\n")
+
+
+def ingest_jobs_finish(outcomes: str) -> None:
+    """Finish the ingest jobs `ingest-jobs --outcomes` saved, once their Shows are pushed: each is "added" and off the
+    queue. Exits 1 when Supabase can't be reached; the jobs then stay on the queue and are tried again."""
+    from app.ingest_jobs import finish_saved, load_outcomes
+
+    saved = load_outcomes(outcomes)
+    try:
+        finish_saved(saved)
+    except SupabaseError as exc:
+        sys.exit(f"ingest-jobs-finish: {exc}")
+    print(f"ingest-jobs-finish: {len(saved)} job(s) added")
 
 
 def ingest_jobs_phase(job_ids: str, phase: str | None, status: str | None, detail: str | None,
@@ -301,6 +320,12 @@ def main(argv: list[str] | None = None) -> None:
     add_cmd.add_argument("url", help="the event's page, e.g. https://www.ticketweb.com/event/...")
     jobs_cmd = commands.add_parser("ingest-jobs", help="run the Admin page's ingest jobs against the database")
     jobs_cmd.add_argument("--jobs", required=True, metavar="JOB_ID:MSG_ID,...", help="the jobs, as the worker gives them")
+    jobs_cmd.add_argument("--outcomes", metavar="PATH",
+                          help="write the jobs that added Shows here, to finish with ingest-jobs-finish once they're "
+                               "pushed, rather than finishing them now")
+    finish_cmd = commands.add_parser("ingest-jobs-finish",
+                                     help="finish the ingest jobs that added Shows, once the data is pushed")
+    finish_cmd.add_argument("--outcomes", required=True, metavar="PATH", help="what ingest-jobs --outcomes wrote")
     phase_cmd = commands.add_parser("ingest-jobs-phase", help="record how far ingest jobs have got after ingesting")
     phase_cmd.add_argument("--jobs", required=True, metavar="JOB_ID,...", help="the jobs")
     phase_cmd.add_argument("--phase", choices=PHASES)
@@ -352,7 +377,9 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "add-event":
         add_event(args.url)
     elif args.command == "ingest-jobs":
-        ingest_jobs(args.jobs)
+        ingest_jobs(args.jobs, args.outcomes)
+    elif args.command == "ingest-jobs-finish":
+        ingest_jobs_finish(args.outcomes)
     elif args.command == "ingest-jobs-phase":
         ingest_jobs_phase(args.jobs, args.phase, args.status, args.detail, args.message, args.unfinished_only)
     elif args.command == "export":
