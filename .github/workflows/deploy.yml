@@ -4,14 +4,19 @@ name: Deploy
 # ingested. When it has changed: ingest it into the data branch's database, then export it to JSON, build
 # the static site and publish it to GitHub Pages; when it's a new edition (its header date in a later Friday-to-
 # Thursday week, not a correction to the current one), then email everyone's weekly Alerts. An unchanged List ends the run after
-# the check. A manual run ingests the List whether it has changed or not, unless told to skip the ingest;
-# pushes to main only rebuild the site.
+# the check. A dispatch (Cloud Scheduler's hourly trigger, or a manual run) checks the same way; tick force_ingest
+# to ingest an unchanged List, or skip_ingest to only rebuild the site. Pushes to main only rebuild the site.
 on:
   schedule:
     # Off the clock's popular minutes, so GitHub's own scheduler is less likely to delay it.
     - cron: '17 * * * *'
   workflow_dispatch:
+    # Cloud Scheduler dispatches this every hour with no inputs, so every input must default to the hourly check.
     inputs:
+      force_ingest:
+        description: Ingest even if the List hasn't changed
+        type: boolean
+        default: false
       skip_ingest:
         description: Skip ingestion (rebuild from the existing data)
         type: boolean
@@ -117,8 +122,9 @@ jobs:
 
   ingest:
     needs: check
-    # A changed List, or a manual run (unless skip_ingest was requested).
-    if: needs.check.outputs.changed == 'true' || (github.event_name == 'workflow_dispatch' && !inputs.skip_ingest)
+    # A changed List, or a dispatch with force_ingest. Not on a dispatch without inputs: that's Cloud Scheduler's
+    # hourly run, which must cost one short check job when the List hasn't changed.
+    if: needs.check.outputs.changed == 'true' || (github.event_name == 'workflow_dispatch' && inputs.force_ingest && !inputs.skip_ingest)
     runs-on: ubuntu-latest
     timeout-minutes: 60   # a new edition's ingest has taken 24 minutes, and a timed-out one saves nothing
     permissions:
@@ -209,10 +215,14 @@ jobs:
           db = sqlite3.connect('the_list.db')
           db.execute('PRAGMA wal_checkpoint(TRUNCATE)')
           db.execute('PRAGMA journal_mode=DELETE')
+          # Never commit a damaged database over the last good one.
+          problems = [row[0] for row in db.execute('PRAGMA integrity_check')]
+          if problems != ['ok']:
+              raise SystemExit('integrity_check failed: ' + '; '.join(problems[:10]))
           run = db.execute('SELECT id, status, edition_title FROM ingestion_runs ORDER BY id DESC LIMIT 1').fetchone()
           db.close()
           open('$RUNNER_TEMP/message', 'w').write(f'Ingest run {run[0]} ({run[1]}): {run[2] or \"no edition\"}')
-          "
+          " || exit 1   # the group runs in the pipe's subshell; stop it before the commit
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
             git add the_list.db faiss
@@ -267,9 +277,9 @@ jobs:
 
   build:
     needs: ingest
-    # Runs after a successful ingest, or without one on a push or a manual run that skips it; never after a
-    # failed one, and not on an hourly run that found the List unchanged.
-    if: ${{ !failure() && !cancelled() && (github.event_name != 'schedule' || needs.ingest.result == 'success') }}
+    # Runs after a successful ingest, or without one on a push or a dispatch with skip_ingest; never after a
+    # failed one, and not on an hourly run (cron or Cloud Scheduler's dispatch) that found the List unchanged.
+    if: ${{ !failure() && !cancelled() && (needs.ingest.result == 'success' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.skip_ingest)) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
