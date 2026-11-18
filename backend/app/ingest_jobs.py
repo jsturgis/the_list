@@ -1,4 +1,6 @@
-"""Ingest jobs: Shows an admin asked for on the Admin page, one per TicketWeb link or screenshot (ADR 0006).
+"""Ingest jobs: Shows an admin asked for on the Admin page, one job per link or screenshot (ADR 0006). A link to a page
+listing several events (an artist's page) adds each of them in the Bay Area: the job's Show is the first, and its
+`shows_query` the Shows list's filter that picks them all out (`shows_query`).
 
 The Admin page's Edge Function (supabase/functions/admin) puts each job in Supabase's `ingest_jobs` table and its
 id on the `ingest_jobs` queue; the worker (supabase/functions/ingest-worker) hands queued jobs to the Ingest jobs
@@ -13,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
+from urllib.parse import urlencode
 from datetime import date
 from typing import Callable
 
@@ -21,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.alerts import SupabaseError, _require_supabase
 from app.config import settings
-from app.ingestion.event_page import EventError, UnreadablePage, fetch_event
+from app.ingestion.event_page import EventError, UnreadablePage, fetch_events
 from app.ingestion.upsert import find_venue
 from app.models.show import Show
 
@@ -117,12 +120,14 @@ def unfinished(job_ids: list[str]) -> list[str]:
 
 
 def finish_job(job: Job, status: str, *, message: str | None = None, show_id: int | None = None,
-               extracted: dict | None = None) -> None:
+               extracted: dict | None = None, shows_query: str | None = None) -> None:
     """Record how the job's ingest came out and take it off the queue, together (finish_ingest_job, in
-    supabase/migrations/0004_ingest_jobs.sql)."""
-    _request("POST", "/rest/v1/rpc/finish_ingest_job", json={
-        "job_id": job.id, "msg_id": job.msg_id, "new_status": status, "new_message": message,
-        "new_show_id": show_id, "new_extracted": extracted})
+    supabase/migrations/0004_ingest_jobs.sql and 0008_ingest_jobs_shows_query.sql)."""
+    body = {"job_id": job.id, "msg_id": job.msg_id, "new_status": status, "new_message": message,
+            "new_show_id": show_id, "new_extracted": extracted}
+    if shows_query:   # only a job that added several Shows has one
+        body["new_shows_query"] = shows_query
+    _request("POST", "/rest/v1/rpc/finish_ingest_job", json=body)
 
 
 def download_screenshot(path: str) -> bytes:
@@ -146,11 +151,12 @@ def describe(show: Show) -> str:
     return f"{lineup} at {show.venue.name}, {show.venue.city} on {show.date:%a %b %-d, %Y}"
 
 
-def read_job(db: Session, job: Job, today: date) -> tuple[dict, dict | None]:
-    """The Show a job asks for, as a dict for `ingest_shows`, and for a screenshot what the model read."""
+def read_job(db: Session, job: Job, today: date) -> tuple[list[dict], dict | None]:
+    """The Shows a job asks for, as dicts for `ingest_shows` (one, unless its page lists several events), and for a
+    screenshot what the model read."""
     if job.provider in ("ticketweb", "page"):
         update_jobs([job.id], phase="fetching_page", detail=job.url)
-        return fetch_event(job.url or ""), None
+        return fetch_events(job.url or ""), None
     if job.provider == "screenshot":
         from app.ingestion.screenshot import ScreenshotError, read_fields, screenshot_show
 
@@ -163,7 +169,7 @@ def read_job(db: Session, job: Job, today: date) -> tuple[dict, dict | None]:
             fields = job.extracted or {}
             update_jobs([job.id], phase="review", detail="Using the details as reviewed")
             try:
-                return screenshot_show(fields, today, venue_city), fields
+                return [screenshot_show(fields, today, venue_city)], fields
             except ScreenshotError as exc:
                 raise NeedsReview(fields, str(exc)) from exc
         update_jobs([job.id], phase="reading_screenshot", detail=f"Reading it with {settings.vision_model}")
@@ -189,8 +195,8 @@ def run_jobs(db: Session, jobs: list[Job], today: date, run_url: str | None = No
                     workflow_run_url=run_url)
         extracted = None
         try:
-            data, extracted = read_job(db, job, today)
-            show, listed = add_show(db, data, lambda phase, detail: update_jobs([job.id], phase=phase, detail=detail))
+            shows, extracted = read_job(db, job, today)
+            outcomes, failures = add_shows(db, job, shows)
         except SupabaseError:
             raise
         except NeedsReview as review:
@@ -210,12 +216,69 @@ def run_jobs(db: Session, jobs: list[Job], today: date, run_url: str | None = No
             logger.exception("ingest-jobs: job %s failed", job.id)
             finish_job(job, "failed", message=f"{type(exc).__name__}: {exc}", extracted=extracted)
             continue
-        if listed:
-            message = f"The List already has it ({describe(show)})" + (
-                "; added its ticket link" if job.provider != "screenshot" else "; nothing added")
-        else:
-            message = f"Added {describe(show)}"
+        message = outcome_message(job, outcomes, failures)
         print(f"ingest-jobs: job {job.id}: {message}")
-        finish_job(job, "added", message=message, show_id=show.id, extracted=extracted)
+        finish_job(job, "added", message=message, show_id=outcomes[0][0].id, extracted=extracted,
+                   shows_query=shows_query([show for show, _ in outcomes]))
         added.append(job.id)
     return added
+
+
+def add_shows(db: Session, job: Job, shows: list[dict]) -> tuple[list[tuple[Show, bool]], list[str]]:
+    """Add a job's Shows: each Show and whether the List already had it, and what couldn't be added. A job's one Show
+    that can't be added fails the job; of several, those that can are added, and the job fails only if none can."""
+    def phases(which: str | None = None):
+        def report(phase: str, detail: str | None) -> None:
+            update_jobs([job.id], phase=phase, detail=f"{which}: {detail}" if which and detail else which or detail)
+        return report
+
+    if len(shows) == 1:
+        return [add_show(db, shows[0], phases())], []
+    outcomes, failures, first_error = [], [], None
+    for number, data in enumerate(shows, 1):
+        try:
+            outcomes.append(add_show(db, data, phases(f"Show {number} of {len(shows)}")))
+        except SupabaseError:
+            raise
+        except Exception as exc:
+            db.rollback()
+            logger.warning("ingest-jobs: job %s: couldn't add %s: %s", job.id, data.get("raw_text"), exc)
+            failures.append(f"{data.get('raw_text')} ({exc})")
+            first_error = first_error or exc
+    if not outcomes:
+        raise first_error
+    return outcomes, failures
+
+
+def shows_query(shows: list[Show]) -> str | None:
+    """The Shows list's filter (frontend/src/lib/filters.ts) that picks out these Shows, for the Admin page's link to
+    them: the Band they all have (the first one's headliner first), else the Venue they all share, from the first's date
+    to the last's. None for one Show (its own page is the link), or Shows with neither in common."""
+    if len(shows) < 2:
+        return None
+    first = [act.band_id for act in sorted(shows[0].acts, key=lambda act: act.position)]
+    shared = set(first).intersection(*({act.band_id for act in show.acts} for show in shows[1:]))
+    if shared:
+        pin = ("bandId", next(band_id for band_id in first if band_id in shared))
+    elif len({show.venue_id for show in shows}) == 1:
+        pin = ("venueId", shows[0].venue_id)
+    else:
+        return None
+    dates = [show.date for show in shows]
+    return urlencode([pin, ("fromDate", min(dates).isoformat()), ("toDate", max(dates).isoformat())])
+
+
+def outcome_message(job: Job, outcomes: list[tuple[Show, bool]], failures: list[str]) -> str:
+    """What the job did, for its row on the Admin page."""
+    if len(outcomes) == 1 and not failures:
+        show, listed = outcomes[0]
+        if listed:
+            return f"The List already has it ({describe(show)})" + (
+                "; added its ticket link" if job.provider != "screenshot" else "; nothing added")
+        return f"Added {describe(show)}"
+    each = [describe(show) + (" (the List already had it; added its ticket link)" if listed else "")
+            for show, listed in outcomes]
+    message = f"Added {len(outcomes)} Show{'' if len(outcomes) == 1 else 's'}: " + "; ".join(each)
+    if failures:
+        message += f". Couldn't add {len(failures)}: " + "; ".join(failures)
+    return message

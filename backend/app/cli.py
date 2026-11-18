@@ -75,26 +75,27 @@ def ingest() -> None:
 
 
 def add_event(url: str) -> None:
-    """Add the Show on an event page (any site, app/ingestion/event_page.py) to the database, looking its new Venue
-    and Bands up as the ingest does. Run it against the data branch's database (DATABASE_URL), and push that. An event
+    """Add the Show on an event page (any site, app/ingestion/event_page.py) to the database, or each in the Bay Area on
+    a page listing several, looking their new Venues and Bands up as the ingest does. Run it against the data branch's database (DATABASE_URL), and push that. An event
     Steve already lists only adds its ticket link: the List wins. Exits 1 when the page can't be read, isn't a Bay
     Area event, or a service key the lookups need is missing or rejected.
     """
     from app.ingest_jobs import add_show, describe
-    from app.ingestion.event_page import EventError, fetch_event
+    from app.ingestion.event_page import EventError, fetch_events
 
     _require_service_keys("add-event")
     try:
-        data = fetch_event(url)
+        shows = fetch_events(url)
     except EventError as exc:
         sys.exit(f"add-event: {exc}")
     db = SessionLocal()
     try:
-        show, listed = add_show(db, data)
-        if listed:
-            print(f"add-event: the List already has it (show {show.id}: {describe(show)}); added its ticket link")
-        else:
-            print(f"add-event: show {show.id}: {describe(show)}")
+        for data in shows:
+            show, listed = add_show(db, data)
+            if listed:
+                print(f"add-event: the List already has it (show {show.id}: {describe(show)}); added its ticket link")
+            else:
+                print(f"add-event: show {show.id}: {describe(show)}")
     finally:
         db.close()
 

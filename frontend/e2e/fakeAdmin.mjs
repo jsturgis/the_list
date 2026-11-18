@@ -26,6 +26,10 @@ export const ADMIN_JOBS = [
   job({ id: 'job-2', status: 'added', phase: 'deploying', detail: 'https://github.com/jsturgis/the_list/actions/runs/2',
         message: 'Added Neon Harbor at The Chapel, San Francisco on Sat Oct 3, 2026', show_id: 1,
         created_at: '2026-10-01T18:30:00Z' }),
+  job({ id: 'job-6', provider: 'page', url: 'https://www.bandsintown.com/a/9536-neon-harbor', status: 'live', phase: 'live',
+        message: 'Added 2 Shows: Neon Harbor, Static Bloom at The Fillmore, San Francisco on Sat Oct 3, 2026; Neon Harbor, Fog City Ramblers at 924 Gilman Street, Berkeley on Mon Oct 5, 2026',
+        show_id: 102, shows_query: 'bandId=1&fromDate=2026-10-03&toDate=2026-10-05',
+        workflow_run_url: 'https://github.com/jsturgis/the_list/actions/runs/3', created_at: '2026-10-01T17:30:00Z' }),
   job({ id: 'job-1', status: 'live', phase: 'live', message: 'Added Neon Harbor at 924 Gilman Street, Berkeley on Sat Oct 3, 2026',
         show_id: 1, workflow_run_url: 'https://github.com/jsturgis/the_list/actions/runs/0', created_at: '2026-10-01T17:00:00Z' }),
 ]

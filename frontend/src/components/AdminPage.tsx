@@ -18,6 +18,7 @@ import {
   type JobStatus,
   type ReadFields,
   screenshotUrl,
+  showsLink,
   wantsScreenshot,
 } from '@/lib/ingestJobs'
 import { supabase } from '@/lib/supabase'
@@ -592,6 +593,7 @@ function JobRow({ job, onDelete }: { job: IngestJob; onDelete: () => void }) {
   const failed = job.status === 'failed'
   const status = STATUS[job.status] ?? STATUS.queued
   const read = readLine(job.extracted)
+  const link = showsLink(job)
 
   return (
     <li data-job={job.id} className="flex flex-col gap-2 py-3">
@@ -680,9 +682,9 @@ function JobRow({ job, onDelete }: { job: IngestJob; onDelete: () => void }) {
       )}
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-        {job.status === 'live' && job.show_id !== null && (
-          <a href={href(`/shows/${job.show_id}/`)} className="font-bold text-link underline underline-offset-2">
-            See the show
+        {link && (
+          <a href={href(link.path)} className="font-bold text-link underline underline-offset-2">
+            {link.label}
           </a>
         )}
         {job.workflow_run_url && (

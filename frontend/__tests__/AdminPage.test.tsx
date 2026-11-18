@@ -294,6 +294,16 @@ describe('Admin page, as an admin', () => {
     expect(screen.getByText('Live', { selector: 'span' })).toBeInTheDocument()
   })
 
+  it("links a job that added several shows to the Shows list, filtered to them", async () => {
+    fake.current!.state.jobs = [job({ provider: 'page', status: 'live', phase: 'live', show_id: 42,
+                                      shows_query: 'bandId=7&fromDate=2027-01-21&toDate=2027-01-24' })]
+    render(<AdminPage />)
+
+    expect(await screen.findByRole('link', { name: 'See the shows' }))
+      .toHaveAttribute('href', '/?bandId=7&fromDate=2027-01-21&toDate=2027-01-24')
+    expect(screen.queryByRole('link', { name: 'See the show' })).not.toBeInTheDocument()
+  })
+
   it('marks the step a job failed at, with why', async () => {
     fake.current!.state.jobs = [
       job({ provider: 'screenshot', url: null, screenshot_path: 'u/1.png', status: 'failed', phase: 'reading_screenshot',
