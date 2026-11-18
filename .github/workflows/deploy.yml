@@ -63,10 +63,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh api --method PUT "repos/${{ github.repository }}/actions/workflows/deploy.yml/enable"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check out the database from the data branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: data
           path: data
@@ -158,10 +158,10 @@ jobs:
           - /home/runner/.ollama:/root/.ollama   # models, cached between runs
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check out the data branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: data
           path: data
@@ -325,10 +325,10 @@ jobs:
       site_url: ${{ steps.pages.outputs.base_url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check out the data branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: data
           path: data
@@ -439,10 +439,10 @@ jobs:
       contents: write   # record that the Alerts went out, on the data branch
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check out the data branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: data   # the database the ingest just committed
           path: data
