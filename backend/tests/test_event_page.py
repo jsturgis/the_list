@@ -166,36 +166,102 @@ def _placed(venue: str, day: str, url_id: str, geo: tuple[float, float] | None) 
     return _tour_date("", venue, day, url_id, location=place)
 
 
+_FELTON, _CORNERSTONE, _PALO_ALTO = (37.05134, -122.0733), (37.8663201, -122.2673229), (37.4426, -122.1613)
+# What Google Places has at the coordinates (google_places.city_at), for the tests.
+_GOOGLE = {_FELTON: "Felton", _CORNERSTONE: "Berkeley", _PALO_ALTO: "Palo Alto"}
+
+
+@pytest.fixture(autouse=True)
+def google():
+    """Google Places, asked where a place is: what _GOOGLE has there. Coordinates it hasn't fail the test."""
+    with patch("app.ingestion.ticketweb.city_at", side_effect=lambda *at: _GOOGLE[at]) as city_at:
+        yield city_at
+
+
 _CURSIVE_TOUR = [
     _placed("Bluebird Theater", "2027-03-03", "1", (39.7403313, -104.9484849)),       # Denver
-    _placed("Felton Music Hall", "2027-03-11", "2", (37.05134, -122.0733)),
-    _placed("Cornerstone Craft Beer & Live Music", "2027-03-13", "3", (37.8663201, -122.2673229)),   # Berkeley
+    _placed("Felton Music Hall", "2027-03-11", "2", _FELTON),
+    _placed("Cornerstone Craft Beer & Live Music", "2027-03-13", "3", _CORNERSTONE),
     _placed("Tractor Tavern", "2027-03-08", "4", (47.665797, -122.3826794)),          # Seattle
 ]
 
 
 @patch("app.ingestion.page_fetch.httpx.get")
-def test_an_event_with_no_city_is_placed_by_its_coordinates(get):
+def test_an_event_with_no_city_is_placed_by_its_coordinates(get, google):
     get.return_value = _answer(200, _artist_page(*_CURSIVE_TOUR), url=_ARTIST_URL)
     shows = fetch_events(_ARTIST_URL)
     assert [(s["venue_name"], s["city"]) for s in shows] == [
         ("Felton Music Hall", "Felton"), ("Cornerstone Craft Beer & Live Music", "Berkeley")]
+    # Denver and Seattle are nowhere near the Bay: Google isn't asked about them.
+    assert {c.args for c in google.call_args_list} == {_FELTON, _CORNERSTONE}
+
+
+@patch("app.ingestion.page_fetch.httpx.get")
+def test_an_event_in_a_town_google_names_but_the_list_doesnt_know_is_refused(get):
+    """As it is when its address names the town: Palo Alto isn't taken for Stanford."""
+    get.return_value = _answer(200, _page(_placed("The Guild", "2027-03-11", "2", _PALO_ALTO)), url=_URL)
+    with pytest.raises(OutsideBayArea, match="The Guild is in Palo Alto"):
+        fetch_events(_URL)
+
+
+@patch("app.ingestion.page_fetch.httpx.get")
+def test_when_google_cant_be_asked_the_event_isnt_refused_as_outside_the_bay_area(get, google):
+    """It may be in the Bay Area: the admin is told why, to try again, not that it's elsewhere."""
+    from app.ingestion.google_places import PlacesUnavailable
+
+    google.side_effect = PlacesUnavailable("Google Places didn't answer: 503")
+    get.return_value = _answer(200, _artist_page(*_CURSIVE_TOUR), url=_ARTIST_URL)
+    with pytest.raises(EventError, match="couldn't tell where Felton Music Hall is: Google Places didn't answer") \
+            as raised:
+        fetch_events(_ARTIST_URL)
+    assert not isinstance(raised.value, OutsideBayArea)
+
+
+def _listed(venues: dict[str, str], at: dict[tuple[float, float], str] | None = None):
+    """A `venue_city` for the List's Venues: their cities by name, and by coordinates."""
+    return lambda name, coordinates=None: (at or {}).get(coordinates) if coordinates else venues.get(name)
 
 
 @patch("app.ingestion.page_fetch.httpx.get")
 def test_an_event_with_neither_city_nor_coordinates_takes_its_known_venues_city(get):
-    get.return_value = _answer(200, _artist_page(_placed("Felton Music Hall", "2027-03-11", "2", None),
+    get.return_value = _answer(200, _page(_placed("Felton Music Hall", "2027-03-11", "2", None)), url=_URL)
+    (show,) = fetch_events(_URL, _listed({"Felton Music Hall": "Felton"}))
+    assert show["city"] == "Felton"
+
+
+@patch("app.ingestion.page_fetch.httpx.get")
+def test_on_a_tour_a_known_venues_name_alone_doesnt_place_an_event(get):
+    """An artist's tour plays many a Fillmore: only the one at the coordinates is the List's."""
+    get.return_value = _answer(200, _artist_page(_placed("The Fillmore", "2027-03-11", "2", None),
                                                  _placed("Bluebird Theater", "2027-03-03", "1", None)),
                                url=_ARTIST_URL)
-    known = {"Felton Music Hall": "Felton"}
-    shows = fetch_events(_ARTIST_URL, known.get)
-    assert [(s["venue_name"], s["city"]) for s in shows] == [("Felton Music Hall", "Felton")]
+    with pytest.raises(OutsideBayArea, match="none of its 2 events"):
+        fetch_events(_ARTIST_URL, _listed({"The Fillmore": "San Francisco"}))
 
 
 @patch("app.ingestion.page_fetch.httpx.get")
 def test_coordinates_outside_the_bay_area_win_over_a_known_venue_of_the_same_name(get):
     """Another city's "The Independent" isn't San Francisco's."""
     denver = _placed("The Independent", "2027-03-03", "1", (39.7403313, -104.9484849))
-    get.return_value = _answer(200, _artist_page(denver, _CURSIVE_TOUR[3]), url=_ARTIST_URL)
-    with pytest.raises(OutsideBayArea, match="none of its 2 events"):
-        fetch_events(_ARTIST_URL, {"The Independent": "San Francisco"}.get)
+    get.return_value = _answer(200, _page(denver), url=_URL)
+    with pytest.raises(OutsideBayArea):
+        fetch_events(_URL, _listed({"The Independent": "San Francisco"}))
+
+
+@patch("app.ingestion.page_fetch.httpx.get")
+def test_a_known_venue_at_the_coordinates_gives_its_city_even_one_not_in_the_table(get):
+    """The List's Sandbar, in Capitola: its city is taken without asking Google, and Capitola isn't refused."""
+    sandbar = (36.9720, -121.9530)
+    get.return_value = _answer(200, _artist_page(_placed("Sandbar", "2027-03-12", "5", sandbar), *_CURSIVE_TOUR[:2]),
+                               url=_ARTIST_URL)
+    shows = fetch_events(_ARTIST_URL, _listed({}, {sandbar: "Capitola"}))
+    assert [(s["venue_name"], s["city"]) for s in shows] == [("Sandbar", "Capitola"), ("Felton Music Hall", "Felton")]
+
+
+@patch("app.ingestion.page_fetch.httpx.get")
+def test_an_event_with_empty_coordinates_is_read_as_one_with_none(get):
+    blank = _placed("Felton Music Hall", "2027-03-11", "2", None)
+    blank["location"]["geo"] = {"@type": "GeoCoordinates", "latitude": "", "longitude": None}
+    get.return_value = _answer(200, _page(blank), url=_URL)
+    (show,) = fetch_events(_URL, _listed({"Felton Music Hall": "Felton"}))
+    assert show["city"] == "Felton"

@@ -5,8 +5,8 @@ from datetime import date
 
 import pytest
 
-from app.ingestion.upsert import (_CITY_CENTRES, _CITY_REGION, city_near, find_venue, known_region,
-                                  region_for_city, remove_unlisted_shows, upsert_shows)
+from app.ingestion.upsert import (around_the_bay, find_venue, region_for_city, remove_unlisted_shows, upsert_shows,
+                                  venue_near)
 from app.models.act import Act
 from app.models.band import Band
 from app.models.show import AgeRestriction, Show, ShowStatus
@@ -858,19 +858,22 @@ def test_nothing_is_removed_when_too_many_shows_are_off_the_page(db, caplog):
 
 # ── A place by its coordinates ───────────────────────────────────────────────
 
-def test_every_known_city_has_a_centre_and_every_centre_is_a_known_city():
-    aliases = {"sf", "s.f."}
-    assert {c.lower() for c in _CITY_CENTRES} == set(_CITY_REGION) - aliases
-    assert all(known_region(c) for c in _CITY_CENTRES)
-
-
-@pytest.mark.parametrize("latitude, longitude, city", [
-    (37.05134, -122.0733, "Felton"),              # Felton Music Hall
-    (37.8663201, -122.2673229, "Berkeley"),       # Cornerstone
-    (37.7605, -122.4212, "San Francisco"),        # the Mission
-    (37.4419, -122.1430, "Stanford"),             # Palo Alto, not in the table: the nearest that is
-    (37.6819, -121.7680, None),                   # Livermore
-    (39.7403313, -104.9484849, None),             # Denver
+@pytest.mark.parametrize("latitude, longitude, around", [
+    (37.05134, -122.0733, True),        # Felton
+    (38.4404, -122.7141, True),         # Santa Rosa
+    (36.9720, -121.9530, True),         # Capitola
+    (39.7403313, -104.9484849, False),  # Denver
+    (34.0522, -118.2437, False),        # Los Angeles
+    (36.6002, -121.8947, False),        # Monterey
 ])
-def test_a_place_is_in_the_known_city_nearest_it_when_its_near_one(latitude, longitude, city):
-    assert city_near(latitude, longitude) == city
+def test_a_place_is_around_the_bay_from_santa_cruz_to_santa_rosa(latitude, longitude, around):
+    assert around_the_bay(latitude, longitude) is around
+
+
+def test_a_place_is_the_lists_venue_within_a_kilometre_of_it(db):
+    sandbar = Venue(name="Sandbar", city="Capitola", region=Region.sf, latitude=36.9720, longitude=-121.9530)
+    unplaced = Venue(name="Somewhere", city="Capitola", region=Region.sf)
+    db.add_all([sandbar, unplaced])
+    db.flush()
+    assert venue_near(db, 36.9745, -121.9530) is sandbar        # about 300 m away
+    assert venue_near(db, 36.9741, -122.0308) is None           # Santa Cruz, 7 km away

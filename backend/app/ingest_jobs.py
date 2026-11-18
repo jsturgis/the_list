@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 from app.alerts import SupabaseError, _require_supabase
 from app.config import settings
 from app.ingestion.event_page import EventError, UnreadablePage, fetch_events
-from app.ingestion.upsert import find_venue
+from app.ingestion.upsert import find_venue, venue_near
 from app.models.show import Show
 
 logger = logging.getLogger(__name__)
@@ -182,11 +182,12 @@ def describe(show: Show) -> str:
     return f"{lineup} at {show.venue.name}, {show.venue.city} on {show.date:%a %b %-d, %Y}"
 
 
-def known_venue_city(db: Session) -> Callable[[str], str | None]:
-    """The city of the Venue the List has by a name, for an event or screenshot that doesn't say where it is."""
-    def venue_city(name: str) -> str | None:
-        venue = find_venue(db, name)
-        return venue.city if venue else None
+def known_venue_city(db: Session) -> Callable[..., str | None]:
+    """For an event or screenshot that doesn't say where it is: the city of the List's Venue at its coordinates when
+    it gives them, else of the Venue by its name. None when there's no such Venue, or it has no city."""
+    def venue_city(name: str, coordinates: tuple[float, float] | None = None) -> str | None:
+        venue = venue_near(db, *coordinates) if coordinates else find_venue(db, name)
+        return venue.city if venue and venue.city not in (None, "", "Unknown") else None
     return venue_city
 
 

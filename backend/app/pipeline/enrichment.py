@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from app.config import settings
 from app.ingestion.band_corrections import band_correction
 from app.ingestion.parser import RawShow
+from app.ingestion.google_places import address_city
 from app.ingestion.service_health import ServiceError, note_failure
 from app.ingestion.upsert import known_region
 from app.pipeline.providers import get_enrichment_llm
@@ -440,12 +441,7 @@ def _enrich_venue(venue_name: str, city: str, street: str | None = None, use_llm
     lng = loc.get("longitude")
     timezone = _get_timezone(lat, lng, api_key) if lat and lng else None
     google_website = place.get("websiteUri")
-    _CITY_TYPES = {"locality", "administrative_area_level_3", "sublocality", "sublocality_level_1"}
-    place_city = next(
-        (c.get("longText") for c in place.get("addressComponents", [])
-         if _CITY_TYPES & set(c.get("types", []))),
-        None,
-    )
+    place_city = address_city(place)
 
     # Wikipedia: description + wikipedia_url + website fallback (needs the LLM to validate the match)
     wiki_title = _search_wikipedia(clean_name, city) if use_llm else None
