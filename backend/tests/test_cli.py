@@ -40,22 +40,25 @@ def test_ingest_exits_non_zero_when_maintenance_fails(maintenance, ingestion):
 _PAGE = ListPage(text="", sha256="abc123", edition_date=date(2026, 11, 13))
 
 
+@patch("app.cli.alerts_due", return_value=True)
 @patch("app.cli.list_status", return_value={"changed": True, "new_edition": False})
 @patch("app.cli.fetch_list", return_value=_PAGE)
-def test_check_says_whether_the_list_changed_and_tells_the_workflow(fetch, status, capsys, tmp_path, monkeypatch):
+def test_check_says_whether_the_list_changed_and_tells_the_workflow(fetch, status, due, capsys, tmp_path,
+                                                                    monkeypatch):
     output = tmp_path / "github_output"
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))
 
     main(["check"])
 
     assert status.call_args.args[1] is _PAGE
-    assert capsys.readouterr().out == "the List for 2026-11-13: changed=true, new_edition=false\n"
-    assert output.read_text() == "changed=true\nnew_edition=false\n"   # the Deploy workflow's job outputs
+    assert capsys.readouterr().out == "the List for 2026-11-13: changed=true, new_edition=false, alerts_due=true\n"
+    assert output.read_text() == "changed=true\nnew_edition=false\nalerts_due=true\n"   # the Deploy workflow's job outputs
 
 
+@patch("app.cli.alerts_due", return_value=False)
 @patch("app.cli.list_status", return_value={"changed": False, "new_edition": False})
 @patch("app.cli.fetch_list", return_value=_PAGE)
-def test_check_works_outside_github_actions(fetch, status, capsys, monkeypatch):
+def test_check_works_outside_github_actions(fetch, status, due, capsys, monkeypatch):
     monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
     main(["check"])
     assert "changed=false, new_edition=false" in capsys.readouterr().out
@@ -158,3 +161,24 @@ def test_photo_focus_all_recomputes_every_stored_photo():
          patch("app.cli.SessionLocal"):
         main(["photo-focus", "--all"])
     assert fill.call_args.kwargs == {"recompute": True}
+
+
+@patch("app.cli.SessionLocal")
+@patch("app.cli.mark_alerts_sent")
+@patch("app.cli.run_alerts")
+def test_alerts_are_recorded_as_sent_only_after_a_real_send_to_everyone(run, mark, session):
+    main(["alerts", "--dry-run"])
+    main(["alerts", "--only", "me@example.com"])
+    mark.assert_not_called()
+
+    main(["alerts"])
+    mark.assert_called_once()
+
+
+@patch("app.cli.SessionLocal")
+@patch("app.cli.mark_alerts_sent")
+@patch("app.cli.run_alerts", side_effect=__import__("app.alerts", fromlist=["SendError"]).SendError("2 failed"))
+def test_alerts_that_fail_are_not_recorded_as_sent(run, mark, session):
+    with pytest.raises(SystemExit):
+        main(["alerts"])
+    mark.assert_not_called()

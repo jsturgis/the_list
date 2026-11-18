@@ -35,21 +35,22 @@ from app.database import SessionLocal
 from app.export import export
 from app.ingest_jobs import PHASES, STATUSES
 from app.ingestion.steve_list import ListError, fetch_list
-from app.scheduler import _run_ingestion_async, list_status, run_daily_maintenance
+from app.scheduler import _run_ingestion_async, alerts_due, list_status, mark_alerts_sent, run_daily_maintenance
 
 logger = logging.getLogger(__name__)
 
 
 def check() -> None:
-    """Fetch the List and say whether it has changed since the last successful ingest, and whether it's a new
-    edition: `changed=true|false` and `new_edition=true|false`, printed and, in a GitHub Actions job, written to the
+    """Fetch the List and say whether it has changed since the last successful ingest, whether it's a new edition,
+    and whether the newest edition ingested is still due its Alerts (an earlier run couldn't send them):
+    `changed=`, `new_edition=` and `alerts_due=true|false`, printed and, in a GitHub Actions job, written to the
     step's outputs. The Deploy workflow runs this hourly and ingests only a changed List. Exits 1 when the List
     can't be fetched.
     """
     db = SessionLocal()
     try:
         page = fetch_list()
-        status = list_status(db, page)
+        status = {**list_status(db, page), "alerts_due": alerts_due(db)}
     except ListError as exc:
         logger.error("check failed: %s: %s", type(exc).__name__, exc)
         sys.exit(1)
@@ -181,10 +182,14 @@ def ingest_jobs_phase(job_ids: str, phase: str | None, status: str | None, detai
 
 
 def alerts(dry_run: bool, only: str | None) -> None:
-    """Build and send the weekly Alerts; exits 1 when Supabase can't be read or any send fails."""
+    """Build and send the weekly Alerts, then record on the newest edition's run that they went out (the Deploy
+    workflow commits it), so the hourly check doesn't send them again; not for a dry run or a test send (--only).
+    Exits 1 when Supabase can't be read or any send fails, recording nothing."""
     db = SessionLocal()
     try:
         run_alerts(db, dry_run=dry_run, out=sys.stdout, only=only)
+        if not dry_run and not only and (run := mark_alerts_sent(db)):
+            print(f"alerts: recorded as sent for {run.edition_title or run.edition_date}")
     except (SupabaseError, SendError) as exc:
         logger.error("alerts failed: %s", exc)
         sys.exit(1)

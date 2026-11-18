@@ -39,7 +39,8 @@ concurrency:
 
 jobs:
   check:
-    # Has the List changed since the last successful ingest, and is it a new edition? (python -m app.cli check)
+    # Has the List changed since the last successful ingest, is it a new edition, and is the newest edition still due
+    # its Alerts? (python -m app.cli check) And is the live site built from the current data and code (needs_deploy)?
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !inputs.skip_ingest)
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -49,6 +50,8 @@ jobs:
     outputs:
       changed: ${{ steps.check.outputs.changed }}
       new_edition: ${{ steps.check.outputs.new_edition }}
+      alerts_due: ${{ steps.check.outputs.alerts_due }}
+      needs_deploy: ${{ steps.site.outputs.needs_deploy }}
 
     steps:
       # GitHub disables a public repository's scheduled workflows after 60 days without "repository activity", which
@@ -105,6 +108,20 @@ jobs:
         run: |
           set -o pipefail
           { alembic upgrade head && python -m app.cli check; } 2>&1 | tee "$RUNNER_TEMP/check.log"
+
+      - id: site
+        name: Is the live site up to date?
+        # The live site's deployed.json against what it would be built from now. They differ after a deploy that failed
+        # or was cancelled (or before the first build that wrote one): the build then runs even without an ingest.
+        # A site that can't be reached counts as out of date.
+        env:
+          SITE_URL: ${{ vars.SITE_URL || 'https://list.sturgis.me' }}
+        run: |
+          want=$(.github/scripts/site-inputs.sh)
+          have=$(curl -sf --max-time 20 "$SITE_URL/deployed.json?t=$(date +%s)" \
+                 | python3 -c 'import json, sys; print(json.load(sys.stdin).get("inputs", ""))' || true)
+          echo "the live site was built from ${have:-unknown}; now it would be from $want"
+          if [ "$want" = "$have" ]; then echo needs_deploy=false; else echo needs_deploy=true; fi >> "$GITHUB_OUTPUT"
 
       - name: Email the maintainer if the ingest has been failing for two weeks
         # After a failed check (Steve's page unreachable, or not the List). Sends at most one email a day, and only
@@ -297,10 +314,11 @@ jobs:
         run: python -m app.cli notify-failure --stage ingest --log "$RUNNER_TEMP/ingest.log"
 
   build:
-    needs: ingest
-    # Runs after a successful ingest, or without one on a push or a dispatch with skip_ingest; never after a
-    # failed one, and not on an hourly run (cron or Cloud Scheduler's dispatch) that found the List unchanged.
-    if: ${{ !failure() && !cancelled() && (needs.ingest.result == 'success' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.skip_ingest)) }}
+    needs: [check, ingest]
+    # Runs after a successful ingest, or without one on a push, a dispatch with skip_ingest, or an hourly run that
+    # found the live site out of date (needs_deploy); never after a failed ingest, and not on an hourly run that
+    # found the List unchanged and the site up to date.
+    if: ${{ !failure() && !cancelled() && (needs.ingest.result == 'success' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.skip_ingest) || (needs.ingest.result == 'skipped' && needs.check.outputs.needs_deploy == 'true')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
@@ -378,6 +396,13 @@ jobs:
           npm ci
           npm run build
 
+      - name: Record what the site was built from
+        # For the hourly check's needs_deploy (.github/scripts/site-inputs.sh).
+        run: |
+          printf '{"inputs": "%s", "main": "%s", "built_at": "%s"}\n' "$(.github/scripts/site-inputs.sh)" \
+            "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > frontend/dist/deployed.json
+          cat frontend/dist/deployed.json
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: frontend/dist
@@ -400,14 +425,18 @@ jobs:
         uses: actions/deploy-pages@v4
 
   alerts:
-    # Email this week's Alerts (python -m app.cli alerts, ADR 0003): only after this run ingested a new edition
-    # (never for a correction to the current one, or on a deploy-only run), and only once the site is live, so
-    # the emails' links work. A failure here leaves the deployed site as it is; the run shows red and GitHub
-    # emails the maintainer.
+    # Email this week's Alerts (python -m app.cli alerts, ADR 0003): after this run ingested a new edition (never for a
+    # correction to the current one, or on a push or skip_ingest run), or on an hourly run that finds the newest
+    # edition still due them (alerts_due: the run that ingested it failed to deploy or to send). Only once the site is
+    # live with it, so the emails' links work: this run deployed it, or the live site is already up to date. The
+    # sends record alerts_sent_at on the edition's run, committed to the data branch. A failure here leaves the
+    # deployed site as it is; the run shows red, GitHub emails the maintainer, and the next hourly run tries again.
     needs: [check, ingest, build, deploy]
-    if: ${{ !cancelled() && needs.check.outputs.new_edition == 'true' && needs.ingest.result == 'success' && needs.deploy.result == 'success' }}
+    if: ${{ !cancelled() && needs.check.result == 'success' && (needs.check.outputs.new_edition == 'true' || needs.check.outputs.alerts_due == 'true') && needs.ingest.result != 'failure' && (needs.deploy.result == 'success' || (needs.deploy.result == 'skipped' && needs.check.outputs.needs_deploy == 'false')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write   # record that the Alerts went out, on the data branch
 
     steps:
       - uses: actions/checkout@v4
@@ -449,5 +478,31 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           ALERTS_FROM: ${{ vars.ALERTS_FROM || 'The List <alerts@list.sturgis.me>' }}
           SITE_URL: ${{ needs.build.outputs.site_url || 'https://list.sturgis.me' }}
-        # Logs counts only, never addresses; exits 1 if Supabase can't be read or any send fails.
-        run: python -m app.cli alerts
+        # Logs counts only, never addresses; exits 1 if Supabase can't be read or any send fails (recording nothing).
+        # Migrates this copy first: alerts_sent_at may be newer than the data branch's last ingest.
+        run: |
+          alembic upgrade head
+          python -m app.cli alerts
+
+      - name: Record that the Alerts went out
+        working-directory: data
+        # A failed push leaves them unrecorded: the next hourly run sends again, and Resend's idempotency keys
+        # (app/alerts.py) keep anyone from getting the same email twice in a day.
+        run: |
+          python -c "
+          import sqlite3
+          db = sqlite3.connect('the_list.db')
+          db.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+          db.execute('PRAGMA journal_mode=DELETE')
+          problems = [row[0] for row in db.execute('PRAGMA integrity_check')]
+          if problems != ['ok']:
+              raise SystemExit('integrity_check failed: ' + '; '.join(problems[:10]))
+          run = db.execute('SELECT edition_title FROM ingestion_runs WHERE alerts_sent_at IS NOT NULL ORDER BY alerts_sent_at DESC LIMIT 1').fetchone()
+          db.close()
+          open('$RUNNER_TEMP/message', 'w').write(f'Alerts sent for {run[0] if run else \"the edition\"}')
+          "
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add the_list.db
+          git diff --cached --quiet || { git commit -q -F "$RUNNER_TEMP/message" && git push -q; }
+          git log -1 --format='%h %s'
