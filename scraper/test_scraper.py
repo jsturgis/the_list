@@ -3,7 +3,8 @@ import socket
 
 import pytest
 
-from scraper import Refused, check_url, is_cloudflare_challenge
+from scraper import (Identity, Refused, browser_user_agent, check_url, impersonation_target,
+                     is_cloudflare_challenge)
 
 
 def _resolves_to(*addresses):
@@ -45,3 +46,44 @@ def test_the_sites_own_answers_are_not_challenges():
     assert not is_cloudflare_challenge(404, {"server": "cloudflare"}, "<title>Not found</title>")
     assert not is_cloudflare_challenge(530, {"server": "cloudflare"}, "<title>Error 1016</title>")
     assert not is_cloudflare_challenge(403, {"server": "Apache"}, "<title>Attention Required</title>")
+
+
+_TARGETS = ["chrome99", "chrome131", "chrome133a", "chrome136", "chrome142", "chrome150", "chrome151",
+            "chrome151_macos", "chrome152", "chrome152_macos", "chrome99_android", "chrome131_android",
+            "edge101", "safari18_0", "firefox135"]
+_LINUX_156 = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36"
+_MAC_156 = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/156.0.0.0 Safari/537.36")
+
+
+def test_headless_chrome_is_made_chrome_and_nothing_else():
+    headless = _LINUX_156.replace("Chrome/", "HeadlessChrome/")
+    assert browser_user_agent(headless) == _LINUX_156
+    assert browser_user_agent(_LINUX_156) == _LINUX_156
+
+
+def test_curl_imitates_the_newest_chrome_no_newer_than_the_browser():
+    assert impersonation_target(_LINUX_156, _TARGETS) == "chrome152"
+    assert impersonation_target(_LINUX_156.replace("156", "151"), _TARGETS) == "chrome151"
+    assert impersonation_target(_LINUX_156.replace("156", "140"), _TARGETS) == "chrome136"
+
+
+def test_curl_imitates_the_macs_chrome_for_a_mac_browser():
+    assert impersonation_target(_MAC_156, _TARGETS) == "chrome152_macos"
+    assert impersonation_target(_MAC_156.replace("156", "150"), _TARGETS) == "chrome150"   # no Mac target for 150
+
+
+def test_a_plain_target_is_preferred_to_its_alternative_and_android_is_never_used():
+    assert impersonation_target(_LINUX_156.replace("156", "133"), ["chrome133a", "chrome133", "chrome131"]) == "chrome133"
+    assert impersonation_target(_LINUX_156.replace("156", "133"), _TARGETS) == "chrome133a"
+    assert impersonation_target(_LINUX_156.replace("156", "135"), ["chrome133a", "chrome131_android"]) == "chrome133a"
+
+
+def test_a_browser_older_than_every_target_gets_the_oldest():
+    assert impersonation_target(_LINUX_156.replace("156", "90"), _TARGETS) == "chrome99"
+
+
+def test_both_tiers_send_the_same_identity():
+    identity = Identity(_LINUX_156, {"sec-ch-ua": '"Chromium";v="156"', "sec-ch-ua-platform": '"Linux"'}, "chrome152")
+    assert identity.headers() == {"User-Agent": _LINUX_156, "sec-ch-ua": '"Chromium";v="156"',
+                                  "sec-ch-ua-platform": '"Linux"'}
