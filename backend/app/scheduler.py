@@ -29,7 +29,7 @@ from app.ingestion.lastfm import lastfm_tags
 from app.ingestion.links import check_links
 from app.ingestion.show_flyers import prune_show_flyers, save_show_flyers
 from app.ingestion.steve_list import ListPage, edition_title, fetch_list, list_shows
-from app.ingestion.upsert import find_venue, known_region, remove_unlisted_shows, upsert_shows
+from app.ingestion.upsert import fold_added_shows, find_venue, known_region, remove_unlisted_shows, upsert_shows
 from app.ingestion.venue_calendar import enrich_shows_from_venue_calendars
 from app.ingestion.venue_check import CONFIRMED, NOT_CHECKED, check_venue, checked_details
 from app.ingestion.venue_photos import save_venue_photos
@@ -270,6 +270,8 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
     report("saving", None)
     shows_before, venues_before = db.query(Show).count(), db.query(Venue).count()
     shows = upsert_shows(db, shows_data)
+    # One event added from elsewhere and listed by Steve, spelled differently, is one Show: the List's.
+    shows, folded = fold_added_shows(db, shows)
     shows_new, new_venues = db.query(Show).count() - shows_before, db.query(Venue).count() - venues_before
     if run:
         run.shows_upserted, run.shows_new, run.new_venues = len(shows), shows_new, new_venues
@@ -278,6 +280,9 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
     genre_filter.save(db)  # the tags judged this run, kept for next time
     db.commit()
     logger.info("ingestion: upserted %d shows (%d new); %d new venues", len(shows), shows_new, new_venues)
+    if folded:
+        remove_from_index(SHOW_INDEX_PATH, folded)
+        logger.info("ingestion: folded %d shows from elsewhere into the List's: %s", len(folded), folded)
 
     # Reload with relationships for embedding
     show_ids = [s.id for s in shows]
