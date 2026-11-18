@@ -68,7 +68,8 @@ def test_a_ticketweb_job_is_ingested_and_its_progress_recorded(fetch, db, supaba
         ("update", ["job-1"], {"phase": "fetching_page", "detail": _URL}),
         ("update", ["job-1"], {"phase": "saving", "detail": None}),
         ("finish", "job-1", "added", {"message": "Added Teenage Bottlerocket, Brendan Kelly at Moe's Alley, Santa Cruz "
-                                                 "on Thu Jan 21, 2027", "show_id": show.id, "extracted": None}),
+                                                 "on Thu Jan 21, 2027", "show_id": show.id, "extracted": None,
+                                     "shows_query": None}),
     ]
 
 
@@ -197,7 +198,10 @@ def test_a_page_of_several_bay_area_shows_adds_each(db, supabase):
     assert ("update", ["job-6"], {"phase": "saving", "detail": "Show 2 of 2"}) in supabase   # which Show it's on
     _, _, status, finished = supabase[-1]
     assert status == "added"
-    assert finished["show_id"] == shows[0].id   # the Admin page links the first
+    assert finished["show_id"] == shows[0].id
+    # The Admin page links to the Shows list, filtered to them: the Band they share, over their dates.
+    band_id = next(a.band_id for a in shows[0].acts if a.position == min(x.position for x in shows[0].acts))
+    assert finished["shows_query"] == f"bandId={band_id}&fromDate=2027-01-21&toDate=2027-01-24"
     assert finished["message"] == (
         "Added 2 Shows: Teenage Bottlerocket, Brendan Kelly at Moe's Alley, Santa Cruz on Thu Jan 21, 2027; "
         "Teenage Bottlerocket, Brendan Kelly at Berkeley Brewing Company, Berkeley on Sun Jan 24, 2027")
@@ -223,6 +227,35 @@ def test_a_show_that_cant_be_added_doesnt_lose_the_others_on_its_page(db, supaba
     assert finished["message"].startswith("Added 1 Show: Teenage Bottlerocket, Brendan Kelly at Moe's Alley")
     assert finished["message"].endswith(
         ". Couldn't add 1: Teenage Bottlerocket at Berkeley Brewing Company, Berkeley (geocoding failed)")
+
+
+def test_a_job_with_one_show_has_no_shows_query(db, supabase):
+    with patch("app.ingest_jobs.fetch_events", return_value=[event_show(_PAGE, _URL)]), \
+         patch("app.scheduler.ingest_shows", side_effect=_stored(db)):
+        run_jobs(db, [_TICKETWEB], _TODAY)
+    assert supabase[-1][3]["shows_query"] is None   # its link is the Show's own page
+
+
+def test_shows_with_no_band_in_common_are_picked_out_by_their_venue(db):
+    first = event_show(_PAGE, _URL)
+    other = {**first, "date": date(2027, 2, 3), "bands": ["Wet Leg"], "act_notes": [None],
+             "band_enrichment": [("Wet Leg", {"genres": []})], "ticket_url": f"{_URL}/2"}
+    shows = upsert_shows(db, [first, other])
+    assert ingest_jobs.shows_query(shows) == f"venueId={shows[0].venue_id}&fromDate=2027-01-21&toDate=2027-02-03"
+
+
+def test_shows_with_nothing_in_common_have_no_shows_query(db):
+    first = event_show(_PAGE, _URL)
+    other = {**_elsewhere(first, "924 Gilman", "Berkeley", 30), "bands": ["Wet Leg"], "act_notes": [None],
+             "band_enrichment": [("Wet Leg", {"genres": []})]}
+    assert ingest_jobs.shows_query(upsert_shows(db, [first, other])) is None
+
+
+def test_finishing_a_job_sends_a_shows_query_only_when_it_has_one(requests):
+    ingest_jobs.finish_job(_ARTIST, "added", show_id=1, shows_query="bandId=7&fromDate=2027-01-21&toDate=2027-01-24")
+    ingest_jobs.finish_job(_TICKETWEB, "added", show_id=2)
+    assert requests[0][2]["json"]["new_shows_query"] == "bandId=7&fromDate=2027-01-21&toDate=2027-01-24"
+    assert "new_shows_query" not in requests[1][2]["json"]   # works before migration 0008 for every job with one Show
 
 
 def test_a_page_whose_shows_all_fail_fails_the_job(db, supabase):

@@ -1,5 +1,6 @@
 """Ingest jobs: Shows an admin asked for on the Admin page, one job per link or screenshot (ADR 0006). A link to a page
-listing several events (an artist's page) adds each of them in the Bay Area; the job's Show is the first.
+listing several events (an artist's page) adds each of them in the Bay Area: the job's Show is the first, and its
+`shows_query` the Shows list's filter that picks them all out (`shows_query`).
 
 The Admin page's Edge Function (supabase/functions/admin) puts each job in Supabase's `ingest_jobs` table and its
 id on the `ingest_jobs` queue; the worker (supabase/functions/ingest-worker) hands queued jobs to the Ingest jobs
@@ -14,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
+from urllib.parse import urlencode
 from datetime import date
 from typing import Callable
 
@@ -118,12 +120,14 @@ def unfinished(job_ids: list[str]) -> list[str]:
 
 
 def finish_job(job: Job, status: str, *, message: str | None = None, show_id: int | None = None,
-               extracted: dict | None = None) -> None:
+               extracted: dict | None = None, shows_query: str | None = None) -> None:
     """Record how the job's ingest came out and take it off the queue, together (finish_ingest_job, in
-    supabase/migrations/0004_ingest_jobs.sql)."""
-    _request("POST", "/rest/v1/rpc/finish_ingest_job", json={
-        "job_id": job.id, "msg_id": job.msg_id, "new_status": status, "new_message": message,
-        "new_show_id": show_id, "new_extracted": extracted})
+    supabase/migrations/0004_ingest_jobs.sql and 0008_ingest_jobs_shows_query.sql)."""
+    body = {"job_id": job.id, "msg_id": job.msg_id, "new_status": status, "new_message": message,
+            "new_show_id": show_id, "new_extracted": extracted}
+    if shows_query:   # only a job that added several Shows has one
+        body["new_shows_query"] = shows_query
+    _request("POST", "/rest/v1/rpc/finish_ingest_job", json=body)
 
 
 def download_screenshot(path: str) -> bytes:
@@ -214,7 +218,8 @@ def run_jobs(db: Session, jobs: list[Job], today: date, run_url: str | None = No
             continue
         message = outcome_message(job, outcomes, failures)
         print(f"ingest-jobs: job {job.id}: {message}")
-        finish_job(job, "added", message=message, show_id=outcomes[0][0].id, extracted=extracted)
+        finish_job(job, "added", message=message, show_id=outcomes[0][0].id, extracted=extracted,
+                   shows_query=shows_query([show for show, _ in outcomes]))
         added.append(job.id)
     return added
 
@@ -243,6 +248,24 @@ def add_shows(db: Session, job: Job, shows: list[dict]) -> tuple[list[tuple[Show
     if not outcomes:
         raise first_error
     return outcomes, failures
+
+
+def shows_query(shows: list[Show]) -> str | None:
+    """The Shows list's filter (frontend/src/lib/filters.ts) that picks out these Shows, for the Admin page's link to
+    them: the Band they all have (the first one's headliner first), else the Venue they all share, from the first's date
+    to the last's. None for one Show (its own page is the link), or Shows with neither in common."""
+    if len(shows) < 2:
+        return None
+    first = [act.band_id for act in sorted(shows[0].acts, key=lambda act: act.position)]
+    shared = set(first).intersection(*({act.band_id for act in show.acts} for show in shows[1:]))
+    if shared:
+        pin = ("bandId", next(band_id for band_id in first if band_id in shared))
+    elif len({show.venue_id for show in shows}) == 1:
+        pin = ("venueId", shows[0].venue_id)
+    else:
+        return None
+    dates = [show.date for show in shows]
+    return urlencode([pin, ("fromDate", min(dates).isoformat()), ("toDate", max(dates).isoformat())])
 
 
 def outcome_message(job: Job, outcomes: list[tuple[Show, bool]], failures: list[str]) -> str:

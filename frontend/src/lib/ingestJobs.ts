@@ -19,6 +19,9 @@ export interface IngestJob {
   message: string | null
   extracted: Record<string, unknown> | null
   show_id: number | null
+  /** The Shows list's filter that picks out the Shows a job added, when it added several (an artist's page):
+   * "bandId=12&fromDate=2027-01-21&toDate=2027-01-24". Missing before supabase/migrations/0008. */
+  shows_query?: string | null
   workflow_run_url: string | null
   attempts: number
   created_at: string
@@ -95,6 +98,15 @@ export function watchJobs(
   return () => {
     client.removeChannel(channel)
   }
+}
+
+/** Where a live job's Shows are on the site: the Shows list, filtered to them, for a job that added several; else
+ * its one Show's page. Paths, for `href`. */
+export function showsLink(job: Pick<IngestJob, 'status' | 'show_id' | 'shows_query'>): { path: string; label: string } | null {
+  if (job.status !== 'live') return null
+  if (job.shows_query) return { path: `/?${job.shows_query}`, label: 'See the shows' }
+  if (job.show_id !== null) return { path: `/shows/${job.show_id}/`, label: 'See the show' }
+  return null
 }
 
 /** Whether a job can be cleared away: it's finished, failed or live (the database allows no other). */
