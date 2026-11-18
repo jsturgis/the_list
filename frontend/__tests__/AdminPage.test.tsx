@@ -9,9 +9,17 @@ function fakeClient() {
     user: null as { id: string; email: string; app_metadata: Record<string, unknown> } | null,
     jobs: [] as IngestJob[],
     realtime: 'SUBSCRIBED',
-    onChange: null as ((payload: { new: IngestJob }) => void) | null,
+    onChange: null as ((payload: { eventType?: string; new?: IngestJob; old?: { id: string } }) => void) | null,
   }
+  const deleteJob = vi.fn(async (_column: string, id: string) => {
+    const deleted = state.jobs.filter(j => j.id === id && (j.status === 'failed' || j.status === 'live'))
+    state.jobs = state.jobs.filter(j => !deleted.includes(j))
+    return { data: deleted.map(j => ({ id: j.id })), error: null }
+  })
+  const removeScreenshot = vi.fn<(paths: string[]) => Promise<{ data: []; error: null }>>(async () => ({ data: [], error: null }))
   const client = {
+    deleteJob,
+    removeScreenshot,
     auth: {
       getSession: vi.fn(async () => ({
         data: { session: state.user ? { user: state.user, access_token: 'token-1' } : null },
@@ -25,11 +33,17 @@ function fakeClient() {
     },
     from: vi.fn((table: string) => {
       if (table !== 'ingest_jobs') throw new Error(`unexpected table ${table}`)
-      return { select: () => ({ order: () => ({ limit: async () => ({ data: [...state.jobs], error: null }) }) }) }
+      return {
+        select: () => ({ order: () => ({ limit: async () => ({ data: [...state.jobs], error: null }) }) }),
+        // As the database's policy: only finished jobs are deleted; the rows deleted come back.
+        delete: () => ({
+          eq: (column: string, id: string) => ({ select: () => deleteJob(column, id) }),
+        }),
+      }
     }),
     channel: vi.fn(() => {
       const channel = {
-        on: (_event: string, _filter: unknown, listener: (payload: { new: IngestJob }) => void) => {
+        on: (_event: string, _filter: unknown, listener: NonNullable<typeof state.onChange>) => {
           state.onChange = listener
           return channel
         },
@@ -44,6 +58,7 @@ function fakeClient() {
     storage: {
       from: vi.fn(() => ({
         createSignedUrl: vi.fn(async (path: string) => ({ data: { signedUrl: `https://signed.example/${path}` }, error: null })),
+        remove: removeScreenshot,
       })),
     },
   }
@@ -298,6 +313,71 @@ describe('Admin page, as an admin', () => {
 
     expect(fake.current!.client.from.mock.calls.length).toBeGreaterThan(reads)
     expect(await screen.findByText('Committing the data branch')).toBeInTheDocument()
+  })
+})
+
+describe('Admin page, deleting jobs', () => {
+  beforeEach(() => {
+    fake.current!.state.user = ADMIN
+  })
+
+  it('clears a job from the database with its trash can, and its screenshot from storage', async () => {
+    fake.current!.state.jobs = [
+      job({ status: 'failed' }),
+      job({ id: 'job-2', provider: 'screenshot', url: null, screenshot_path: 'user-1/a.png', status: 'failed', phase: 'reading_screenshot' }),
+    ]
+    render(<AdminPage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete the job for Screenshot' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Deleted the job for Screenshot')
+    expect(fake.current!.client.deleteJob).toHaveBeenCalledWith('id', 'job-2')
+    expect(fake.current!.client.removeScreenshot).toHaveBeenCalledWith(['user-1/a.png'])
+    expect(screen.queryByRole('button', { name: 'Delete the job for Screenshot' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /delete the job for wet leg the chapel/i })).toBeInTheDocument()
+  })
+
+  it('offers the trash can only on finished jobs: failed, or live', async () => {
+    fake.current!.state.jobs = (['queued', 'running', 'added', 'failed', 'live'] as const).map(status =>
+      job({ id: status, url: `https://www.ticketweb.com/event/${status}-show-tickets/1`, status }),
+    )
+    render(<AdminPage />)
+    await screen.findByRole('link', { name: /queued show/i })
+
+    const offered = screen.getAllByRole('button', { name: /^delete the job for/i }).map(b => b.getAttribute('aria-label'))
+    expect(offered).toEqual(['Delete the job for failed show', 'Delete the job for live show'])
+  })
+
+  it('says so when the database won’t delete a job (it got going in the meantime)', async () => {
+    fake.current!.state.jobs = [job({ status: 'failed' })]
+    render(<AdminPage />)
+    const trash = await screen.findByRole('button', { name: /delete the job for wet leg the chapel/i })
+    fake.current!.state.jobs = [job({ status: 'running' })]   // retried by the worker since the page loaded
+
+    fireEvent.click(trash)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Only finished jobs (failed, or live) can be deleted')
+  })
+
+  it('leaves storage alone for a link’s job', async () => {
+    fake.current!.state.jobs = [job({ status: 'live', phase: 'live', show_id: 1 })]
+    render(<AdminPage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /delete the job for wet leg the chapel/i }))
+
+    await waitFor(() => expect(fake.current!.client.deleteJob).toHaveBeenCalledWith('id', 'job-1'))
+    expect(fake.current!.client.removeScreenshot).not.toHaveBeenCalled()
+    expect(await screen.findByText(/no jobs yet/i)).toBeInTheDocument()
+  })
+
+  it('drops a job deleted elsewhere (another admin, another tab)', async () => {
+    fake.current!.state.jobs = [job({ status: 'failed' })]
+    render(<AdminPage />)
+    await screen.findByRole('button', { name: /delete the job for wet leg the chapel/i })
+
+    act(() => fake.current!.state.onChange!({ eventType: 'DELETE', old: { id: 'job-1' } }))
+
+    expect(await screen.findByText(/no jobs yet/i)).toBeInTheDocument()
   })
 })
 

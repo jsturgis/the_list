@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from 'react'
-import { CheckIcon, PhotoIcon, XMarkIcon } from '@heroicons/react/16/solid'
+import { CheckIcon, PhotoIcon, TrashIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import { href } from '@/lib/basePath'
 import { checkEventUrl, SCREENSHOT_MAX_BYTES, SCREENSHOT_TYPES } from '@/lib/eventUrls'
 import {
   addShows,
+  deletable,
+  deleteJob,
   inProgress,
   loadJobs,
   phasesFor,
@@ -112,6 +114,7 @@ function Admin({ email }: { email: string }) {
           return [job, ...rest].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, RECENT_JOBS)
         }),
       setLive,
+      id => setJobs(current => current?.filter(j => j.id !== id) ?? current),
     )
     return () => {
       cancelled = true
@@ -126,6 +129,18 @@ function Admin({ email }: { email: string }) {
     const timer = setInterval(refresh, POLL_MS)
     return () => clearInterval(timer)
   }, [live, waiting, refresh])
+
+  const [toast, setToast] = useState<string | null>(null)
+  const dismissToast = useCallback(() => setToast(null), [])
+  const remove = async (job: IngestJob) => {
+    try {
+      await deleteJob(job)
+      setJobs(current => current?.filter(j => j.id !== job.id) ?? current)
+      setToast(`Deleted the job for ${jobTitle(job)}`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   const added = (result: AddResult) =>
     setJobs(current => {
@@ -152,10 +167,11 @@ function Admin({ email }: { email: string }) {
           <p className="text-sm text-ink-soft">No jobs yet. Shows you add appear here as they make their way to the site.</p>
         ) : (
           <ul className="flex flex-col divide-y divide-line-subtle">
-            {jobs?.map(job => <JobRow key={job.id} job={job} />)}
+            {jobs?.map(job => <JobRow key={job.id} job={job} onDelete={() => remove(job)} />)}
           </ul>
         )}
       </Section>
+      {toast && <Toast onDismiss={dismissToast}>{toast}</Toast>}
     </div>
   )
 }
@@ -458,7 +474,7 @@ function JobScreenshot({ path }: { path: string }) {
   )
 }
 
-function JobRow({ job }: { job: IngestJob }) {
+function JobRow({ job, onDelete }: { job: IngestJob; onDelete: () => void }) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (!inProgress(job)) return
@@ -486,7 +502,20 @@ function JobRow({ job }: { job: IngestJob }) {
             <span className="font-bold text-ink">{jobTitle(job)}</span>
           )}
         </div>
-        <span className="text-xs text-ink-muted">{ago(job.updated_at, now)}</span>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="text-xs text-ink-muted">{ago(job.updated_at, now)}</span>
+          {deletable(job) && (
+            <button
+              type="button"
+              onClick={onDelete}
+              aria-label={`Delete the job for ${jobTitle(job)}`}
+              title="Delete"
+              className="rounded-full p-1 text-ink-faint hover:bg-muted hover:text-danger"
+            >
+              <TrashIcon className="size-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {job.screenshot_path && <JobScreenshot path={job.screenshot_path} />}

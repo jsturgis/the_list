@@ -73,19 +73,45 @@ export async function loadJobs(): Promise<IngestJob[]> {
   return data as IngestJob[]
 }
 
-/** Each job's changes as they're made (Supabase Realtime); `onState` hears whether that's working. */
-export function watchJobs(onChange: (job: IngestJob) => void, onState: (live: boolean) => void): () => void {
+/** Each job's changes as they're made (Supabase Realtime), and the ids of jobs deleted (by another admin, or in
+ * another tab); `onState` hears whether that's working. */
+export function watchJobs(
+  onChange: (job: IngestJob) => void,
+  onState: (live: boolean) => void,
+  onDelete: (id: string) => void = () => {},
+): () => void {
   const client = supabase
   if (!client) return () => {}
   const channel = client
     .channel('ingest-jobs')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ingest_jobs' }, payload => {
-      if (payload.new && 'id' in payload.new) onChange(payload.new as IngestJob)
+      if (payload.eventType === 'DELETE') {
+        if (payload.old && 'id' in payload.old) onDelete(payload.old.id as string)
+      } else if (payload.new && 'id' in payload.new) onChange(payload.new as IngestJob)
     })
     .subscribe(status => onState(status === 'SUBSCRIBED'))
   return () => {
     client.removeChannel(channel)
   }
+}
+
+/** Whether a job can be cleared away: it's finished, failed or live (the database allows no other). */
+export function deletable(job: Pick<IngestJob, 'status'>): boolean {
+  return job.status === 'failed' || job.status === 'live'
+}
+
+/**
+ * Clear a finished job from the database (supabase/migrations/0006), and a screenshot job's screenshot from storage.
+ * The database deletes only finished jobs (see `deletable`); for any other, nothing is deleted and this says so.
+ */
+export async function deleteJob(job: Pick<IngestJob, 'id' | 'screenshot_path'>): Promise<void> {
+  const client = supabase
+  if (!client) throw new Error('Supabase isn’t set up on this copy of the site')
+  const { data, error } = await client.from('ingest_jobs').delete().eq('id', job.id).select('id')
+  if (error) throw new Error(error.message)
+  if (!data?.length) throw new Error('Only finished jobs (failed, or live) can be deleted')
+  // The screenshot is only of use to its job; a failure to remove it leaves a file nobody sees.
+  if (job.screenshot_path) await client.storage.from('ingest-screenshots').remove([job.screenshot_path])
 }
 
 /** A link to a job's screenshot, good for an hour (the bucket is private; admins may read it), or null. */
