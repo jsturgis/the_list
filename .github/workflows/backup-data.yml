@@ -45,7 +45,7 @@ jobs:
           tar --exclude=.git -czf "$RUNNER_TEMP/data.tar.gz" .
           ls -lh "$RUNNER_TEMP/data.tar.gz"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: data-${{ env.DATE }}-${{ env.SHA }}
           path: ${{ runner.temp }}/data.tar.gz
