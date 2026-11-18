@@ -137,6 +137,8 @@ describe('ShowDetail', () => {
     const google = screen.getByRole('link', { name: 'Add to Google Calendar' })
     expect(google.getAttribute('href')).toMatch(/^https:\/\/calendar\.google\.com\/calendar\/render\?/)
     expect(google).toHaveAttribute('target', '_blank')
+    expect(ics).toHaveAttribute('rel', 'nofollow')  // kept out of search (robots.txt disallows /calendar/ too)
+    expect(google.getAttribute('rel')).toContain('nofollow')
   })
 
   it.each(['cancelled', 'postponed'] as const)('leaves out the calendar links for a %s show', status => {

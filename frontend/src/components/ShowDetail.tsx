@@ -85,11 +85,11 @@ export default function ShowDetail({ show }: ShowDetailProps) {
                   <span className="flex items-center">
                     {upcoming && (
                       <>
-                        <a href={icsHref(show.id)} download={icsFilename(show)} aria-label="Add to calendar (.ics)" title="Add to calendar (.ics)"
+                        <a href={icsHref(show.id)} download={icsFilename(show)} rel="nofollow" aria-label="Add to calendar (.ics)" title="Add to calendar (.ics)"
                            className="rounded-full p-1 hover:bg-muted hover:text-link">
                           <ArrowDownTrayIcon className="size-4" />
                         </a>
-                        <a href={googleCalendarUrl(show)} target="_blank" rel="noopener noreferrer" aria-label="Add to Google Calendar"
+                        <a href={googleCalendarUrl(show)} target="_blank" rel="nofollow noopener noreferrer" aria-label="Add to Google Calendar"
                            title="Add to Google Calendar" className="rounded-full p-1 hover:bg-muted hover:text-link">
                           <CalendarDaysIcon className="size-4" />
                         </a>
