@@ -14,7 +14,7 @@ from app.alerts import SupabaseError
 from app.cli import main
 from app.ingest_jobs import Job, Saved, finish_saved, parse_specs, run_jobs
 from app.ingestion.screenshot import ScreenshotError
-from app.ingestion.ticketweb import EventError, UnreadablePage, event_show
+from app.ingestion.ticketweb import EventError, NoEventDetails, UnreadablePage, event_show
 from app.ingestion.upsert import upsert_shows
 from app.models.show import Show
 from app.scheduler import ingest_shows
@@ -182,6 +182,60 @@ def test_a_link_whose_page_cant_be_read_says_to_add_a_screenshot(fetch, db, supa
     assert supabase[-1] == ("finish", "job-5", "failed", {
         "message": "couldn't fetch it: 530 Unknown Error. Take a screenshot of the event and add that instead.",
         "extracted": None})
+
+
+_UCT = "https://www.theuctheatre.org/shows/victor-wooten-10-dec"
+_UCT_JOB = Job("job-6", 16, "page", _UCT, None)
+_UCT_FIELDS = {"performers": ["Victor Wooten and The Wooten Brothers"], "venue": "The UC Theatre", "city": "Berkeley",
+               "date": "December 10, 2026", "doors_time": "7:00 pm", "show_time": "8:00 pm", "price": "$35.00",
+               "age": "All Ages", "status": None}
+
+
+@patch("app.ingest_jobs.read_page_fields", return_value=_UCT_FIELDS)
+@patch("app.ingest_jobs.fetch_events", side_effect=NoEventDetails(f"{_UCT} has no event details on it", "<html>"))
+def test_a_page_with_no_schema_org_event_is_read_by_the_llm_then_waits_for_review(fetch, read, db, supabase):
+    with patch("app.scheduler.ingest_shows", side_effect=_stored(db)) as ingest:
+        assert _run(db, [_UCT_JOB], _TODAY) == []
+
+    read.assert_called_once_with("<html>", _UCT, _TODAY)
+    assert ("update", ["job-6"], {"phase": "reading_page", "detail": "Reading it with Claude Haiku"}) in supabase
+    assert supabase[-1] == ("finish", "job-6", "review", {"message": "Check what was read, then approve it",
+                                                          "extracted": _UCT_FIELDS})
+    ingest.assert_not_called()
+
+
+@patch("app.ingest_jobs.read_page_fields", return_value={**_UCT_FIELDS, "venue": None})
+@patch("app.ingest_jobs.fetch_events", side_effect=NoEventDetails(f"{_UCT} has no event details on it", "<html>"))
+def test_a_page_read_that_cant_be_added_as_read_goes_to_review_with_why(fetch, read, db, supabase):
+    _run(db, [_UCT_JOB], _TODAY)
+
+    _, _, status, finished = supabase[-1]
+    assert (status, finished["message"]) == ("review", "Check what was read: no venue on the page")
+
+
+@patch("app.ingest_jobs.read_page_fields", side_effect=UnreadablePage(f"{_UCT} has no event on it that Claude Haiku could read"))
+@patch("app.ingest_jobs.fetch_events", side_effect=NoEventDetails(f"{_UCT} has no event details on it", "<html>"))
+def test_a_page_the_llm_finds_no_event_on_asks_for_a_screenshot(fetch, read, db, supabase):
+    _run(db, [_UCT_JOB], _TODAY)
+
+    assert supabase[-1] == ("finish", "job-6", "failed", {
+        "message": f"{_UCT} has no event on it that Claude Haiku could read. "
+                   "Take a screenshot of the event and add that instead.",
+        "extracted": None})
+
+
+@patch("app.ingest_jobs.read_page_fields")
+@patch("app.ingest_jobs.fetch_events")
+def test_an_approved_page_read_is_added_with_the_page_as_its_ticket_link(fetch, read, db, supabase):
+    job = Job("job-6", 17, "page", _UCT, None, "queued", _UCT_FIELDS, approved=True)
+    with patch("app.scheduler.ingest_shows", side_effect=_stored(db)):
+        assert _run(db, [job], _TODAY) == ["job-6"]
+
+    fetch.assert_not_called()
+    read.assert_not_called()
+    show = db.query(Show).one()
+    assert (show.source, show.date, show.ticket_url) == ("page", date(2026, 12, 10), _UCT)
+    assert [a.band.name for a in show.acts] == ["Victor Wooten and The Wooten Brothers"]
 
 
 def _elsewhere(data: dict, venue: str, city: str, day: int) -> dict:
