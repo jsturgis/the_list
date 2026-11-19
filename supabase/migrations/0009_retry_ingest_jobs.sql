@@ -1,15 +1,16 @@
 -- Retry a job from the Admin page (docs/adr/0006-admin-ingest-jobs.md): one that failed, or that has stalled (no
--- progress for 30 minutes while queued or running). An added job isn't: it waits on its Deploy, which can take an hour
--- or more in the `pages` concurrency group, and ingesting it again wouldn't publish it.
+-- progress for 30 minutes while queued or running). An added job isn't: it waits on its Deploy, which can take an
+-- hour or more in the `pages` concurrency group, and ingesting it again wouldn't publish it.
 --
 -- A run that breaks off fails its unfinished jobs and the queue hands them out again within the hour, up to three
 -- attempts; a run GitHub cancels while it waits in its concurrency group runs no step at all, so its jobs sit at
 -- "Dispatched" until then; a Deploy that fails leaves a job failed for good. Retrying starts the job over at once:
--- attempts back to 0, its queue message shown now (or sent again, when it was taken off), so the worker dispatches it
--- within a minute. A reviewed job keeps its approved fields, and is added as approved. A stalled job's run may in fact be waiting in the `pages` group (behind a Backfill)
--- rather than cancelled; retrying it starts a new run, GitHub cancels the waiting one, and that run's other jobs are
--- handed out again when their messages show (as they would be had it been cancelled anyway). Runs never overlap, and
--- a run skips a job another already added, so nothing is added twice.
+-- attempts back to 0, its queue message shown now (or sent again, when it was taken off), so the worker dispatches
+-- it within a minute. A reviewed job keeps its approved fields, and is added as approved. A stalled job's run may in
+-- fact be waiting in the `pages` group (behind a Backfill) rather than cancelled; retrying it starts a new run,
+-- GitHub cancels the waiting one, and that run's other jobs are handed out again when their messages show (as they
+-- would be had it been cancelled anyway). Runs never overlap, and a run skips a job another already added, so
+-- nothing is added twice.
 --
 -- Apply by hand in the Supabase SQL editor, after 0008, before the Admin page that calls it is deployed.
 
