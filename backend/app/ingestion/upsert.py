@@ -677,16 +677,22 @@ def same_event(added: Show, listed: Show) -> bool:
     the other's billing ("Victor Wooten" and "Victor Wooten And The Wooten Brothers", see _billed_with), or half
     the shorter lineup, at least two Bands, is the same Bands ("Sunamo with No Pressure, Outta Pocket, Middrift, Small
     Crush..." and "Sunami with No Pressure, Midrift, Outta Pocket, Small Crush...")."""
+    return _match_strength(added, listed) > 0
+
+
+def _match_strength(added: Show, listed: Show) -> int:
+    """How surely two Shows are one event (see same_event): 3 the same headliner or one misspelt, 2 half the lineup,
+    1 one headliner the other's billing (a band can be named so, "Iron" and "Iron and Wine"), 0 not one event."""
     if (added.date, added.venue_id) != (listed.date, listed.venue_id) or not added.acts or not listed.acts:
-        return False
+        return 0
     first, second = _show_headliner(added), _show_headliner(listed)
     if first == second or difflib.SequenceMatcher(None, first, second).ratio() >= _TYPO_SIMILARITY:
-        return True
-    if _billed_with(first, second) or _billed_with(second, first):
-        return True
+        return 3
     keys = [{band_key(a.band.name) or a.band.name for a in show.acts} for show in (added, listed)]
     shorter = min(len(k) for k in keys)
-    return shorter >= 2 and len(keys[0] & keys[1]) * 2 >= shorter
+    if shorter >= 2 and len(keys[0] & keys[1]) * 2 >= shorter:
+        return 2
+    return 1 if _billed_with(first, second) or _billed_with(second, first) else 0
 
 
 def fold_added_shows(db: Session, shows: list[Show]) -> tuple[list[Show], list[int]]:
@@ -708,8 +714,12 @@ def fold_added_shows(db: Session, shows: list[Show]) -> tuple[list[Show], list[i
         for added, listed in pairs:
             if added.id in folded or not same_event(added, listed):
                 continue
-            rivals = [s for s in db.query(Show).filter(Show.date == added.date, Show.venue_id == added.venue_id,
-                                                       Show.source == "list") if same_event(added, s)]
+            # The List's Shows it could be, the surest matches only: "Iron" goes to Iron's Show, not Iron and Wine's.
+            strengths = {s.id: _match_strength(added, s) for s in db.query(Show).filter(
+                Show.date == added.date, Show.venue_id == added.venue_id, Show.source == "list")}
+            if strengths[listed.id] < max(strengths.values()):
+                continue
+            rivals = [i for i, strength in strengths.items() if strength == strengths[listed.id]]
             if len(rivals) > 1 and listed.door_time != added.door_time:
                 continue   # which of the List's Shows it is isn't clear
             if added.ticket_url and not listed.ticket_url:

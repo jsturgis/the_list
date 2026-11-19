@@ -63,7 +63,11 @@ Use null for anything the screenshot doesn't show. Don't guess."""
 MAX_PIXELS = 1_600_000
 _CONTEXT_TOKENS = 8192
 _AMOUNT_RE = re.compile(r"\$\s?(\d+(?:\.\d{2})?)")
-_BARE_AMOUNT_RE = re.compile(r"(?<![\d.])(\d{1,4}(?:\.\d{2})?)(?![\d.]|\+|\s*(?:%|am|pm)\b)", re.IGNORECASE)
+# A price written without "$", as an admin may correct one: the whole field is an amount or a range, maybe "+ fees"
+# ("35", "20 - 25", "35.00 + Fees"). Anything else with numbers in it (an age, a time, a date: "12/10") isn't read as
+# one.
+_BARE_PRICE_RE = re.compile(r"\s*(\d{1,3}(?:\.\d{2})?)(?:\s*(?:-|–|to)\s*(\d{1,3}(?:\.\d{2})?))?"
+                            r"(?:\s*\+?\s*(?:fees?|service fees?))?\s*", re.IGNORECASE)
 
 
 class ScreenshotError(EventError):
@@ -169,8 +173,9 @@ def _price(text: str) -> str | None:
     """The price as the List writes it ("$25", "$20/$25", "free"), which `upsert_shows` reads."""
     if re.search(r"\bfree\b", text, re.IGNORECASE):
         return "free"
-    # Amounts in dollars; an admin correcting the price may leave the "$" out ("35", "20 - 25").
-    amounts = [float(a) for a in _AMOUNT_RE.findall(text) or _BARE_AMOUNT_RE.findall(text)]
+    amounts = [float(a) for a in _AMOUNT_RE.findall(text)]
+    if not amounts and (bare := _BARE_PRICE_RE.fullmatch(text)):
+        amounts = [float(a) for a in bare.groups() if a]
     return _money_range(min(amounts), max(amounts)) if amounts else None
 
 

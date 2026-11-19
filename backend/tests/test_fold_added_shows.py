@@ -106,7 +106,23 @@ def test_a_headliner_and_its_whole_billing_are_the_same_event(db, listed, added)
     assert [s.source for s in db.query(Show).all()] == ["list"]
 
 
-def test_a_headliner_that_only_begins_another_name_isnt_the_same_event(db):
-    upsert_shows(db, [_listing(["Wooten Brothers"])])
-    fold_added_shows(db, upsert_shows(db, [_added(["Wooten Brothers Tribute Band"])]))
+@pytest.mark.parametrize("listed, added", [
+    (["Wooten Brothers"], ["Wooten Brothers Tribute Band"]),   # no billing join
+    (["Victor Wooten"], ["Victor Wooten-Andrews"]),           # a joined word isn't a join
+    (["Victor Wooten"], ["Victor Wootenand Friends"]),
+    (["Regi Wooten"], ["Victor Wooten and Regi Wooten"]),     # the join must follow the whole headliner
+])
+def test_a_headliner_that_only_begins_another_name_isnt_the_same_event(db, listed, added):
+    upsert_shows(db, [_listing(listed)])
+    fold_added_shows(db, upsert_shows(db, [_added(added)]))
     assert sorted(s.source for s in db.query(Show).all()) == ["list", "page"]
+
+
+def test_a_band_named_as_a_billing_goes_to_its_own_show_not_the_one_it_begins(db):
+    """Two rooms: Iron and Wine in one, a band called Iron in the other. An added Iron Show is Iron's."""
+    upsert_shows(db, [_listing(["Iron and Wine"], door_time="7pm"), _listing(["Iron"], door_time="8pm")])
+    fold_added_shows(db, upsert_shows(db, [_added(["Iron"], door_time="7pm")]))
+    shows = {s.id: s for s in db.query(Show).all()}
+    assert sorted(s.source for s in shows.values()) == ["list", "list"]
+    (iron,) = [s for s in shows.values() if s.acts[0].band.name == "Iron"]
+    assert iron.ticket_url == _TM
