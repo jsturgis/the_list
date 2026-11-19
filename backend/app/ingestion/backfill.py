@@ -105,6 +105,8 @@ def backfill_band(band: Band, images_dir: Path, client: httpx.Client, genre_filt
     band.genres = genres
     if mb_links:
         band.links = mb_links
+    if found.get("mbid"):
+        band.mbid = found["mbid"]
     for field in _LINK_FIELDS:
         if found.get(field):
             setattr(band, field, found[field])
@@ -134,7 +136,7 @@ def _delete(images_dir: Path, photo: str | None, keep: str | None) -> None:
 
 def redo_bands(db: Session, names: list[str], images_dir: str | Path) -> list[str]:
     """Mark Bands matched to the wrong artist to be looked up again from scratch by the next backfill, first dropping
-    what the services gave them: genres, MusicBrainz's links (and each link field holding one of them), Discogs'
+    what the services gave them: genres, the MusicBrainz artist and its links (and each link field holding one of them), Discogs'
     members, and a service's photo (one with a credit) with its focal point and stored file. The edition's links and
     photo are kept; its genres come back from the services, or from its correction.
     Names are matched by Slug (app/ingestion/upsert.find_band). Returns the names no Band was found for."""
@@ -148,7 +150,7 @@ def redo_bands(db: Session, names: list[str], images_dir: str | Path) -> list[st
         for field in _LINK_FIELDS:
             if getattr(band, field) in mb_urls:
                 setattr(band, field, None)
-        band.genres, band.links, band.members = [], [], []
+        band.genres, band.links, band.members, band.mbid = [], [], [], None
         if band.image_credit:
             photos.append(band.image_url)
             band.image_url, band.image_credit = None, None     # setting the photo clears its focal point

@@ -780,10 +780,10 @@ def test_venue_extras_fill_only_empty_fields(db):
 
 
 def test_band_extras_fill_only_empty_fields(db):
-    upsert_shows(db, [_show(bands=["Sleep"], band_enrichment=[("Sleep", {"image_url": "a.jpg", "website_url": "https://sleep.com", "is_local": False})])])
-    upsert_shows(db, [_show(bands=["Sleep"], date_=date(2026, 9, 26), band_enrichment=[("Sleep", {"image_url": "b.jpg", "is_local": True})])])
+    upsert_shows(db, [_show(bands=["Sleep"], band_enrichment=[("Sleep", {"image_url": "a.jpg", "website_url": "https://sleep.com", "is_local": False, "mbid": "mb-1"})])])
+    upsert_shows(db, [_show(bands=["Sleep"], date_=date(2026, 9, 26), band_enrichment=[("Sleep", {"image_url": "b.jpg", "is_local": True, "mbid": "mb-2"})])])
     b = db.query(Band).one()
-    assert (b.image_url, b.website_url, b.is_local) == ("a.jpg", "https://sleep.com", False)
+    assert (b.image_url, b.website_url, b.is_local, b.mbid) == ("a.jpg", "https://sleep.com", False, "mb-1")
 
 
 # ── Shows gone from the List ──────────────────────────────────────────────────
