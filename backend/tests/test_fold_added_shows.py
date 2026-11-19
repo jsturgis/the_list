@@ -92,3 +92,37 @@ def test_two_shows_from_elsewhere_are_never_folded_together(db):
 def test_same_event_compares_headliners_and_lineups(db):
     listed, added = upsert_shows(db, [_listing(_STEVE), _added()])
     assert same_event(added, listed)
+
+
+@pytest.mark.parametrize("listed, added", [
+    (["Victor Wooten And The Wooten Brothers"], ["Victor Wooten", "Regi Wooten", "Roy Wooten", "Joseph Wooten"]),
+    (["Victor Wooten"], ["Victor Wooten & The Wooten Brothers"]),
+    (["Bob Mould with Jason Narducy"], ["Bob Mould"]),
+])
+def test_a_headliner_and_its_whole_billing_are_the_same_event(db, listed, added):
+    """Steve lists a billing as one name where a page names its first act (The UC Theatre, Dec 10 2026)."""
+    upsert_shows(db, [_listing(listed)])
+    fold_added_shows(db, upsert_shows(db, [_added(added)]))
+    assert [s.source for s in db.query(Show).all()] == ["list"]
+
+
+@pytest.mark.parametrize("listed, added", [
+    (["Wooten Brothers"], ["Wooten Brothers Tribute Band"]),   # no billing join
+    (["Victor Wooten"], ["Victor Wooten-Andrews"]),           # a joined word isn't a join
+    (["Victor Wooten"], ["Victor Wootenand Friends"]),
+    (["Regi Wooten"], ["Victor Wooten and Regi Wooten"]),     # the join must follow the whole headliner
+])
+def test_a_headliner_that_only_begins_another_name_isnt_the_same_event(db, listed, added):
+    upsert_shows(db, [_listing(listed)])
+    fold_added_shows(db, upsert_shows(db, [_added(added)]))
+    assert sorted(s.source for s in db.query(Show).all()) == ["list", "page"]
+
+
+def test_a_band_named_as_a_billing_goes_to_its_own_show_not_the_one_it_begins(db):
+    """Two rooms: Iron and Wine in one, a band called Iron in the other. An added Iron Show is Iron's."""
+    upsert_shows(db, [_listing(["Iron and Wine"], door_time="7pm"), _listing(["Iron"], door_time="8pm")])
+    fold_added_shows(db, upsert_shows(db, [_added(["Iron"], door_time="7pm")]))
+    shows = {s.id: s for s in db.query(Show).all()}
+    assert sorted(s.source for s in shows.values()) == ["list", "list"]
+    (iron,) = [s for s in shows.values() if s.acts[0].band.name == "Iron"]
+    assert iron.ticket_url == _TM

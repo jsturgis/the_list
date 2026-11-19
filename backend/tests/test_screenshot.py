@@ -75,9 +75,19 @@ def test_one_time_is_the_shows_time():
 
 
 @pytest.mark.parametrize("price, expected", [("Free", "free"), ("$15", "$15"), ("$12.50 adv / $15 dos", "$12.50/$15"),
-                                             (None, None), ("Tickets", None)])
+                                             (None, None), ("Tickets", None),
+                                             # As an admin may correct it, without the "$".
+                                             ("35", "$35"), ("35.00 + Fees", "$35"), ("20 - 25", "$20/$25"),
+                                             ("$47.22 to $97.22", "$47.22/$97.22")])
 def test_reads_the_price(price, expected):
     assert screenshot_show(_fields(price=price), _TODAY)["price_raw"] == expected
+
+
+@pytest.mark.parametrize("price", ["18 & over", "Ages 21 and up", "21+", "8:00", "8:00 PM", "7:30pm", "Doors 7 show 8",
+                                   "12/10", "2026", "Dec 10 2026", "2 for 1", "415-555-1212", "Limit 4", "Tier 1: 45",
+                                   "1,000", "€35", "10%"])
+def test_numbers_that_arent_a_price_arent_read_as_one(price):
+    assert screenshot_show(_fields(price=price), _TODAY)["price_raw"] is None
 
 
 def test_reads_all_ages():
