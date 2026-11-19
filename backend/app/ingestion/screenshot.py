@@ -63,6 +63,7 @@ Use null for anything the screenshot doesn't show. Don't guess."""
 MAX_PIXELS = 1_600_000
 _CONTEXT_TOKENS = 8192
 _AMOUNT_RE = re.compile(r"\$\s?(\d+(?:\.\d{2})?)")
+_BARE_AMOUNT_RE = re.compile(r"(?<![\d.])(\d{1,4}(?:\.\d{2})?)(?![\d.]|\+|\s*(?:%|am|pm)\b)", re.IGNORECASE)
 
 
 class ScreenshotError(EventError):
@@ -168,7 +169,8 @@ def _price(text: str) -> str | None:
     """The price as the List writes it ("$25", "$20/$25", "free"), which `upsert_shows` reads."""
     if re.search(r"\bfree\b", text, re.IGNORECASE):
         return "free"
-    amounts = [float(a) for a in _AMOUNT_RE.findall(text)]
+    # Amounts in dollars; an admin correcting the price may leave the "$" out ("35", "20 - 25").
+    amounts = [float(a) for a in _AMOUNT_RE.findall(text) or _BARE_AMOUNT_RE.findall(text)]
     return _money_range(min(amounts), max(amounts)) if amounts else None
 
 

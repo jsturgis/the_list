@@ -92,3 +92,21 @@ def test_two_shows_from_elsewhere_are_never_folded_together(db):
 def test_same_event_compares_headliners_and_lineups(db):
     listed, added = upsert_shows(db, [_listing(_STEVE), _added()])
     assert same_event(added, listed)
+
+
+@pytest.mark.parametrize("listed, added", [
+    (["Victor Wooten And The Wooten Brothers"], ["Victor Wooten", "Regi Wooten", "Roy Wooten", "Joseph Wooten"]),
+    (["Victor Wooten"], ["Victor Wooten & The Wooten Brothers"]),
+    (["Bob Mould with Jason Narducy"], ["Bob Mould"]),
+])
+def test_a_headliner_and_its_whole_billing_are_the_same_event(db, listed, added):
+    """Steve lists a billing as one name where a page names its first act (The UC Theatre, Dec 10 2026)."""
+    upsert_shows(db, [_listing(listed)])
+    fold_added_shows(db, upsert_shows(db, [_added(added)]))
+    assert [s.source for s in db.query(Show).all()] == ["list"]
+
+
+def test_a_headliner_that_only_begins_another_name_isnt_the_same_event(db):
+    upsert_shows(db, [_listing(["Wooten Brothers"])])
+    fold_added_shows(db, upsert_shows(db, [_added(["Wooten Brothers Tribute Band"])]))
+    assert sorted(s.source for s in db.query(Show).all()) == ["list", "page"]

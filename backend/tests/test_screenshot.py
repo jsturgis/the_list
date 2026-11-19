@@ -75,7 +75,10 @@ def test_one_time_is_the_shows_time():
 
 
 @pytest.mark.parametrize("price, expected", [("Free", "free"), ("$15", "$15"), ("$12.50 adv / $15 dos", "$12.50/$15"),
-                                             (None, None), ("Tickets", None)])
+                                             (None, None), ("Tickets", None),
+                                             # As an admin may correct it, without the "$".
+                                             ("35", "$35"), ("35.00 + Fees", "$35"), ("20 - 25", "$20/$25"),
+                                             ("$47.22 to $97.22", "$47.22/$97.22")])
 def test_reads_the_price(price, expected):
     assert screenshot_show(_fields(price=price), _TODAY)["price_raw"] == expected
 

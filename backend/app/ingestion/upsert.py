@@ -661,15 +661,28 @@ def remove_unlisted_shows(db: Session, listed: list[Show], since: date) -> list[
     return [show.id for show in unlisted]
 
 
+# What joins a headliner to the rest of its billing ("Victor Wooten And The Wooten Brothers", "X with Y"), as slugs.
+_BILLING_JOINS = ("and", "with", "featuring", "feat", "ft", "plus")
+
+
+def _billed_with(short: str, long: str) -> bool:
+    """Whether one headliner (a matching key) is the other's whole billing: "victor-wooten" and
+    "victor-wooten-and-the-wooten-brothers"; Steve lists a billing as one name where a page names its first act."""
+    return any(long.startswith(f"{short}-{join}-") for join in _BILLING_JOINS)
+
+
 def same_event(added: Show, listed: Show) -> bool:
     """Whether two Shows at one Venue on one day are one event listed twice, spelled differently: their headliners are
-    one Band misspelt (as close as a Venue's typo, _TYPO_SIMILARITY: "Sunamo" and "Sunami" aren't, at 0.83), or half
+    one Band misspelt (as close as a Venue's typo, _TYPO_SIMILARITY: "Sunamo" and "Sunami" aren't, at 0.83), or one is
+    the other's billing ("Victor Wooten" and "Victor Wooten And The Wooten Brothers", see _billed_with), or half
     the shorter lineup, at least two Bands, is the same Bands ("Sunamo with No Pressure, Outta Pocket, Middrift, Small
     Crush..." and "Sunami with No Pressure, Midrift, Outta Pocket, Small Crush...")."""
     if (added.date, added.venue_id) != (listed.date, listed.venue_id) or not added.acts or not listed.acts:
         return False
     first, second = _show_headliner(added), _show_headliner(listed)
     if first == second or difflib.SequenceMatcher(None, first, second).ratio() >= _TYPO_SIMILARITY:
+        return True
+    if _billed_with(first, second) or _billed_with(second, first):
         return True
     keys = [{band_key(a.band.name) or a.band.name for a in show.acts} for show in (added, listed)]
     shorter = min(len(k) for k in keys)
