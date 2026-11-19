@@ -243,7 +243,9 @@ def test_add_event_adds_the_show(mock_fetch, mock_session, db, keys_work, capsys
     with patch("app.scheduler.ingest_shows", side_effect=_stored(db)):
         main(["add-event", _URL + "?utm_medium=affiliate"])
 
-    mock_fetch.assert_called_once_with(_URL + "?utm_medium=affiliate")
+    (url, venue_city), _ = mock_fetch.call_args
+    assert url == _URL + "?utm_medium=affiliate"
+    assert venue_city("Moe's Alley") == "Santa Cruz"   # it looks the List's Venues up by name
     assert "Teenage Bottlerocket, Brendan Kelly at Moe's Alley, Santa Cruz on Thu Jan 21, 2027" in capsys.readouterr().out
     assert db.query(Show).one().source == "ticketweb"
 

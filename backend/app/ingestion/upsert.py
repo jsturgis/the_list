@@ -3,6 +3,7 @@ from __future__ import annotations
 """Persist enriched show dicts to the database (idempotent)."""
 import difflib
 import logging
+import math
 import re
 from datetime import date, datetime, time
 from urllib.parse import urlparse
@@ -61,9 +62,36 @@ _AGE_MAP: dict[str, AgeRestriction] = {
 }
 
 
+# Around the Bay Area, Santa Cruz to Santa Rosa, with room to spare: a place given only by its coordinates (a
+# Bandsintown event's JSON-LD has no address, only `geo`) outside it is no Bay Area city's, without asking Google.
+_AROUND_THE_BAY = ((36.85, 38.65), (-123.15, -121.45))
+# How close a known Venue must be to a place given by its coordinates to be taken for where it is.
+_VENUE_NEAR_KM = 1.0
+
+
 def known_region(city: str | None) -> Region | None:
     """Region for a city in the table, or None (e.g. a Google neighbourhood like "Temescal")."""
     return _CITY_REGION.get(city.lower().strip()) if city else None
+
+
+def _km(a: tuple[float, float], b: tuple[float, float]) -> float:
+    """Between two places' coordinates. Equirectangular: well within a metre a kilometre at this scale."""
+    lat1, lng1, lat2, lng2 = map(math.radians, (*a, *b))
+    return 6371.0 * math.hypot((lng2 - lng1) * math.cos((lat1 + lat2) / 2), lat2 - lat1)
+
+
+def around_the_bay(latitude: float, longitude: float) -> bool:
+    """Whether the place could be in one of the Bay Area's cities: it's in _AROUND_THE_BAY."""
+    (south, north), (west, east) = _AROUND_THE_BAY
+    return south <= latitude <= north and west <= longitude <= east
+
+
+def venue_near(db: Session, latitude: float, longitude: float) -> Venue | None:
+    """The List's Venue nearest the place, if it's within _VENUE_NEAR_KM; else None."""
+    placed = db.query(Venue).filter(Venue.latitude.isnot(None), Venue.longitude.isnot(None)).order_by(Venue.id).all()
+    distance = {v.id: _km((latitude, longitude), (v.latitude, v.longitude)) for v in placed}
+    nearest = min(placed, key=lambda v: distance[v.id], default=None)
+    return nearest if nearest and distance[nearest.id] <= _VENUE_NEAR_KM else None
 
 
 def region_for_city(city: str | None) -> Region:

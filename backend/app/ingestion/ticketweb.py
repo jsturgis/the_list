@@ -8,6 +8,13 @@ price is the face value in the event's description, as Steve lists it; the JSON-
 A page can list several events (an artist's page on Bandsintown): `event_shows` reads each, keeping those in the Bay
 Area and passing over the rest; only a page with none in the Bay Area is refused.
 
+An event's city is its address's. Where the address has none (Bandsintown gives only the Venue's coordinates), it's
+the city of the List's Venue at those coordinates, else, around the Bay, Google's city for the place there
+(app/ingestion/google_places.py). With no coordinates either, it's the city of the List's Venue by that name, on a
+page of one event only: an artist's tour plays many a Fillmore. The List's Venues are looked up by the caller
+(`venue_city`, ingest_jobs.known_venue_city); a city one of them gives is taken as in the Bay Area, being on the List,
+even when it isn't in the table (Capitola).
+
 The page is fetched by app/ingestion/page_fetch.py: with a browser's headers, and from the home server's page fetcher
 when there is one, since TicketWeb turns GitHub's runners away (ADR 0007).
 """
@@ -18,11 +25,13 @@ import json
 import logging
 import re
 from datetime import datetime, time
+from typing import Callable
 from urllib.parse import urlsplit, urlunsplit
 
 from app.ingestion.page_fetch import PageError, get_page
 from app.ingestion.parser import clean_band_name
-from app.ingestion.upsert import known_region
+from app.ingestion.google_places import PlacesUnavailable, city_at
+from app.ingestion.upsert import around_the_bay, known_region
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +54,14 @@ _LINEUP_SEPARATORS_RE = re.compile(r"\s+(?:w/|with|and special guests?|special g
                                    re.IGNORECASE)
 _MATINEE_BEFORE = time(17, 0)
 _STATUSES = {"EventCancelled": "cancelled", "EventPostponed": "postponed"}
+
+# The city of the List's Venue at the coordinates given, else (none given) by the name; None when the List has none.
+VenueCity = Callable[[str, "tuple[float, float] | None"], "str | None"]
+
+
+def no_venue_city(name: str, coordinates: tuple[float, float] | None = None) -> None:
+    """For a caller with no Venues to look up: none is known."""
+    return None
 
 
 class EventError(RuntimeError):
@@ -71,7 +88,7 @@ def event_url(url: str) -> str:
     return urlunsplit((parts.scheme or "https", parts.netloc, parts.path, "", ""))
 
 
-def fetch_event(url: str) -> dict:
+def fetch_event(url: str, venue_city: VenueCity = no_venue_city) -> dict:
     """The Show on this TicketWeb event page."""
     if not is_ticketweb_url(url):
         raise EventError(f"{url} isn't a TicketWeb page")
@@ -80,7 +97,7 @@ def fetch_event(url: str) -> dict:
         html, _ = get_page(url)
     except PageError as exc:
         raise UnreadablePage(f"couldn't fetch {url}: {exc}") from exc
-    return event_show(html, url)
+    return event_show(html, url, venue_city=venue_city)
 
 
 def _events(page: str) -> list[dict]:
@@ -176,17 +193,19 @@ def _money_range(low: float, high: float) -> str:
     return money(low) if low == high else f"{money(low)}/{money(high)}"
 
 
-def event_show(page: str, url: str, source: str = SOURCE, provider: str | None = PROVIDER) -> dict:
+def event_show(page: str, url: str, source: str = SOURCE, provider: str | None = PROVIDER,
+               venue_city: VenueCity = no_venue_city) -> dict:
     """The Show on a TicketWeb event page (its HTML), as a dict for `ingest_shows`. Another site's page that
     describes its event the same way (schema.org JSON-LD) is read the same, with its own `source` and `provider`
     (app/ingestion/event_page.py)."""
     events = _events(page)
     if not events:
         raise _no_events(url)
-    return _show(events[0], page, url, source, provider)
+    return _show(events[0], page, url, source, provider, venue_city)
 
 
-def event_shows(page: str, url: str, source: str = SOURCE, provider: str | None = PROVIDER) -> list[dict]:
+def event_shows(page: str, url: str, source: str = SOURCE, provider: str | None = PROVIDER,
+                venue_city: VenueCity = no_venue_city) -> list[dict]:
     """The Shows on a page that may list several events (an artist's page), as dicts for `ingest_shows`: those in the
     Bay Area, passing over the rest. A page with one event is read as `event_show` reads it. With several, an event
     that can't be read is passed over too (logged), and the page is refused only when none of them can be added."""
@@ -194,12 +213,14 @@ def event_shows(page: str, url: str, source: str = SOURCE, provider: str | None 
     if not events:
         raise _no_events(url)
     if len(events) == 1:
-        return [_show(events[0], page, url, source, provider)]
+        return [_show(events[0], page, url, source, provider, venue_city)]
     shows, outside, problems = [], 0, []
+    # A Venue the List has by the name of one of several events' isn't taken for where it is: only by its coordinates.
+    by_coordinates = lambda name, coordinates=None: venue_city(name, coordinates) if coordinates else None
     for event in events:
         try:
             # The page's own text belongs to no one event, so only the events' own details are read.
-            shows.append(_show(event, None, url, source, provider))
+            shows.append(_show(event, None, url, source, provider, by_coordinates))
         except OutsideBayArea:
             outside += 1
         except EventError as exc:
@@ -212,11 +233,29 @@ def event_shows(page: str, url: str, source: str = SOURCE, provider: str | None 
     raise OutsideBayArea(f"{url}: none of its {outside} events is in a Bay Area city we know")
 
 
+def _city(place: dict, venue_name: str, venue_city: VenueCity) -> tuple[str | None, bool]:
+    """The city of a place whose address doesn't name one, and whether it's a Venue the List has: the List's Venue at
+    its coordinates, else Google's city for the place there; with no coordinates, the List's Venue by its name. A place
+    whose coordinates aren't in the Bay Area isn't taken for a Venue of the same name that is. Raises
+    PlacesUnavailable when it takes Google to say, and Google can't be asked."""
+    geo = place.get("geo") if isinstance(place.get("geo"), dict) else {}
+    try:
+        coordinates = (float(geo["latitude"]), float(geo["longitude"]))
+    except (KeyError, TypeError, ValueError):
+        coordinates = None
+    if listed := venue_city(venue_name, coordinates):
+        return listed, True
+    if coordinates and around_the_bay(*coordinates):
+        return city_at(*coordinates), False
+    return None, False
+
+
 def _no_events(url: str) -> UnreadablePage:
     return UnreadablePage(f"{url} has no event details on it (the site may have turned the request away)")
 
 
-def _show(event: dict, page: str | None, url: str, source: str, provider: str | None) -> dict:
+def _show(event: dict, page: str | None, url: str, source: str, provider: str | None,
+          venue_city: VenueCity = no_venue_city) -> dict:
     """One event as a Show; `page` is the page's HTML when the event is the page's only one (its door time)."""
     url = event_url(event.get("url") or url)
     title = _title(event)
@@ -231,10 +270,15 @@ def _show(event: dict, page: str | None, url: str, source: str, provider: str | 
     place = event.get("location") or {}
     address = place.get("address") or {}
     venue_name = _text(place.get("name"))
-    city = _text(address.get("addressLocality")) or None
     if not venue_name:
         raise EventError(f"{url}: no venue")
-    if known_region(city) is None:
+    city, listed = _text(address.get("addressLocality")) or None, False
+    if not city:
+        try:
+            city, listed = _city(place, venue_name, venue_city)
+        except PlacesUnavailable as exc:
+            raise EventError(f"{url}: couldn't tell where {venue_name} is: {exc}") from exc
+    if known_region(city) is None and not listed:
         raise OutsideBayArea(f"{url}: {venue_name} is in {city or 'an unknown city'}, not a Bay Area city we know")
     street = _text(address.get("streetAddress")) or None
 

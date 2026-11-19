@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 from app.alerts import SupabaseError, _require_supabase
 from app.config import settings
 from app.ingestion.event_page import EventError, UnreadablePage, fetch_events
-from app.ingestion.upsert import find_venue
+from app.ingestion.upsert import find_venue, venue_near
 from app.models.show import Show
 
 logger = logging.getLogger(__name__)
@@ -182,18 +182,24 @@ def describe(show: Show) -> str:
     return f"{lineup} at {show.venue.name}, {show.venue.city} on {show.date:%a %b %-d, %Y}"
 
 
+def known_venue_city(db: Session) -> Callable[..., str | None]:
+    """For an event or screenshot that doesn't say where it is: the city of the List's Venue at its coordinates when
+    it gives them, else of the Venue by its name. None when there's no such Venue, or it has no city."""
+    def venue_city(name: str, coordinates: tuple[float, float] | None = None) -> str | None:
+        venue = venue_near(db, *coordinates) if coordinates else find_venue(db, name)
+        return venue.city if venue and venue.city not in (None, "", "Unknown") else None
+    return venue_city
+
+
 def read_job(db: Session, job: Job, today: date) -> tuple[list[dict], dict | None]:
     """The Shows a job asks for, as dicts for `ingest_shows` (one, unless its page lists several events), and for a
     screenshot what the model read."""
+    venue_city = known_venue_city(db)
     if job.provider in ("ticketweb", "page"):
         update_jobs([job.id], phase="fetching_page", detail=job.url)
-        return fetch_events(job.url or ""), None
+        return fetch_events(job.url or "", venue_city), None
     if job.provider == "screenshot":
         from app.ingestion.screenshot import ScreenshotError, read_fields, screenshot_show
-
-        def venue_city(name: str) -> str | None:
-            venue = find_venue(db, name)
-            return venue.city if venue else None
 
         if job.approved:
             # As the admin approved it; if it still can't be added, it goes back to them with the reason.

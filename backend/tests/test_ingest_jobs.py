@@ -461,3 +461,16 @@ async def test_a_phase_that_cant_be_reported_doesnt_fail_the_ingest(db, services
 
     (show,) = await ingest_shows(db, [event_show(_PAGE, _URL)], on_phase=broken)
     assert show.source == "ticketweb"
+
+
+def test_a_known_venues_city_is_looked_up_by_its_coordinates_else_its_name(db):
+    from app.models.venue import Region, Venue
+
+    db.add_all([Venue(name="Sandbar", city="Capitola", region=Region.sf, latitude=36.9720, longitude=-121.9530),
+                Venue(name="Nowhere Hall", city="Unknown", region=Region.sf)])
+    db.flush()
+    venue_city = ingest_jobs.known_venue_city(db)
+    assert venue_city("Some Bar", (36.9725, -121.9531)) == "Capitola"   # whatever its name, the Venue there
+    assert venue_city("Sandbar", (39.74, -104.95)) is None             # given coordinates, its name doesn't count
+    assert venue_city("Sandbar") == "Capitola"
+    assert venue_city("Nowhere Hall") is None                           # a Venue with no city places nothing

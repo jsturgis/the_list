@@ -5,7 +5,8 @@ from datetime import date
 
 import pytest
 
-from app.ingestion.upsert import find_venue, region_for_city, remove_unlisted_shows, upsert_shows
+from app.ingestion.upsert import (around_the_bay, find_venue, region_for_city, remove_unlisted_shows, upsert_shows,
+                                  venue_near)
 from app.models.act import Act
 from app.models.band import Band
 from app.models.show import AgeRestriction, Show, ShowStatus
@@ -853,3 +854,26 @@ def test_nothing_is_removed_when_too_many_shows_are_off_the_page(db, caplog):
     assert "aren't on the page" in caplog.text
 
     assert len(remove_unlisted_shows(db, stored[:9], date(2026, 9, 25))) == 1
+
+
+# ── A place by its coordinates ───────────────────────────────────────────────
+
+@pytest.mark.parametrize("latitude, longitude, around", [
+    (37.05134, -122.0733, True),        # Felton
+    (38.4404, -122.7141, True),         # Santa Rosa
+    (36.9720, -121.9530, True),         # Capitola
+    (39.7403313, -104.9484849, False),  # Denver
+    (34.0522, -118.2437, False),        # Los Angeles
+    (36.6002, -121.8947, False),        # Monterey
+])
+def test_a_place_is_around_the_bay_from_santa_cruz_to_santa_rosa(latitude, longitude, around):
+    assert around_the_bay(latitude, longitude) is around
+
+
+def test_a_place_is_the_lists_venue_within_a_kilometre_of_it(db):
+    sandbar = Venue(name="Sandbar", city="Capitola", region=Region.sf, latitude=36.9720, longitude=-121.9530)
+    unplaced = Venue(name="Somewhere", city="Capitola", region=Region.sf)
+    db.add_all([sandbar, unplaced])
+    db.flush()
+    assert venue_near(db, 36.9745, -121.9530) is sandbar        # about 300 m away
+    assert venue_near(db, 36.9741, -122.0308) is None           # Santa Cruz, 7 km away
