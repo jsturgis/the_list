@@ -8,6 +8,9 @@ import {
   approveJob,
   deletable,
   deleteJob,
+  retryable,
+  retryJob,
+  stalled,
   inProgress,
   loadJobs,
   phasesFor,
@@ -146,6 +149,16 @@ function Admin({ email }: { email: string }) {
     }
   }
 
+  const retry = async (job: IngestJob) => {
+    try {
+      const queued = await retryJob(job.id)
+      setJobs(current => current?.map(j => (j.id === queued.id ? queued : j)) ?? current)
+      setToast(`Retrying the job for ${jobTitle(job)}`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   const added = (result: AddResult) =>
     setJobs(current => {
       const ids = new Set(result.jobs.map(j => j.id))
@@ -171,7 +184,7 @@ function Admin({ email }: { email: string }) {
           <p className="text-sm text-ink-soft">No jobs yet. Shows you add appear here as they make their way to the site.</p>
         ) : (
           <ul className="flex flex-col divide-y divide-line-subtle">
-            {jobs?.map(job => <JobRow key={job.id} job={job} onDelete={() => remove(job)} />)}
+            {jobs?.map(job => <JobRow key={job.id} job={job} onDelete={() => remove(job)} onRetry={() => retry(job)} />)}
           </ul>
         )}
       </Section>
@@ -581,7 +594,7 @@ function ReviewForm({ job, onDiscard }: { job: IngestJob; onDiscard: () => void 
   )
 }
 
-function JobRow({ job, onDelete }: { job: IngestJob; onDelete: () => void }) {
+function JobRow({ job, onDelete, onRetry }: { job: IngestJob; onDelete: () => void; onRetry: () => Promise<void> }) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (!inProgress(job)) return
@@ -594,6 +607,15 @@ function JobRow({ job, onDelete }: { job: IngestJob; onDelete: () => void }) {
   const status = STATUS[job.status] ?? STATUS.queued
   const read = readLine(job.extracted)
   const link = showsLink(job)
+  const [retrying, setRetrying] = useState(false)
+  const retryNow = async () => {
+    setRetrying(true)
+    try {
+      await onRetry()
+    } finally {
+      setRetrying(false)
+    }
+  }
 
   return (
     <li data-job={job.id} className="flex flex-col gap-2 py-3">
@@ -670,15 +692,33 @@ function JobRow({ job, onDelete }: { job: IngestJob; onDelete: () => void }) {
           {job.message}
         </p>
       )}
+      {stalled(job, now) && (
+        <p className="text-sm text-warning">No progress for over 30 minutes: its run may have been cancelled.</p>
+      )}
       {job.status === 'review' && <ReviewForm job={job} onDiscard={onDelete} />}
-      {wantsScreenshot(job) && (
-        <button
-          type="button"
-          onClick={toScreenshots}
-          className="h-9 w-fit rounded-full border border-line-strong px-4 text-sm font-bold text-ink hover:bg-muted"
-        >
-          Add a screenshot instead
-        </button>
+      {(retryable(job, now) || wantsScreenshot(job)) && (
+        <div className="flex flex-wrap gap-2">
+          {retryable(job, now) && (
+            <button
+              type="button"
+              onClick={retryNow}
+              disabled={retrying}
+              aria-label={`Retry the job for ${jobTitle(job)}`}
+              className="h-9 w-fit rounded-full border border-line-strong px-4 text-sm font-bold text-ink hover:bg-muted disabled:opacity-50"
+            >
+              {retrying ? 'Retrying…' : 'Retry'}
+            </button>
+          )}
+          {wantsScreenshot(job) && (
+            <button
+              type="button"
+              onClick={toScreenshots}
+              className="h-9 w-fit rounded-full border border-line-strong px-4 text-sm font-bold text-ink hover:bg-muted"
+            >
+              Add a screenshot instead
+            </button>
+          )}
+        </div>
       )}
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">

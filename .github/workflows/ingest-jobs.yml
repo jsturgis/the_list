@@ -190,7 +190,7 @@ jobs:
         run: |
           ids=$(echo "$JOBS" | tr ',' '\n' | cut -d: -f1 | paste -sd, -)
           python -m app.cli ingest-jobs-phase --jobs "$ids" --unfinished-only --status failed \
-            --message "The run broke off ($RUN_URL); it will be tried again" || true
+            --message "The run broke off ($RUN_URL); it will be tried again within the hour, or retry it now" || true
 
   publish:
     # Outside the pages group, so the Deploy it starts can run while this waits to see it through.

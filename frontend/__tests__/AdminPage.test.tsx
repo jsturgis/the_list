@@ -18,7 +18,15 @@ function fakeClient() {
   })
   const removeScreenshot = vi.fn<(paths: string[]) => Promise<{ data: []; error: null }>>(async () => ({ data: [], error: null }))
   // approve_ingest_job: a job waiting for review, queued again with its fields as approved.
-  const rpc = vi.fn(async (fn: string, args: { job_id: string; fields: Record<string, unknown> }) => {
+  // retry_ingest_job: a failed or stalled job, queued again from the start.
+  const rpc = vi.fn(async (fn: string, args: { job_id: string; fields?: Record<string, unknown> }) => {
+    if (fn === 'retry_ingest_job') {
+      const failed = state.jobs.find(j => j.id === args.job_id && j.status !== 'live' && j.status !== 'review')
+      if (!failed) return { data: null, error: { message: 'That job can\'t be retried: it hasn\'t failed or stalled' } }
+      Object.assign(failed, { status: 'queued', phase: 'queued', detail: null, message: null, attempts: 0,
+                              workflow_run_url: null, updated_at: new Date().toISOString() })
+      return { data: { ...failed }, error: null }
+    }
     if (fn !== 'approve_ingest_job') throw new Error(`unexpected function ${fn}`)
     const found = state.jobs.find(j => j.id === args.job_id && j.status === 'review')
     if (!found) return { data: null, error: { message: 'That job isn\'t waiting for review' } }
@@ -84,6 +92,9 @@ vi.mock('@/lib/supabase', async importOriginal => ({
 
 const ADMIN = { id: 'user-1', email: 'admin@example.com', app_metadata: { permissions: ['admin'] } }
 const URL_1 = 'https://www.ticketweb.com/event/wet-leg-the-chapel-tickets/123'
+const URL_2 = 'https://www.ticketweb.com/event/idles-the-fillmore-tickets/456'
+const URL_3 = 'https://www.ticketweb.com/event/sunami-the-ritz-tickets/789'
+const jobName = 'wet leg the chapel'
 
 function job(changes: Partial<IngestJob> = {}): IngestJob {
   return {
@@ -281,6 +292,48 @@ describe('Admin page, as an admin', () => {
     expect(within(steps).getAllByLabelText('done')).toHaveLength(4)   // Queued, Dispatched, Fetching, Venue
     expect(screen.getByText('Running')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Workflow run' })).toHaveAttribute('href', 'https://github.com/run/1')
+  })
+
+  it('retries a job whose run broke off', async () => {
+    fake.current!.state.jobs = [
+      job({ status: 'failed', phase: 'venue', attempts: 2, workflow_run_url: 'https://github.com/run/1',
+            message: 'The run broke off (https://github.com/run/1); it will be tried again within the hour, or retry it now' }),
+    ]
+    render(<AdminPage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: `Retry the job for ${jobName}` }))
+
+    await waitFor(() => expect(fake.current!.client.rpc).toHaveBeenCalledWith('retry_ingest_job', { job_id: 'job-1' }))
+    expect(await screen.findByRole('status')).toHaveTextContent(`Retrying the job for ${jobName}`)
+    expect(screen.getByText('Queued', { selector: 'span' })).toBeInTheDocument()
+    expect(screen.queryByText(/The run broke off/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Retry the job/ })).not.toBeInTheDocument()
+  })
+
+  it('offers to retry a job that has stalled, not one that is moving', async () => {
+    const recent = new Date(Date.now() - 60_000).toISOString()
+    fake.current!.state.jobs = [
+      job({ id: 'job-1', status: 'running', phase: 'dispatched', updated_at: '2026-11-17T20:00:00Z' }),
+      job({ id: 'job-2', url: URL_2, status: 'running', phase: 'bands', updated_at: recent }),
+      job({ id: 'job-3', url: URL_3, status: 'live', phase: 'live', show_id: 7 }),
+    ]
+    render(<AdminPage />)
+
+    const stuck = (await screen.findByText(/No progress for over 30 minutes/)).closest('li')!
+    expect(stuck).toHaveAttribute('data-job', 'job-1')
+    expect(within(stuck).getByRole('button', { name: /Retry the job/ })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /Retry the job/ })).toHaveLength(1)
+  })
+
+  it('says why a job couldn’t be retried', async () => {
+    fake.current!.state.jobs = [job({ status: 'failed', phase: 'fetching_page' })]
+    fake.current!.client.rpc.mockResolvedValueOnce({ data: null, error: { message: 'That job can\'t be retried' } })
+    render(<AdminPage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Retry the job/ }))
+
+    expect(await screen.findByText('That job can\'t be retried')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Retry the job/ })).toBeEnabled()
   })
 
   it('follows a job as it changes', async () => {
