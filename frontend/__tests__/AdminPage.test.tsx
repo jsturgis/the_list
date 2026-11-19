@@ -21,7 +21,11 @@ function fakeClient() {
   // retry_ingest_job: a failed or stalled job, queued again from the start.
   const rpc = vi.fn(async (fn: string, args: { job_id: string; fields?: Record<string, unknown> }) => {
     if (fn === 'retry_ingest_job') {
-      const failed = state.jobs.find(j => j.id === args.job_id && j.status !== 'live' && j.status !== 'review')
+      // As the database: failed, or queued or running with no update for 30 minutes.
+      const stale = (j: IngestJob) => Date.now() - Date.parse(j.updated_at) > 30 * 60_000
+      const failed = state.jobs.find(
+        j => j.id === args.job_id && (j.status === 'failed' || (['queued', 'running'].includes(j.status) && stale(j))),
+      )
       if (!failed) return { data: null, error: { message: 'That job can\'t be retried: it hasn\'t failed or stalled' } }
       Object.assign(failed, { status: 'queued', phase: 'queued', detail: null, message: null, attempts: 0,
                               workflow_run_url: null, updated_at: new Date().toISOString() })
@@ -94,6 +98,8 @@ const ADMIN = { id: 'user-1', email: 'admin@example.com', app_metadata: { permis
 const URL_1 = 'https://www.ticketweb.com/event/wet-leg-the-chapel-tickets/123'
 const URL_2 = 'https://www.ticketweb.com/event/idles-the-fillmore-tickets/456'
 const URL_3 = 'https://www.ticketweb.com/event/sunami-the-ritz-tickets/789'
+const URL_4 = 'https://www.ticketweb.com/event/fifteen-924-gilman-tickets/321'
+const URL_5 = 'https://www.ticketweb.com/event/cher-the-chapel-tickets/654'
 const jobName = 'wet leg the chapel'
 
 function job(changes: Partial<IngestJob> = {}): IngestJob {
@@ -316,6 +322,10 @@ describe('Admin page, as an admin', () => {
       job({ id: 'job-1', status: 'running', phase: 'dispatched', updated_at: '2026-11-17T20:00:00Z' }),
       job({ id: 'job-2', url: URL_2, status: 'running', phase: 'bands', updated_at: recent }),
       job({ id: 'job-3', url: URL_3, status: 'live', phase: 'live', show_id: 7 }),
+      // Waiting on its Deploy, which can take an hour or more: not stalled.
+      job({ id: 'job-4', url: URL_4, status: 'added', phase: 'deploying', updated_at: '2026-11-17T20:00:00Z' }),
+      job({ id: 'job-5', url: URL_5, status: 'review', phase: 'review', updated_at: '2026-11-17T20:00:00Z',
+            extracted: { performers: ['Idles'], venue: 'The Fillmore', date: 'Dec 1' } }),
     ]
     render(<AdminPage />)
 

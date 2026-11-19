@@ -152,7 +152,9 @@ function Admin({ email }: { email: string }) {
   const retry = async (job: IngestJob) => {
     try {
       const queued = await retryJob(job.id)
-      setJobs(current => current?.map(j => (j.id === queued.id ? queued : j)) ?? current)
+      // Realtime may already have brought a newer state (the worker dispatching it): keep whichever is later.
+      setJobs(current => current?.map(j => (j.id === queued.id && Date.parse(j.updated_at) <= Date.parse(queued.updated_at) ? queued : j)) ?? current)
+      setError(null)
       setToast(`Retrying the job for ${jobTitle(job)}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -693,7 +695,9 @@ function JobRow({ job, onDelete, onRetry }: { job: IngestJob; onDelete: () => vo
         </p>
       )}
       {stalled(job, now) && (
-        <p className="text-sm text-warning">No progress for over 30 minutes: its run may have been cancelled.</p>
+        <p className="text-sm text-warning">
+          No progress for over 30 minutes: its run may be waiting behind another, or have been cancelled.
+        </p>
       )}
       {job.status === 'review' && <ReviewForm job={job} onDiscard={onDelete} />}
       {(retryable(job, now) || wantsScreenshot(job)) && (
@@ -703,7 +707,7 @@ function JobRow({ job, onDelete, onRetry }: { job: IngestJob; onDelete: () => vo
               type="button"
               onClick={retryNow}
               disabled={retrying}
-              aria-label={`Retry the job for ${jobTitle(job)}`}
+              aria-label={`${retrying ? 'Retrying' : 'Retry'} the job for ${jobTitle(job)}`}
               className="h-9 w-fit rounded-full border border-line-strong px-4 text-sm font-bold text-ink hover:bg-muted disabled:opacity-50"
             >
               {retrying ? 'Retrying…' : 'Retry'}
