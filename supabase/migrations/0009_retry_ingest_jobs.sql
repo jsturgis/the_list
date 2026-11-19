@@ -4,9 +4,9 @@
 --
 -- A run that breaks off fails its unfinished jobs and the queue hands them out again within the hour, up to three
 -- attempts; a run GitHub cancels while it waits in its concurrency group runs no step at all, so its jobs sit at
--- "Dispatched" until then; a Deploy that fails leaves a job failed for good. Retrying starts the job over at once: attempts back to 0, its queue message shown now (or sent
--- again, when it was taken off), so the worker dispatches it within a minute. A reviewed job keeps its approved
--- fields, and is added as approved. A stalled job's run may in fact be waiting in the `pages` group (behind a Backfill)
+-- "Dispatched" until then; a Deploy that fails leaves a job failed for good. Retrying starts the job over at once:
+-- attempts back to 0, its queue message shown now (or sent again, when it was taken off), so the worker dispatches it
+-- within a minute. A reviewed job keeps its approved fields, and is added as approved. A stalled job's run may in fact be waiting in the `pages` group (behind a Backfill)
 -- rather than cancelled; retrying it starts a new run, GitHub cancels the waiting one, and that run's other jobs are
 -- handed out again when their messages show (as they would be had it been cancelled anyway). Runs never overlap, and
 -- a run skips a job another already added, so nothing is added twice.
