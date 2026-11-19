@@ -227,6 +227,17 @@ def band_key(name: str) -> str:
     return slugify(name)
 
 
+def _take_ticket_link(show: Show, data: dict) -> None:
+    """The event's ticket link and provider on the Show, unless it's only the page the event was read from by a model
+    (`ticket_url_is_page`, app/ingestion/page_reader.py) and the Show already has a link: a venue's info page
+    doesn't replace a seller's."""
+    if data.get("ticket_url_is_page") and show.ticket_url:
+        return
+    for field in ("ticket_provider", "ticket_url"):
+        if data.get(field):
+            setattr(show, field, data[field])
+
+
 def find_band(db: Session, name: str) -> Band | None:
     """Existing Band with this name, else the first (lowest id) with the same key (see band_key), else the one
     listed under this spelling before a service put it right (Band.spellings: "Sunamo" is Sunami)."""
@@ -443,9 +454,10 @@ def _upsert_show(db: Session, venue: Venue, data: dict, show: Show | None) -> Sh
     # A benefit stays one: Shows ingested before the List was read from Steve's page say so in fields it doesn't have.
     show.is_benefit = bool(data.get("is_benefit") or show.is_benefit)
     # The List doesn't say these; what a Show already has (from those earlier editions) is kept.
-    for field in ("ticket_provider", "ticket_url", "benefit_cause", "special_event"):
+    for field in ("benefit_cause", "special_event"):
         if data.get(field):
             setattr(show, field, data[field])
+    _take_ticket_link(show, data)
     show.raw_text = data.get("raw_text")
     # Where the Show is listed: a Show added from an event page becomes the List's once Steve lists it.
     show.source = data.get("source", "list")
@@ -598,9 +610,7 @@ def upsert_shows(db: Session, enriched_shows: list[dict]) -> list[Show]:
                 show = None   # another Show at that time (the other room): an event from elsewhere isn't a correction
             else:
                 # The List wins: Steve's Show stays as he lists it, and only takes the event's ticket link.
-                for field in ("ticket_provider", "ticket_url"):
-                    if data.get(field):
-                        setattr(show, field, data[field])
+                _take_ticket_link(show, data)
                 db.flush()
                 taken.add(show.id)
                 claimed[slot] = show

@@ -14,6 +14,7 @@ import {
   inProgress,
   loadJobs,
   phasesFor,
+  readByModel,
   RECENT_JOBS,
   watchJobs,
   type AddResult,
@@ -508,9 +509,9 @@ const REVIEW_FIELDS: { key: Exclude<keyof ReadFields, 'performers'>; label: stri
 const text = (value: unknown) => (typeof value === 'string' ? value : '')
 
 /**
- * A screenshot job waiting for review: what the vision model read, to check against the screenshot above it and
- * correct. Approve queues it to be added as it stands here; Discard deletes it. Nothing from a screenshot reaches the
- * site without this.
+ * A job waiting for review: what a model read, from a screenshot (to check against the screenshot above it) or from
+ * a link's page that has no schema.org event (against the page it links to), to correct. Approve queues it to be added
+ * as it stands here; Discard deletes it. Nothing a model read reaches the site without this.
  */
 function ReviewForm({ job, onDiscard }: { job: IngestJob; onDiscard: () => void }) {
   const read = job.extracted ?? {}
@@ -603,7 +604,7 @@ function JobRow({ job, onDelete, onRetry }: { job: IngestJob; onDelete: () => vo
     const timer = setInterval(() => setNow(Date.now()), 30_000)
     return () => clearInterval(timer)
   }, [job])
-  const phases = phasesFor(job.provider)
+  const phases = phasesFor(job.provider, readByModel(job))
   const current = Math.max(0, phases.findIndex(p => p.id === job.phase))
   const failed = job.status === 'failed'
   const status = STATUS[job.status] ?? STATUS.queued
