@@ -33,6 +33,9 @@ CORRECTIONS: dict[str, BandCorrection] = {
     # f14bfeac5fd0, Discogs 70254) and an Indonesian artist; sunblind.bandcamp.com is a Philadelphia band.
     "sunblind": BandCorrection(by_name=False, genres=("hardcore punk",),
                                links={"bandcamp_url": "https://sunblindhc.bandcamp.com/"}),
+    # Steve lists them as "Drive By Truckers", and a search by that name doesn't find "Drive-By Truckers" (_mb_search
+    # wants the exact name), so a Band made from the listing gets no genres.
+    "drive-by-truckers": BandCorrection(mbid="8eae1e0a-1696-4532-9e3c-0a072217ef4c"),
 }
 
 
