@@ -28,6 +28,8 @@ from sqlalchemy.orm import Session
 from app.alerts import SupabaseError, _require_supabase
 from app.config import settings
 from app.ingestion.event_page import EventError, UnreadablePage, fetch_events
+from app.ingestion.page_reader import MODEL, page_show, read_page_fields
+from app.ingestion.ticketweb import NoEventDetails, is_ticketweb_url
 from app.ingestion.upsert import find_venue, venue_near
 from app.models.show import Show
 
@@ -38,7 +40,7 @@ BUCKET = "ingest-screenshots"
 STATUSES = ("queued", "running", "review", "added", "live", "failed")
 # What a failed link's message ends with when its page couldn't be read: the Admin page offers a screenshot then.
 SCREENSHOT_INSTEAD = "Take a screenshot of the event and add that instead."
-PHASES = ("queued", "dispatched", "fetching_page", "reading_screenshot", "review", "venue", "bands", "photos", "saving",
+PHASES = ("queued", "dispatched", "fetching_page", "reading_page", "reading_screenshot", "review", "venue", "bands", "photos", "saving",
           "embedding", "committing", "deploying", "live")
 
 
@@ -85,7 +87,7 @@ def finish_saved(saved: list[Saved]) -> None:
 
 
 class NeedsReview(Exception):
-    """A screenshot was read: an admin checks what was read (and corrects it) on the Admin page before it's added.
+    """A screenshot (or a page with no schema.org event on it) was read by a model: an admin checks what was read (and corrects it) on the Admin page before it's added.
     `problem` is why it can't be added as it is, if it can't."""
 
     def __init__(self, fields: dict, problem: str | None = None):
@@ -194,21 +196,36 @@ def known_venue_city(db: Session) -> Callable[..., str | None]:
 def read_job(db: Session, job: Job, today: date) -> tuple[list[dict], dict | None]:
     """The Shows a job asks for, as dicts for `ingest_shows` (one, unless its page lists several events), and for a
     screenshot what the model read."""
+    from app.ingestion.screenshot import ScreenshotError, read_fields, screenshot_show
+
     venue_city = known_venue_city(db)
+    if job.approved:
+        # As the admin approved it; if it still can't be added, it goes back to them with the reason.
+        fields = job.extracted or {}
+        update_jobs([job.id], phase="review", detail="Using the details as reviewed")
+        try:
+            if job.provider == "screenshot":
+                return [screenshot_show(fields, today, venue_city)], fields
+            return [page_show(fields, job.url or "", today, venue_city)], fields
+        except ScreenshotError as exc:
+            raise NeedsReview(fields, str(exc)) from exc
     if job.provider in ("ticketweb", "page"):
         update_jobs([job.id], phase="fetching_page", detail=job.url)
-        return fetch_events(job.url or "", venue_city), None
-    if job.provider == "screenshot":
-        from app.ingestion.screenshot import ScreenshotError, read_fields, screenshot_show
-
-        if job.approved:
-            # As the admin approved it; if it still can't be added, it goes back to them with the reason.
-            fields = job.extracted or {}
-            update_jobs([job.id], phase="review", detail="Using the details as reviewed")
+        try:
+            return fetch_events(job.url or "", venue_city), None
+        except NoEventDetails as no_event:
+            # TicketWeb always has its JSON-LD: a page without it is a challenge page, not an event to read.
+            if is_ticketweb_url(no_event.url):
+                raise
+            # Fetched, but with no schema.org event: its text is read instead, and reviewed like a screenshot.
+            update_jobs([job.id], phase="reading_page", detail=f"Reading it with {MODEL}")
+            fields = read_page_fields(no_event.page, no_event.url, today)
             try:
-                return [screenshot_show(fields, today, venue_city)], fields
+                page_show(fields, job.url or "", today, venue_city)
             except ScreenshotError as exc:
                 raise NeedsReview(fields, str(exc)) from exc
+            raise NeedsReview(fields)
+    if job.provider == "screenshot":
         update_jobs([job.id], phase="reading_screenshot", detail=f"Reading it with {settings.vision_model}")
         fields = read_fields(download_screenshot(job.screenshot_path or ""))
         try:

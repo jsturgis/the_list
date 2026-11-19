@@ -33,14 +33,18 @@ export interface Phase {
   label: string
 }
 
-/** The steps a job goes through, in order, as its `phase` names them. */
-export function phasesFor(provider: IngestJob['provider']): Phase[] {
+/** The steps a job goes through, in order, as its `phase` names them. A link's page with no schema.org event is read by
+ * the LLM and reviewed (backend/app/ingestion/page_reader.py): `read` says this job's was, so it shows those steps. */
+export function phasesFor(provider: IngestJob['provider'], read = false): Phase[] {
   return [
     { id: 'queued', label: 'Queued' },
     { id: 'dispatched', label: 'Dispatched' },
     ...(provider === 'screenshot'
       ? [{ id: 'reading_screenshot', label: 'Reading' }, { id: 'review', label: 'Review' }]
-      : [{ id: 'fetching_page', label: 'Fetching' }]),
+      : [
+          { id: 'fetching_page', label: 'Fetching' },
+          ...(read ? [{ id: 'reading_page', label: 'Reading' }, { id: 'review', label: 'Review' }] : []),
+        ]),
     { id: 'venue', label: 'Venue' },
     { id: 'bands', label: 'Bands' },
     { id: 'photos', label: 'Photos' },
@@ -50,6 +54,11 @@ export function phasesFor(provider: IngestJob['provider']): Phase[] {
     { id: 'deploying', label: 'Deploying' },
     { id: 'live', label: 'Live' },
   ]
+}
+
+/** Whether a model read the job's event (a screenshot, or a link's page with no schema.org event on it). */
+export function readByModel(job: Pick<IngestJob, 'phase' | 'extracted'>): boolean {
+  return job.extracted != null || job.phase === 'reading_page' || job.phase === 'review'
 }
 
 /** Whether the job is still on its way (so the page keeps it up to date). */

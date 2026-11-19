@@ -283,6 +283,20 @@ describe('Admin page, as an admin', () => {
     expect(screen.getByRole('link', { name: 'Workflow run' })).toHaveAttribute('href', 'https://github.com/run/1')
   })
 
+  it('shows a link read by the LLM going through review, and the review form', async () => {
+    fake.current!.state.jobs = [
+      job({ provider: 'page', url: 'https://www.theuctheatre.org/shows/victor-wooten-10-dec', status: 'review',
+            phase: 'review', message: 'Check what was read, then approve it',
+            extracted: { performers: ['Victor Wooten'], venue: 'The UC Theatre', city: 'Berkeley', date: 'December 10, 2026' } }),
+    ]
+    render(<AdminPage />)
+
+    const form = await screen.findByRole('form', { name: 'Review what was read' })
+    const steps = within(form.closest('li')!).getByRole('list', { name: 'Steps' })
+    expect(within(steps).getByText('Review').closest('li')).toHaveAttribute('aria-current', 'step')
+    expect(within(steps).getAllByLabelText('done')).toHaveLength(4)   // Queued, Dispatched, Fetching, Reading
+  })
+
   it('follows a job as it changes', async () => {
     fake.current!.state.jobs = [job()]
     render(<AdminPage />)

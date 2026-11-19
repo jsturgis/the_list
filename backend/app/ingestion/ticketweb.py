@@ -77,6 +77,16 @@ class UnreadablePage(EventError):
     screenshot of the event is the way to add it (app/ingestion/screenshot.py)."""
 
 
+class NoEventDetails(UnreadablePage):
+    """The page was fetched, but describes no event in its JSON-LD. `page` is its HTML, for an LLM to read the
+    event from its text instead (app/ingestion/page_reader.py)."""
+
+    def __init__(self, message: str, page: str, url: str):
+        super().__init__(message)
+        self.page = page
+        self.url = url   # where the page was read, after any redirect
+
+
 def is_ticketweb_url(url: str) -> bool:
     host = urlsplit(url).hostname or ""
     return host == "ticketweb.com" or host.endswith(".ticketweb.com")
@@ -200,7 +210,7 @@ def event_show(page: str, url: str, source: str = SOURCE, provider: str | None =
     (app/ingestion/event_page.py)."""
     events = _events(page)
     if not events:
-        raise _no_events(url)
+        raise _no_events(url, page)
     return _show(events[0], page, url, source, provider, venue_city)
 
 
@@ -211,7 +221,7 @@ def event_shows(page: str, url: str, source: str = SOURCE, provider: str | None 
     that can't be read is passed over too (logged), and the page is refused only when none of them can be added."""
     events = _events(page)
     if not events:
-        raise _no_events(url)
+        raise _no_events(url, page)
     if len(events) == 1:
         return [_show(events[0], page, url, source, provider, venue_city)]
     shows, outside, problems = [], 0, []
@@ -250,8 +260,8 @@ def _city(place: dict, venue_name: str, venue_city: VenueCity) -> tuple[str | No
     return None, False
 
 
-def _no_events(url: str) -> UnreadablePage:
-    return UnreadablePage(f"{url} has no event details on it (the site may have turned the request away)")
+def _no_events(url: str, page: str) -> NoEventDetails:
+    return NoEventDetails(f"{url} has no event details on it (the site may have turned the request away)", page, url)
 
 
 def _show(event: dict, page: str | None, url: str, source: str, provider: str | None,
