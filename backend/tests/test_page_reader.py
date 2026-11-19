@@ -46,6 +46,22 @@ def test_only_the_pages_visible_text_is_sent():
     assert text == "Shown\nhere\nand this\nafter"
 
 
+@pytest.mark.parametrize("page, text", [
+    ('<html><head><title>T</title><body><p>ok</p>', "ok"),                          # no </head>: it's optional
+    ('<p hidden>gone<p>shown</p>', "shown"),                                          # a <p> closes an open <p>
+    ('<p hidden>gone<div>after</div>', "after"),                                      # ...and a <div> does
+    ('<ul><li hidden>a<li>b</ul>', "b"),                                              # an <li> closes an open <li>
+    ('<ul><li>a<ul><li hidden>x</ul>b<li>c</ul>', "a\nb\nc"),                       # not one in an outer list
+    ('<dl><dt hidden>Doors<dd>7pm</dl>', "7pm"),
+    ('<table><tr><td hidden>x<td>y<tr><td>z</table>', "y\nz"),
+    ('<svg/><p>after an empty svg</p>', "after an empty svg"),
+    ('<div aria-hidden="TRUE">x</div><div class="d-none">y</div><div class="hidden">z</div>ok', "ok"),
+    ('<div hidden/>still inside the hidden div', ""),                                 # the slash means nothing
+])
+def test_elements_close_as_a_browser_closes_them(page, text):
+    assert visible_text(page) == text
+
+
 def test_the_llm_reads_the_pages_text_as_data(llm):
     llm.invoke.return_value = _READ
 
@@ -87,7 +103,7 @@ def test_what_was_read_is_a_show_with_the_page_as_its_ticket_link():
     assert (show["source"], show["date"], show["bands"]) == ("page", date(2026, 12, 10),
                                                              ["Victor Wooten and The Wooten Brothers"])
     assert (show["door_time"], show["set_time"], show["price_raw"]) == ("7pm", "8pm", "$35")
-    assert (show["ticket_url"], show["ticket_provider"]) == (_URL, "theuctheatre.org")
+    assert (show["ticket_url"], show["ticket_provider"], show["ticket_url_is_page"]) == (_URL, "theuctheatre.org", True)
     assert show["raw_text"].endswith(f"(read from {_URL})")
 
 

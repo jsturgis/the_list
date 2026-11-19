@@ -41,6 +41,23 @@ class _VisibleText(HTMLParser):
     _BLOCK = {"p", "div", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6", "section", "article", "header", "footer",
               "br", "dt", "dd", "td", "th", "time", "a", "button"}
     _HIDDEN_STYLE = re.compile(r"display\s*:\s*none|visibility\s*:\s*hidden", re.IGNORECASE)
+    # Classes that hide an element: Webflow's conditional visibility and empty bindings, Tailwind's, Bootstrap's.
+    _HIDDEN_CLASSES = {"w-condition-invisible", "w-dyn-hide", "hidden", "d-none", "sr-only", "visually-hidden"}
+    # What a head holds. Any other start tag means the head has ended, `</head>` or not (it's optional).
+    _HEAD = {"title", "meta", "link", "style", "script", "base", "noscript", "template"}
+    # Elements whose end tag is optional, with the start tags that close them, and those that keep them open (a
+    # list item inside a nested list doesn't close the outer one). A browser closes them so; a hidden one left
+    # unclosed would otherwise hide all that follows.
+    _P_CLOSERS = {"p", "div", "ul", "ol", "dl", "table", "section", "article", "aside", "header", "footer", "nav",
+                  "form", "blockquote", "pre", "hr", "h1", "h2", "h3", "h4", "h5", "h6", "figure", "main"}
+    _IMPLIED_END = (
+        ({"li"}, {"li"}, {"ul", "ol"}),
+        ({"dt", "dd"}, {"dt", "dd"}, {"dl"}),
+        ({"tr"}, {"tr"}, {"table"}),
+        ({"td", "th"}, {"td", "th"}, {"table"}),
+        ({"tr"}, {"td", "th"}, {"table"}),
+        ({"option", "optgroup"}, {"option"}, {"select"}),
+    )
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
@@ -49,11 +66,32 @@ class _VisibleText(HTMLParser):
         self._skipped = 0                          # how many of them are
 
     def _hidden(self, tag: str, attrs: dict) -> bool:
-        return (tag in self._SKIP or "hidden" in attrs or attrs.get("aria-hidden") == "true"
-                or "w-condition-invisible" in (attrs.get("class") or "").split()
+        return (tag in self._SKIP or "hidden" in attrs or (attrs.get("aria-hidden") or "").lower() == "true"
+                or bool(self._HIDDEN_CLASSES & set((attrs.get("class") or "").split()))
                 or bool(self._HIDDEN_STYLE.search(attrs.get("style") or "")))
 
+    def _close_from(self, i: int) -> None:
+        """Close the open element at `i` and every one opened inside it."""
+        self._skipped -= sum(skip for _, skip in self._open[i:])
+        del self._open[i:]
+
+    def _close_innermost(self, tags: set[str], unless_inside: set[str] = frozenset()) -> None:
+        """Close the innermost open element in `tags`, unless one in `unless_inside` was opened inside it."""
+        for i in range(len(self._open) - 1, -1, -1):
+            if self._open[i][0] in unless_inside:
+                return
+            if self._open[i][0] in tags:
+                self._close_from(i)
+                return
+
     def handle_starttag(self, tag, attrs):
+        if tag not in self._HEAD:
+            self._close_innermost({"head"})
+        if tag in self._P_CLOSERS:
+            self._close_innermost({"p"}, unless_inside={"button", "table", "li", "td", "th"})
+        for starts, closes, scope in self._IMPLIED_END:
+            if tag in starts:
+                self._close_innermost(closes, unless_inside=scope)
         if tag in self._BLOCK:
             self.out.append("\n")
         if tag in self._VOID:
@@ -62,12 +100,18 @@ class _VisibleText(HTMLParser):
         self._open.append((tag, skip))
         self._skipped += skip
 
+    def handle_startendtag(self, tag, attrs):
+        # <div hidden/> is a start tag in HTML: an element left open. In SVG and MathML (`<svg/>`, `<path/>`) the
+        # slash does close it.
+        self.handle_starttag(tag, attrs)
+        if tag in ("svg", "math") or any(t in ("svg", "math") for t, _ in self._open[:-1]):
+            self.handle_endtag(tag)
+
     def handle_endtag(self, tag):
         # Close up to the element this ends, as a browser would close any left open inside it.
         for i in range(len(self._open) - 1, -1, -1):
             if self._open[i][0] == tag:
-                self._skipped -= sum(skip for _, skip in self._open[i:])
-                del self._open[i:]
+                self._close_from(i)
                 break
         if tag in self._BLOCK:
             self.out.append("\n")
@@ -137,5 +181,5 @@ def page_show(fields: dict, url: str, today: date, venue_city: Callable[[str], s
     except ScreenshotError as exc:
         raise ScreenshotError(str(exc).replace("screenshot", "page"), exc.fields) from exc
     page = event_url(url)
-    return {**show, "source": SOURCE, "ticket_url": page, "ticket_provider": site_name(page),
+    return {**show, "source": SOURCE, "ticket_url": page, "ticket_provider": site_name(page), "ticket_url_is_page": True,
             "raw_text": show["raw_text"].replace("(from a screenshot)", f"(read from {page})")}

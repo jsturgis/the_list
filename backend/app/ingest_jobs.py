@@ -29,7 +29,7 @@ from app.alerts import SupabaseError, _require_supabase
 from app.config import settings
 from app.ingestion.event_page import EventError, UnreadablePage, fetch_events
 from app.ingestion.page_reader import MODEL, page_show, read_page_fields
-from app.ingestion.ticketweb import NoEventDetails
+from app.ingestion.ticketweb import NoEventDetails, is_ticketweb_url
 from app.ingestion.upsert import find_venue, venue_near
 from app.models.show import Show
 
@@ -214,9 +214,12 @@ def read_job(db: Session, job: Job, today: date) -> tuple[list[dict], dict | Non
         try:
             return fetch_events(job.url or "", venue_city), None
         except NoEventDetails as no_event:
+            # TicketWeb always has its JSON-LD: a page without it is a challenge page, not an event to read.
+            if is_ticketweb_url(no_event.url):
+                raise
             # Fetched, but with no schema.org event: its text is read instead, and reviewed like a screenshot.
             update_jobs([job.id], phase="reading_page", detail=f"Reading it with {MODEL}")
-            fields = read_page_fields(no_event.page, job.url or "", today)
+            fields = read_page_fields(no_event.page, no_event.url, today)
             try:
                 page_show(fields, job.url or "", today, venue_city)
             except ScreenshotError as exc:

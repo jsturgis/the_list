@@ -81,9 +81,10 @@ class NoEventDetails(UnreadablePage):
     """The page was fetched, but describes no event in its JSON-LD. `page` is its HTML, for an LLM to read the
     event from its text instead (app/ingestion/page_reader.py)."""
 
-    def __init__(self, message: str, page: str):
+    def __init__(self, message: str, page: str, url: str):
         super().__init__(message)
         self.page = page
+        self.url = url   # where the page was read, after any redirect
 
 
 def is_ticketweb_url(url: str) -> bool:
@@ -260,7 +261,7 @@ def _city(place: dict, venue_name: str, venue_city: VenueCity) -> tuple[str | No
 
 
 def _no_events(url: str, page: str) -> NoEventDetails:
-    return NoEventDetails(f"{url} has no event details on it (the site may have turned the request away)", page)
+    return NoEventDetails(f"{url} has no event details on it (the site may have turned the request away)", page, url)
 
 
 def _show(event: dict, page: str | None, url: str, source: str, provider: str | None,

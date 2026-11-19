@@ -877,3 +877,22 @@ def test_a_place_is_the_lists_venue_within_a_kilometre_of_it(db):
     db.flush()
     assert venue_near(db, 36.9745, -121.9530) is sandbar        # about 300 m away
     assert venue_near(db, 36.9741, -122.0308) is None           # Santa Cruz, 7 km away
+
+
+def test_a_page_read_by_a_model_doesnt_replace_a_shows_ticket_link(db):
+    """Its ticket link is the venue's page it was read from (app/ingestion/page_reader.py): a seller's link stays."""
+    upsert_shows(db, [_show(ticket_url="https://www.ticketweb.com/event/1", ticket_provider="ticketweb")])
+    read = {**_show(), "source": "page", "ticket_url": "https://venue.example/shows/1",
+            "ticket_provider": "venue.example", "ticket_url_is_page": True}
+    upsert_shows(db, [read])
+
+    s = db.query(Show).one()
+    assert (s.ticket_url, s.ticket_provider) == ("https://www.ticketweb.com/event/1", "ticketweb")
+
+
+def test_a_page_read_by_a_model_gives_a_show_with_no_ticket_link_its_page(db):
+    upsert_shows(db, [_show()])
+    upsert_shows(db, [{**_show(), "source": "page", "ticket_url": "https://venue.example/shows/1",
+                       "ticket_provider": "venue.example", "ticket_url_is_page": True}])
+
+    assert db.query(Show).one().ticket_url == "https://venue.example/shows/1"
