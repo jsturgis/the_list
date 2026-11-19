@@ -196,7 +196,7 @@ jobs:
         if: env.TS_OAUTH_CLIENT_ID != ''
         continue-on-error: true
         # Pinned to a commit and a Tailscale version: this step holds the OAuth secret (the pen test of 2026-11-18).
-        uses: tailscale/github-action@6cae46e2d796f265265cfcf628b72a32b4d7cade   # v3
+        uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c   # v4.4.0
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
