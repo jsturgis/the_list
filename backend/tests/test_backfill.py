@@ -408,6 +408,7 @@ def sunblind_matched_wrong(db, services):
                  spotify_url="https://open.spotify.com/artist/trance",             # from MusicBrainz
                  bandcamp_url="https://sunblind.bandcamp.com/",                    # from the edition
                  members=[{"name": "Frank Schmidt", "active": True}],
+                 mbid="c75c82be-3a0e-4327-be53-f14bfeac5fd0",                      # the trance act's
                  image_url="bands/1442-76be73bc76.webp",
                  image_credit={"source": "Discogs", "author": None, "license": None, "license_url": None,
                                "source_url": "https://www.discogs.com/artist/70254-Sunblind"})
@@ -425,13 +426,25 @@ def test_redoing_a_band_drops_what_its_wrong_match_gave_it(db, services, sunblin
 
     band = stored.band
     db.refresh(band)
-    assert band.genres == [] and band.links == [] and band.members == []
+    assert band.genres == [] and band.links == [] and band.members == [] and band.mbid is None
     assert band.spotify_url is None                                  # it came with the MusicBrainz match
     assert band.bandcamp_url == "https://sunblind.bandcamp.com/"     # the edition's: kept
     assert (band.image_url, band.image_credit, band.image_focus) == (None, None, None)
     assert not stored.photo.exists()
     assert band.enriched_at is None and stored.other.enriched_at is not None
     assert [b.name for b in pending_bands(db)] == ["Sunblind"]       # the backfill looks it up again
+
+
+async def test_a_band_keeps_the_musicbrainz_artist_it_was_matched_to(db, services):
+    band = _band(db, "Drive-By Truckers")
+    db.commit()
+    services.mb.side_effect = lambda name, use_llm=True: {
+        **_not_on_musicbrainz(name), "mbid": "8eae1e0a-1696-4532-9e3c-0a072217ef4c"}
+
+    await _run(db, services)
+
+    db.refresh(band)
+    assert band.mbid == "8eae1e0a-1696-4532-9e3c-0a072217ef4c"
 
 
 def test_redo_keeps_the_editions_photo(db, services):

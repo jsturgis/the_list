@@ -60,6 +60,10 @@ class Band(Base):
     # From MusicBrainz: every artist-to-URL relationship, as [{"type": "free streaming", "url": ...}]. Grouped
     # and ranked for the site by app/band_links.py.
     links: Mapped[list] = mapped_column(JSONList, default=list)
+    # Its MusicBrainz artist id, when a lookup matched one (by name, or a correction's): which artist the Band's
+    # genres, links and photo came from. Set for new Bands at ingest and by the backfill; None: no match, or not
+    # looked up since ids were kept (November 2026).
+    mbid: Mapped[Optional[str]] = mapped_column(String(36))
     # From Discogs: [{"name": ..., "active": bool}], current members marked active.
     members: Mapped[list] = mapped_column(JSONList, default=list)
     # Spellings it was listed under that a service put right ("Sunamo" for Sunami, app/ingestion/spelling.py): a

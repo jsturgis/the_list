@@ -78,7 +78,7 @@ def test_on_equal_acts_an_enriched_band_is_kept_then_the_lowest_id(db):
 def test_the_kept_band_takes_the_others_details_where_it_has_none(db):
     keep = _band(db, "Swept to Sea", genres=["shoegaze"], description="Oakland shoegaze.", is_local=False)
     dup = _band(db, "Swept To Sea", genres=["dream pop"], description="Other words.", website_url="https://swept.example",
-                links=[{"type": "bandcamp", "url": "https://swept.bandcamp.com"}], members=[{"name": "Ana", "active": True}],
+                links=[{"type": "bandcamp", "url": "https://swept.bandcamp.com"}], members=[{"name": "Ana", "active": True}], mbid="mb-swept",
                 image_url="bands/2-a.webp", image_credit={"source": "Discogs"}, image_focus={"x": 10.0, "y": 0.0},
                 embedding=b"\x00" * 4, enriched_at=datetime(2026, 10, 1), is_local=True)
     _show(db, 1, keep)
@@ -92,7 +92,7 @@ def test_the_kept_band_takes_the_others_details_where_it_has_none(db):
     assert (band.genres, band.description, band.is_local) == (["shoegaze"], "Oakland shoegaze.", False)  # its own are kept
     assert band.website_url == "https://swept.example"
     assert band.links == [{"type": "bandcamp", "url": "https://swept.bandcamp.com"}]
-    assert band.members == [{"name": "Ana", "active": True}]
+    assert band.members == [{"name": "Ana", "active": True}] and band.mbid == "mb-swept"
     # A photo goes with its credit and focal point.
     assert (band.image_url, band.image_credit, band.image_focus) == ("bands/2-a.webp", {"source": "Discogs"}, {"x": 10.0, "y": 0.0})
     assert (band.embedding, band.enriched_at) == (b"\x00" * 4, datetime(2026, 10, 1))

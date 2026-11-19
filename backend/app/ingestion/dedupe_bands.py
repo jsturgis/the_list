@@ -21,7 +21,7 @@ from app.models.band import Band
 # point (_PHOTO_FIELDS), so a credit never ends up on another photo.
 _FILL_FIELDS = (
     "genres", "spotify_url", "soundcloud_url", "bandcamp_url", "website_url", "is_local", "description", "links",
-    "members", "embedding", "enriched_at",
+    "members", "mbid", "embedding", "enriched_at",
 )
 _PHOTO_FIELDS = ("image_url", "image_credit", "image_focus")
 

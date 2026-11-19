@@ -283,6 +283,7 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
             if found:
                 links = {k: v for k, v in found.items() if k.endswith("_url") and v}
                 links["mb_links"] = found.get("links") or []  # every MusicBrainz link, for app/band_links.py
+                links["mbid"] = found.get("mbid")
                 # Photos, in order (app/ingestion/band_sources): Commons, Discogs, Bandcamp.
                 # The first that loads is used; the rest are fallbacks if it turns out to be gone when downloaded.
                 artist = found.get("discogs")
