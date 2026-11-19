@@ -67,6 +67,11 @@ jobs:
           path: data
           fetch-depth: 5
 
+      # The Ollama container starts before the steps and makes /home/runner/.ollama as root, so the cache can't be
+      # restored into it (tar: Permission denied) and the models are pulled afresh, until it's the runner's.
+      - name: Let the Ollama model cache be restored
+        run: sudo mkdir -p /home/runner/.ollama && sudo chown -R "$USER" /home/runner/.ollama
+
       - name: Restore the Ollama model cache
         uses: actions/cache@v4
         with:
