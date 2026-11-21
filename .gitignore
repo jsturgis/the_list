@@ -10,6 +10,7 @@ node_modules/
 *.db-shm
 *.db-wal
 backend/data/faiss/*.index
+backend/data/images/
 backend/token.json
 backend/credentials.json
 

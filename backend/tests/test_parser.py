@@ -146,6 +146,29 @@ def test_a_misspelt_or_missing_weekday_isnt_part_of_the_lineup(shows):
     assert _find(shows, "The Red Clay Strays").bands == ["The Red Clay Strays", "St. Paul And The Broken Bones"]
 
 
+def test_a_misspelt_month_starts_a_listing_of_its_own():
+    """"arp  5 mon": April 5, 2027 is a Monday (March 5, the other month spelt like it, a Friday)."""
+    gang, iceage = _parse("apr  5 mon Gang Of Youths, The Sophs",
+                          "       at the Great American Music Hall, S.F. a/a $30/$35/$40 7pm/8pm",
+                          "arp  5 mon Iceage at the Independent, S.F. a/a $39.68 7:30pm/8pm")
+    assert (gang.venue_name, gang.city, gang.price_raw) == ("the Great American Music Hall", "S.F.", "$30/$35/$40")
+    assert (iceage.date, iceage.bands, iceage.venue_name) == (date(2027, 4, 5), ["Iceage"], "the Independent")
+
+
+def test_a_misspelt_month_long_past_is_next_years():
+    """"nvo 12 fri" in a December edition: Nov 12, 2027 is a Friday (2026's was a Thursday)."""
+    [show] = _parse("nvo 12 fri Band A at the Chapel, S.F. a/a 8pm",
+                    header="Upcoming shows of Interest      December 18, 2026\n\n")
+    assert show.date == date(2027, 11, 12)
+
+
+def test_a_misspelt_month_without_a_weekday_that_fits_isnt_a_listing():
+    """Without a weekday the month can't be told; "arp  5 tue" is neither Apr 5 nor Mar 5."""
+    for line in ("arp  5 Iceage at the Independent, S.F.", "arp  5 tue Iceage at the Independent, S.F."):
+        [show] = _parse("apr  5 mon Gang Of Youths at the Great American Music Hall, S.F. a/a 7pm/8pm", line)
+        assert show.bands == ["Gang Of Youths"]
+
+
 def test_a_lineup_starting_with_a_lowercase_word_keeps_it():
     [show] = _parse("nov 20 the Hails, Meldrop at the Rickshaw Stop, S.F. a/a")
     assert show.bands == ["the Hails", "Meldrop"]
