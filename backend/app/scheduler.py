@@ -94,7 +94,7 @@ def _stored_at_place(db: Session, name: str, city: str | None, found: dict) -> V
     place_id = (found or {}).get("google_place_id")
     venue = (db.query(Venue).filter(Venue.google_place_id == place_id).order_by(Venue.id).first()
              if place_id else None)
-    if venue and venue_key(name, city) in {venue_key(n) for n in [venue.name, *(venue.spellings or [])]}:
+    if venue and venue_key(name, city) in {venue_key(n, venue.city) for n in [venue.name, *(venue.spellings or [])]}:
         return venue
     return None
 
@@ -217,8 +217,10 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
             check = check_venue(name, city, street, found)
             stored = _stored_at_place(db, name, city, found) if check.status == UNCONFIRMED else None
             if stored:
-                # Steve has the city wrong ("924 Gilman Street, S.F."): Google's place is the stored Venue.
-                logger.info("ingestion: %s (%s) is the stored %s in %s", name, city, stored.name, stored.city)
+                # Steve has the city wrong ("924 Gilman Street, S.F."): Google's place is the stored Venue. A warning,
+                # so a wrong join (a same-named Venue in the listed city that isn't stored yet) shows in the log.
+                logger.warning("ingestion: new venue %s (%s) joined to the stored %s in %s, the place Google found",
+                               name, city, stored.name, stored.city)
                 venue_cache[key] = {"google_place_id": stored.google_place_id}
             else:
                 if check.status not in (CONFIRMED, NOT_CHECKED):

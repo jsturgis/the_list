@@ -155,6 +155,13 @@ def test_a_misspelt_month_starts_a_listing_of_its_own():
     assert (iceage.date, iceage.bands, iceage.venue_name) == (date(2027, 4, 5), ["Iceage"], "the Independent")
 
 
+def test_a_misspelt_month_long_past_is_next_years():
+    """"nvo 12 fri" in a December edition: Nov 12, 2027 is a Friday (2026's was a Thursday)."""
+    [show] = _parse("nvo 12 fri Band A at the Chapel, S.F. a/a 8pm",
+                    header="Upcoming shows of Interest      December 18, 2026\n\n")
+    assert show.date == date(2027, 11, 12)
+
+
 def test_a_misspelt_month_without_a_weekday_that_fits_isnt_a_listing():
     """Without a weekday the month can't be told; "arp  5 tue" is neither Apr 5 nor Mar 5."""
     for line in ("arp  5 Iceage at the Independent, S.F.", "arp  5 tue Iceage at the Independent, S.F."):
