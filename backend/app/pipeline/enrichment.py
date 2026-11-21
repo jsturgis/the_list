@@ -94,13 +94,22 @@ _MB_HEADERS = {
 }
 
 
+# Waits before asking again when MusicBrainz is too busy to answer (503): it turns away requests over its overall
+# rate limit, often for a few seconds. musicbrainzngs retries its own requests on a 503; this does the same.
+_MB_BUSY_RETRIES = (2.0, 5.0)
+
+
 def _mb_genres(mbid: str) -> list[str]:
     """The artist's MusicBrainz genres, most votes first: the curated genre list, not free-form tags ("seen live",
     "american"). musicbrainzngs can't ask for genres, so this uses the web service directly."""
     _time.sleep(1.0)  # MusicBrainz allows one request a second; musicbrainzngs only paces its own calls
     try:
-        resp = httpx.get(f"{_MB_WS}/artist/{mbid}", params={"inc": "genres", "fmt": "json"},
-                         headers=_MB_HEADERS, timeout=10.0)
+        for wait in (*_MB_BUSY_RETRIES, None):
+            resp = httpx.get(f"{_MB_WS}/artist/{mbid}", params={"inc": "genres", "fmt": "json"},
+                             headers=_MB_HEADERS, timeout=10.0)
+            if resp.status_code != 503 or wait is None:
+                break
+            _time.sleep(wait)
         resp.raise_for_status()
         genres = resp.json().get("genres", [])
     except Exception as exc:
