@@ -606,7 +606,7 @@ from app.pipeline.enrichment import _mb_genres as _real_mb_genres  # imported be
 
 
 def test_mb_genres_reads_the_web_service_most_votes_first():
-    resp = MagicMock()
+    resp = MagicMock(status_code=200)
     resp.json.return_value = {"genres": [{"name": "nu metal", "count": 5}, {"name": "groove metal", "count": 8}]}
     with patch("app.pipeline.enrichment.httpx.get", return_value=resp) as get, patch("app.pipeline.enrichment._time.sleep") as sleep:
         assert _real_mb_genres("mbid-1") == ["groove metal", "nu metal"]
@@ -617,6 +617,44 @@ def test_mb_genres_reads_the_web_service_most_votes_first():
 def test_mb_genres_is_empty_when_the_web_service_fails():
     with patch("app.pipeline.enrichment.httpx.get", side_effect=Exception("down")), patch("app.pipeline.enrichment._time.sleep"):
         assert _real_mb_genres("mbid-1") == []
+
+
+def _status(code: int, genres: list[dict] | None = None) -> MagicMock:
+    import httpx
+
+    resp = MagicMock(status_code=code)
+    resp.json.return_value = {"genres": genres or []}
+    if code >= 400:
+        resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+            str(code), request=httpx.Request("GET", "https://musicbrainz.org"), response=httpx.Response(code))
+    return resp
+
+
+def test_mb_genres_asks_again_when_musicbrainz_is_busy():
+    replies = [_status(503), _status(200, [{"name": "folk", "count": 1}])]
+    with patch("app.pipeline.enrichment.httpx.get", side_effect=replies) as get, \
+            patch("app.pipeline.enrichment._time.sleep") as sleep, \
+            patch("app.pipeline.enrichment.note_failure") as note:
+        assert _real_mb_genres("mbid-1") == ["folk"]
+    assert get.call_count == 2
+    assert [c.args[0] for c in sleep.call_args_list] == [1.0, 2.0]
+    note.assert_not_called()  # it answered in the end: not an outage
+
+
+def test_mb_genres_counts_an_outage_when_musicbrainz_stays_busy():
+    with patch("app.pipeline.enrichment.httpx.get", side_effect=[_status(503)] * 3) as get, \
+            patch("app.pipeline.enrichment._time.sleep"), \
+            patch("app.pipeline.enrichment.note_failure") as note:
+        assert _real_mb_genres("mbid-1") == []
+    assert get.call_count == 3
+    note.assert_called_once()  # the Band is left to look up again (app/ingestion/service_health.py)
+
+
+def test_mb_genres_doesnt_ask_again_for_an_artist_it_hasnt_got():
+    with patch("app.pipeline.enrichment.httpx.get", side_effect=[_status(404)]) as get, \
+            patch("app.pipeline.enrichment._time.sleep"):
+        assert _real_mb_genres("mbid-1") == []
+    assert get.call_count == 1
 
 
 def test_musicbrainz_requests_cant_hang_forever():
