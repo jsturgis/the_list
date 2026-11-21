@@ -28,6 +28,8 @@ _DATE_RE = re.compile(
     r"^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+(\d{1,2})(?:\s+(\d{4}))?(?=\s|$)",
     re.IGNORECASE,
 )
+# A date line whose month is misspelt ("arp  5 mon"): three letters and a day, read only when a weekday follows.
+_MISSPELT_DATE_RE = re.compile(r"^([a-z]{3})\s+(\d{1,2})(?=\s)", re.IGNORECASE)
 # The weekday after the date, as Steve types it ("thr" is his Thursday), and its number (Monday is 0).
 _WEEKDAY_NUMBERS = {"mon": 0, "tue": 1, "wed": 2, "thr": 3, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
 _WEEKDAYS = tuple(_WEEKDAY_NUMBERS)
@@ -156,6 +158,32 @@ def _weekday(text: str) -> tuple[int | None, str]:
         if match:
             return _WEEKDAY_NUMBERS[match[0]], text[m.end():]
     return None, text
+
+
+def _listing_start(line: str, edition: date) -> tuple[date | None, str] | None:
+    """(date, the rest of the line) when `line` starts a listing, else None. The date is None when the listing's
+    can't be a date ("feb 30").
+
+    A month Steve misspelt ("arp  5 mon" for apr) is read as the month near it in spelling whose date falls on the
+    weekday he typed, so it's a listing of its own rather than more of the one above; without a weekday that fits,
+    the line isn't a listing's start."""
+    line = line.lstrip(_NBSP)
+    dm = _DATE_RE.match(line)
+    if dm:
+        weekday, rest = _weekday(line[dm.end():].replace(_NBSP, " "))
+        return _listing_date(_MONTH_MAP[dm.group(1).lower()], int(dm.group(2)),
+                             int(dm.group(3)) if dm.group(3) else None, weekday, edition), rest
+    mm = _MISSPELT_DATE_RE.match(line)
+    if not mm:
+        return None
+    weekday, rest = _weekday(line[mm.end():].replace(_NBSP, " "))
+    if weekday is None:
+        return None
+    for month in difflib.get_close_matches(mm.group(1).lower(), _MONTH_MAP, n=3, cutoff=0.6):
+        show_date = _listing_date(_MONTH_MAP[month], int(mm.group(2)), None, weekday, edition)
+        if show_date and show_date.weekday() == weekday:
+            return show_date, rest
+    return None
 
 
 def _clock(text: str | None) -> str | None:
@@ -329,28 +357,20 @@ def parse_list(plain_text: str) -> list[RawShow]:
     text = plain_text.replace("\r\n", "\n").replace("\r", "\n")
     lines = text.split("\n")
 
-    blocks: list[list[str]] = []
-    current: list[str] = []
+    # Each listing: its date (None when it has none), the rest of its first line, and its lines.
+    blocks: list[tuple[date | None, str, list[str]]] = []
     for line in lines:
         if _END_OF_LISTINGS_RE.match(line.replace(_NBSP, " ").strip()):
             break
-        if _DATE_RE.match(line.lstrip(_NBSP)):
-            if current:
-                blocks.append(current)
-            current = [line]
-        elif current and line.strip():
-            current.append(line)
-    if current:
-        blocks.append(current)
+        start = _listing_start(line, edition)
+        if start:
+            blocks.append((*start, [line]))
+        elif blocks and line.strip():
+            blocks[-1][2].append(line)
 
     shows: list[RawShow] = []
-    for block in blocks:
+    for show_date, rest, block in blocks:
         raw_text = "\n".join(block)
-        first = block[0].lstrip(_NBSP)
-        dm = _DATE_RE.match(first)
-        weekday, rest = _weekday(first[dm.end():].replace(_NBSP, " "))
-        show_date = _listing_date(_MONTH_MAP[dm.group(1).lower()], int(dm.group(2)),
-                                  int(dm.group(3)) if dm.group(3) else None, weekday, edition)
         if not show_date:
             continue
 

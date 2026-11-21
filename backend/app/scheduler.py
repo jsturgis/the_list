@@ -33,9 +33,9 @@ from app.ingestion.show_flyers import prune_show_flyers, save_show_flyers
 from app.ingestion.steve_list import ListPage, edition_title, fetch_list, list_shows
 from app.ingestion.spelling import Candidate, respell
 from app.ingestion.upsert import (find_band, find_venue, fold_added_shows, known_region, remove_unlisted_shows,
-                                  upsert_shows)
+                                  upsert_shows, venue_key)
 from app.ingestion.venue_calendar import enrich_shows_from_venue_calendars
-from app.ingestion.venue_check import CONFIRMED, NOT_CHECKED, check_venue, checked_details
+from app.ingestion.venue_check import CONFIRMED, NOT_CHECKED, UNCONFIRMED, check_venue, checked_details
 from app.ingestion.venue_photos import save_venue_photos
 from app.ingestion.wikimedia import commons_photo
 from app.models.act import Act
@@ -83,6 +83,20 @@ def _apply_venue_data(data: dict, venue_data: dict) -> None:
     ]:
         if venue_data.get(source) is not None or key not in data:
             data[key] = venue_data.get(source)
+
+
+def _stored_at_place(db: Session, name: str, city: str | None, found: dict) -> Venue | None:
+    """The stored Venue at the place Google found, when it goes by the listed name (see venue_key; its other
+    spellings count). Google's place then is the Venue and the listing's city is the mistake: the check
+    (app/ingestion/venue_check.py) turns down a place in another city, and a stored Venue in another Region isn't
+    matched by name (find_venue). A name that is only like the Venue's ("Hopmonk" for HopMonk Tavern (Novato))
+    doesn't count, as it can be another Venue in the listed city."""
+    place_id = (found or {}).get("google_place_id")
+    venue = (db.query(Venue).filter(Venue.google_place_id == place_id).order_by(Venue.id).first()
+             if place_id else None)
+    if venue and venue_key(name, city) in {venue_key(n) for n in [venue.name, *(venue.spellings or [])]}:
+        return venue
+    return None
 
 
 def _last_ingested(db: Session) -> IngestionRun | None:
@@ -201,10 +215,16 @@ async def ingest_shows(db: Session, shows_data: list[dict], run: Optional[Ingest
             found = await loop.run_in_executor(None, _enrich_venue, name, city or "", street, False)
             # Google's best guess is kept only as far as it's the listed Venue (app/ingestion/venue_check.py).
             check = check_venue(name, city, street, found)
-            if check.status not in (CONFIRMED, NOT_CHECKED):
-                logger.warning("ingestion: new venue %s (%s) not confirmed on Google Places (%s): %s",
-                               name, city, check.status, check.reason)
-            venue_cache[key] = checked_details(found, check)
+            stored = _stored_at_place(db, name, city, found) if check.status == UNCONFIRMED else None
+            if stored:
+                # Steve has the city wrong ("924 Gilman Street, S.F."): Google's place is the stored Venue.
+                logger.info("ingestion: %s (%s) is the stored %s in %s", name, city, stored.name, stored.city)
+                venue_cache[key] = {"google_place_id": stored.google_place_id}
+            else:
+                if check.status not in (CONFIRMED, NOT_CHECKED):
+                    logger.warning("ingestion: new venue %s (%s) not confirmed on Google Places (%s): %s",
+                                   name, city, check.status, check.reason)
+                venue_cache[key] = checked_details(found, check)
         _apply_venue_data(data, venue_cache[key])
 
     # New names that are two Bands billed together ("Dying Fetus And Sanguisugabogg") become two Acts; real

@@ -5,10 +5,15 @@ pipeline.enrichment._enrich_venue returns.
 """
 from __future__ import annotations
 
+from datetime import date
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from app.ingestion.venue_check import (
     ADDRESS_ONLY, CONFIRMED, NOT_CHECKED, NOT_FOUND, UNCONFIRMED, check_venue, checked_details, same_name)
+from app.models.venue import Region, Venue
+from app.scheduler import ingest_shows
 
 _VENUE = ["establishment", "point_of_interest"]
 
@@ -116,3 +121,55 @@ def test_several_results_confirm_only_the_very_name():
 ])
 def test_same_name(listed, google, same):
     assert same_name(listed, google) is same
+
+
+# ── At ingest ────────────────────────────────────────────────────────────────
+# A listing whose city is wrong ("924 Gilman Street, S.F.") joins the stored Venue at the place Google found.
+
+def _listing(venue_name, city):
+    return {"date": date(2027, 1, 17), "bands": ["Field Of Flames"], "act_notes": [None],
+            "band_enrichment": [("Field Of Flames", {"genres": []})], "venue_name": venue_name, "city": city,
+            "address": None, "venue_website": None, "door_time": "7pm", "set_time": "7:30pm",
+            "price_raw": "$15/$20", "age_restriction": "a/a", "status": "upcoming", "source": "list",
+            "is_recommended": False, "will_sell_out": False, "is_pit": True, "is_drink_tickets": False,
+            "is_no_reentry": False, "is_sold_out": False, "is_matinee": False, "is_benefit": False, "notes": None,
+            "raw_text": "jan 17 sun Field Of Flames"}
+
+
+@pytest.fixture
+def services():
+    with patch("app.scheduler.split_joint_name", side_effect=lambda name: [name]), \
+         patch("app.scheduler.save_band_photos", return_value=0), \
+         patch("app.scheduler.commons_photo", return_value=None), \
+         patch("app.scheduler.discogs_artist", return_value=None), \
+         patch("app.scheduler.lastfm_tags", return_value=[]), \
+         patch("app.scheduler.batch_embed_and_index", new_callable=AsyncMock), \
+         patch("app.scheduler._enrich_band", return_value={"genres": [], "mb_genres": False, "mbid": None,
+                                                           "links": [], "namesakes": False}):
+        yield
+
+
+def _stored(db, name, city, region, place_id):
+    venue = Venue(name=name, city=city, region=region, google_place_id=place_id)
+    db.add(venue)
+    db.flush()
+    return venue
+
+
+async def test_a_listing_in_the_wrong_city_joins_the_venue_google_found(db, services):
+    gilman = _stored(db, "924 Gilman Street", "Berkeley", Region.east_bay, "ChIJ-924 Gilman St")
+    found = _found("924 Gilman St", "924 Gilman St, Berkeley, CA 94710, USA", "Berkeley")
+    with patch("app.scheduler._enrich_venue", return_value=found):
+        (show,) = await ingest_shows(db, [_listing("924 Gilman Street", "San Francisco")])
+    assert show.venue_id == gilman.id
+    assert db.query(Venue).count() == 1
+
+
+async def test_a_name_only_like_the_stored_venues_isnt_joined_to_it(db, services):
+    """"Hopmonk" in Petaluma can be another Venue than HopMonk Tavern (Novato), the place Google found."""
+    novato = _stored(db, "HopMonk Tavern (Novato)", "Novato", Region.north_bay, "ChIJ-HopMonk Tavern")
+    found = _found("HopMonk Tavern", "224 Vintage Way, Novato, CA 94945, USA", "Novato")
+    with patch("app.scheduler._enrich_venue", return_value=found):
+        (show,) = await ingest_shows(db, [_listing("Hopmonk", "Petaluma")])
+    assert show.venue_id != novato.id
+    assert show.venue.google_place_id is None
