@@ -10,7 +10,7 @@ annotated-doc==0.0.7
     # via fastapi
 annotated-types==0.8.0
     # via pydantic
-anthropic==2.10.0
+anthropic==2.12.0
     # via
     #   -r requirements.in
     #   langchain-anthropic
@@ -79,11 +79,11 @@ jsonpatch==1.47
     # via langchain-core
 jsonpointer==3.12
     # via jsonpatch
-langchain==1.5.1
+langchain==1.5.2
     # via -r requirements.in
-langchain-anthropic==1.7.11
+langchain-anthropic==1.7.12
     # via -r requirements.in
-langchain-core==1.8.3
+langchain-core==1.8.4
     # via
     #   langchain
     #   langchain-anthropic
@@ -91,7 +91,7 @@ langchain-core==1.8.3
     #   langgraph-checkpoint
     #   langgraph-prebuilt
     #   langgraph-sdk
-langchain-protocol==0.0.21
+langchain-protocol==0.0.22
     # via
     #   langchain-core
     #   langgraph-sdk
@@ -137,7 +137,7 @@ packaging==26.3
     #   strawberry-graphql
 pillow==13.0.0
     # via -r requirements.in
-pydantic==2.14.3
+pydantic==2.14.4
     # via
     #   -r requirements.in
     #   anthropic
@@ -148,7 +148,7 @@ pydantic==2.14.3
     #   langgraph
     #   langsmith
     #   pydantic-settings
-pydantic-core==2.50.4
+pydantic-core==2.50.5
     # via pydantic
 pydantic-settings==2.16.3
     # via -r requirements.in
