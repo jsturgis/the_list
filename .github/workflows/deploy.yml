@@ -427,7 +427,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
   alerts:
     # Email this week's Alerts (python -m app.cli alerts, ADR 0003): after this run ingested a new edition (never for a
