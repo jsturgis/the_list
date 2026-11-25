@@ -41,11 +41,18 @@ def _similarity(a: str, b: str) -> float:
     return difflib.SequenceMatcher(None, a.casefold(), b.casefold()).ratio()
 
 
+def same_name(a: str, b: str) -> bool:
+    """Whether two names are one as written, but for case and spacing."""
+    return " ".join(a.casefold().split()) == " ".join(b.casefold().split())
+
+
 def close_names(name: str, candidates: list[Candidate]) -> list[Candidate]:
-    """The candidates that could be `name` misspelt: as many words, at least _SIMILARITY alike, and not the same name
-    (its slug, app/slugs.py)."""
+    """The candidates that could be `name` misspelt: as many words, at least _SIMILARITY alike, and not the same name.
+    A name that differs only in punctuation counts as close: "Time Spent /Driving" is Time Spent Driving, which
+    MusicBrainz's search (it wants the exact name) doesn't find either. Leaving it out because it has the same slug
+    left Time Spent Burning (90 listeners) as the only close name."""
     words = len(name.split())
-    return [c for c in candidates if len(c.name.split()) == words and slugify(c.name) != slugify(name)
+    return [c for c in candidates if len(c.name.split()) == words and not same_name(c.name, name)
             and _similarity(name, c.name) >= _SIMILARITY]
 
 

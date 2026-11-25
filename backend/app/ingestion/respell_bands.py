@@ -7,6 +7,10 @@ it (app/ingestion/dedupe_bands.py merge_band).
 
     python -m app.cli respell-bands [--name "Sunamo" ...] [--apply]
 
+A name a Band was listed under before it was put right (Band.spellings) is respelt from that spelling, so a Band
+put right wrongly ("Time Spent /Driving" made Time Spent Burning) is put right again; follow it with the backfill's
+`--redo` under the new name, to drop what the services gave the wrong artist.
+
 Without names, the Bands on Upcoming Shows with nothing from the services (no MusicBrainz links, no Discogs members).
 Dry run without --apply. The Backfill workflow runs it (its `respell` input) before looking Bands up.
 """
@@ -20,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.clock import local_today
 from app.ingestion.dedupe_bands import merge_band
-from app.ingestion.spelling import Respelling
+from app.ingestion.spelling import Respelling, same_name
 from app.ingestion.upsert import find_band
 from app.models.act import Act
 from app.models.band import Band
@@ -41,27 +45,28 @@ class Respelt:
         return f"{self.listed!r} -> {self.fixed!r} (band {self.band_id}{into})"
 
 
-def candidates(db: Session, names: list[str] | None = None) -> list[Band]:
-    """The stored Bands to check: these names', else those on Upcoming Shows with nothing from the services."""
+def candidates(db: Session, names: list[str] | None = None) -> list[tuple[Band, str]]:
+    """The stored Bands to check, each with the name to respell it from: these names' Bands (found by a spelling
+    too, app/ingestion/upsert.find_band) with the name given, else those on Upcoming Shows with nothing from the
+    services, with their own."""
     if names:
-        return [band for band in (find_band(db, name) for name in names) if band]
+        return [(band, name) for band, name in ((find_band(db, name), name) for name in names) if band]
     today = local_today()
     bands = (db.query(Band).join(Act).join(Show)
              .filter(Show.date >= today, Show.status == ShowStatus.upcoming).distinct().order_by(Band.id).all())
-    return [band for band in bands if not band.links and not band.members]
+    return [(band, band.name) for band in bands if not band.links and not band.members]
 
 
-def respell_stored(db: Session, bands: list[Band], matched: Callable[[str], bool],
+def respell_stored(db: Session, bands: list[tuple[Band, str]], matched: Callable[[str], bool],
                    respell: Callable[[str], Respelling | None], apply: bool = False) -> list[Respelt]:
-    """Rename (or merge) each of `bands` that no service has under its name (`matched` is False) and that `respell`
-    puts right. Commits only with `apply`."""
+    """Rename (or merge) each of `bands` whose listed name (see candidates) no service has (`matched` is False) and
+    that `respell` puts right. Commits only with `apply`."""
     done: list[Respelt] = []
-    for band in bands:
-        listed = band.name
+    for band, listed in bands:
         if matched(listed):
             continue
         fixed = respell(listed)
-        if fixed is None:
+        if fixed is None or same_name(fixed.name, band.name):
             continue
         stored = find_band(db, fixed.name)
         if stored is not None and stored.id != band.id:
