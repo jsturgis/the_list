@@ -303,7 +303,7 @@ def respell_bands(names: list[str] | None, apply: bool) -> None:
         bands = candidates(db, names)
         if names and len(bands) < len(names):
             sys.exit("respell-bands: no band named " + ", ".join(
-                repr(n) for n in names if n.casefold() not in {b.name.casefold() for b in bands}))
+                repr(n) for n in names if n not in {listed for _, listed in bands}))
         print(f"respell-bands: checking {len(bands)} bands")
         done = respell_stored(db, bands, matched, _respell, apply=apply)
     finally:

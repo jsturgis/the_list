@@ -2,7 +2,7 @@
 up as a Band; at ingest (app/scheduler.py) and for stored Bands (app/ingestion/respell_bands.py)."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -37,6 +37,22 @@ def test_without_a_clear_lead_nothing_is_put_right():
     assert likeliest("Sunamo", [Candidate("Sunami", 20000), Candidate("Senamo", 19469)]) is None
     assert likeliest("Sunamo", [Candidate("Sunami", 0)]) is None
     assert likeliest("Sunamo", []) is None
+
+
+# What Last.fm's search answers for "Time Spent /Driving" (2026-11-25), its first fifteen.
+_TIME_SPENT = [Candidate("Time Spent Driving", 29800), Candidate("Time Spent Driving, J Robbins", 11),
+               Candidate("Time Spent Driving - Topic", 5), Candidate("Time  Spent Driving", 3),
+               Candidate("Time Spent", 645), Candidate("Time Spent Alone", 528), Candidate("Time Well Spent", 206),
+               Candidate("Time Spent Burning", 90), Candidate("Time Spent Breathing", 79)]
+
+
+def test_a_name_that_differs_only_in_punctuation_is_close():
+    """Its slug is the listed name's; leaving it out made "Time Spent /Driving" Time Spent Burning."""
+    assert likeliest("Time Spent /Driving", _TIME_SPENT) == "Time Spent Driving"
+
+
+def test_the_listed_name_itself_isnt_a_close_name():
+    assert close_names("Sunamo", [Candidate("Sunamo", 9), Candidate("sunamo ", 9)]) == []
 
 
 def test_one_name_spelt_twice_isnt_its_own_rival():
@@ -167,8 +183,8 @@ def test_a_stored_misspelt_band_is_renamed_and_looked_up_again(db):
     done = respell_stored(db, bands, matched=lambda name: name == "No Pressure",
                           respell=_respelt({"Sunamo": "Sunami", "Middrift": "Midrift"}), apply=True)
 
-    assert [str(r) for r in done] == [f"'Sunamo' -> 'Sunami' (band {bands[0].id})",
-                                      f"'Middrift' -> 'Midrift' (band {bands[1].id})"]
+    assert [str(r) for r in done] == [f"'Sunamo' -> 'Sunami' (band {bands[0][0].id})",
+                                      f"'Middrift' -> 'Midrift' (band {bands[1][0].id})"]
     show = db.get(Show, show.id)
     assert [a.band.name for a in sorted(show.acts, key=lambda a: a.position)] == ["Sunami", "Midrift", "No Pressure"]
     sunami = find_band(db, "Sunami")
@@ -179,9 +195,9 @@ def test_a_stored_misspelt_band_is_merged_into_the_band_spelt_right(db):
     upsert_shows(db, [_listing(["Sunamo", "No Pressure"]),
                       {**_listing(["Sunami", "Seltzer"]), "venue_name": "The Ritz"}])
     sunami_id = find_band(db, "Sunami").id
-    (sunamo,) = candidates(db, ["Sunamo"])
+    ((sunamo, _),) = candidates(db, ["Sunamo"])
 
-    (done,) = respell_stored(db, [sunamo], matched=lambda name: False, respell=_respelt({"Sunamo": "Sunami"}),
+    (done,) = respell_stored(db, [(sunamo, "Sunamo")], matched=lambda name: False, respell=_respelt({"Sunamo": "Sunami"}),
                              apply=True)
 
     assert done.merged_into == sunami_id
@@ -200,9 +216,31 @@ def test_a_dry_run_changes_nothing(db):
     assert find_band(db, "Sunamo").name == "Sunamo"
 
 
+def test_a_band_put_right_wrongly_is_respelt_from_its_listed_spelling(db):
+    upsert_shows(db, [_listing(["Time Spent /Driving"])])
+    band = find_band(db, "Time Spent /Driving")
+    band.spellings, band.name = ["Time Spent /Driving"], "Time Spent Burning"
+    db.flush()
+
+    bands = candidates(db, ["Time Spent /Driving"])
+    assert bands == [(band, "Time Spent /Driving")]
+    (done,) = respell_stored(db, bands, matched=lambda name: name == "Time Spent Burning",
+                             respell=_respelt({"Time Spent /Driving": "Time Spent Driving"}), apply=True)
+
+    assert str(done) == f"'Time Spent /Driving' -> 'Time Spent Driving' (band {band.id})"
+    assert (band.name, band.spellings, band.enriched_at) == ("Time Spent Driving", ["Time Spent /Driving"], None)
+
+
+def test_a_band_already_spelt_right_isnt_marked_again(db):
+    db.add(Band(name="Sunami", spellings=["Sunamo"], enriched_at=datetime(2026, 11, 18)))
+    db.flush()
+    assert respell_stored(db, candidates(db, ["Sunamo"]), matched=lambda name: False,
+                          respell=_respelt({"Sunamo": "Sunami"})) == []
+
+
 def test_without_names_the_bands_on_upcoming_shows_with_nothing_from_the_services(db):
     upsert_shows(db, [_listing(["Sunamo", "No Pressure"]), {**_listing(["Old Band"]), "date": date(2020, 1, 1)}])
     find_band(db, "No Pressure").links = [{"type": "official homepage", "url": "https://nopressure.example"}]
     db.flush()
     with patch("app.ingestion.respell_bands.local_today", return_value=date(2026, 11, 18)):
-        assert [b.name for b in candidates(db)] == ["Sunamo"]
+        assert [(b.name, listed) for b, listed in candidates(db)] == [("Sunamo", "Sunamo")]
