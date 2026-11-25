@@ -19,6 +19,7 @@ import httpx
 
 from app.config import settings
 from app.ingestion.parser import RawShow, edition_date, parse_list
+from app.ingestion.show_corrections import corrected_date
 from app.ingestion.upsert import _CITY_REGION, _parse_time
 
 # Fewer listings than this isn't the List (it has hundreds): a page cut short, or one that has changed shape.
@@ -129,7 +130,8 @@ def _show(raw: RawShow) -> dict:
     notes = "; ".join(n for n in (raw.notes, rest) if n) or None
     door = _parse_time(raw.door_time)
     return {
-        "date": raw.date,
+        "date": corrected_date(raw.date, venue_name, city, raw.bands),
+        "listed_date": raw.date,   # the date as Steve lists it, where `date` is corrected (show_corrections)
         "bands": raw.bands,
         "act_notes": raw.act_notes,
         "band_enrichment": [(name, {"genres": []}) for name in raw.bands],
