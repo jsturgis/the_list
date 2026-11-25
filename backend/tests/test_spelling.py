@@ -243,4 +243,5 @@ def test_without_names_the_bands_on_upcoming_shows_with_nothing_from_the_service
     find_band(db, "No Pressure").links = [{"type": "official homepage", "url": "https://nopressure.example"}]
     db.flush()
     with patch("app.ingestion.respell_bands.local_today", return_value=date(2026, 11, 18)):
-        assert [(b.name, listed) for b, listed in candidates(db)] == [("Sunamo", "Sunamo")]
+        assert [(b.name, listed) for b, listed in candidates(db)] == [
+            ("Sunamo", "Sunamo")]

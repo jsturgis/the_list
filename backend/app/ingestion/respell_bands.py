@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.clock import local_today
 from app.ingestion.dedupe_bands import merge_band
-from app.ingestion.spelling import Respelling
+from app.ingestion.spelling import Respelling, same_name
 from app.ingestion.upsert import find_band
 from app.models.act import Act
 from app.models.band import Band
@@ -66,7 +66,7 @@ def respell_stored(db: Session, bands: list[tuple[Band, str]], matched: Callable
         if matched(listed):
             continue
         fixed = respell(listed)
-        if fixed is None or fixed.name == band.name:
+        if fixed is None or _same(fixed.name, band.name):
             continue
         stored = find_band(db, fixed.name)
         if stored is not None and stored.id != band.id:
