@@ -87,6 +87,7 @@ def test_edition_title():
 def test_a_listing_becomes_an_upsert_ready_show(shows):
     assert _find(shows, "Charger") == {
         "date": date(2026, 11, 13),
+        "listed_date": date(2026, 11, 13),
         "bands": ["Charger", "Ancient Rage", "Phantasmal Abyss", "Commoner"],
         "act_notes": ["record release", None, None, None],
         # The List only names a Band: its genres, links and photo come from the services.
@@ -205,3 +206,26 @@ def test_the_show_added_on_the_right_day_becomes_the_lists_and_the_wrong_days_go
     assert (show.date, show.source, show.ticket_url) == (date(2026, 11, 29), "list", ticket)
     assert [a.band.name for a in sorted(show.acts, key=lambda a: a.position)] == [
         "Time Spent /Driving", "The New Trust", "Midcourse Correction"]
+
+
+def test_a_listing_keeps_the_date_steve_lists(monkeypatch):
+    show = _show("nov 30 mon Time Spent /Driving at Kilowatt, S.F. 21+ $10 7pm", monkeypatch)
+    assert (show["date"], show["listed_date"]) == (date(2026, 11, 29), date(2026, 11, 30))
+
+
+def test_a_corrected_listing_on_the_pages_first_day_doesnt_unlist_the_day_before(db, monkeypatch):
+    """On Nov 30 the page starts there; the corrected Nov 29 mustn't make Nov 29's Shows look taken down."""
+    from app.ingestion import upsert
+    from app.ingestion.upsert import upsert_shows
+    from app.models.show import Show
+
+    monkeypatch.setattr(steve_list, "_MIN_SHOWS", 1)
+    monkeypatch.setattr(upsert, "_MAX_UNLISTED_SHARE", 1)
+    (yesterday,) = upsert_shows(db, [_show("nov 29 sun Midcourse Correction at the Independent, S.F. 21+ $10 7pm",
+                                           monkeypatch)])
+    shows_data = list_shows(_HEADER + "nov 30 mon Time Spent /Driving at Kilowatt, S.F. 21+ $10 7pm\n")
+    listed = upsert_shows(db, shows_data)
+    since = min(d.get("listed_date", d["date"]) for d in shows_data)
+    assert since == date(2026, 11, 30)
+    assert upsert.remove_unlisted_shows(db, listed, since) == []
+    assert db.get(Show, yesterday.id) is not None

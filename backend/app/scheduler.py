@@ -504,8 +504,10 @@ async def _run_ingestion_async(db: Optional[Session] = None) -> None:
         logger.info("ingestion: %d shows in %s", len(shows_data), run.edition_title)
 
         shows = await ingest_shows(db, shows_data, run, source_hash=the_list.sha256)
-        # The page lists every upcoming Show: the stored ones it no longer does are gone from the List.
-        removed = remove_unlisted_shows(db, shows, min(data["date"] for data in shows_data))
+        # The page lists every upcoming Show: the stored ones it no longer does are gone from the List. From the
+        # page's first date as Steve lists it: a listing moved to an earlier day (show_corrections) doesn't make the
+        # Shows of a day the page no longer has look unlisted.
+        removed = remove_unlisted_shows(db, shows, min(data.get("listed_date", data["date"]) for data in shows_data))
 
         await retry_pending_bands(db, created_before=run.started_at)
         outages = failures() - outages_before

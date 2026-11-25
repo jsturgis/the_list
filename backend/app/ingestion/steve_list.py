@@ -130,7 +130,8 @@ def _show(raw: RawShow) -> dict:
     notes = "; ".join(n for n in (raw.notes, rest) if n) or None
     door = _parse_time(raw.door_time)
     return {
-        "date": corrected_date(raw.date, venue_name, city, raw.bands[0] if raw.bands else None),
+        "date": corrected_date(raw.date, venue_name, city, raw.bands),
+        "listed_date": raw.date,   # the date as Steve lists it, where `date` is corrected (show_corrections)
         "bands": raw.bands,
         "act_notes": raw.act_notes,
         "band_enrichment": [(name, {"genres": []}) for name in raw.bands],
