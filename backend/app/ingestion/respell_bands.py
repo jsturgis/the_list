@@ -66,7 +66,7 @@ def respell_stored(db: Session, bands: list[tuple[Band, str]], matched: Callable
         if matched(listed):
             continue
         fixed = respell(listed)
-        if fixed is None or _same(fixed.name, band.name):
+        if fixed is None or same_name(fixed.name, band.name):
             continue
         stored = find_band(db, fixed.name)
         if stored is not None and stored.id != band.id:

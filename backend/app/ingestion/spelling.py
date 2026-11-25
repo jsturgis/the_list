@@ -41,7 +41,8 @@ def _similarity(a: str, b: str) -> float:
     return difflib.SequenceMatcher(None, a.casefold(), b.casefold()).ratio()
 
 
-def _same(a: str, b: str) -> bool:
+def same_name(a: str, b: str) -> bool:
+    """Whether two names are one as written, but for case and spacing."""
     return " ".join(a.casefold().split()) == " ".join(b.casefold().split())
 
 
@@ -51,7 +52,7 @@ def close_names(name: str, candidates: list[Candidate]) -> list[Candidate]:
     MusicBrainz's search (it wants the exact name) doesn't find either. Leaving it out because it has the same slug
     left Time Spent Burning (90 listeners) as the only close name."""
     words = len(name.split())
-    return [c for c in candidates if len(c.name.split()) == words and not _same(c.name, name)
+    return [c for c in candidates if len(c.name.split()) == words and not same_name(c.name, name)
             and _similarity(name, c.name) >= _SIMILARITY]
 
 
